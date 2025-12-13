@@ -26,7 +26,17 @@ const Dashboard = ({ totalSpent, categorySummary, onNavigate }) => {
       {/* Category Breakdown */}
       <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold">세세목별 집행 현황</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-lg font-bold">세세목별 집행 현황</h2>
+            <a
+              href="https://docs.google.com/spreadsheets/d/1METL5eBui0qkLiwJHFYsk5dUuhIU_JG_jG5FxO0SyrA/edit?gid=0#gid=0"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors flex items-center gap-1"
+            >
+              📊 시트열기
+            </a>
+          </div>
           <button
             type="button"
             onClick={() => onNavigate("")}

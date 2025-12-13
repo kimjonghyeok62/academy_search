@@ -10,7 +10,7 @@ const ByCategory = ({ categorySummary, expenses, onDelete, onEdit, filterCat, se
     <div className="space-y-6">
       <Card title="세세목별 집행 현황">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm whitespace-nowrap">
             <thead>
               <tr className="bg-gray-50 border-b">
                 <th className="py-2 px-3 text-left">세세목</th>
@@ -40,7 +40,7 @@ const ByCategory = ({ categorySummary, expenses, onDelete, onEdit, filterCat, se
         right={filterCat && <button onClick={() => setFilterCat("")} className="text-sm text-gray-500 underline">전체 보기</button>}
       >
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm whitespace-nowrap">
             <thead>
               <tr className="bg-gray-50 border-b text-gray-600">
                 <th className="py-2 px-3 text-left w-24">날짜</th>

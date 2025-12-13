@@ -8,10 +8,10 @@ const Reimbursements = ({ expenses, setExpenses, reimbursedSum, pendingSum }) =>
   const filtered = expenses.filter(e => filter === "all" ? true : filter === "pending" ? !e.reimbursed : !!e.reimbursed);
 
   function togglePaid(id, value) {
-    setExpenses(prev => prev.map(e => e.id === id ? { ...e, reimbursed: value, reimbursedAt: value ? (e.reimbursedAt || new Date().toISOString().slice(0,10)) : "" } : e));
+    setExpenses(prev => prev.map(e => e.id === id ? { ...e, reimbursed: value, reimbursedAt: value ? (e.reimbursedAt || new Date().toISOString().slice(0, 10)) : "" } : e));
   }
   function setPaidNow(id) {
-    setExpenses(prev => prev.map(e => e.id === id ? { ...e, reimbursed: true, reimbursedAt: new Date().toISOString().slice(0,10) } : e));
+    setExpenses(prev => prev.map(e => e.id === id ? { ...e, reimbursed: true, reimbursedAt: new Date().toISOString().slice(0, 10) } : e));
   }
   const total = expenses.reduce((s, e) => s + parseAmount(e.amount), 0);
 
@@ -27,13 +27,13 @@ const Reimbursements = ({ expenses, setExpenses, reimbursedSum, pendingSum }) =>
 
       <Card title="입금 확인 체크리스트" right={
         <div className="flex gap-2">
-          <button onClick={()=>setFilter("pending")} className={`px-4 py-2 rounded-xl border ${filter==='pending'? 'bg-black text-white border-black':'bg-white'}`}>미입금</button>
-          <button onClick={()=>setFilter("paid")} className={`px-4 py-2 rounded-xl border ${filter==='paid'? 'bg-black text-white border-black':'bg-white'}`}>입금완료</button>
-          <button onClick={()=>setFilter("all")} className={`px-4 py-2 rounded-xl border ${filter==='all'? 'bg-black text-white border-black':'bg-white'}`}>전체</button>
+          <button onClick={() => setFilter("pending")} className={`px-4 py-2 rounded-xl border ${filter === 'pending' ? 'bg-black text-white border-black' : 'bg-white'}`}>미입금</button>
+          <button onClick={() => setFilter("paid")} className={`px-4 py-2 rounded-xl border ${filter === 'paid' ? 'bg-black text-white border-black' : 'bg-white'}`}>입금완료</button>
+          <button onClick={() => setFilter("all")} className={`px-4 py-2 rounded-xl border ${filter === 'all' ? 'bg-black text-white border-black' : 'bg-white'}`}>전체</button>
         </div>
       }>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm whitespace-nowrap">
             <thead>
               <tr className="text-left border-b">
                 <th className="py-2">입금</th>
@@ -56,7 +56,7 @@ const Reimbursements = ({ expenses, setExpenses, reimbursedSum, pendingSum }) =>
                   <td className="py-2">{e.description}</td>
                   <td className="py-2">{e.purchaser}</td>
                   <td className="py-2">{e.category}</td>
-                  <td className="py-2 text-right"><button onClick={() => setPaidNow(e.id)} className="px-3 py-2 rounded-lg border flex items-center gap-1 min-h-[40px]"><Save size={14}/> 오늘 입금 처리</button></td>
+                  <td className="py-2 text-right"><button onClick={() => setPaidNow(e.id)} className="px-3 py-2 rounded-lg border flex items-center gap-1 min-h-[40px]"><Save size={14} /> 오늘 입금 처리</button></td>
                 </tr>
               ))}
             </tbody>

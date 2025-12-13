@@ -11,7 +11,19 @@ const ReceiptsGallery = ({ expenses, onDelete }) => {
 
   return (
     <div className="space-y-6">
-      <Card title={`영수증 갤러리 (${receiptCount}건 / 전체 지출 ${totalCount}건)`}>
+      <Card title={
+        <div className="flex items-center gap-2">
+          <span>{`영수증 갤러리 (${receiptCount}건 / 전체 지출 ${totalCount}건)`}</span>
+          <a
+            href="https://drive.google.com/drive/folders/1q8JWztUpkulaJQWGBXYhaOQ9sWMNh9b7"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors flex items-center gap-1 font-normal"
+          >
+            📂 드라이브 열기
+          </a>
+        </div>
+      }>
         <div className="mb-4 text-sm text-gray-600 bg-gray-50 p-3 rounded-lg flex items-center justify-between">
           <span>전체 지출: <strong>{totalCount}</strong>건</span>
           <span>영수증 있음: <strong>{receiptCount}</strong>건</span>
@@ -51,14 +63,7 @@ const ReceiptsGallery = ({ expenses, onDelete }) => {
         )}
       </Card>
 
-      <Card title="CSV 포맷 안내">
-        <p className="text-sm text-gray-700 mb-2">다음 열 이름으로 CSV를 만들면 바로 불러올 수 있습니다.</p>
-        <pre className="bg-gray-50 p-3 rounded-xl text-xs overflow-x-auto border">date,category,description,amount,purchaser,receiptUrl,reimbursed,reimbursedAt
-          2025-01-05,교육비,주일 교재 구입,32000,김집사,https://예시/receipt1.jpg,false,
-          2025-02-12,행사비,부활절 준비물,45000,박권사,,true,2025-02-28
-          2025-03-01,운영행정비,문구류 구입,12000,홍집사,,false,
-        </pre>
-      </Card>
+
     </div>
   );
 }

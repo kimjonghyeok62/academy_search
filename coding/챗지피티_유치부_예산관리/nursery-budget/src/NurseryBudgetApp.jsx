@@ -155,7 +155,8 @@ export default function NurseryBudgetApp() {
             try {
               const conv = await urlToDataUrl(e.receiptUrl);
               const safeDesc = e.description ? e.description.replace(/[^\w가-힣_.-]/g, "_") : "receipt";
-              const filename = `${e.date}_${e.category}_${safeDesc}_${e.amount}원.png`;
+              const formattedAmount = parseAmount(e.amount).toLocaleString('ko-KR');
+              const filename = `${e.date}_${e.category}_${safeDesc}_${formattedAmount}원.png`;
 
               const up = await gsFetch(gsCfg, "uploadReceipt", {
                 filename,
@@ -195,8 +196,12 @@ export default function NurseryBudgetApp() {
 
   // 자동 불러오기 (최초 1회)
   useEffect(() => {
+    // URL이 있으면 즉시 로드 시도
     if (gsOn && gsCfg.url) {
       gsLoad(true);
+    } else {
+      // URL 없으면 로컬 데이터만 사용하므로 로드 완료 처리
+      setIsLoaded(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -327,8 +332,9 @@ export default function NurseryBudgetApp() {
           // COMPRESSION: Mobile uploads fail if too large. Resize & Convert to JPEG.
           const compressed = await compressImage(file);
           const safeDesc = form.description ? form.description.replace(/[^\w가-힣_.-]/g, "_") : "receipt";
+          const formattedAmount = parseAmount(form.amount).toLocaleString('ko-KR');
           // Force .jpg extension since we converted it
-          const filename = `${form.date}_${form.category}_${safeDesc}_${form.amount}원.jpg`;
+          const filename = `${form.date}_${form.category}_${safeDesc}_${formattedAmount}원.jpg`;
 
           const res = await gsFetch(gsCfg, "uploadReceipt", {
             filename,
@@ -421,16 +427,22 @@ export default function NurseryBudgetApp() {
         }));
         gsSyncRef.current = true;
         setExpenses(safeExpenses);
+        setIsLoaded(true); // 성공한 경우에만 로드 완료 처리 (데이터 보호)
         if (!silent) alert(`총 ${safeExpenses.length}건의 데이터를 성공적으로 불러왔습니다.`);
       } else {
         if (!silent) alert("데이터를 찾을 수 없거나 형식이 올바르지 않습니다.");
+        // 실패 시 isLoaded를 true로 설정하지 않음 -> 자동 저장 차단
       }
     } catch (e) {
       if (!silent) alert("시트에서 불러오기 실패: " + e.message + "\nURL과 토큰을 다시 확인해주세요.");
-      else console.warn("Auto-load failed", e);
+      else {
+        console.warn("Auto-load failed", e);
+        // Silent failure (initial load) also warns to ensure user knows sync is off
+        alert("⚠️ 서버 데이터 불러오기 실패!\n\n데이터 보호를 위해 '자동 저장'이 일시 중지되었습니다.\n\n인터넷 연결을 확인하고 [설정 > 수동 불러오기]를 시도하여 데이터를 먼저 동기화해주세요.");
+      }
     } finally {
       setIsSyncing(false);
-      setIsLoaded(true); // 성공하든 실패하든 로드 시도 완료로 처리 (이후 저장 허용)
+      // setIsLoaded(true) removed from finally to prevent unsafe auto-saves
     }
   }
 
@@ -483,6 +495,66 @@ export default function NurseryBudgetApp() {
     }
   }
 
+
+  const expenseInputSection = (
+    <section className="mb-8 bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
+      <h2 className="text-lg font-semibold mb-4">지출 입력</h2>
+      <form onSubmit={addExpense} className="flex flex-col gap-4">
+        {/* Top Row: Core Info - Strictly Horizontal */}
+        <div className="flex flex-nowrap gap-2 items-end overflow-x-auto pb-1">
+          <div className="w-36 shrink-0">
+            <label className="text-xs font-medium text-gray-500 mb-1 block">날짜</label>
+            <input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="w-full rounded-xl border-gray-300 border px-3 py-2.5 bg-gray-50 focus:bg-white transition-colors text-sm" />
+          </div>
+          <div className="w-28 shrink-0">
+            <label className="text-xs font-medium text-gray-500 mb-1 block">세세목</label>
+            <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="w-full rounded-xl border-gray-300 border px-3 py-2.5 bg-gray-50 focus:bg-white transition-colors text-sm">
+              {CATEGORY_ORDER.map((k) => (
+                <option key={k} value={k}>{k}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex-1 min-w-[180px]">
+            <label className="text-xs font-medium text-gray-500 mb-1 block">적요 / 설명</label>
+            <input type="text" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="내용을 입력하세요" className="w-full rounded-xl border-gray-300 border px-3 py-2.5 bg-gray-50 focus:bg-white transition-colors text-sm" />
+          </div>
+          <div className="w-32 shrink-0">
+            <label className="text-xs font-medium text-gray-500 mb-1 block">금액(원)</label>
+            <input type="text" inputMode="numeric" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="0" className="w-full rounded-xl border-gray-300 border px-3 py-2.5 bg-gray-50 focus:bg-white transition-colors font-medium text-right text-sm" />
+          </div>
+          <div className="w-24 shrink-0">
+            <label className="text-xs font-medium text-gray-500 mb-1 block">구매자</label>
+            <input type="text" value={form.purchaser} onChange={(e) => setForm({ ...form, purchaser: e.target.value })} placeholder="이름" className="w-full rounded-xl border-gray-300 border px-3 py-2.5 bg-gray-50 focus:bg-white transition-colors text-sm" />
+          </div>
+        </div>
+
+        {/* Bottom Row: Receipt & Buttons */}
+        <div className="flex flex-wrap md:flex-nowrap gap-3 items-center">
+          <div className="flex-1 flex items-center gap-2">
+            <label className={`shrink-0 px-3 py-2.5 rounded-xl border border-gray-200 text-sm cursor-pointer flex items-center gap-2 transition-colors ${isUploading ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-gray-50 hover:bg-gray-100 text-gray-600'}`}>
+              {isUploading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
+              <span>{isUploading ? "업로드 중..." : "영수증 선택 (갤러리/촬영)"}</span>
+              <input type="file" accept="image/*" onChange={onImageUpload} className="hidden" disabled={isUploading} />
+            </label>
+            <input type="url" value={form.receiptUrl} onChange={(e) => setForm({ ...form, receiptUrl: e.target.value })} placeholder="또는 이미지 URL 입력" className="flex-1 rounded-xl border-gray-300 border px-3 py-2.5 bg-gray-50 focus:bg-white transition-colors text-sm" />
+          </div>
+
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button type="button" className="px-4 py-2.5 rounded-xl bg-white border border-gray-300 text-gray-600 hover:bg-gray-50 flex items-center gap-2 transition-colors" onClick={() => {
+              setForm({ date: "", category: CATEGORY_ORDER[0], description: "", amount: "", purchaser: "", receiptUrl: "" });
+              setEditingId(null);
+            }}>
+              <RefreshCcw size={16} /> {editingId ? "취소" : "초기화"}
+            </button>
+            <button type="submit" disabled={isUploading} className={`px-6 py-2.5 rounded-xl text-white flex items-center gap-2 shadow-sm transition-colors font-semibold ${isUploading ? "bg-gray-400 cursor-not-allowed" : (editingId ? "bg-green-600 hover:bg-green-700 shadow-green-200" : "bg-blue-600 hover:bg-blue-700 shadow-blue-200")}`}>
+              {editingId ? <Save size={18} /> : <Plus size={18} />} {editingId ? "수정 저장" : "추가하기"}
+            </button>
+          </div>
+        </div>
+      </form>
+    </section>
+  );
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900">
@@ -578,71 +650,13 @@ export default function NurseryBudgetApp() {
           <TabButton active={tab === "tests"} onClick={() => setTab("tests")} icon={Bug}>자가 테스트</TabButton>
         </div>
 
-        {tab === "bycat" && (
-          <section className="mb-8 bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
-            <h2 className="text-lg font-semibold mb-4">지출 입력</h2>
-            <form onSubmit={addExpense} className="flex flex-col gap-4">
-              {/* Top Row: Core Info - Strictly Horizontal */}
-              <div className="flex flex-nowrap gap-2 items-end overflow-x-auto pb-1">
-                <div className="w-36 shrink-0">
-                  <label className="text-xs font-medium text-gray-500 mb-1 block">날짜</label>
-                  <input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="w-full rounded-xl border-gray-300 border px-3 py-2.5 bg-gray-50 focus:bg-white transition-colors text-sm" />
-                </div>
-                <div className="w-28 shrink-0">
-                  <label className="text-xs font-medium text-gray-500 mb-1 block">세세목</label>
-                  <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="w-full rounded-xl border-gray-300 border px-3 py-2.5 bg-gray-50 focus:bg-white transition-colors text-sm">
-                    {CATEGORY_ORDER.map((k) => (
-                      <option key={k} value={k}>{k}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex-1 min-w-[180px]">
-                  <label className="text-xs font-medium text-gray-500 mb-1 block">적요 / 설명</label>
-                  <input type="text" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="내용을 입력하세요" className="w-full rounded-xl border-gray-300 border px-3 py-2.5 bg-gray-50 focus:bg-white transition-colors text-sm" />
-                </div>
-                <div className="w-32 shrink-0">
-                  <label className="text-xs font-medium text-gray-500 mb-1 block">금액(원)</label>
-                  <input type="text" inputMode="numeric" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="0" className="w-full rounded-xl border-gray-300 border px-3 py-2.5 bg-gray-50 focus:bg-white transition-colors font-medium text-right text-sm" />
-                </div>
-                <div className="w-24 shrink-0">
-                  <label className="text-xs font-medium text-gray-500 mb-1 block">구매자</label>
-                  <input type="text" value={form.purchaser} onChange={(e) => setForm({ ...form, purchaser: e.target.value })} placeholder="이름" className="w-full rounded-xl border-gray-300 border px-3 py-2.5 bg-gray-50 focus:bg-white transition-colors text-sm" />
-                </div>
-              </div>
-
-              {/* Bottom Row: Receipt & Buttons */}
-              <div className="flex flex-wrap md:flex-nowrap gap-3 items-center">
-                <div className="flex-1 flex items-center gap-2">
-                  <label className={`shrink-0 px-3 py-2.5 rounded-xl border border-gray-200 text-sm cursor-pointer flex items-center gap-2 transition-colors ${isUploading ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-gray-50 hover:bg-gray-100 text-gray-600'}`}>
-                    {isUploading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
-                    <span>{isUploading ? "업로드 중..." : "영수증 선택 (갤러리/촬영)"}</span>
-                    <input type="file" accept="image/*" onChange={onImageUpload} className="hidden" disabled={isUploading} />
-                  </label>
-                  <input type="url" value={form.receiptUrl} onChange={(e) => setForm({ ...form, receiptUrl: e.target.value })} placeholder="또는 이미지 URL 입력" className="flex-1 rounded-xl border-gray-300 border px-3 py-2.5 bg-gray-50 focus:bg-white transition-colors text-sm" />
-                </div>
-                {/* Tip for mobile usage */}
-                <p className="w-full text-xs text-gray-400 mt-1 md:mt-0">
-                  ※ Tip: 앱 내 촬영은 폰에 저장되지 않습니다. 갤러리에 남기려면 <strong>'기본 카메라'로 먼저 촬영</strong> 후 불러오세요.
-                </p>
-
-                <div className="flex items-center gap-2 shrink-0">
-                  <button type="button" className="px-4 py-2.5 rounded-xl bg-white border border-gray-300 text-gray-600 hover:bg-gray-50 flex items-center gap-2 transition-colors" onClick={() => {
-                    setForm({ date: "", category: CATEGORY_ORDER[0], description: "", amount: "", purchaser: "", receiptUrl: "" });
-                    setEditingId(null);
-                  }}>
-                    <RefreshCcw size={16} /> {editingId ? "취소" : "초기화"}
-                  </button>
-                  <button type="submit" disabled={isUploading} className={`px-6 py-2.5 rounded-xl text-white flex items-center gap-2 shadow-sm transition-colors font-semibold ${isUploading ? "bg-gray-400 cursor-not-allowed" : (editingId ? "bg-green-600 hover:bg-green-700 shadow-green-200" : "bg-blue-600 hover:bg-blue-700 shadow-blue-200")}`}>
-                    {editingId ? <Save size={18} /> : <Plus size={18} />} {editingId ? "수정 저장" : "추가하기"}
-                  </button>
-                </div>
-              </div>
-            </form>
-          </section>
-        )}
+        {tab === "bycat" && expenseInputSection}
 
         {tab === "dashboard" && (
-          <Dashboard totalSpent={totalSpent} categorySummary={categorySummary} onNavigate={handleNavigate} />
+          <div className="space-y-8">
+            {expenseInputSection}
+            <Dashboard totalSpent={totalSpent} categorySummary={categorySummary} onNavigate={handleNavigate} />
+          </div>
         )}
         {tab === "bycat" && (
           <ByCategory categorySummary={categorySummary} expenses={expenses} onDelete={deleteExpense} onEdit={startEdit} filterCat={filterCat} setFilterCat={setFilterCat} />
