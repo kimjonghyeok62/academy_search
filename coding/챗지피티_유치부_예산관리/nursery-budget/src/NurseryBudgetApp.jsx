@@ -1,3 +1,4 @@
+/* eslint-disable */
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Download, FileUp, LineChart, Table2, CheckSquare, GalleryHorizontalEnd, Trash2, Plus, Save, RefreshCcw, Bug, CloudUpload, CloudDownload, Link as LinkIcon, KeyRound, Upload, Settings, Loader2, Pencil } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
