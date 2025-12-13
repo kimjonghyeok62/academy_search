@@ -494,7 +494,7 @@ export default function NurseryBudgetApp() {
       <header className="sticky top-0 z-20 bg-white/80 backdrop-blur border-b border-gray-200">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">유치부 예산관리 대시보드</h1>
+            <h1 className="text-2xl font-bold">유치부 예산관리 대시보드 (2026 v2)</h1>
             <div className="text-sm text-gray-600 mt-1">
               <span className="block sm:inline">{BUDGET.year} 회계 | 총 예산 {formatKRW(BUDGET.total)}</span>
               <span className="hidden sm:inline"> | </span>
