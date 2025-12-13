@@ -64,13 +64,7 @@ export default function NurseryBudgetApp() {
     };
   }, []);
 
-  // Firebase Cloud state
-  const [cloudOn, setCloudOn] = useState(false);
-  const [cloudBusy, setCloudBusy] = useState(false);
-  const [cloudInfo, setCloudInfo] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(CLOUD_META) || "null") || { projectId: "", apiKey: "", appId: "", authDomain: "", userId: "" }; } catch { return { projectId: "", apiKey: "", appId: "", authDomain: "", userId: "" }; }
-  });
-  const cloudRef = useRef({ unsub: null, updating: false });
+  // Firebase state removed
 
   // Google Apps Script config
   const [gsCfg, setGsCfg] = useGScriptConfig();
@@ -110,31 +104,8 @@ export default function NurseryBudgetApp() {
   // PWA 설정 (1회)
   useEffect(() => { setupPWA(); }, []);
 
-  // Firebase: 로컬 변경 → 업로드 (옵션)
-  useEffect(() => {
-    if (!cloudOn || !cloudInfo.userId) return;
-    if (cloudRef.current.updating) return;
-    (async () => {
-      try {
-        setCloudBusy(true);
-        const firebase = await loadFirebaseCompat();
-        // eslint-disable-next-line no-unused-vars
-        const app = firebase.apps?.length ? firebase.app() : firebase.initializeApp({
-          apiKey: cloudInfo.apiKey,
-          authDomain: cloudInfo.authDomain,
-          projectId: cloudInfo.projectId,
-          appId: cloudInfo.appId,
-        });
-        const fs = firebase.firestore();
-        const docRef = fs.collection("nursery-budget").doc(LOCAL_KEY);
-        await docRef.set({ expenses }, { merge: true });
-      } catch (e) {
-        console.warn("Cloud push error", e);
-      } finally {
-        setCloudBusy(false);
-      }
-    })();
-  }, [expenses, cloudOn, cloudInfo]);
+  // Firebase code removed for cleanup
+
 
   // Google Apps Script: 로컬 변경 → 자동 저장 (이미지 업로드 포함)
   useEffect(() => {
@@ -365,51 +336,7 @@ export default function NurseryBudgetApp() {
     }
   }
 
-  async function connectCloud() {
-    try {
-      setCloudBusy(true);
-      const firebase = await loadFirebaseCompat();
-      // eslint-disable-next-line no-unused-vars
-      const app = firebase.apps?.length ? firebase.app() : firebase.initializeApp({
-        apiKey: cloudInfo.apiKey,
-        authDomain: cloudInfo.authDomain,
-        projectId: cloudInfo.projectId,
-        appId: cloudInfo.appId,
-      });
-      const auth = firebase.auth();
-      const { user } = await auth.signInAnonymously();
-      const userId = user?.uid || "";
-      const fs = firebase.firestore();
-      const docRef = fs.collection("nursery-budget").doc(LOCAL_KEY);
-
-      if (cloudRef.current.unsub) { cloudRef.current.unsub(); cloudRef.current.unsub = null; }
-      cloudRef.current.unsub = docRef.onSnapshot((snap) => {
-        const data = snap.data();
-        if (data && Array.isArray(data.expenses)) {
-          cloudRef.current.updating = true;
-          setExpenses(data.expenses);
-          setTimeout(() => (cloudRef.current.updating = false), 200);
-        }
-      });
-
-      setCloudInfo((prev) => ({ ...prev, userId }));
-      localStorage.setItem(CLOUD_META, JSON.stringify({ ...cloudInfo, userId }));
-      setCloudOn(true);
-      alert("클라우드 동기화에 연결되었습니다.");
-    } catch (e) {
-      console.warn(e);
-      alert("클라우드 연결 실패: Firebase 설정을 확인해 주세요.");
-    } finally {
-      setCloudBusy(false);
-    }
-  }
-
-  function disconnectCloud() {
-    try {
-      if (cloudRef.current.unsub) { cloudRef.current.unsub(); cloudRef.current.unsub = null; }
-      setCloudOn(false);
-    } catch { }
-  }
+  // Firebase connection functions removed
 
   async function gsLoad(silent = false) {
     try {
