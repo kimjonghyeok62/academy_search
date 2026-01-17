@@ -52,6 +52,13 @@ function Login({ onLogin }) {
         }
     };
 
+    // Auto-submit when password length matches
+    useEffect(() => {
+        if (password.length === passwordLength && passwordLength > 0 && !loading) {
+            handleSubmit();
+        }
+    }, [password, passwordLength]);
+
     // Generate placeholder based on password length
     const placeholder = '•'.repeat(passwordLength || 4);
     const instructionText = passwordLength > 0
