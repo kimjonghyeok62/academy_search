@@ -67,6 +67,24 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
         setActiveTab('status');
     }, [academy.id]);
 
+    // 탭 변경 시 해당 탭이 화면에 보이도록 스크롤
+    useEffect(() => {
+        if (tabsRef.current) {
+            const activeTabIndex = TABS.findIndex(tab => tab.id === activeTab);
+            const tabButtons = tabsRef.current.querySelectorAll('.tab-btn');
+            const activeButton = tabButtons[activeTabIndex];
+
+            if (activeButton) {
+                // 탭 버튼을 화면 중앙에 위치시키기
+                activeButton.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'nearest',
+                    inline: 'center'
+                });
+            }
+        }
+    }, [activeTab]);
+
     // Toggle individual course
     const toggleCourse = (index) => {
         setExpandedCourses(prev =>

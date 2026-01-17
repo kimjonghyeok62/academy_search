@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import DetailView from './components/DetailView';
 import Login from './components/Login';
-import { fetchGoogleSheetData, transformAcademyData, DATA_GID } from './utils/googleSheets';
+import { fetchGoogleSheetData, transformAcademyData, fetchSheetName, DATA_GID } from './utils/googleSheets';
 import './App.css';
 
 function App() {
@@ -15,6 +15,7 @@ function App() {
   const [hasSearched, setHasSearched] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [dataAsOf, setDataAsOf] = useState(''); // 데이터 기준일
 
   // Check auth on mount
   useEffect(() => {
@@ -34,9 +35,13 @@ function App() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const rawData = await fetchGoogleSheetData(DATA_GID);
+      const [rawData, sheetName] = await Promise.all([
+        fetchGoogleSheetData(DATA_GID),
+        fetchSheetName()
+      ]);
       const transformed = transformAcademyData(rawData);
       setAcademies(transformed);
+      setDataAsOf(sheetName); // 항상 값이 있음 (폴백 포함)
     } catch (err) {
       console.error(err);
       setError('데이터를 불러오는데 실패했습니다.');
@@ -276,6 +281,30 @@ function App() {
           </button>
         </div>
         <h1 className="title primary-gradient-text">학원 찾기</h1>
+        {dataAsOf && (
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '6px 14px',
+            backgroundColor: 'var(--bg-card)',
+            border: '1px solid var(--border-color)',
+            borderRadius: '12px',
+            fontSize: '0.8rem',
+            fontWeight: '600',
+            color: 'var(--text-muted)',
+            marginBottom: '12px',
+            boxShadow: 'var(--shadow-sm)'
+          }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+              <line x1="16" y1="2" x2="16" y2="6"></line>
+              <line x1="8" y1="2" x2="8" y2="6"></line>
+              <line x1="3" y1="10" x2="21" y2="10"></line>
+            </svg>
+            <span>{dataAsOf}</span>
+          </div>
+        )}
         <p className="subtitle">검색할 학원명, 등록번호, 주소, 또는 설립자명을 입력하세요</p>
 
         <form className="search-bar" onSubmit={handleSearchSubmit}>

@@ -3,6 +3,11 @@ export const SHEET_ID = '158ZNBb88raJ1kzBL3eFcgPZS9CGs5in0YtPtiPWfdic';
 export const DATA_GID = '1863320151';
 export const PASSWORD_GID = '59615156';
 
+// ⚠️ 데이터 업데이트 시 아래 날짜를 변경하세요
+// 형식: "YYYY.  M.  DD. (요일) 기준" (예: "2026.  1.  16. (금) 기준")
+export const DATA_AS_OF = '2026.  1.  17. (토) 기준';
+
+
 export async function fetchGoogleSheetData(gid) {
     const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${gid}`;
 
@@ -18,6 +23,56 @@ export async function fetchGoogleSheetData(gid) {
         throw error;
     }
 }
+
+// 데이터 기준일 반환 - 구글 시트 제목에서 자동으로 가져옴
+export async function fetchSheetName() {
+    try {
+        // 방법 1: Google Sheets HTML 페이지에서 제목 추출
+        const htmlUrl = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit`;
+        const response = await fetch(htmlUrl, { mode: 'cors' });
+
+        if (response.ok) {
+            const html = await response.text();
+
+            // HTML에서 스프레드시트 제목 추출
+            // <title> 태그에서 추출: "하남 학원조회 자료 (2026.01.17.기준) - Google Sheets"
+            const titleMatch = html.match(/<title>([^<]+)<\/title>/i);
+            if (titleMatch && titleMatch[1]) {
+                const fullTitle = titleMatch[1].replace(' - Google Sheets', '').replace(' - Google 스프레드시트', '').trim();
+
+                // 괄호 안의 내용 추출
+                const dateMatch = fullTitle.match(/\(([^)]+)\)/);
+                if (dateMatch && dateMatch[1]) {
+                    // "2026.01.17.기준" 형식을 "2026. 1. 17. (요일) 기준"으로 변환
+                    const dateStr = dateMatch[1]; // "2026.01.17.기준"
+                    const dateNumMatch = dateStr.match(/(\d{4})\.(\d{1,2})\.(\d{1,2})/);
+
+                    if (dateNumMatch) {
+                        const year = dateNumMatch[1];
+                        const month = parseInt(dateNumMatch[2]);
+                        const day = parseInt(dateNumMatch[3]);
+
+                        // 요일 계산
+                        const date = new Date(year, month - 1, day);
+                        const dayOfWeek = ['일', '월', '화', '수', '목', '금', '토'][date.getDay()];
+
+                        // 형식화: "2026. 1. 17. (토) 기준"
+                        return `${year}.  ${month}.  ${day}. (${dayOfWeek}) 기준`;
+                    }
+
+                    // 파싱 실패 시 원본 반환
+                    return dateStr;
+                }
+            }
+        }
+    } catch (error) {
+        console.error("Error fetching sheet title:", error);
+    }
+
+    // 폴백: 상수 사용
+    return DATA_AS_OF;
+}
+
 
 function parseCSV(text) {
     // Simple CSV parser handling quotas (basic implementation)
