@@ -262,50 +262,64 @@ function App() {
       )}
 
       <header className={`header animate-enter ${hasSearched ? 'header-compact' : ''}`}>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '24px' }}>
+        <h1 className="title primary-gradient-text">학원 찾기</h1>
+
+        {/* 기준일과 로그아웃 버튼을 한 줄에 배치 */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          marginBottom: '12px',
+          position: 'relative'
+        }}>
+          {dataAsOf && (
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '6px 14px',
+              backgroundColor: 'var(--bg-card)',
+              border: '1px solid var(--border-color)',
+              borderRadius: '12px',
+              fontSize: '0.8rem',
+              fontWeight: '600',
+              color: 'var(--text-muted)',
+              boxShadow: 'var(--shadow-sm)'
+            }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                <line x1="16" y1="2" x2="16" y2="6"></line>
+                <line x1="8" y1="2" x2="8" y2="6"></line>
+                <line x1="3" y1="10" x2="21" y2="10"></line>
+              </svg>
+              <span>{dataAsOf}</span>
+            </div>
+          )}
+
           <button
             onClick={handleLogout}
-            className="clear-btn"
             style={{
-              backgroundColor: '#fee2e2',
-              color: '#dc2626',
-              width: 'auto',
-              height: 'auto',
-              padding: '6px 12px',
-              borderRadius: '8px',
-              fontSize: '0.8rem',
-              fontWeight: '600'
+              position: 'absolute',
+              right: '0',
+              background: 'none',
+              border: 'none',
+              color: 'var(--text-muted)',
+              fontSize: '0.85rem',
+              fontWeight: '500',
+              cursor: 'pointer',
+              textDecoration: 'underline',
+              textDecorationColor: 'var(--border-color)',
+              padding: '0',
+              transition: 'color 0.2s'
             }}
+            onMouseOver={(e) => e.target.style.color = 'var(--primary)'}
+            onMouseOut={(e) => e.target.style.color = 'var(--text-muted)'}
           >
             로그아웃
           </button>
         </div>
-        <h1 className="title primary-gradient-text">학원 찾기</h1>
-        {dataAsOf && (
-          <div style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '6px',
-            padding: '6px 14px',
-            backgroundColor: 'var(--bg-card)',
-            border: '1px solid var(--border-color)',
-            borderRadius: '12px',
-            fontSize: '0.8rem',
-            fontWeight: '600',
-            color: 'var(--text-muted)',
-            marginBottom: '12px',
-            boxShadow: 'var(--shadow-sm)'
-          }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-              <line x1="16" y1="2" x2="16" y2="6"></line>
-              <line x1="8" y1="2" x2="8" y2="6"></line>
-              <line x1="3" y1="10" x2="21" y2="10"></line>
-            </svg>
-            <span>{dataAsOf}</span>
-          </div>
-        )}
-        <p className="subtitle">검색할 학원명, 등록번호, 주소, 또는 설립자명을 입력하세요</p>
+
+        <p className="subtitle">검색할 학원명, 등록번호, 주소, 설립자명을 입력하세요</p>
 
         <form className="search-bar" onSubmit={handleSearchSubmit}>
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="search-icon">
@@ -314,7 +328,7 @@ function App() {
           </svg>
           <input
             type="text"
-            placeholder="학원명, 등록번호, 설립자..."
+            placeholder="학원명, 등록번호, 주소, 설립자명..."
             value={searchQuery}
             onChange={handleInputChange}
             onFocus={() => searchQuery && setShowSuggestions(true)}
