@@ -340,6 +340,16 @@ function App() {
               >
                 {academy.address}
               </p>
+              {academy.facilities?.floors && (
+                <p style={{
+                  fontSize: '0.8rem',
+                  color: 'var(--text-muted)',
+                  marginTop: '4px',
+                  marginBottom: '8px'
+                }}>
+                  (건물 전체층수: {academy.facilities.floors})
+                </p>
+              )}
               <div className="academy-meta">
                 <span style={{ color: 'var(--text-muted)' }}>설립자: <b style={{ color: 'var(--text-main)' }}>{academy.founder.name}</b></span>
                 <span style={{ color: 'var(--border-color)' }}>•</span>

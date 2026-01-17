@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import './DetailView.css';
 
 const TABS = [
@@ -47,8 +47,25 @@ function Section({ title, children }) {
 export default function DetailView({ academy, allAcademies = [], onBack, onSelectAcademy }) {
     const [activeTab, setActiveTab] = useState('status');
     const [showSensitiveInfo, setShowSensitiveInfo] = useState(false);
-    const [expandedCourses, setExpandedCourses] = useState([0]); // 첫 번째 항목만 펼침
+    const [expandedCourses, setExpandedCourses] = useState([]); // 모두 접힌 상태로 시작
     const [allCoursesExpanded, setAllCoursesExpanded] = useState(false);
+
+    // 터치 스와이프를 위한 ref와 state
+    const tabsRef = useRef(null);
+    const [touchStart, setTouchStart] = useState(null);
+    const [touchEnd, setTouchEnd] = useState(null);
+
+    // detail-content 스크롤 컨테이너를 위한 ref
+    const contentRef = useRef(null);
+
+    // academy가 변경될 때마다 스크롤을 최상단으로 이동
+    useEffect(() => {
+        if (contentRef.current) {
+            contentRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+        // 탭도 현황으로 초기화
+        setActiveTab('status');
+    }, [academy.id]);
 
     // Toggle individual course
     const toggleCourse = (index) => {
@@ -62,11 +79,39 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
     // Toggle all courses
     const toggleAllCourses = () => {
         if (allCoursesExpanded) {
-            setExpandedCourses([0]); // 모두 접고 첫 번째만 펼침
+            setExpandedCourses([]); // 모두 접기
             setAllCoursesExpanded(false);
         } else {
             setExpandedCourses(academy.courses.map((_, idx) => idx)); // 모두 펼침
             setAllCoursesExpanded(true);
+        }
+    };
+
+    // 터치 스와이프 핸들러
+    const minSwipeDistance = 50;
+
+    const onTouchStart = (e) => {
+        setTouchEnd(null);
+        setTouchStart(e.targetTouches[0].clientX);
+    };
+
+    const onTouchMove = (e) => {
+        setTouchEnd(e.targetTouches[0].clientX);
+    };
+
+    const onTouchEnd = () => {
+        if (!touchStart || !touchEnd) return;
+        const distance = touchStart - touchEnd;
+        const isLeftSwipe = distance > minSwipeDistance;
+        const isRightSwipe = distance < -minSwipeDistance;
+
+        if (isLeftSwipe || isRightSwipe) {
+            const currentIndex = TABS.findIndex(tab => tab.id === activeTab);
+            if (isLeftSwipe && currentIndex < TABS.length - 1) {
+                setActiveTab(TABS[currentIndex + 1].id);
+            } else if (isRightSwipe && currentIndex > 0) {
+                setActiveTab(TABS[currentIndex - 1].id);
+            }
         }
     };
 
@@ -151,7 +196,29 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
                                             {a.name}
                                         </div>
                                         <div style={{
-                                            fontSize: '0.85rem',
+                                            fontSize: '0.8rem',
+                                            color: 'var(--text-muted)',
+                                            lineHeight: '1.4',
+                                            marginBottom: '4px'
+                                        }}>
+                                            {getShortAddress(a.address)}
+                                        </div>
+                                        <div style={{
+                                            fontSize: '0.8rem',
+                                            color: 'var(--text-muted)',
+                                            marginBottom: '4px'
+                                        }}>
+                                            총 층수: {a.facilities?.floors || '-'},  건축연면적: {formatNumber(a.facilities?.buildingArea)}㎡
+                                        </div>
+                                        <div style={{
+                                            fontSize: '0.8rem',
+                                            color: 'var(--text-muted)',
+                                            marginBottom: '4px'
+                                        }}>
+                                            총면적: {formatNumber(a.facilities?.totalArea)}㎡,  전용면적: {formatNumber(a.facilities?.dedicatedArea)}㎡
+                                        </div>
+                                        <div style={{
+                                            fontSize: '0.8rem',
                                             color: 'var(--text-muted)',
                                             marginBottom: '2px'
                                         }}>
@@ -159,17 +226,9 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
                                         </div>
                                         <div style={{
                                             fontSize: '0.8rem',
-                                            color: 'var(--text-muted)',
-                                            marginBottom: '2px'
+                                            color: 'var(--text-muted)'
                                         }}>
                                             등록일: {a.regDate}
-                                        </div>
-                                        <div style={{
-                                            fontSize: '0.8rem',
-                                            color: 'var(--text-muted)',
-                                            lineHeight: '1.4'
-                                        }}>
-                                            {getShortAddress(a.address)}
                                         </div>
                                     </div>
                                 ))}
@@ -390,7 +449,13 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
                 <h2>{academy.name}</h2>
             </div>
 
-            <div className="tabs-container">
+            <div
+                className="tabs-container"
+                ref={tabsRef}
+                onTouchStart={onTouchStart}
+                onTouchMove={onTouchMove}
+                onTouchEnd={onTouchEnd}
+            >
                 {TABS.map(tab => (
                     <button
                         key={tab.id}
@@ -402,7 +467,13 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
                 ))}
             </div>
 
-            <div className="detail-content">
+            <div
+                ref={contentRef}
+                className="detail-content"
+                onTouchStart={onTouchStart}
+                onTouchMove={onTouchMove}
+                onTouchEnd={onTouchEnd}
+            >
                 {renderContent()}
             </div>
         </div>
