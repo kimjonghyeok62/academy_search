@@ -10,15 +10,24 @@ const TABS = [
     { id: 'inspection', label: '지도점검' },
 ];
 
-function InfoRow({ label, value, isClickable, onClick }) {
+// Format number with commas
+const formatNumber = (num) => {
+    if (!num) return num;
+    return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+};
+
+function InfoRow({ label, value, isClickable, onClick, isExpired }) {
     return (
         <div className="info-row">
             <span className="info-label">{label}</span>
             <span
                 className={`info-value ${isClickable ? 'clickable' : ''}`}
                 onClick={isClickable ? onClick : undefined}
-                style={isClickable ? { cursor: 'pointer', textDecoration: 'underline', textDecorationColor: 'var(--border-color)' } : {}}
-                title={isClickable ? '구글 맵에서 보기' : undefined}
+                style={{
+                    ...(isClickable ? { cursor: 'pointer', textDecoration: 'underline', textDecorationColor: 'var(--border-color)' } : {}),
+                    ...(isExpired ? { color: '#dc2626', fontWeight: '600' } : {})
+                }}
+                title={isClickable ? '네이버 지도에서 보기' : undefined}
             >
                 {value || '-'}
             </span>
@@ -35,8 +44,62 @@ function Section({ title, children }) {
     );
 }
 
-export default function DetailView({ academy, onBack }) {
+export default function DetailView({ academy, allAcademies = [], onBack, onSelectAcademy }) {
     const [activeTab, setActiveTab] = useState('status');
+    const [showSensitiveInfo, setShowSensitiveInfo] = useState(false);
+    const [expandedCourses, setExpandedCourses] = useState([0]); // 첫 번째 항목만 펼침
+    const [allCoursesExpanded, setAllCoursesExpanded] = useState(false);
+
+    // Toggle individual course
+    const toggleCourse = (index) => {
+        setExpandedCourses(prev =>
+            prev.includes(index)
+                ? prev.filter(i => i !== index)
+                : [...prev, index]
+        );
+    };
+
+    // Toggle all courses
+    const toggleAllCourses = () => {
+        if (allCoursesExpanded) {
+            setExpandedCourses([0]); // 모두 접고 첫 번째만 펼침
+            setAllCoursesExpanded(false);
+        } else {
+            setExpandedCourses(academy.courses.map((_, idx) => idx)); // 모두 펼침
+            setAllCoursesExpanded(true);
+        }
+    };
+
+
+    // Extract base address (up to street number)
+    const getBaseAddress = (address) => {
+        if (!address) return '';
+        // Match pattern: "경기도 하남시 미사강변동로 85" (도로명 + 번지)
+        const match = address.match(/^(.+?[시군구]\s+.+?[로길]\s+\d+)/);
+        return match ? match[1].trim() : address.split('(')[0].trim();
+    };
+
+    // Remove city/province from address
+    const getShortAddress = (address) => {
+        if (!address) return '';
+        // Remove "경기도 하남시" part
+        const match = address.match(/^.+?[시군구]\s+(.+)$/);
+        return match ? match[1].trim() : address;
+    };
+
+    // Check if insurance is expired
+    const isInsuranceExpired = (endDate) => {
+        if (!endDate) return false;
+        const today = new Date();
+        const end = new Date(endDate);
+        return end < today;
+    };
+
+    // Find academies in the same building
+    const baseAddress = getBaseAddress(academy.address);
+    const sameBuildingAcademies = allAcademies.filter(a =>
+        a.id !== academy.id && getBaseAddress(a.address) === baseAddress
+    );
 
     const renderContent = () => {
         switch (activeTab) {
@@ -65,6 +128,53 @@ export default function DetailView({ academy, onBack }) {
                             <InfoRow label="수강료공개" value={academy.disclosure} />
                             <InfoRow label="건물소유" value={academy.ownership} />
                         </Section>
+                        {sameBuildingAcademies.length > 0 && (
+                            <Section title={`동일 건축물 학원목록 (${sameBuildingAcademies.length}개)`}>
+                                {sameBuildingAcademies.map((a, idx) => (
+                                    <div key={a.id} className="info-row" style={{
+                                        flexDirection: 'column',
+                                        alignItems: 'flex-start',
+                                        padding: '12px 0',
+                                        borderBottom: idx === sameBuildingAcademies.length - 1 ? 'none' : '1px dotted var(--border-color)',
+                                        cursor: 'pointer'
+                                    }}
+                                        onClick={() => onSelectAcademy && onSelectAcademy(a)}
+                                    >
+                                        <div style={{
+                                            fontWeight: '700',
+                                            color: 'var(--primary)',
+                                            marginBottom: '4px',
+                                            fontSize: '0.95rem',
+                                            textDecoration: 'underline',
+                                            textDecorationColor: 'var(--border-color)'
+                                        }}>
+                                            {a.name}
+                                        </div>
+                                        <div style={{
+                                            fontSize: '0.85rem',
+                                            color: 'var(--text-muted)',
+                                            marginBottom: '2px'
+                                        }}>
+                                            {a.category} · {a.field}
+                                        </div>
+                                        <div style={{
+                                            fontSize: '0.8rem',
+                                            color: 'var(--text-muted)',
+                                            marginBottom: '2px'
+                                        }}>
+                                            등록일: {a.regDate}
+                                        </div>
+                                        <div style={{
+                                            fontSize: '0.8rem',
+                                            color: 'var(--text-muted)',
+                                            lineHeight: '1.4'
+                                        }}>
+                                            {getShortAddress(a.address)}
+                                        </div>
+                                    </div>
+                                ))}
+                            </Section>
+                        )}
                     </div>
                 );
             case 'founder':
@@ -72,8 +182,29 @@ export default function DetailView({ academy, onBack }) {
                     <div className="tab-content animate-enter">
                         <Section title="설립자 정보">
                             <InfoRow label="성명" value={academy.founder.name} />
-                            <InfoRow label="생년월일" value={academy.founder.birth} />
-                            <InfoRow label="주소" value={academy.founder.address} />
+                            <div
+                                onClick={() => setShowSensitiveInfo(!showSensitiveInfo)}
+                                style={{
+                                    padding: '12px 0',
+                                    cursor: 'pointer',
+                                    color: 'var(--primary)',
+                                    fontSize: '0.9rem',
+                                    fontWeight: '600',
+                                    borderBottom: '1px dotted var(--border-color)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px'
+                                }}
+                            >
+                                <span>{showSensitiveInfo ? '▼' : '▶'}</span>
+                                <span>개인정보 {showSensitiveInfo ? '숨기기' : '보기'}</span>
+                            </div>
+                            {showSensitiveInfo && (
+                                <>
+                                    <InfoRow label="생년월일" value={academy.founder.birth} />
+                                    <InfoRow label="주소" value={academy.founder.address} />
+                                </>
+                            )}
                             <InfoRow label="전화번호" value={academy.founder.phone} />
                             <InfoRow label="핸드폰" value={academy.founder.mobile} />
                         </Section>
@@ -83,51 +214,152 @@ export default function DetailView({ academy, onBack }) {
                 return (
                     <div className="tab-content animate-enter">
                         <Section title="시설 현황">
-                            <InfoRow label="건물연면적" value={`${academy.facilities.buildingArea}㎡`} />
-                            <InfoRow label="총면적" value={`${academy.facilities.totalArea}㎡`} />
-                            <InfoRow label="전용면적" value={`${academy.facilities.dedicatedArea}㎡`} />
+                            <InfoRow label="건물연면적" value={`${formatNumber(academy.facilities.buildingArea)}㎡`} />
+                            <InfoRow label="총면적" value={`${formatNumber(academy.facilities.totalArea)}㎡`} />
+                            <InfoRow label="전용면적" value={`${formatNumber(academy.facilities.dedicatedArea)}㎡`} />
                             <InfoRow label="총 층수" value={academy.facilities.floors} />
                             <InfoRow label="준공일" value={academy.facilities.builtDate} />
-                            <InfoRow label="일시수용능력" value={`${academy.facilities.capacityTemporary}명`} />
-                            <InfoRow label="정원합계" value={`${academy.facilities.capacityTotal}명`} />
+                            <InfoRow label="일시수용능력" value={`${formatNumber(academy.facilities.capacityTemporary)}명`} />
+                            <InfoRow label="정원합계" value={`${formatNumber(academy.facilities.capacityTotal)}명`} />
                         </Section>
                     </div>
                 );
             case 'tuition':
                 return (
                     <div className="tab-content animate-enter">
-                        {academy.courses.map((course, idx) => (
-                            <div key={idx} className="card-item">
-                                <div className="card-header">
-                                    <span className="badge">{course.process}</span>
-                                    <h4>{course.subject}</h4>
+                        {/* 헤더: 총 개수 + 전체 펼침 버튼 */}
+                        <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            padding: '12px 16px',
+                            backgroundColor: 'var(--bg-light)',
+                            borderRadius: '12px',
+                            marginBottom: '16px'
+                        }}>
+                            <span style={{
+                                fontSize: '0.9rem',
+                                fontWeight: '600',
+                                color: 'var(--text-main)'
+                            }}>
+                                총 {academy.courses.length}개 교습과정
+                            </span>
+                            <button
+                                onClick={toggleAllCourses}
+                                style={{
+                                    padding: '6px 16px',
+                                    backgroundColor: 'var(--primary)',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '8px',
+                                    fontSize: '0.85rem',
+                                    fontWeight: '600',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s'
+                                }}
+                                onMouseOver={(e) => e.target.style.backgroundColor = 'var(--primary-hover)'}
+                                onMouseOut={(e) => e.target.style.backgroundColor = 'var(--primary)'}
+                            >
+                                {allCoursesExpanded ? '전체 접기' : '전체 펼침'}
+                            </button>
+                        </div>
+
+                        {/* 아코디언 리스트 */}
+                        {academy.courses.map((course, idx) => {
+                            const isExpanded = expandedCourses.includes(idx);
+                            return (
+                                <div
+                                    key={idx}
+                                    style={{
+                                        marginBottom: '8px',
+                                        border: '1px solid var(--border-color)',
+                                        borderRadius: '12px',
+                                        overflow: 'hidden',
+                                        backgroundColor: 'var(--bg-card)'
+                                    }}
+                                >
+                                    {/* 아코디언 헤더 */}
+                                    <div
+                                        onClick={() => toggleCourse(idx)}
+                                        style={{
+                                            padding: '16px',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '12px',
+                                            backgroundColor: isExpanded ? 'var(--bg-light)' : 'transparent',
+                                            transition: 'background-color 0.2s'
+                                        }}
+                                    >
+                                        <span style={{
+                                            fontSize: '1rem',
+                                            color: 'var(--primary)',
+                                            fontWeight: '700',
+                                            minWidth: '20px'
+                                        }}>
+                                            {isExpanded ? '▼' : '▶'}
+                                        </span>
+                                        <div style={{ flex: 1 }}>
+                                            <div style={{
+                                                fontSize: '0.95rem',
+                                                fontWeight: '700',
+                                                color: 'var(--text-main)',
+                                                marginBottom: '4px'
+                                            }}>
+                                                {idx + 1}. {course.process} - {course.subject}
+                                            </div>
+                                            {!isExpanded && (
+                                                <div style={{
+                                                    fontSize: '0.8rem',
+                                                    color: 'var(--text-muted)'
+                                                }}>
+                                                    {course.track} | 정원: {course.quota}명 | 총교습비: {course.totalFee}원
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* 아코디언 내용 */}
+                                    {isExpanded && (
+                                        <div style={{
+                                            padding: '0 16px 16px 48px',
+                                            borderTop: '1px solid var(--border-color)',
+                                            backgroundColor: 'var(--bg-card)'
+                                        }}>
+                                            <InfoRow label="교습계열" value={course.track} />
+                                            <InfoRow label="정원" value={`${course.quota}명`} />
+                                            <InfoRow label="교습기간" value={course.period} />
+                                            <InfoRow label="총교습비" value={`${course.totalFee}원`} />
+                                            <InfoRow label="시간당" value={`${course.feePerHour}원`} />
+                                        </div>
+                                    )}
                                 </div>
-                                <InfoRow label="교습계열" value={course.track} />
-                                <InfoRow label="정원" value={`${course.quota}명`} />
-                                <InfoRow label="교습기간" value={course.period} />
-                                <InfoRow label="총교습비" value={`${course.totalFee}원`} />
-                                <InfoRow label="시간당" value={`${course.feePerHour}원`} />
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 );
             case 'insurance':
                 return (
                     <div className="tab-content animate-enter">
-                        {academy.insurances.map((ins, idx) => (
-                            <div key={idx} className="card-item">
-                                <h4>{ins.company}</h4>
-                                <InfoRow label="계약업체" value={ins.contractor} />
-                                <InfoRow label="계약번호" value={ins.policyNumber} />
-                                <InfoRow label="강사수" value={`${ins.teachersCount}명`} />
-                                <InfoRow label="사고당배상" value={`${ins.compensationPerAccident}원`} />
-                                <InfoRow label="인당의료실비" value={`${ins.medicalPerPerson}원`} />
-                                <InfoRow label="인당배상" value={`${ins.compensationPerPerson}원`} />
-                                <div className="date-range">
-                                    {ins.startDate} ~ {ins.endDate}
+                        {academy.insurances.map((ins, idx) => {
+                            const expired = isInsuranceExpired(ins.endDate);
+                            return (
+                                <div key={idx} className="card-item">
+                                    <h4>{ins.company}</h4>
+                                    <InfoRow label="계약업체" value={ins.contractor} />
+                                    <InfoRow label="계약번호" value={ins.policyNumber} />
+                                    <InfoRow label="강사수" value={`${ins.teachersCount}명`} />
+                                    <InfoRow label="사고당배상" value={`${ins.compensationPerAccident}원`} />
+                                    <InfoRow label="인당의료실비" value={`${ins.medicalPerPerson}원`} />
+                                    <InfoRow label="인당배상" value={`${ins.compensationPerPerson}원`} />
+                                    <InfoRow
+                                        label="보험기간"
+                                        value={`${ins.startDate} ~ ${ins.endDate}`}
+                                        isExpired={expired}
+                                    />
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 );
             case 'inspection':

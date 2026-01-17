@@ -250,7 +250,9 @@ function App() {
       {selectedAcademy && (
         <DetailView
           academy={selectedAcademy}
+          allAcademies={academies}
           onBack={() => setSelectedAcademy(null)}
+          onSelectAcademy={(academy) => setSelectedAcademy(academy)}
         />
       )}
 
