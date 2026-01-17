@@ -1,10 +1,35 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { SHEET_ID, PASSWORD_GID } from '../utils/googleSheets';
 
 function Login({ onLogin }) {
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const [correctPassword, setCorrectPassword] = useState('');
+    const [passwordLength, setPasswordLength] = useState(0);
+
+    // Fetch password on mount
+    useEffect(() => {
+        const fetchPassword = async () => {
+            try {
+                const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${PASSWORD_GID}`;
+                const res = await fetch(url);
+                const text = await res.text();
+
+                // Extract A1 cell value (first cell of first row)
+                const firstLine = text.split('\n')[0];
+                const pwd = firstLine.split(',')[0].replace(/^"|"$/g, '').trim();
+
+                setCorrectPassword(pwd);
+                setPasswordLength(pwd.length);
+            } catch (err) {
+                console.error('Failed to fetch password:', err);
+                setError('비밀번호 정보를 불러오는데 실패했습니다.');
+            }
+        };
+
+        fetchPassword();
+    }, []);
 
     const handleSubmit = async (e) => {
         if (e) e.preventDefault();
@@ -14,15 +39,6 @@ function Login({ onLogin }) {
         setError('');
 
         try {
-            // Fetch password from Google Sheet A1 cell
-            const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${PASSWORD_GID}`;
-            const res = await fetch(url);
-            const text = await res.text();
-
-            // Extract A1 cell value (first cell of first row)
-            const firstLine = text.split('\n')[0];
-            const correctPassword = firstLine.split(',')[0].replace(/^"|"$/g, '').trim();
-
             if (password === correctPassword) {
                 onLogin();
             } else {
@@ -35,6 +51,12 @@ function Login({ onLogin }) {
             setLoading(false);
         }
     };
+
+    // Generate placeholder based on password length
+    const placeholder = '•'.repeat(passwordLength || 4);
+    const instructionText = passwordLength > 0
+        ? `비밀번호 ${passwordLength}자리를 입력하세요`
+        : '비밀번호를 입력하세요';
 
     return (
         <div style={{
@@ -74,9 +96,9 @@ function Login({ onLogin }) {
                         inputMode="numeric"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        placeholder="••••"
+                        placeholder={placeholder}
                         autoFocus
-                        disabled={loading}
+                        disabled={loading || passwordLength === 0}
                         style={{
                             width: '100%',
                             padding: '16px',
@@ -125,9 +147,10 @@ function Login({ onLogin }) {
                         fontWeight: '600',
                         cursor: 'pointer',
                         transition: 'all 0.2s',
-                        boxShadow: '0 4px 6px -1px rgba(79, 70, 229, 0.2)'
+                        boxShadow: '0 4px 6px -1px rgba(79, 70, 229, 0.2)',
+                        opacity: (loading || !password.trim() || passwordLength === 0) ? 0.5 : 1
                     }}
-                    disabled={loading || !password.trim()}
+                    disabled={loading || !password.trim() || passwordLength === 0}
                     onMouseOver={(e) => !loading && (e.target.style.backgroundColor = 'var(--primary-hover)')}
                     onMouseOut={(e) => e.target.style.backgroundColor = 'var(--primary)'}
                 >
@@ -135,7 +158,7 @@ function Login({ onLogin }) {
                 </button>
 
                 <p style={{ marginTop: '24px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                    비밀번호를 입력하고 확인 버튼을 누르세요
+                    {instructionText}
                 </p>
             </form>
         </div>
