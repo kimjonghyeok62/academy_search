@@ -291,7 +291,7 @@ function App() {
           marginBottom: '12px',
           position: 'relative'
         }}>
-          {/* 시트연결 버튼 (왼쪽) */}
+          {/* 시트 버튼 (왼쪽) */}
           <button
             onClick={() => window.open('https://docs.google.com/spreadsheets/d/158ZNBb88raJ1kzBL3eFcgPZS9CGs5in0YtPtiPWfdic/edit?gid=1863320151#gid=1863320151', '_blank')}
             style={{
@@ -299,33 +299,27 @@ function App() {
               left: '0',
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '6px',
-              padding: '6px 12px',
-              backgroundColor: 'var(--bg-card)',
-              border: '1px solid var(--border-color)',
-              borderRadius: '12px',
-              fontSize: '0.8rem',
-              fontWeight: '600',
-              color: 'var(--primary)',
+              gap: '4px',
+              background: 'none',
+              border: 'none',
+              padding: '0',
+              color: 'var(--text-muted)',
+              fontSize: '0.85rem',
+              fontWeight: '500',
               cursor: 'pointer',
-              boxShadow: 'var(--shadow-sm)',
-              transition: 'all 0.2s'
+              textDecoration: 'underline',
+              textDecorationColor: 'var(--border-color)',
+              transition: 'color 0.2s'
             }}
-            onMouseOver={(e) => {
-              e.currentTarget.style.backgroundColor = 'var(--primary-glow)';
-              e.currentTarget.style.borderColor = 'var(--primary)';
-            }}
-            onMouseOut={(e) => {
-              e.currentTarget.style.backgroundColor = 'var(--bg-card)';
-              e.currentTarget.style.borderColor = 'var(--border-color)';
-            }}
+            onMouseOver={(e) => e.currentTarget.style.color = 'var(--primary)'}
+            onMouseOut={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
               <polyline points="15 3 21 3 21 9"></polyline>
               <line x1="10" y1="14" x2="21" y2="3"></line>
             </svg>
-            <span>시트연결</span>
+            <span>시트</span>
           </button>
 
           {/* 기준일 (중앙) */}
