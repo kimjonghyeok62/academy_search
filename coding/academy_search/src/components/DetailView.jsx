@@ -35,10 +35,13 @@ function InfoRow({ label, value, isClickable, onClick, isExpired }) {
     );
 }
 
-function Section({ title, children }) {
+function Section({ title, children, rightButton }) {
     return (
         <div className="info-section">
-            <h3>{title}</h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: rightButton ? '16px' : '0' }}>
+                <h3 style={{ margin: 0 }}>{title}</h3>
+                {rightButton}
+            </div>
             {children}
         </div>
     );
@@ -158,6 +161,74 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
         return end < today;
     };
 
+    // Extract room number from address (e.g., "302호" or "305호, 306호, 307호, 308호")
+    const getRoomNumber = (address) => {
+        if (!address) return '';
+        // Match all room numbers (e.g., "305호", "306호", etc.)
+        const matches = address.match(/\d+호/g);
+        if (matches && matches.length > 0) {
+            // Remove duplicates and join with comma
+            const uniqueRooms = [...new Set(matches)];
+            return uniqueRooms.join(', ');
+        }
+        return '';
+    };
+
+    // Format room numbers as ranges (e.g., "305~308호" or "303~304호, 319호")
+    const formatRoomRange = (address) => {
+        if (!address) return '';
+        const matches = address.match(/\d+호/g);
+        if (!matches || matches.length === 0) return '';
+
+        // Extract numbers and remove duplicates
+        const numbers = [...new Set(matches.map(m => parseInt(m.replace('호', ''))))];
+        numbers.sort((a, b) => a - b);
+
+        if (numbers.length === 1) return `${numbers[0]}호`;
+
+        // Group consecutive numbers
+        const ranges = [];
+        let start = numbers[0];
+        let end = numbers[0];
+
+        for (let i = 1; i < numbers.length; i++) {
+            if (numbers[i] === end + 1) {
+                end = numbers[i];
+            } else {
+                ranges.push(start === end ? `${start}호` : `${start}~${end}호`);
+                start = numbers[i];
+                end = numbers[i];
+            }
+        }
+        ranges.push(start === end ? `${start}호` : `${start}~${end}호`);
+
+        return ranges.join(', ');
+    };
+
+    // Extract building name from address
+    const getBuildingName = (address) => {
+        if (!address) return '';
+        // Match building name in parentheses, e.g., "(망월동, 힐스테이트에코미사)"
+        const match = address.match(/\([^)]*,\s*([^)]+)\)/);
+        if (match && match[1]) {
+            // Remove extra info like "주건축물 제1동"
+            return match[1].replace(/\s*주건축물.*$/, '').trim();
+        }
+        return '';
+    };
+
+    // Clean address for place search (name + base address)
+    const cleanAddress = (address) => {
+        if (!address) return '';
+        const commaIndex = address.indexOf(',');
+        let baseAddress = commaIndex !== -1 ? address.substring(0, commaIndex).trim() : address.trim();
+        const match = baseAddress.match(/^(.+?[로길]\s+\d+(?:-\d+)?)/);
+        if (match) {
+            return match[1].trim();
+        }
+        return baseAddress;
+    };
+
     // Find academies in the same building
     const baseAddress = getBaseAddress(academy.address);
     const sameBuildingAcademies = allAcademies.filter(a =>
@@ -169,17 +240,109 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
             case 'status':
                 return (
                     <div className="tab-content animate-enter">
-                        <Section title="기본 정보">
+                        <Section
+                            title="기본 정보"
+                            rightButton={
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        const searchQuery = `${academy.name} ${cleanAddress(academy.address)}`;
+                                        window.open(`https://map.naver.com/v5/search/${encodeURIComponent(searchQuery)}`, '_blank');
+                                    }}
+                                    style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        padding: '6px 12px',
+                                        backgroundColor: '#5FD68A',
+                                        color: 'white',
+                                        border: 'none',
+                                        borderRadius: '8px',
+                                        fontSize: '0.85rem',
+                                        fontWeight: '600',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s',
+                                        boxShadow: '0 1px 3px rgba(95, 214, 138, 0.3)'
+                                    }}
+                                    onMouseOver={(e) => {
+                                        e.currentTarget.style.backgroundColor = '#4EC57A';
+                                        e.currentTarget.style.transform = 'translateY(-1px)';
+                                        e.currentTarget.style.boxShadow = '0 2px 6px rgba(95, 214, 138, 0.4)';
+                                    }}
+                                    onMouseOut={(e) => {
+                                        e.currentTarget.style.backgroundColor = '#5FD68A';
+                                        e.currentTarget.style.transform = 'translateY(0)';
+                                        e.currentTarget.style.boxShadow = '0 1px 3px rgba(95, 214, 138, 0.3)';
+                                    }}
+                                    title="네이버 플레이스에서 보기"
+                                >
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                                        <polyline points="15 3 21 3 21 9"></polyline>
+                                        <line x1="10" y1="14" x2="21" y2="3"></line>
+                                    </svg>
+                                    <span>플레이스</span>
+                                </button>
+                            }
+                        >
                             <InfoRow label="등록번호" value={academy.id} />
                             <InfoRow label="학원명" value={academy.name} />
                             <InfoRow label="학원종류" value={academy.category} />
                             <InfoRow label="분야구분" value={academy.field} />
-                            <InfoRow
-                                label="주소"
-                                value={academy.address}
-                                isClickable={true}
-                                onClick={() => window.open(`https://map.naver.com/v5/search/${encodeURIComponent(academy.address)}`, '_blank')}
-                            />
+                            <div className="info-row">
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <span className="info-label">주소</span>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            window.open(`https://map.naver.com/v5/search/${encodeURIComponent(academy.address)}`, '_blank');
+                                        }}
+                                        style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '3px',
+                                            padding: '4px 8px',
+                                            backgroundColor: 'var(--bg-card)',
+                                            color: 'var(--primary)',
+                                            border: '1px solid var(--border-color)',
+                                            borderRadius: '6px',
+                                            fontSize: '0.75rem',
+                                            fontWeight: '600',
+                                            cursor: 'pointer',
+                                            transition: 'all 0.2s',
+                                            boxShadow: 'var(--shadow-sm)',
+                                            whiteSpace: 'nowrap'
+                                        }}
+                                        onMouseOver={(e) => {
+                                            e.currentTarget.style.backgroundColor = 'var(--primary-glow)';
+                                            e.currentTarget.style.borderColor = 'var(--primary)';
+                                        }}
+                                        onMouseOut={(e) => {
+                                            e.currentTarget.style.backgroundColor = 'var(--bg-card)';
+                                            e.currentTarget.style.borderColor = 'var(--border-color)';
+                                        }}
+                                        title="네이버 지도에서 보기"
+                                    >
+                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                                            <circle cx="12" cy="10" r="3"></circle>
+                                        </svg>
+                                        <span>지도</span>
+                                    </button>
+                                </div>
+                                <span
+                                    className="info-value clickable"
+                                    onClick={() => window.open(`https://map.naver.com/v5/search/${encodeURIComponent(academy.address)}`, '_blank')}
+                                    style={{
+                                        cursor: 'pointer',
+                                        textDecoration: 'underline',
+                                        textDecorationColor: 'var(--border-color)'
+                                    }}
+                                    title="네이버 지도에서 보기"
+                                >
+                                    {academy.address || '-'}
+                                </span>
+                            </div>
                             <InfoRow label="우편번호" value={academy.zip} />
                         </Section>
                         <Section title="상태 정보">
@@ -191,67 +354,110 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
                             <InfoRow label="수강료공개" value={academy.disclosure} />
                             <InfoRow label="건물소유" value={academy.ownership} />
                         </Section>
-                        {sameBuildingAcademies.length > 0 && (
-                            <Section title={`동일 건축물 학원목록 (${sameBuildingAcademies.length}개)`}>
-                                {sameBuildingAcademies.map((a, idx) => (
-                                    <div key={a.id} className="info-row" style={{
-                                        flexDirection: 'column',
-                                        alignItems: 'flex-start',
-                                        padding: '12px 0',
-                                        borderBottom: idx === sameBuildingAcademies.length - 1 ? 'none' : '1px dotted var(--border-color)',
-                                        cursor: 'pointer'
-                                    }}
-                                        onClick={() => onSelectAcademy && onSelectAcademy(a)}
-                                    >
+                        {sameBuildingAcademies.length > 0 && (() => {
+                            // Get building info from first academy
+                            const firstAcademy = sameBuildingAcademies[0];
+                            const buildingName = getBuildingName(firstAcademy.address) || getBuildingName(academy.address);
+                            const floors = firstAcademy.facilities?.floors || academy.facilities?.floors || '-';
+                            const totalFloors = floors.includes('~') ? floors.split('~')[1].trim().replace(/[^0-9]/g, '') : '-';
+                            const buildingArea = formatNumber(firstAcademy.facilities?.buildingArea || academy.facilities?.buildingArea);
+
+                            return (
+                                <Section title={`동일 건축물 학원목록 (${sameBuildingAcademies.length}개)`}>
+                                    {buildingName && (
                                         <div style={{
-                                            fontWeight: '700',
-                                            color: 'var(--primary)',
-                                            marginBottom: '4px',
-                                            fontSize: '0.95rem',
-                                            textDecoration: 'underline',
-                                            textDecorationColor: 'var(--border-color)'
-                                        }}>
-                                            {a.name}
-                                        </div>
-                                        <div style={{
-                                            fontSize: '0.8rem',
+                                            fontSize: '0.9rem',
                                             color: 'var(--text-muted)',
-                                            lineHeight: '1.4',
-                                            marginBottom: '4px'
+                                            marginBottom: '16px',
+                                            padding: '8px 12px',
+                                            backgroundColor: 'var(--bg-light)',
+                                            borderRadius: '8px',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '6px'
                                         }}>
-                                            {getShortAddress(a.address)}
+                                            <span style={{ fontSize: '1rem' }}>📍</span>
+                                            <span>{buildingName} {totalFloors}층 건물 (연면적 {buildingArea}㎡)</span>
                                         </div>
-                                        <div style={{
-                                            fontSize: '0.8rem',
-                                            color: 'var(--text-muted)',
-                                            marginBottom: '4px'
-                                        }}>
-                                            총 층수: {a.facilities?.floors || '-'},  건축연면적: {formatNumber(a.facilities?.buildingArea)}㎡
-                                        </div>
-                                        <div style={{
-                                            fontSize: '0.8rem',
-                                            color: 'var(--text-muted)',
-                                            marginBottom: '4px'
-                                        }}>
-                                            총면적: {formatNumber(a.facilities?.totalArea)}㎡,  전용면적: {formatNumber(a.facilities?.dedicatedArea)}㎡
-                                        </div>
-                                        <div style={{
-                                            fontSize: '0.8rem',
-                                            color: 'var(--text-muted)',
-                                            marginBottom: '2px'
-                                        }}>
-                                            {a.category} · {a.field}
-                                        </div>
-                                        <div style={{
-                                            fontSize: '0.8rem',
-                                            color: 'var(--text-muted)'
-                                        }}>
-                                            등록일: {a.regDate}
-                                        </div>
-                                    </div>
-                                ))}
-                            </Section>
-                        )}
+                                    )}
+                                    {sameBuildingAcademies.map((a, idx) => {
+                                        const roomRange = formatRoomRange(a.address);
+                                        return (
+                                            <div
+                                                key={a.id}
+                                                style={{
+                                                    padding: '12px',
+                                                    marginBottom: idx === sameBuildingAcademies.length - 1 ? '0' : '12px',
+                                                    border: '1px solid var(--border-color)',
+                                                    borderRadius: '12px',
+                                                    backgroundColor: 'var(--bg-card)',
+                                                    cursor: 'pointer',
+                                                    transition: 'all 0.2s',
+                                                    boxShadow: 'var(--shadow-sm)'
+                                                }}
+                                                onClick={() => onSelectAcademy && onSelectAcademy(a)}
+                                                onMouseOver={(e) => {
+                                                    e.currentTarget.style.backgroundColor = 'var(--bg-light)';
+                                                    e.currentTarget.style.borderColor = 'var(--primary)';
+                                                    e.currentTarget.style.transform = 'translateY(-2px)';
+                                                    e.currentTarget.style.boxShadow = 'var(--shadow-md)';
+                                                }}
+                                                onMouseOut={(e) => {
+                                                    e.currentTarget.style.backgroundColor = 'var(--bg-card)';
+                                                    e.currentTarget.style.borderColor = 'var(--border-color)';
+                                                    e.currentTarget.style.transform = 'translateY(0)';
+                                                    e.currentTarget.style.boxShadow = 'var(--shadow-sm)';
+                                                }}
+                                            >
+                                                <div style={{
+                                                    fontWeight: '700',
+                                                    color: 'var(--primary)',
+                                                    marginBottom: '6px',
+                                                    fontSize: '1rem',
+                                                    display: 'flex',
+                                                    alignItems: 'baseline',
+                                                    gap: '6px',
+                                                    flexWrap: 'wrap'
+                                                }}>
+                                                    <span>{a.name}</span>
+                                                    {roomRange && (
+                                                        <span style={{
+                                                            fontSize: '0.85rem',
+                                                            color: 'var(--text-muted)',
+                                                            fontWeight: '500'
+                                                        }}>({roomRange})</span>
+                                                    )}
+                                                </div>
+                                                <div style={{
+                                                    fontSize: '0.85rem',
+                                                    color: 'var(--text-muted)',
+                                                    marginBottom: '6px'
+                                                }}>
+                                                    {a.category} · {a.field}
+                                                </div>
+                                                <div style={{
+                                                    fontSize: '0.85rem',
+                                                    color: 'var(--text-muted)',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '12px',
+                                                    flexWrap: 'wrap'
+                                                }}>
+                                                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                        <span>📐</span>
+                                                        <span>{formatNumber(a.facilities?.totalArea)}㎡</span>
+                                                    </span>
+                                                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                        <span>📅</span>
+                                                        <span>{a.regDate}</span>
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </Section>
+                            );
+                        })()}
                     </div>
                 );
             case 'founder':

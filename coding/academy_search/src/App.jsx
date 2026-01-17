@@ -220,6 +220,25 @@ function App() {
     setHasSearched(true);
   };
 
+  // 주소에서 기본 주소(도로명 + 번지수)만 추출하는 함수
+  const cleanAddress = (address) => {
+    if (!address) return '';
+
+    // 1. 쉼표가 있으면 쉼표 이전 부분만 사용
+    const commaIndex = address.indexOf(',');
+    let baseAddress = commaIndex !== -1 ? address.substring(0, commaIndex).trim() : address.trim();
+
+    // 2. 쉼표가 없는 경우, "도로명 + 번지수" 패턴 추출
+    // 예: "경기도 하남시 위례학암로 52 3층" -> "경기도 하남시 위례학암로 52"
+    // 패턴: 숫자 뒤에 공백이 있고 그 다음에 층/호/동 등이 오는 경우
+    const match = baseAddress.match(/^(.+?[로길]\s+\d+(?:-\d+)?)/);
+    if (match) {
+      return match[1].trim();
+    }
+
+    return baseAddress;
+  };
+
   // Render Login if not authenticated
   if (!isAuthenticated) {
     return <Login onLogin={handleLogin} />;
@@ -264,7 +283,7 @@ function App() {
       <header className={`header animate-enter ${hasSearched ? 'header-compact' : ''}`}>
         <h1 className="title primary-gradient-text">학원 찾기</h1>
 
-        {/* 기준일과 로그아웃 버튼을 한 줄에 배치 */}
+        {/* 시트연결, 기준일, 로그아웃 버튼을 한 줄에 배치 */}
         <div style={{
           display: 'flex',
           justifyContent: 'center',
@@ -272,6 +291,44 @@ function App() {
           marginBottom: '12px',
           position: 'relative'
         }}>
+          {/* 시트연결 버튼 (왼쪽) */}
+          <button
+            onClick={() => window.open('https://docs.google.com/spreadsheets/d/158ZNBb88raJ1kzBL3eFcgPZS9CGs5in0YtPtiPWfdic/edit?gid=1863320151#gid=1863320151', '_blank')}
+            style={{
+              position: 'absolute',
+              left: '0',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '6px 12px',
+              backgroundColor: 'var(--bg-card)',
+              border: '1px solid var(--border-color)',
+              borderRadius: '12px',
+              fontSize: '0.8rem',
+              fontWeight: '600',
+              color: 'var(--primary)',
+              cursor: 'pointer',
+              boxShadow: 'var(--shadow-sm)',
+              transition: 'all 0.2s'
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--primary-glow)';
+              e.currentTarget.style.borderColor = 'var(--primary)';
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--bg-card)';
+              e.currentTarget.style.borderColor = 'var(--border-color)';
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+              <polyline points="15 3 21 3 21 9"></polyline>
+              <line x1="10" y1="14" x2="21" y2="3"></line>
+            </svg>
+            <span>시트연결</span>
+          </button>
+
+          {/* 기준일 (중앙) */}
           {dataAsOf && (
             <div style={{
               display: 'inline-flex',
@@ -296,6 +353,7 @@ function App() {
             </div>
           )}
 
+          {/* 로그아웃 버튼 (오른쪽) */}
           <button
             onClick={handleLogout}
             style={{
@@ -372,33 +430,110 @@ function App() {
                 <span className="academy-category">{academy.category}</span>
               </div>
               <h3 className="academy-name">{academy.name}</h3>
-              <p
-                className="academy-address"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  window.open(`https://map.naver.com/v5/search/${encodeURIComponent(academy.address)}`, '_blank');
-                }}
-                style={{ cursor: 'pointer', textDecoration: 'underline', textDecorationColor: 'var(--border-color)' }}
-                title="네이버 지도에서 보기"
-              >
-                {academy.address}
-              </p>
-              {academy.facilities?.floors && (
-                <p style={{
-                  fontSize: '0.8rem',
-                  color: 'var(--text-muted)',
-                  marginTop: '4px',
-                  marginBottom: '8px'
-                }}>
-                  (건물 전체층수: {academy.facilities.floors})
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                <p
+                  className="academy-address"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    window.open(`https://map.naver.com/v5/search/${encodeURIComponent(academy.address)}`, '_blank');
+                  }}
+                  style={{
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                    textDecorationColor: 'var(--border-color)',
+                    margin: 0,
+                    flex: 1
+                  }}
+                  title="네이버 지도에서 보기"
+                >
+                  {academy.address}
                 </p>
-              )}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    window.open(`https://map.naver.com/v5/search/${encodeURIComponent(academy.address)}`, '_blank');
+                  }}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '3px',
+                    padding: '4px 8px',
+                    backgroundColor: 'var(--bg-card)',
+                    color: 'var(--primary)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '6px',
+                    fontSize: '0.75rem',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    boxShadow: 'var(--shadow-sm)',
+                    whiteSpace: 'nowrap'
+                  }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.backgroundColor = 'var(--primary-glow)';
+                    e.currentTarget.style.borderColor = 'var(--primary)';
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.backgroundColor = 'var(--bg-card)';
+                    e.currentTarget.style.borderColor = 'var(--border-color)';
+                  }}
+                  title="네이버 지도에서 보기"
+                >
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                    <circle cx="12" cy="10" r="3"></circle>
+                  </svg>
+                  <span>지도</span>
+                </button>
+              </div>
+
               <div className="academy-meta">
                 <span style={{ color: 'var(--text-muted)' }}>설립자: <b style={{ color: 'var(--text-main)' }}>{academy.founder.name}</b></span>
                 <span style={{ color: 'var(--border-color)' }}>•</span>
                 <span className={academy.status.includes('개원') ? 'status-active' : 'status-inactive'}>
                   {academy.status}
                 </span>
+                <span style={{ color: 'var(--border-color)' }}>•</span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const searchQuery = `${academy.name} ${cleanAddress(academy.address)}`;
+                    window.open(`https://map.naver.com/v5/search/${encodeURIComponent(searchQuery)}`, '_blank');
+                  }}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '4px 10px',
+                    backgroundColor: '#5FD68A',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    fontSize: '0.8rem',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    boxShadow: '0 1px 3px rgba(95, 214, 138, 0.3)'
+                  }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.backgroundColor = '#4EC57A';
+                    e.currentTarget.style.transform = 'translateY(-1px)';
+                    e.currentTarget.style.boxShadow = '0 2px 6px rgba(95, 214, 138, 0.4)';
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.backgroundColor = '#5FD68A';
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 1px 3px rgba(95, 214, 138, 0.3)';
+                  }}
+                  title="네이버 플레이스에서 보기"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                    <polyline points="15 3 21 3 21 9"></polyline>
+                    <line x1="10" y1="14" x2="21" y2="3"></line>
+                  </svg>
+                  <span>플레이스</span>
+                </button>
               </div>
             </div>
           ))
