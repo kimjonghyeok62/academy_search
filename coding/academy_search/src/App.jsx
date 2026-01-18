@@ -548,6 +548,8 @@ function App() {
           <div
             onClick={() => window.open('https://notebooklm.google.com/notebook/bc3a0bc5-bad0-4450-bf8b-96573e39fdce', '_blank')}
             style={{
+              position: 'relative',
+              zIndex: 1,
               padding: '16px 20px',
               background: 'linear-gradient(135deg, var(--primary-glow) 0%, var(--bg-card) 100%)',
               border: '2px solid var(--primary)',
@@ -713,8 +715,9 @@ function App() {
                           style={{
                             flex: 1,
                             padding: '8px 12px',
-                            background: 'var(--primary)',
-                            color: 'white',
+                            background: 'var(--bg-card)',
+                            color: 'var(--text-main)',
+                            border: '1px solid var(--border-color)',
                             textDecoration: 'none',
                             fontSize: '0.8rem',
                             fontWeight: '600',
@@ -727,10 +730,12 @@ function App() {
                             gap: '4px'
                           }}
                           onMouseOver={(e) => {
-                            e.currentTarget.style.background = 'var(--primary-hover)';
+                            e.currentTarget.style.borderColor = 'var(--primary)';
+                            e.currentTarget.style.backgroundColor = 'var(--primary-glow)';
                           }}
                           onMouseOut={(e) => {
-                            e.currentTarget.style.background = 'var(--primary)';
+                            e.currentTarget.style.borderColor = 'var(--border-color)';
+                            e.currentTarget.style.backgroundColor = 'var(--bg-card)';
                           }}
                         >
                           <span>📱</span>
@@ -795,8 +800,9 @@ function App() {
                           style={{
                             flex: 1,
                             padding: '8px 12px',
-                            background: 'var(--primary)',
-                            color: 'white',
+                            background: 'var(--bg-card)',
+                            color: 'var(--text-main)',
+                            border: '1px solid var(--border-color)',
                             textDecoration: 'none',
                             fontSize: '0.8rem',
                             fontWeight: '600',
@@ -809,10 +815,12 @@ function App() {
                             gap: '4px'
                           }}
                           onMouseOver={(e) => {
-                            e.currentTarget.style.background = 'var(--primary-hover)';
+                            e.currentTarget.style.borderColor = 'var(--primary)';
+                            e.currentTarget.style.backgroundColor = 'var(--primary-glow)';
                           }}
                           onMouseOut={(e) => {
-                            e.currentTarget.style.background = 'var(--primary)';
+                            e.currentTarget.style.borderColor = 'var(--border-color)';
+                            e.currentTarget.style.backgroundColor = 'var(--bg-card)';
                           }}
                         >
                           <span>📱</span>
