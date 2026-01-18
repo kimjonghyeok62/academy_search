@@ -362,24 +362,59 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
                             const totalFloors = floors.includes('~') ? floors.split('~')[1].trim().replace(/[^0-9]/g, '') : '-';
                             const buildingArea = formatNumber(firstAcademy.facilities?.buildingArea || academy.facilities?.buildingArea);
 
+                            // Calculate total area sum and dedicated area sum
+                            const totalAreaSum = sameBuildingAcademies.reduce((sum, a) => {
+                                const area = parseFloat(a.facilities?.totalArea) || 0;
+                                return sum + area;
+                            }, 0);
+
+                            const dedicatedAreaSum = sameBuildingAcademies.reduce((sum, a) => {
+                                const area = parseFloat(a.facilities?.dedicatedArea) || 0;
+                                return sum + area;
+                            }, 0);
+
                             return (
                                 <Section title={`동일 건축물 학원목록 (${sameBuildingAcademies.length}개)`}>
-                                    {buildingName && (
+                                    <div style={{
+                                        fontSize: '0.9rem',
+                                        color: 'var(--text-muted)',
+                                        marginBottom: '16px',
+                                        padding: '12px',
+                                        backgroundColor: 'var(--bg-light)',
+                                        borderRadius: '8px',
+                                        lineHeight: '1.6'
+                                    }}>
                                         <div style={{
-                                            fontSize: '0.9rem',
-                                            color: 'var(--text-muted)',
-                                            marginBottom: '16px',
-                                            padding: '8px 12px',
-                                            backgroundColor: 'var(--bg-light)',
-                                            borderRadius: '8px',
                                             display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '6px'
+                                            alignItems: 'flex-start',
+                                            gap: '6px',
+                                            marginBottom: '8px'
                                         }}>
-                                            <span style={{ fontSize: '1rem' }}>📍</span>
-                                            <span>{buildingName} {totalFloors}층 건물 (연면적 {buildingArea}㎡)</span>
+                                            <span style={{ fontSize: '1rem', marginTop: '2px' }}>📍</span>
+                                            <div style={{ flex: 1 }}>
+                                                <div style={{ marginBottom: '4px' }}>
+                                                    {baseAddress}
+                                                </div>
+                                                <div style={{ fontWeight: '600', color: 'var(--text-main)' }}>
+                                                    {buildingName && `${buildingName} `}{totalFloors}층 건물 (연면적 {buildingArea}㎡)
+                                                </div>
+                                            </div>
                                         </div>
-                                    )}
+                                        <div style={{
+                                            fontSize: '0.85rem',
+                                            color: 'var(--text-main)',
+                                            marginTop: '8px',
+                                            paddingTop: '8px',
+                                            borderTop: '1px solid var(--border-color)'
+                                        }}>
+                                            <div style={{ marginBottom: '4px' }}>
+                                                <strong>[학원({sameBuildingAcademies.length}개)]</strong> 총면적 합계: <strong>{formatNumber(totalAreaSum.toFixed(2))}㎡</strong>
+                                            </div>
+                                            <div>
+                                                <strong>[학원({sameBuildingAcademies.length}개)]</strong> 전용면적 합계: <strong>{formatNumber(dedicatedAreaSum.toFixed(2))}㎡</strong>
+                                            </div>
+                                        </div>
+                                    </div>
                                     {sameBuildingAcademies.map((a, idx) => {
                                         const roomRange = formatRoomRange(a.address);
                                         const isCurrentAcademy = a.id === academy.id;

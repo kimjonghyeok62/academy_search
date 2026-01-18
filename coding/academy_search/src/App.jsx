@@ -548,62 +548,37 @@ function App() {
           <div
             onClick={() => window.open('https://notebooklm.google.com/notebook/bc3a0bc5-bad0-4450-bf8b-96573e39fdce', '_blank')}
             style={{
-              position: 'relative',
-              zIndex: 1,
-              padding: '16px 20px',
-              background: 'linear-gradient(135deg, var(--primary-glow) 0%, var(--bg-card) 100%)',
-              border: '2px solid var(--primary)',
-              borderRadius: '16px',
+              padding: '14px 18px',
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border-color)',
+              borderRadius: '12px',
               cursor: 'pointer',
-              transition: 'all 0.3s ease',
-              boxShadow: '0 4px 12px rgba(99, 102, 241, 0.15)',
+              transition: 'all 0.2s',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              gap: '12px'
+              gap: '10px'
             }}
             onMouseOver={(e) => {
-              e.currentTarget.style.transform = 'translateY(-2px)';
-              e.currentTarget.style.boxShadow = '0 6px 20px rgba(99, 102, 241, 0.25)';
+              e.currentTarget.style.borderColor = 'var(--primary)';
+              e.currentTarget.style.backgroundColor = 'var(--primary-glow)';
             }}
             onMouseOut={(e) => {
-              e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = '0 4px 12px rgba(99, 102, 241, 0.15)';
+              e.currentTarget.style.borderColor = 'var(--border-color)';
+              e.currentTarget.style.backgroundColor = 'var(--bg-card)';
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
-              <div style={{
-                width: '40px',
-                height: '40px',
-                background: 'var(--primary)',
-                borderRadius: '12px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '20px',
-                flexShrink: 0
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '18px' }}>💡</span>
+              <span style={{
+                fontSize: '0.95rem',
+                fontWeight: '600',
+                color: 'var(--text-main)'
               }}>
-                💡
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{
-                  fontSize: '1rem',
-                  fontWeight: '700',
-                  color: 'var(--primary)',
-                  marginBottom: '4px'
-                }}>
-                  학원 법령 AI 상담 (NotebookLM)
-                </div>
-                <div style={{
-                  fontSize: '0.85rem',
-                  color: 'var(--text-muted)',
-                  fontWeight: '500'
-                }}>
-                  궁금한 점을 즉시 물어보세요
-                </div>
-              </div>
+                학원 업무 AI 상담 (노트북LM)
+              </span>
             </div>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
               <polyline points="15 3 21 3 21 9"></polyline>
               <line x1="10" y1="14" x2="21" y2="3"></line>
@@ -691,176 +666,75 @@ function App() {
                     <span>📚</span>
                     <span>업무 메뉴얼</span>
                   </h4>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {/* 경기도 메뉴얼 */}
-                    <div style={{
-                      padding: '14px',
-                      background: 'var(--bg-main)',
-                      border: '1px solid var(--border-color)',
-                      borderRadius: '8px'
-                    }}>
-                      <div style={{
-                        fontSize: '0.85rem',
-                        fontWeight: '600',
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <a
+                      href="https://drive.google.com/file/d/1I6j4VkHEeDzKc6YvfTcv8Wl48LAzbSsN/preview"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        padding: '10px 14px',
+                        background: 'var(--bg-main)',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '8px',
                         color: 'var(--text-main)',
-                        marginBottom: '8px'
-                      }}>
-                        • 경기도교육청 학원 업무 메뉴얼 (2024) - 474p
-                      </div>
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        <a
-                          href="https://drive.google.com/file/d/1I6j4VkHEeDzKc6YvfTcv8Wl48LAzbSsN/preview"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{
-                            flex: 1,
-                            padding: '8px 12px',
-                            background: 'var(--bg-card)',
-                            color: 'var(--text-main)',
-                            border: '1px solid var(--border-color)',
-                            textDecoration: 'none',
-                            fontSize: '0.8rem',
-                            fontWeight: '600',
-                            borderRadius: '6px',
-                            textAlign: 'center',
-                            transition: 'all 0.2s',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '4px'
-                          }}
-                          onMouseOver={(e) => {
-                            e.currentTarget.style.borderColor = 'var(--primary)';
-                            e.currentTarget.style.backgroundColor = 'var(--primary-glow)';
-                          }}
-                          onMouseOut={(e) => {
-                            e.currentTarget.style.borderColor = 'var(--border-color)';
-                            e.currentTarget.style.backgroundColor = 'var(--bg-card)';
-                          }}
-                        >
-                          <span>📱</span>
-                          <span>웹에서 보기</span>
-                        </a>
-                        <a
-                          href="https://drive.google.com/uc?export=download&id=1I6j4VkHEeDzKc6YvfTcv8Wl48LAzbSsN"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{
-                            flex: 1,
-                            padding: '8px 12px',
-                            background: 'var(--bg-card)',
-                            color: 'var(--text-main)',
-                            border: '1px solid var(--border-color)',
-                            textDecoration: 'none',
-                            fontSize: '0.8rem',
-                            fontWeight: '600',
-                            borderRadius: '6px',
-                            textAlign: 'center',
-                            transition: 'all 0.2s',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '4px'
-                          }}
-                          onMouseOver={(e) => {
-                            e.currentTarget.style.borderColor = 'var(--primary)';
-                            e.currentTarget.style.backgroundColor = 'var(--primary-glow)';
-                          }}
-                          onMouseOut={(e) => {
-                            e.currentTarget.style.borderColor = 'var(--border-color)';
-                            e.currentTarget.style.backgroundColor = 'var(--bg-card)';
-                          }}
-                        >
-                          <span>📥</span>
-                          <span>다운로드</span>
-                        </a>
-                      </div>
-                    </div>
-
-                    {/* 서울시 메뉴얼 */}
-                    <div style={{
-                      padding: '14px',
-                      background: 'var(--bg-main)',
-                      border: '1px solid var(--border-color)',
-                      borderRadius: '8px'
-                    }}>
-                      <div style={{
+                        textDecoration: 'none',
                         fontSize: '0.85rem',
-                        fontWeight: '600',
+                        fontWeight: '500',
+                        transition: 'all 0.2s',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between'
+                      }}
+                      onMouseOver={(e) => {
+                        e.currentTarget.style.borderColor = 'var(--primary)';
+                        e.currentTarget.style.backgroundColor = 'var(--primary-glow)';
+                      }}
+                      onMouseOut={(e) => {
+                        e.currentTarget.style.borderColor = 'var(--border-color)';
+                        e.currentTarget.style.backgroundColor = 'var(--bg-main)';
+                      }}
+                    >
+                      <span>• 경기도교육청 학원 업무 메뉴얼</span>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                        <polyline points="15 3 21 3 21 9"></polyline>
+                        <line x1="10" y1="14" x2="21" y2="3"></line>
+                      </svg>
+                    </a>
+                    <a
+                      href="https://drive.google.com/file/d/1ppixrFV1wEFBXTicg_-muU81mn8Gvn8E/preview"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        padding: '10px 14px',
+                        background: 'var(--bg-main)',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '8px',
                         color: 'var(--text-main)',
-                        marginBottom: '8px'
-                      }}>
-                        • 서울특별시교육청 학원 업무 메뉴얼 (2025) - 440p
-                      </div>
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        <a
-                          href="https://drive.google.com/file/d/1ppixrFV1wEFBXTicg_-muU81mn8Gvn8E/preview"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{
-                            flex: 1,
-                            padding: '8px 12px',
-                            background: 'var(--bg-card)',
-                            color: 'var(--text-main)',
-                            border: '1px solid var(--border-color)',
-                            textDecoration: 'none',
-                            fontSize: '0.8rem',
-                            fontWeight: '600',
-                            borderRadius: '6px',
-                            textAlign: 'center',
-                            transition: 'all 0.2s',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '4px'
-                          }}
-                          onMouseOver={(e) => {
-                            e.currentTarget.style.borderColor = 'var(--primary)';
-                            e.currentTarget.style.backgroundColor = 'var(--primary-glow)';
-                          }}
-                          onMouseOut={(e) => {
-                            e.currentTarget.style.borderColor = 'var(--border-color)';
-                            e.currentTarget.style.backgroundColor = 'var(--bg-card)';
-                          }}
-                        >
-                          <span>📱</span>
-                          <span>웹에서 보기</span>
-                        </a>
-                        <a
-                          href="https://drive.google.com/uc?export=download&id=1ppixrFV1wEFBXTicg_-muU81mn8Gvn8E"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{
-                            flex: 1,
-                            padding: '8px 12px',
-                            background: 'var(--bg-card)',
-                            color: 'var(--text-main)',
-                            border: '1px solid var(--border-color)',
-                            textDecoration: 'none',
-                            fontSize: '0.8rem',
-                            fontWeight: '600',
-                            borderRadius: '6px',
-                            textAlign: 'center',
-                            transition: 'all 0.2s',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '4px'
-                          }}
-                          onMouseOver={(e) => {
-                            e.currentTarget.style.borderColor = 'var(--primary)';
-                            e.currentTarget.style.backgroundColor = 'var(--primary-glow)';
-                          }}
-                          onMouseOut={(e) => {
-                            e.currentTarget.style.borderColor = 'var(--border-color)';
-                            e.currentTarget.style.backgroundColor = 'var(--bg-card)';
-                          }}
-                        >
-                          <span>📥</span>
-                          <span>다운로드</span>
-                        </a>
-                      </div>
-                    </div>
+                        textDecoration: 'none',
+                        fontSize: '0.85rem',
+                        fontWeight: '500',
+                        transition: 'all 0.2s',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between'
+                      }}
+                      onMouseOver={(e) => {
+                        e.currentTarget.style.borderColor = 'var(--primary)';
+                        e.currentTarget.style.backgroundColor = 'var(--primary-glow)';
+                      }}
+                      onMouseOut={(e) => {
+                        e.currentTarget.style.borderColor = 'var(--border-color)';
+                        e.currentTarget.style.backgroundColor = 'var(--bg-main)';
+                      }}
+                    >
+                      <span>• 서울특별시교육청 학원 업무 메뉴얼</span>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                        <polyline points="15 3 21 3 21 9"></polyline>
+                        <line x1="10" y1="14" x2="21" y2="3"></line>
+                      </svg>
+                    </a>
                   </div>
                 </div>
 
