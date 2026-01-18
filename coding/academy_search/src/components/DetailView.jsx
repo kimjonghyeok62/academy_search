@@ -496,7 +496,7 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
                                                 }}>
                                                     <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                                         <span>📐</span>
-                                                        <span>(총면적) {formatNumber(a.facilities?.totalArea)}㎡ / (전용면적) {formatNumber(a.facilities?.dedicatedArea)}㎡</span>
+                                                        <span>(총면적) {formatNumber(a.facilities?.totalArea)}㎡ (전용면적) {formatNumber(a.facilities?.dedicatedArea)}㎡</span>
                                                     </span>
                                                     <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                                         <span>📅</span>
