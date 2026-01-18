@@ -166,7 +166,7 @@ h3 {
   right: 0;
   padding: 8px;
   list-style: none;
-  z-index: 50;
+  z-index: 1000;
   max-height: 320px;
   overflow-y: auto;
   border: 1px solid var(--border-color);
