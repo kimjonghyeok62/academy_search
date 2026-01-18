@@ -229,10 +229,10 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
         return baseAddress;
     };
 
-    // Find academies in the same building
+    // Find academies in the same building (including current academy)
     const baseAddress = getBaseAddress(academy.address);
     const sameBuildingAcademies = allAcademies.filter(a =>
-        a.id !== academy.id && getBaseAddress(a.address) === baseAddress
+        getBaseAddress(a.address) === baseAddress
     );
 
     const renderContent = () => {
@@ -382,31 +382,37 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
                                     )}
                                     {sameBuildingAcademies.map((a, idx) => {
                                         const roomRange = formatRoomRange(a.address);
+                                        const isCurrentAcademy = a.id === academy.id;
                                         return (
                                             <div
                                                 key={a.id}
                                                 style={{
                                                     padding: '12px',
                                                     marginBottom: idx === sameBuildingAcademies.length - 1 ? '0' : '12px',
-                                                    border: '1px solid var(--border-color)',
+                                                    border: isCurrentAcademy ? '2px solid var(--primary)' : '1px solid var(--border-color)',
                                                     borderRadius: '12px',
-                                                    backgroundColor: 'var(--bg-card)',
-                                                    cursor: 'pointer',
+                                                    backgroundColor: isCurrentAcademy ? 'rgba(79, 70, 229, 0.05)' : 'var(--bg-card)',
+                                                    cursor: isCurrentAcademy ? 'default' : 'pointer',
                                                     transition: 'all 0.2s',
-                                                    boxShadow: 'var(--shadow-sm)'
+                                                    boxShadow: 'var(--shadow-sm)',
+                                                    position: 'relative'
                                                 }}
-                                                onClick={() => onSelectAcademy && onSelectAcademy(a)}
+                                                onClick={() => !isCurrentAcademy && onSelectAcademy && onSelectAcademy(a)}
                                                 onMouseOver={(e) => {
-                                                    e.currentTarget.style.backgroundColor = 'var(--bg-light)';
-                                                    e.currentTarget.style.borderColor = 'var(--primary)';
-                                                    e.currentTarget.style.transform = 'translateY(-2px)';
-                                                    e.currentTarget.style.boxShadow = 'var(--shadow-md)';
+                                                    if (!isCurrentAcademy) {
+                                                        e.currentTarget.style.backgroundColor = 'var(--bg-light)';
+                                                        e.currentTarget.style.borderColor = 'var(--primary)';
+                                                        e.currentTarget.style.transform = 'translateY(-2px)';
+                                                        e.currentTarget.style.boxShadow = 'var(--shadow-md)';
+                                                    }
                                                 }}
                                                 onMouseOut={(e) => {
-                                                    e.currentTarget.style.backgroundColor = 'var(--bg-card)';
-                                                    e.currentTarget.style.borderColor = 'var(--border-color)';
-                                                    e.currentTarget.style.transform = 'translateY(0)';
-                                                    e.currentTarget.style.boxShadow = 'var(--shadow-sm)';
+                                                    if (!isCurrentAcademy) {
+                                                        e.currentTarget.style.backgroundColor = 'var(--bg-card)';
+                                                        e.currentTarget.style.borderColor = 'var(--border-color)';
+                                                        e.currentTarget.style.transform = 'translateY(0)';
+                                                        e.currentTarget.style.boxShadow = 'var(--shadow-sm)';
+                                                    }
                                                 }}
                                             >
                                                 <div style={{
@@ -426,6 +432,16 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
                                                             color: 'var(--text-muted)',
                                                             fontWeight: '500'
                                                         }}>({roomRange})</span>
+                                                    )}
+                                                    {isCurrentAcademy && (
+                                                        <span style={{
+                                                            fontSize: '0.75rem',
+                                                            color: 'white',
+                                                            backgroundColor: 'var(--primary)',
+                                                            padding: '2px 8px',
+                                                            borderRadius: '6px',
+                                                            fontWeight: '600'
+                                                        }}>현재 보는 학원</span>
                                                     )}
                                                 </div>
                                                 <div style={{
