@@ -542,7 +542,7 @@ function App() {
       </div>
 
       {/* 하단 섹션: AI 상담 및 법령 자료 */}
-      {!hasSearched && (
+      {!hasSearched && !searchQuery && (
         <div style={{ marginTop: '32px', paddingBottom: '32px' }}>
           {/* NotebookLM AI 상담 링크 */}
           <div
