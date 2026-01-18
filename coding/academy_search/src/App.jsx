@@ -675,6 +675,187 @@ function App() {
                   boxShadow: 'var(--shadow-sm)'
                 }}
               >
+                {/* 업무 메뉴얼 */}
+                <div style={{ marginBottom: '24px' }}>
+                  <h4 style={{
+                    fontSize: '0.9rem',
+                    fontWeight: '700',
+                    color: 'var(--text-main)',
+                    marginBottom: '12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}>
+                    <span>📚</span>
+                    <span>업무 메뉴얼</span>
+                  </h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {/* 경기도 메뉴얼 */}
+                    <div style={{
+                      padding: '14px',
+                      background: 'var(--bg-main)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '8px'
+                    }}>
+                      <div style={{
+                        fontSize: '0.85rem',
+                        fontWeight: '600',
+                        color: 'var(--text-main)',
+                        marginBottom: '8px'
+                      }}>
+                        • 경기도교육청 학원 업무 메뉴얼 (2024) - 474p
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <a
+                          href="https://drive.google.com/file/d/1I6j4VkHEeDzKc6YvfTcv8Wl48LAzbSsN/preview"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            flex: 1,
+                            padding: '8px 12px',
+                            background: 'var(--primary)',
+                            color: 'white',
+                            textDecoration: 'none',
+                            fontSize: '0.8rem',
+                            fontWeight: '600',
+                            borderRadius: '6px',
+                            textAlign: 'center',
+                            transition: 'all 0.2s',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '4px'
+                          }}
+                          onMouseOver={(e) => {
+                            e.currentTarget.style.background = 'var(--primary-hover)';
+                          }}
+                          onMouseOut={(e) => {
+                            e.currentTarget.style.background = 'var(--primary)';
+                          }}
+                        >
+                          <span>📱</span>
+                          <span>웹에서 보기</span>
+                        </a>
+                        <a
+                          href="https://drive.google.com/uc?export=download&id=1I6j4VkHEeDzKc6YvfTcv8Wl48LAzbSsN"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            flex: 1,
+                            padding: '8px 12px',
+                            background: 'var(--bg-card)',
+                            color: 'var(--text-main)',
+                            border: '1px solid var(--border-color)',
+                            textDecoration: 'none',
+                            fontSize: '0.8rem',
+                            fontWeight: '600',
+                            borderRadius: '6px',
+                            textAlign: 'center',
+                            transition: 'all 0.2s',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '4px'
+                          }}
+                          onMouseOver={(e) => {
+                            e.currentTarget.style.borderColor = 'var(--primary)';
+                            e.currentTarget.style.backgroundColor = 'var(--primary-glow)';
+                          }}
+                          onMouseOut={(e) => {
+                            e.currentTarget.style.borderColor = 'var(--border-color)';
+                            e.currentTarget.style.backgroundColor = 'var(--bg-card)';
+                          }}
+                        >
+                          <span>📥</span>
+                          <span>다운로드</span>
+                        </a>
+                      </div>
+                    </div>
+
+                    {/* 서울시 메뉴얼 */}
+                    <div style={{
+                      padding: '14px',
+                      background: 'var(--bg-main)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '8px'
+                    }}>
+                      <div style={{
+                        fontSize: '0.85rem',
+                        fontWeight: '600',
+                        color: 'var(--text-main)',
+                        marginBottom: '8px'
+                      }}>
+                        • 서울특별시교육청 학원 업무 메뉴얼 (2025) - 440p
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <a
+                          href="https://drive.google.com/file/d/1ppixrFV1wEFBXTicg_-muU81mn8Gvn8E/preview"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            flex: 1,
+                            padding: '8px 12px',
+                            background: 'var(--primary)',
+                            color: 'white',
+                            textDecoration: 'none',
+                            fontSize: '0.8rem',
+                            fontWeight: '600',
+                            borderRadius: '6px',
+                            textAlign: 'center',
+                            transition: 'all 0.2s',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '4px'
+                          }}
+                          onMouseOver={(e) => {
+                            e.currentTarget.style.background = 'var(--primary-hover)';
+                          }}
+                          onMouseOut={(e) => {
+                            e.currentTarget.style.background = 'var(--primary)';
+                          }}
+                        >
+                          <span>📱</span>
+                          <span>웹에서 보기</span>
+                        </a>
+                        <a
+                          href="https://drive.google.com/uc?export=download&id=1ppixrFV1wEFBXTicg_-muU81mn8Gvn8E"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            flex: 1,
+                            padding: '8px 12px',
+                            background: 'var(--bg-card)',
+                            color: 'var(--text-main)',
+                            border: '1px solid var(--border-color)',
+                            textDecoration: 'none',
+                            fontSize: '0.8rem',
+                            fontWeight: '600',
+                            borderRadius: '6px',
+                            textAlign: 'center',
+                            transition: 'all 0.2s',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '4px'
+                          }}
+                          onMouseOver={(e) => {
+                            e.currentTarget.style.borderColor = 'var(--primary)';
+                            e.currentTarget.style.backgroundColor = 'var(--primary-glow)';
+                          }}
+                          onMouseOut={(e) => {
+                            e.currentTarget.style.borderColor = 'var(--border-color)';
+                            e.currentTarget.style.backgroundColor = 'var(--bg-card)';
+                          }}
+                        >
+                          <span>📥</span>
+                          <span>다운로드</span>
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 {/* 주요 법령 */}
                 <div style={{ marginBottom: '24px' }}>
                   <h4 style={{
