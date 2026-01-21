@@ -18,26 +18,11 @@ function App() {
   const [dataAsOf, setDataAsOf] = useState(''); // 데이터 기준일
   const [showLegalResources, setShowLegalResources] = useState(false); // 법령 자료 표시 여부
 
-  // Check auth on mount
+  // Clean up any old auth data on mount
   useEffect(() => {
-    // Remove old localStorage auth (migration from localStorage to sessionStorage)
+    // Remove old localStorage auth (migration cleanup)
     localStorage.removeItem('academy_auth');
-
-    const cachedAuth = sessionStorage.getItem('academy_auth');
-    if (cachedAuth === 'true') {
-      setIsAuthenticated(true);
-    }
-
-    // Clear session storage when browser/tab is closed
-    const handleBeforeUnload = () => {
-      sessionStorage.removeItem('academy_auth');
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
+    sessionStorage.removeItem('academy_auth');
   }, []);
 
   // Fetch data when authenticated
@@ -67,13 +52,13 @@ function App() {
 
   const handleLogin = () => {
     setIsAuthenticated(true);
-    sessionStorage.setItem('academy_auth', 'true');
+    // No storage - auth state only in memory
   };
 
   const handleLogout = () => {
     setIsAuthenticated(false);
-    sessionStorage.removeItem('academy_auth');
     setAcademies([]);
+    // No storage - auth state only in memory
   };
 
   // Search/Filter Logic with Priority
