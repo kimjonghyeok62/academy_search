@@ -27,6 +27,17 @@ function App() {
     if (cachedAuth === 'true') {
       setIsAuthenticated(true);
     }
+
+    // Clear session storage when browser/tab is closed
+    const handleBeforeUnload = () => {
+      sessionStorage.removeItem('academy_auth');
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
   }, []);
 
   // Fetch data when authenticated
