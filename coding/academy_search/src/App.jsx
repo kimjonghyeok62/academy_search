@@ -20,7 +20,7 @@ function App() {
 
   // Check auth on mount
   useEffect(() => {
-    const cachedAuth = localStorage.getItem('academy_auth');
+    const cachedAuth = sessionStorage.getItem('academy_auth');
     if (cachedAuth === 'true') {
       setIsAuthenticated(true);
     }
@@ -53,12 +53,12 @@ function App() {
 
   const handleLogin = () => {
     setIsAuthenticated(true);
-    localStorage.setItem('academy_auth', 'true');
+    sessionStorage.setItem('academy_auth', 'true');
   };
 
   const handleLogout = () => {
     setIsAuthenticated(false);
-    localStorage.removeItem('academy_auth');
+    sessionStorage.removeItem('academy_auth');
     setAcademies([]);
   };
 
