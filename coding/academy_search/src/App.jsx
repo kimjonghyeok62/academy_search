@@ -20,6 +20,9 @@ function App() {
 
   // Check auth on mount
   useEffect(() => {
+    // Remove old localStorage auth (migration from localStorage to sessionStorage)
+    localStorage.removeItem('academy_auth');
+
     const cachedAuth = sessionStorage.getItem('academy_auth');
     if (cachedAuth === 'true') {
       setIsAuthenticated(true);
