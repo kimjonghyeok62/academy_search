@@ -239,6 +239,26 @@ function App() {
     return baseAddress;
   };
 
+  // 주소에서 지역 정보 추출 및 배지 스타일 반환
+  const getLocationBadge = (address) => {
+    if (!address) return null;
+
+    if (address.includes('하남시')) {
+      return {
+        text: '하남',
+        bgColor: '#E8F4FD',
+        textColor: '#2563EB'
+      };
+    } else if (address.includes('광주시')) {
+      return {
+        text: '광주',
+        bgColor: '#DCFCE7',
+        textColor: '#16A34A'
+      };
+    }
+    return null;
+  };
+
   // Render Login if not authenticated
   if (!isAuthenticated) {
     return <Login onLogin={handleLogin} />;
@@ -396,15 +416,33 @@ function App() {
 
           {showSuggestions && suggestions.length > 0 && (
             <ul className="suggestions-dropdown">
-              {suggestions.map((academy) => (
-                <li
-                  key={academy.id}
-                  onClick={() => selectSuggestion(academy)}
-                >
-                  <span className="suggestion-name">{academy.name}</span>
-                  <span className="suggestion-meta">{academy.founder.name}</span>
-                </li>
-              ))}
+              {suggestions.map((academy) => {
+                const locationBadge = getLocationBadge(academy.address);
+                return (
+                  <li
+                    key={academy.id}
+                    onClick={() => selectSuggestion(academy)}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
+                      <span className="suggestion-name">{academy.name}</span>
+                      {locationBadge && (
+                        <span style={{
+                          padding: '3px 10px',
+                          backgroundColor: locationBadge.bgColor,
+                          color: locationBadge.textColor,
+                          borderRadius: '6px',
+                          fontSize: '0.8rem',
+                          fontWeight: '600',
+                          whiteSpace: 'nowrap'
+                        }}>
+                          {locationBadge.text}
+                        </span>
+                      )}
+                    </div>
+                    <span className="suggestion-meta">{academy.founder.name}</span>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </form>
@@ -484,9 +522,25 @@ function App() {
               <div className="academy-meta">
                 <span style={{ color: 'var(--text-muted)' }}>설립자: <b style={{ color: 'var(--text-main)' }}>{academy.founder.name}</b></span>
                 <span style={{ color: 'var(--border-color)' }}>•</span>
-                <span className={academy.status.includes('개원') ? 'status-active' : 'status-inactive'}>
-                  {academy.status}
-                </span>
+                {(() => {
+                  const locationBadge = getLocationBadge(academy.address);
+                  return locationBadge ? (
+                    <span style={{
+                      padding: '4px 12px',
+                      backgroundColor: locationBadge.bgColor,
+                      color: locationBadge.textColor,
+                      borderRadius: '6px',
+                      fontSize: '0.85rem',
+                      fontWeight: '600'
+                    }}>
+                      {locationBadge.text}
+                    </span>
+                  ) : (
+                    <span className={academy.status.includes('개원') ? 'status-active' : 'status-inactive'}>
+                      {academy.status}
+                    </span>
+                  );
+                })()}
                 <span style={{ color: 'var(--border-color)' }}>•</span>
                 <button
                   onClick={(e) => {
@@ -526,7 +580,7 @@ function App() {
                     <polyline points="15 3 21 3 21 9"></polyline>
                     <line x1="10" y1="14" x2="21" y2="3"></line>
                   </svg>
-                  <span>플레이스</span>
+                  <span>네이버</span>
                 </button>
               </div>
             </div>
