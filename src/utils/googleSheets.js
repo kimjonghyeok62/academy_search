@@ -408,7 +408,9 @@ export function transformAcademyData(rawRows, inspectionMap = new Map()) {
             quota: row['정원'] || '',
             totalFee: row['총교습비'] || '',
             period: row['교습기간'] || '',
-            feePerHour: row['총교습비(시간당)'] || ''
+            feePerHour: row['총교습비(시간당)'] || '',
+            unitPrice: row['해당학원 분당단가'] || '',
+            standardUnitPrice: row['교습비 분당단가'] || ''
         };
         if (course.subject && !academy.courses.some(c => c.subject === course.subject && c.process === course.process)) {
             academy.courses.push(course);

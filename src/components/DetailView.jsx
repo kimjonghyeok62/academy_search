@@ -1310,9 +1310,51 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
                                             {!isExpanded && (
                                                 <div style={{
                                                     fontSize: '0.8rem',
-                                                    color: 'var(--text-muted)'
+                                                    color: 'var(--text-muted)',
+                                                    display: 'flex',
+                                                    flexDirection: 'column',
+                                                    gap: '4px'
                                                 }}>
-                                                    {course.track} | 정원: {course.quota}명 | 총교습비: {course.totalFee}원
+                                                    <div>
+                                                        {course.track} | 정원: {course.quota}명 | 총교습비: {course.totalFee}원
+                                                    </div>
+                                                    {(course.unitPrice || course.standardUnitPrice) && (() => {
+                                                        const cleanUnit = (course.unitPrice || '').toString().replace(/[^0-9.]/g, '');
+                                                        const cleanStd = (course.standardUnitPrice || '').toString().replace(/[^0-9.]/g, '');
+                                                        const isExcess = cleanUnit && cleanStd && Number(cleanUnit) > Number(cleanStd);
+
+                                                        return (
+                                                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap', marginTop: '2px' }}>
+                                                                <span style={{
+                                                                    display: 'inline-flex', alignItems: 'center', gap: '4px',
+                                                                    backgroundColor: isExcess ? '#fee2e2' : 'var(--bg-light)',
+                                                                    padding: '2px 6px',
+                                                                    borderRadius: '4px',
+                                                                    color: isExcess ? '#dc2626' : 'var(--text-muted)',
+                                                                    fontWeight: isExcess ? '700' : '500',
+                                                                    border: isExcess ? '1px solid #fca5a5' : '1px solid var(--border-color)',
+                                                                    fontSize: '0.75rem'
+                                                                }}>
+                                                                    학원단가: {course.unitPrice ? `${course.unitPrice}원` : '-'}
+                                                                </span>
+                                                                <span style={{
+                                                                    display: 'inline-flex', alignItems: 'center', gap: '4px',
+                                                                    backgroundColor: 'var(--bg-light)',
+                                                                    padding: '2px 6px',
+                                                                    borderRadius: '4px',
+                                                                    color: 'var(--text-muted)',
+                                                                    border: '1px solid var(--border-color)',
+                                                                    fontSize: '0.75rem',
+                                                                    fontWeight: '500'
+                                                                }}>
+                                                                    기준단가: {course.standardUnitPrice ? `${course.standardUnitPrice}원` : '-'}
+                                                                </span>
+                                                                {isExcess && (
+                                                                    <span style={{ color: '#dc2626', fontWeight: '800', fontSize: '0.72rem' }}>⚠ 초과</span>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })()}
                                                 </div>
                                             )}
                                         </div>
@@ -1330,6 +1372,12 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
                                             <InfoRow label="교습기간" value={course.period} />
                                             <InfoRow label="총교습비" value={`${course.totalFee}원`} />
                                             <InfoRow label="시간당" value={`${course.feePerHour}원`} />
+                                            <InfoRow label="학원분당단가" value={course.unitPrice ? `${course.unitPrice}원` : '-'} isExpired={
+                                                (course.unitPrice || '').toString().replace(/[^0-9.]/g, '') &&
+                                                (course.standardUnitPrice || '').toString().replace(/[^0-9.]/g, '') &&
+                                                Number((course.unitPrice || '').toString().replace(/[^0-9.]/g, '')) > Number((course.standardUnitPrice || '').toString().replace(/[^0-9.]/g, ''))
+                                            } />
+                                            <InfoRow label="기준분당단가" value={course.standardUnitPrice ? `${course.standardUnitPrice}원` : '-'} />
                                         </div>
                                     )}
                                 </div>
