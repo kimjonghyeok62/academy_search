@@ -1,6 +1,7 @@
 
 export const SHEET_ID = '158ZNBb88raJ1kzBL3eFcgPZS9CGs5in0YtPtiPWfdic';
 export const DATA_GID = '1863320151';
+export const GYOSEUPSO_GID = '1929773080';
 export const PASSWORD_GID = '59615156';
 
 // 지도점검 전용 시트 (2025년 이전 통계)
@@ -361,26 +362,26 @@ export function transformAcademyData(rawRows, inspectionMap = new Map()) {
     const academyMap = new Map();
 
     rawRows.forEach(row => {
-        const name = (row['학원명'] || '').trim();
+        const name = (row['학원명'] || row['교습소명'] || '').trim();
         if (!name) return;
 
         if (!academyMap.has(name)) {
             const normName = normalizeName(name);
             academyMap.set(name, {
-                id: row['등록번호'] || '',
+                id: row['등록번호'] || row['신고번호'] || '',
                 name: name,
-                category: row['학원종류'] || '',
+                category: row['학원종류'] || '교습소',
                 field: row['분야구분'] || '',
-                address: row['학원주소'] || '',
+                address: row['학원주소'] || row['교습소주소'] || '',
                 zip: row['우편번호'] || '',
                 regDate: row['등록일'] || '',
                 status: row['등록상태'] || '',
-                statusDate: row['개원/휴원/폐원일'] || '',
+                statusDate: row['개원/휴원/폐원일'] || row['개소/휴소/폐소일'] || '',
                 founder: {
-                    name: row['설립자-성명'] || '',
+                    name: row['설립자-성명'] || row['교습자-성명'] || '',
                     phone: row['전화번호'] || '',
                     mobile: row['핸드폰'] || '',
-                    birth: row['설립자-생년월일'] || '',
+                    birth: row['설립자-생년월일'] || row['교습자-생년월일'] || '',
                     address: row['설립자-주소'] || ''
                 },
                 facilities: {
@@ -407,9 +408,10 @@ export function transformAcademyData(rawRows, inspectionMap = new Map()) {
             track: row['교습계열'] || '',
             quota: row['정원'] || '',
             totalFee: row['총교습비'] || '',
-            period: row['교습기간'] || '',
+            period: row['교습기간'] || row['교습기간(개월)'] || '',
             feePerHour: row['총교습비(시간당)'] || '',
-            unitPrice: row['해당학원 분당단가'] || '',
+            totalTime: row['총교습시간(분)'] || row['총교습기간(분)'] || '',
+            unitPrice: row['해당학원 분당단가'] || row['해당교습소 분당단가'] || '',
             standardUnitPrice: row['교습비 분당단가'] || ''
         };
         if (course.subject && !academy.courses.some(c => c.subject === course.subject && c.process === course.process)) {
@@ -421,8 +423,8 @@ export function transformAcademyData(rawRows, inspectionMap = new Map()) {
             contractor: row['계약업체명'] || '',
             policyNumber: row['계약번호'] || '',
             teachersCount: row['강사수'] || '',
-            startDate: row['보험시작일'] || '',
-            endDate: row['보험종료일'] || '',
+            startDate: row['보험시작일'] || row['보험시작일자'] || '',
+            endDate: row['보험종료일'] || row['보험종료일자'] || '',
             compensationPerAccident: row['사고당배상금액'] || '',
             medicalPerPerson: row['인당의료실비금액'] || '',
             compensationPerPerson: row['인당배상금액'] || ''

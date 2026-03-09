@@ -106,73 +106,80 @@ export default function InspectionStandardAccordion() {
         }
     };
 
+    const [isHovered, setIsHovered] = useState(false);
+
     return (
         <div
             style={{
                 background: 'var(--bg-card)',
-                borderRadius: '16px',
-                border: '1px solid var(--border-color)',
-                boxShadow: 'var(--shadow-sm)',
+                borderRadius: '14px',
+                border: '1px solid',
+                borderColor: isHovered ? 'var(--primary)' : 'var(--border-color)',
+                boxShadow: isHovered ? '0 6px 12px -2px rgba(0,0,0,0.05)' : '0 2px 4px rgba(0,0,0,0.02)',
+                transform: isHovered ? 'translateY(-2px)' : 'translateY(0)',
                 overflow: 'hidden',
                 transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
             }}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
         >
             <div
                 onClick={() => setIsOpen(!isOpen)}
                 style={{
-                    padding: '18px 20px',
+                    padding: '12px 16px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     cursor: 'pointer',
-                    background: isOpen ? 'var(--bg-main)' : 'var(--bg-card)'
-                }}
-                onMouseOver={(e) => {
-                    if (!isOpen) e.currentTarget.style.backgroundColor = 'var(--primary-glow)';
-                }}
-                onMouseOut={(e) => {
-                    if (!isOpen) e.currentTarget.style.backgroundColor = 'var(--bg-card)';
+                    background: 'var(--bg-card)',
+                    gap: '10px'
                 }}
             >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <div style={{
-                        background: 'var(--bg-main)',
                         width: '36px',
                         height: '36px',
                         borderRadius: '10px',
+                        background: '#fef2f2',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        fontSize: '1.2rem',
-                        border: '1px solid var(--border-color)'
+                        fontSize: '1.2rem'
                     }}>
                         📋
                     </div>
                     <div>
-                        <div style={{ fontSize: '1.05rem', fontWeight: '800', color: 'var(--text-main)' }}>
+                        <div style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--text-main)' }}>
                             행정처분, 과태료 (1차 적발시)
-                        </div>
-                        <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                            공문상 1차 행정처분 및 과태료 부과 기준
                         </div>
                     </div>
                 </div>
-                <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="var(--text-muted)"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    style={{
-                        transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-                        transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
-                    }}
-                >
-                    <polyline points="6 9 12 15 18 9"></polyline>
-                </svg>
+                <div style={{
+                    width: '28px',
+                    height: '28px',
+                    borderRadius: '6px',
+                    background: 'var(--bg-light)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                }}>
+                    <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="var(--text-muted)"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        style={{
+                            transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                            transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+                        }}
+                    >
+                        <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                </div>
             </div>
 
             {isOpen && (

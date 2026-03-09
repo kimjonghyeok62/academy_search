@@ -107,7 +107,7 @@ function InstructorTab({ instructors = [] }) {
                                 {/* 헤더 행: 이름 + 배지들 */}
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
                                     <span style={{ fontSize: '1rem', fontWeight: '800', color: isDismissed ? '#64748b' : 'var(--text-main)' }}>
-                                        {inst.name || '-'}
+                                        {idx + 1}. {inst.name || '-'}
                                     </span>
                                     {inst.subject && (
                                         <span style={{ padding: '2px 8px', borderRadius: '8px', background: '#eff6ff', color: '#1d4ed8', fontSize: '0.75rem', fontWeight: '700', border: '1px solid #bfdbfe' }}>
@@ -1176,7 +1176,19 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
                         })()}
                     </div>
                 );
-            case 'founder':
+            case 'founder': {
+                const founderName = academy.founder?.name;
+                let sameFounderAcademies = [];
+                let totalAreaSum = 0;
+
+                if (founderName) {
+                    sameFounderAcademies = sameBuildingAcademies.filter(a => a.founder && a.founder.name === founderName);
+                    totalAreaSum = sameFounderAcademies.reduce((sum, a) => {
+                        const area = parseFloat(a.facilities?.totalArea) || 0;
+                        return sum + area;
+                    }, 0);
+                }
+
                 return (
                     <div className="tab-content animate-enter">
                         <Section title="설립자 정보">
@@ -1207,8 +1219,63 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
                             <InfoRow label="전화번호" value={academy.founder.phone} />
                             <InfoRow label="핸드폰" value={academy.founder.mobile} />
                         </Section>
+
+                        {sameFounderAcademies.length > 0 && (
+                            <Section title={`동일 위치 동일 설립자 등록 학원 (${sameFounderAcademies.length}개)`}>
+                                <div style={{
+                                    fontSize: '0.85rem',
+                                    padding: '12px',
+                                    borderRadius: '8px',
+                                    backgroundColor: totalAreaSum >= 500 ? '#fff1f2' : 'var(--bg-light)',
+                                    border: totalAreaSum >= 500 ? '1.5px solid #fca5a5' : '1px solid var(--border-color)',
+                                    marginBottom: '12px'
+                                }}>
+                                    <div style={{ marginBottom: totalAreaSum >= 500 ? '10px' : '0', color: 'var(--text-main)', lineHeight: '1.5' }}>
+                                        동일 위치(<strong>{baseAddress}</strong>)에 설립자 <strong>{founderName}</strong>님 명의로 등록된 학원들의 <strong>총면적 합계</strong>는 <strong>{formatNumber(totalAreaSum.toFixed(2))}㎡</strong> 입니다.
+                                    </div>
+                                    {totalAreaSum >= 500 && (
+                                        <div style={{
+                                            color: '#b91c1c',
+                                            fontWeight: '700',
+                                            display: 'flex',
+                                            alignItems: 'flex-start',
+                                            gap: '8px',
+                                            paddingTop: '10px',
+                                            borderTop: '1px dashed #fca5a5'
+                                        }}>
+                                            <span style={{ fontSize: '1.2rem', marginTop: '-2px' }}>⚠️</span>
+                                            <span style={{ lineHeight: '1.5' }}>
+                                                총면적 합계가 <strong>500㎡ 이상</strong>이므로, 해당 위치의 건축물용도는
+                                                '제2종근린생활시설(학원, 교습소)'이 아닌, <strong>'교육연구시설(학원)'</strong>이어야 합니다.
+                                                <br />
+                                                <span style={{ fontSize: '0.75rem', fontWeight: '500', color: '#991b1b', marginTop: '4px', display: 'inline-block' }}>
+                                                    * 건축물대장을 확인하여 용도변경 등 검토가 필요합니다.
+                                                </span>
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    {sameFounderAcademies.map(a => (
+                                        <div key={a.id} style={{
+                                            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                            padding: '12px', backgroundColor: 'var(--bg-card)',
+                                            border: '1px solid var(--border-color)', borderRadius: '8px',
+                                            fontSize: '0.85rem'
+                                        }}>
+                                            <div style={{ fontWeight: '700', color: 'var(--primary)' }}>{a.name}</div>
+                                            <div style={{ display: 'flex', gap: '16px', color: 'var(--text-muted)' }}>
+                                                <span>{a.category}</span>
+                                                <span style={{ fontWeight: '600', color: 'var(--text-main)' }}>{formatNumber(a.facilities?.totalArea)}㎡</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </Section>
+                        )}
                     </div>
                 );
+            }
             case 'facilities':
                 return (
                     <div className="tab-content animate-enter">
@@ -1307,35 +1374,91 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
                                             }}>
                                                 {idx + 1}. {course.process} - {course.subject}
                                             </div>
-                                            {!isExpanded && (
-                                                <div style={{
-                                                    fontSize: '0.8rem',
-                                                    color: 'var(--text-muted)',
-                                                    display: 'flex',
-                                                    flexDirection: 'column',
-                                                    gap: '4px'
-                                                }}>
-                                                    <div>
-                                                        {course.track} | 정원: {course.quota}명 | 총교습비: {course.totalFee}원
-                                                    </div>
-                                                    {(course.unitPrice || course.standardUnitPrice) && (() => {
-                                                        const cleanUnit = (course.unitPrice || '').toString().replace(/[^0-9.]/g, '');
-                                                        const cleanStd = (course.standardUnitPrice || '').toString().replace(/[^0-9.]/g, '');
-                                                        const isExcess = cleanUnit && cleanStd && Number(cleanUnit) > Number(cleanStd);
+                                            {!isExpanded && (() => {
+                                                const totalTimeNum = Number(String(course.totalTime || '').replace(/[^0-9]/g, ''));
+                                                const rawUnitPriceStr = String(course.unitPrice || '0').replace(/[^0-9.]/g, '');
+                                                const unitPriceNum = parseFloat(rawUnitPriceStr);
 
-                                                        return (
+                                                const rawStdPriceStr = String(course.standardUnitPrice || '0').replace(/[^0-9.]/g, '');
+                                                const stdPriceNum = parseFloat(rawStdPriceStr);
+
+                                                const feeStr = String(course.totalFee || '').replace(/[^0-9]/g, '');
+                                                const feeNum = Number(feeStr);
+
+                                                // Calculate if Academy Price > Standard Price
+                                                let isExcess = false;
+                                                let hasValidCompare = false;
+                                                if (!isNaN(unitPriceNum) && unitPriceNum > 0 && !isNaN(stdPriceNum) && stdPriceNum > 0) {
+                                                    hasValidCompare = true;
+                                                    isExcess = unitPriceNum > stdPriceNum;
+                                                }
+
+                                                // Compute best representation of weekly sessions and minutes
+                                                let exactUnitPrice = 0;
+                                                let displayUnitPrice = '';
+                                                let isSimilar = false;
+                                                const validCombinations = [];
+
+                                                if (totalTimeNum > 0 && feeNum > 0) {
+                                                    exactUnitPrice = feeNum / totalTimeNum;
+                                                    displayUnitPrice = exactUnitPrice % 1 !== 0 ? exactUnitPrice.toFixed(1) : exactUnitPrice.toString();
+
+                                                    if (!isNaN(unitPriceNum) && unitPriceNum > 0) {
+                                                        isSimilar = Math.abs(exactUnitPrice - unitPriceNum) <= 1.5;
+                                                    }
+
+                                                    const weekOptions = [4.3, 4.2, 4.1, 4.0];
+
+                                                    for (const weeks of weekOptions) {
+                                                        const weeklyTime = totalTimeNum / weeks;
+                                                        for (let sessions = 1; sessions <= 7; sessions++) {
+                                                            const rawMinutes = weeklyTime / sessions;
+                                                            const minutes = Math.round(rawMinutes);
+                                                            if (minutes >= 30 && minutes <= 300) {
+                                                                let score = 0;
+                                                                if (minutes % 10 === 0) score += 50;
+                                                                if (minutes % 30 === 0) score += 20;
+                                                                if (minutes % 60 === 0) score += 30;
+                                                                if (Math.abs(rawMinutes - minutes) < 0.5) score += 100;
+
+                                                                if (sessions >= 3 && sessions <= 5) score += 40;
+                                                                else if (sessions === 1 || sessions === 2) score -= 20;
+
+                                                                if (score > 20 || Math.abs(rawMinutes - minutes) < 1) {
+                                                                    validCombinations.push({ sessions, minutes, weeks, score });
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                    validCombinations.sort((a, b) => b.score - a.score);
+                                                }
+
+                                                const calcUnitPriceColor = isSimilar ? '#2563eb' : '#dc2626';
+
+                                                return (
+                                                    <div style={{
+                                                        fontSize: '0.8rem',
+                                                        color: 'var(--text-muted)',
+                                                        display: 'flex',
+                                                        flexDirection: 'column',
+                                                        gap: '4px'
+                                                    }}>
+                                                        <div>
+                                                            {course.track} | 정원: {course.quota}명 | 총교습비: {course.totalFee}원 {course.totalTime ? `| 총교습시간: ${course.totalTime}분` : ''}
+                                                        </div>
+
+                                                        {(course.unitPrice || course.standardUnitPrice) && (
                                                             <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap', marginTop: '2px' }}>
                                                                 <span style={{
                                                                     display: 'inline-flex', alignItems: 'center', gap: '4px',
-                                                                    backgroundColor: isExcess ? '#fee2e2' : 'var(--bg-light)',
+                                                                    backgroundColor: 'var(--bg-light)',
                                                                     padding: '2px 6px',
                                                                     borderRadius: '4px',
-                                                                    color: isExcess ? '#dc2626' : 'var(--text-muted)',
-                                                                    fontWeight: isExcess ? '700' : '500',
-                                                                    border: isExcess ? '1px solid #fca5a5' : '1px solid var(--border-color)',
+                                                                    color: 'var(--text-muted)',
+                                                                    border: '1px solid var(--border-color)',
                                                                     fontSize: '0.75rem'
                                                                 }}>
-                                                                    학원단가: {course.unitPrice ? `${course.unitPrice}원` : '-'}
+                                                                    {academy.category.includes('교습소') ? '교습소단가' : '학원단가'}: <span style={{ color: '#2563eb', fontWeight: '800' }}>{course.unitPrice ? `${course.unitPrice}원` : '-'}</span>
                                                                 </span>
                                                                 <span style={{
                                                                     display: 'inline-flex', alignItems: 'center', gap: '4px',
@@ -1349,14 +1472,37 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
                                                                 }}>
                                                                     기준단가: {course.standardUnitPrice ? `${course.standardUnitPrice}원` : '-'}
                                                                 </span>
-                                                                {isExcess && (
-                                                                    <span style={{ color: '#dc2626', fontWeight: '800', fontSize: '0.72rem' }}>⚠ 초과</span>
+                                                                {hasValidCompare && (
+                                                                    <span style={{ color: isExcess ? '#dc2626' : '#2563eb', fontWeight: '800', fontSize: '0.75rem' }}>
+                                                                        [{isExcess ? '초과' : '적합'}]
+                                                                    </span>
                                                                 )}
                                                             </div>
-                                                        );
-                                                    })()}
-                                                </div>
-                                            )}
+                                                        )}
+
+                                                        {validCombinations.length > 0 && (() => {
+                                                            const best = validCombinations[0];
+                                                            const weeklyMinutes = best.minutes * best.sessions;
+                                                            const hours = weeklyMinutes / 60;
+                                                            const hoursText = hours % 1 === 0 ? hours : hours.toFixed(1);
+                                                            return (
+                                                                <div style={{ marginTop: '4px', fontSize: '0.78rem', color: '#000000', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                                    <div>
+                                                                        총교습시간 검토 : {totalTimeNum.toLocaleString()}분 = <span style={{ fontWeight: '800' }}>{best.minutes}분씩</span> × <span style={{ fontWeight: '800' }}>주{best.sessions}회</span> × {best.weeks !== 4.3 ? <span style={{ color: '#10b981', fontWeight: '800' }}>{best.weeks}주</span> : <span>{best.weeks}주</span>}
+                                                                        <span>, <br />&nbsp;&nbsp;<span style={{ color: '#ea580c' }}>→</span> 주당 {weeklyMinutes}분({hoursText}시간)</span>
+                                                                    </div>
+                                                                    <div>
+                                                                        총교습비 검토 : {totalTimeNum.toLocaleString()}분 × <span style={{ color: calcUnitPriceColor, fontWeight: '800' }}>{displayUnitPrice}원</span> = {feeNum.toLocaleString()}원
+                                                                        <span style={{ marginLeft: '6px', color: isSimilar ? '#2563eb' : '#dc2626', fontWeight: '800' }}>
+                                                                            [{isSimilar ? '적합' : '이상'}]
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })()}
+                                                    </div>
+                                                );
+                                            })()}
                                         </div>
                                     </div>
 
@@ -1370,14 +1516,97 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
                                             <InfoRow label="교습계열" value={course.track} />
                                             <InfoRow label="정원" value={`${course.quota}명`} />
                                             <InfoRow label="교습기간" value={course.period} />
+                                            <InfoRow label="총교습시간" value={course.totalTime ? `${course.totalTime}분` : '-'} />
                                             <InfoRow label="총교습비" value={`${course.totalFee}원`} />
                                             <InfoRow label="시간당" value={`${course.feePerHour}원`} />
-                                            <InfoRow label="학원분당단가" value={course.unitPrice ? `${course.unitPrice}원` : '-'} isExpired={
+                                            <InfoRow label={academy.category.includes('교습소') ? '교습소분당단가' : '학원분당단가'} value={course.unitPrice ? `${course.unitPrice}원` : '-'} isExpired={
                                                 (course.unitPrice || '').toString().replace(/[^0-9.]/g, '') &&
                                                 (course.standardUnitPrice || '').toString().replace(/[^0-9.]/g, '') &&
                                                 Number((course.unitPrice || '').toString().replace(/[^0-9.]/g, '')) > Number((course.standardUnitPrice || '').toString().replace(/[^0-9.]/g, ''))
                                             } />
                                             <InfoRow label="기준분당단가" value={course.standardUnitPrice ? `${course.standardUnitPrice}원` : '-'} />
+                                            {(() => {
+                                                const totalTimeNum = Number(String(course.totalTime || '').replace(/[^0-9]/g, ''));
+                                                // 학원단가 문자열만 추출 후 소수점 포함 숫자형 변환
+                                                const rawUnitPriceStr = String(course.unitPrice || '0').replace(/[^0-9.]/g, '');
+                                                const unitPriceNum = parseFloat(rawUnitPriceStr);
+
+                                                // 총 교습비
+                                                const feeStr = String(course.totalFee || '').replace(/[^0-9]/g, '');
+                                                const feeNum = Number(feeStr);
+
+                                                if (!totalTimeNum || isNaN(unitPriceNum) || unitPriceNum === 0) return null;
+
+                                                // 역산하여 정확한 단가 도출 (학원단가에 적힌 값이 소수점 이하에서 잘렸을 수 있으므로 정확한 계산 단가를 역추적)
+                                                // 예) 단가 137.8... 인데 138로 적혔거나 3으로 잘못 적힌 경우 방지
+                                                const exactUnitPrice = feeNum / totalTimeNum;
+                                                const displayUnitPrice = exactUnitPrice % 1 !== 0 ? exactUnitPrice.toFixed(1) : exactUnitPrice.toString();
+
+                                                const weekOptions = [4.3, 4.2, 4.1, 4.0];
+                                                const validCombinations = [];
+
+                                                for (const weeks of weekOptions) {
+                                                    const weeklyTime = totalTimeNum / weeks;
+                                                    for (let sessions = 1; sessions <= 7; sessions++) {
+                                                        const rawMinutes = weeklyTime / sessions;
+                                                        const minutes = Math.round(rawMinutes);
+                                                        if (minutes >= 30 && minutes <= 300) {
+                                                            let score = 0;
+                                                            if (minutes % 10 === 0) score += 50;
+                                                            if (minutes % 30 === 0) score += 20;
+                                                            if (minutes % 60 === 0) score += 30;
+                                                            if (Math.abs(rawMinutes - minutes) < 0.5) score += 100; // 거의 정수
+
+                                                            if (sessions >= 3 && sessions <= 5) score += 40;
+                                                            else if (sessions === 1 || sessions === 2) score -= 20;
+
+                                                            // Require at least somewhat realistic times (like ending in 0 or matching perfectly)
+                                                            if (score > 20 || Math.abs(rawMinutes - minutes) < 1) {
+                                                                validCombinations.push({ sessions, minutes, weeks, score });
+                                                            }
+                                                        }
+                                                    }
+                                                }
+
+                                                // Sort by best score descending and take up to top 3
+                                                validCombinations.sort((a, b) => b.score - a.score);
+                                                const topCombinations = validCombinations.slice(0, 3);
+
+                                                if (topCombinations.length > 0) {
+                                                    const rawCalculatedFee = totalTimeNum * exactUnitPrice;
+                                                    // 실제 화면에 보여줄 때 쓰는 계산 식
+                                                    const formattedCalculatedFee = Math.round(rawCalculatedFee).toLocaleString();
+                                                    const formattedFeeNum = feeNum.toLocaleString();
+
+                                                    return (
+                                                        <div style={{
+                                                            marginTop: '16px',
+                                                            padding: '12px',
+                                                            backgroundColor: 'var(--bg-light)',
+                                                            borderRadius: '8px',
+                                                            fontSize: '0.82rem',
+                                                            color: 'var(--text-main)',
+                                                            lineHeight: '1.5',
+                                                            borderLeft: '4px solid var(--primary)',
+                                                            opacity: 0.9
+                                                        }}>
+                                                            <div style={{ fontWeight: '700', marginBottom: '6px', color: 'var(--primary)', fontSize: '0.8rem' }}>💡 교습비 점검하기</div>
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                                                {topCombinations.map((combo, i) => (
+                                                                    <div key={i} style={{ wordBreak: 'keep-all' }}>
+                                                                        <span style={{ fontWeight: '600' }}>{totalTimeNum.toLocaleString()}분</span>
+                                                                        <span style={{ color: 'var(--text-muted)' }}> (=<span style={{ fontWeight: '800' }}>{combo.minutes}분</span> × <span style={{ fontWeight: '800' }}>주{combo.sessions}회</span> × {combo.weeks !== 4.3 ? <span style={{ color: '#10b981', fontWeight: '800' }}>{combo.weeks}</span> : combo.weeks}주)</span>
+                                                                        {' '}× <span style={{ fontWeight: '600', color: '#ea580c' }}>{displayUnitPrice}원</span> =
+                                                                        <span style={{ color: 'var(--text-muted)' }}> (실제 {formattedCalculatedFee}) = </span>
+                                                                        <span style={{ fontWeight: '800', color: '#2563eb' }}>{formattedFeeNum}원</span>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                }
+                                                return null;
+                                            })()}
                                         </div>
                                     )}
                                 </div>

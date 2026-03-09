@@ -244,6 +244,7 @@ function TabRecent({ region, academies, onSelectAcademy }) {
     const [selectedRow, setSelectedRow] = useState(null);
     const [selectedIndex, setSelectedIndex] = useState(null);
     const [page, setPage] = useState(0);
+    const [showMonthlyDrop, setShowMonthlyDrop] = useState(false);
     const PAGE_SIZE = 30;
 
     useEffect(() => {
@@ -316,6 +317,44 @@ function TabRecent({ region, academies, onSelectAcademy }) {
     }, [groupedRows]);
 
     const inspRate = Math.round(uniqueAcademyCount / TOTAL_ACADEMY_COUNT * 100);
+    const targetAcademyCount = Math.round(TOTAL_ACADEMY_COUNT * 0.5); // 50% 목표수치
+    const targetRate = Math.round(uniqueAcademyCount / targetAcademyCount * 100); // 목표수치 대비 달성률
+
+    // ── 월별 1차, 2차 통계 계산 ──
+    const monthlyStats = useMemo(() => {
+        const stats = {};
+        groupedRows.forEach(g => {
+            const d = (g.date || '').trim();
+            const m = d.match(/(\d{4})[.\-/\s]+(\d{1,2})[.\-/\s]+(\d{1,2})/);
+            if (m) {
+                const month = parseInt(m[2], 10);
+                const day = parseInt(m[3], 10);
+                const isFirstHalf = day <= 15;
+                const key = `${month}월 ${isFirstHalf ? '1' : '2'}차`;
+                stats[key] = (stats[key] || 0) + 1;
+            }
+        });
+
+        // 1월 1차 ~ 12월 2차 순서대로 정렬하기 위한 키 배열
+        const sortedKeys = Object.keys(stats).sort((a, b) => {
+            const parseKey = (k) => {
+                const parts = k.match(/(\d+)월\s+(\d+)차/);
+                return parts ? parseInt(parts[1], 10) * 10 + parseInt(parts[2], 10) : 0;
+            };
+            return parseKey(a) - parseKey(b);
+        });
+
+        return sortedKeys.map(k => {
+            const month = k.split('월')[0];
+            const isFirst = k.includes('1차');
+            const periodStr = isFirst ? `(${month}.1.~${month}.15.)` :
+                `(${month}.16.~${month}.${month === '2' ? '28(29)' : ['4', '6', '9', '11'].includes(month) ? '30' : '31'}.)`;
+            return {
+                label: `${k} ${periodStr}`,
+                count: stats[k]
+            };
+        });
+    }, [groupedRows]);
 
     // 학원별 교차 배경 (학원명이 바뀔 때마다 0/1 토글)
     const academyBgMap = useMemo(() => {
@@ -341,14 +380,7 @@ function TabRecent({ region, academies, onSelectAcademy }) {
 
     return (
         <div>
-            {/* 툴바 */}
-            <div style={{ display: 'flex', gap: '10px', marginBottom: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
-                <a href="https://docs.google.com/spreadsheets/d/1zSGd9TBcJRculSJzUoZ2N8bB2iENuCI0x9KBpyfXMUo/edit?gid=1946422008#gid=1946422008"
-                    target="_blank" rel="noopener noreferrer"
-                    style={{ padding: '8px 14px', borderRadius: '10px', background: 'var(--bg-card)', color: 'var(--text-muted)', border: '1px solid var(--border-color)', textDecoration: 'none', fontWeight: '600', fontSize: '0.83rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span>📊</span> 구글 시트 열기
-                </a>
-            </div>
+            {/* 툴바 (구글 시트 열기 삭제됨) */}
 
             {/* ── 상단 요약 패널 ── */}
             {!loading && groupedRows.length > 0 && (
@@ -381,18 +413,68 @@ function TabRecent({ region, academies, onSelectAcademy }) {
                             <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>건</span>
                         </div>
                         <div style={{ width: '1px', height: '28px', background: 'var(--border-color)' }} />
-                        <div style={{ flex: 1, minWidth: '160px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
-                                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '600' }}>
-                                    전체 점검률 <span style={{ fontSize: '0.7rem' }}>(전체 {TOTAL_ACADEMY_COUNT}개 기준)</span>
-                                </span>
-                                <span style={{ fontSize: '1rem', fontWeight: '800', color: '#6366f1' }}>{inspRate}%</span>
+                        <div style={{ flex: 1, minWidth: '160px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            {/* 전체 점검률 */}
+                            <div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
+                                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '600' }}>
+                                        전체 점검률 <span style={{ fontSize: '0.7rem' }}>(전체 {TOTAL_ACADEMY_COUNT}개 기준)</span>
+                                    </span>
+                                    <span style={{ fontSize: '0.9rem', fontWeight: '800', color: '#6366f1' }}>{inspRate}%</span>
+                                </div>
+                                <div style={{ height: '6px', borderRadius: '99px', background: '#bfdbfe', overflow: 'hidden' }}>
+                                    <div style={{ height: '100%', borderRadius: '99px', width: `${Math.min(inspRate, 100)}%`, background: '#6366f1', transition: 'width 0.6s ease' }} />
+                                </div>
                             </div>
-                            <div style={{ height: '8px', borderRadius: '99px', background: 'var(--bg-main)', overflow: 'hidden' }}>
-                                <div style={{ height: '100%', borderRadius: '99px', width: `${Math.min(inspRate, 100)}%`, background: 'linear-gradient(90deg, #6366f1, #3b82f6)', transition: 'width 0.6s ease' }} />
+                            {/* 목표 점검률 */}
+                            <div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
+                                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '600' }}>
+                                        목표 점검률 <span style={{ fontSize: '0.7rem' }}>(목표 {targetAcademyCount}개 기준)</span>
+                                    </span>
+                                    <span style={{ fontSize: '0.9rem', fontWeight: '800', color: '#10b981' }}>{targetRate}%</span>
+                                </div>
+                                <div style={{ height: '6px', borderRadius: '99px', background: '#d1fae5', overflow: 'hidden' }}>
+                                    <div style={{ height: '100%', borderRadius: '99px', width: `${Math.min(targetRate, 100)}%`, background: '#10b981', transition: 'width 0.6s ease' }} />
+                                </div>
                             </div>
-                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '3px' }}>
-                                점검 완료 {uniqueAcademyCount}개소 / 전체 {TOTAL_ACADEMY_COUNT}개소
+                            {/* 텍스트 코멘트 및 월별 아코디언 */}
+                            <div style={{ marginTop: '2px', border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
+                                <div
+                                    onClick={() => setShowMonthlyDrop(!showMonthlyDrop)}
+                                    style={{
+                                        padding: '6px 10px',
+                                        background: '#f8fafc',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        fontSize: '0.75rem',
+                                        color: 'var(--text-main)',
+                                        fontWeight: '600'
+                                    }}
+                                >
+                                    <span>🎯 목표: 전체의 50%({targetAcademyCount}개소) 점검</span>
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: showMonthlyDrop ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
+                                        <polyline points="6 9 12 15 18 9"></polyline>
+                                    </svg>
+                                </div>
+                                {showMonthlyDrop && (
+                                    <div style={{ padding: '8px 10px', background: 'white', borderTop: '1px solid #e2e8f0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                        <div style={{ marginBottom: '6px', fontWeight: '700', color: 'var(--primary)' }}>📊 점검 완료: 총 {uniqueAcademyCount}개소</div>
+                                        {monthlyStats.length > 0 ? (
+                                            <ul style={{ margin: 0, paddingLeft: '16px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                                                {monthlyStats.map((stat, idx) => (
+                                                    <li key={idx}>
+                                                        {stat.label} : <span style={{ fontWeight: '700', color: 'var(--text-main)' }}>{stat.count}건</span>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        ) : (
+                                            <div style={{ paddingLeft: '4px' }}>점검 이력이 없습니다.</div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -951,7 +1033,7 @@ export default function InspectionPage({ onBack, academies, onSelectAcademy }) {
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
                         홈
                     </button>
-                    <span style={{ fontSize: '1rem', fontWeight: '800', color: 'var(--text-main)' }}>🔍 지도점검 업무관리 (하남)</span>
+                    <span style={{ fontSize: '1rem', fontWeight: '800', color: 'var(--text-main)' }}>🔍 지도점검 업무관리</span>
                 </div>
                 {/* 탭 */}
                 <div style={{ display: 'flex', gap: '4px', overflowX: 'auto', paddingBottom: '2px' }}>

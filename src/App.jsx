@@ -1,10 +1,34 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import DetailView from './components/DetailView';
 import Login from './components/Login';
-import { fetchGoogleSheetData, transformAcademyData, fetchSheetName, fetchInspectionData, fetch2026InspectionData, fetchInstructorData, DATA_GID } from './utils/googleSheets';
+import { fetchGoogleSheetData, transformAcademyData, fetchSheetName, fetchInspectionData, fetch2026InspectionData, fetchInstructorData, DATA_GID, GYOSEUPSO_GID } from './utils/googleSheets';
 import './App.css';
 import InspectionStandardAccordion from './components/InspectionStandardAccordion';
 import InspectionPage from './components/InspectionPage';
+
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, errorInfo) {
+    console.error("DetailView error:", error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return <div style={{ padding: '20px', backgroundColor: 'pink', color: 'red' }}>
+        <h3>Error in DetailView</h3>
+        <pre>{this.state.error && this.state.error.toString()}</pre>
+        <pre>{this.state.error && this.state.error.stack}</pre>
+        <button onClick={() => this.props.onBack()}>Go Back</button>
+      </div>;
+    }
+    return this.props.children;
+  }
+}
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -20,6 +44,7 @@ function App() {
   const [dataAsOf, setDataAsOf] = useState(''); // 데이터 기준일
   const [showLegalResources, setShowLegalResources] = useState(false); // 법령 자료 표시 여부
   const [showInspection, setShowInspection] = useState(false); // 지도점검 화면
+  const [detailOrigin, setDetailOrigin] = useState('main'); // 상세화면 진입 출처 ('main' 또는 'inspection')
 
   // Clean up any old auth data on mount
   useEffect(() => {
@@ -38,13 +63,15 @@ function App() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [rawData, sheetName, inspectionMap, map2026, instructorMap] = await Promise.all([
+      const [academyData, gyoseupsoData, sheetName, inspectionMap, map2026, instructorMap] = await Promise.all([
         fetchGoogleSheetData(DATA_GID),
+        fetchGoogleSheetData(GYOSEUPSO_GID),
         fetchSheetName(),
         fetchInspectionData(),
         fetch2026InspectionData(),
         fetchInstructorData()
       ]);
+      const rawData = [...academyData, ...gyoseupsoData];
       const transformed = transformAcademyData(rawData, inspectionMap);
 
       // 2026년 점검 + 강사 데이터 병합
@@ -251,6 +278,8 @@ function App() {
     setSearchQuery(academy.name);
     setShowSuggestions(false);
     setHasSearched(true);
+    setDetailOrigin('main');
+    setSelectedAcademy(academy);
   };
 
   // 주소에서 기본 주소(도로명 + 번지수)만 추출하는 함수
@@ -329,6 +358,7 @@ function App() {
         onBack={() => setShowInspection(false)}
         academies={academies}
         onSelectAcademy={(academy) => {
+          setDetailOrigin('inspection');
           setShowInspection(false);
           setSelectedAcademy(academy);
         }}
@@ -339,16 +369,38 @@ function App() {
   return (
     <div className="container">
       {selectedAcademy && (
-        <DetailView
-          academy={selectedAcademy}
-          allAcademies={academies}
-          onBack={() => setSelectedAcademy(null)}
-          onSelectAcademy={(academy) => setSelectedAcademy(academy)}
-        />
+        <ErrorBoundary onBack={() => {
+          setSelectedAcademy(null);
+          if (detailOrigin === 'inspection') setShowInspection(true);
+        }}>
+          <DetailView
+            academy={selectedAcademy}
+            allAcademies={academies}
+            onBack={() => {
+              setSelectedAcademy(null);
+              if (detailOrigin === 'inspection') setShowInspection(true);
+            }}
+            onSelectAcademy={(academy) => setSelectedAcademy(academy)}
+          />
+        </ErrorBoundary>
       )}
 
       <header className={`header animate-enter ${hasSearched ? 'header-compact' : ''}`}>
-        <h1 className="title primary-gradient-text">학원 찾기</h1>
+        <h1
+          className="title primary-gradient-text"
+          onClick={() => {
+            setSearchQuery('');
+            setHasSearched(false);
+            setSuggestions([]);
+            setSelectedAcademy(null);
+            setShowInspection(false);
+            setDetailOrigin('main');
+          }}
+          style={{ cursor: 'pointer' }}
+          title="초기 화면으로 이동"
+        >
+          학원 교습소 관리
+        </h1>
 
         {/* 시트연결, 기준일, 로그아웃 버튼을 한 줄에 배치 */}
         <div style={{
@@ -358,36 +410,7 @@ function App() {
           marginBottom: '12px',
           position: 'relative'
         }}>
-          {/* 시트 버튼 (왼쪽) */}
-          <button
-            onClick={() => window.open('https://docs.google.com/spreadsheets/d/158ZNBb88raJ1kzBL3eFcgPZS9CGs5in0YtPtiPWfdic/edit?gid=1863320151#gid=1863320151', '_blank')}
-            style={{
-              position: 'absolute',
-              left: '0',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '4px',
-              background: 'none',
-              border: 'none',
-              padding: '0',
-              color: 'var(--text-muted)',
-              fontSize: '0.85rem',
-              fontWeight: '500',
-              cursor: 'pointer',
-              textDecoration: 'underline',
-              textDecorationColor: 'var(--border-color)',
-              transition: 'color 0.2s'
-            }}
-            onMouseOver={(e) => e.currentTarget.style.color = 'var(--primary)'}
-            onMouseOut={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-              <polyline points="15 3 21 3 21 9"></polyline>
-              <line x1="10" y1="14" x2="21" y2="3"></line>
-            </svg>
-            <span>시트</span>
-          </button>
+          {/* 시트 버튼 (삭제됨) */}
 
           {/* 기준일 (중앙) */}
           {dataAsOf && (
@@ -438,7 +461,7 @@ function App() {
           </button>
         </div>
 
-        <p className="subtitle">검색할 학원명, 등록번호, 주소, 설립자명을 입력하세요</p>
+        <p className="subtitle">검색할 학원(교습소)명, 주소, 운영자를 입력하세요</p>
 
         <form className="search-bar" onSubmit={handleSearchSubmit}>
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="search-icon">
@@ -447,7 +470,7 @@ function App() {
           </svg>
           <input
             type="text"
-            placeholder="학원명, 등록번호, 주소, 설립자명..."
+            placeholder="학원(교습소)명, 주소, 운영자..."
             value={searchQuery}
             onChange={handleInputChange}
             onFocus={() => searchQuery && setShowSuggestions(true)}
@@ -468,7 +491,10 @@ function App() {
                 return (
                   <li
                     key={academy.id}
-                    onClick={() => selectSuggestion(academy)}
+                    onMouseDown={(e) => {
+                      e.preventDefault(); // Prevents the input from losing focus before the click is registered
+                      selectSuggestion(academy);
+                    }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
                       <span className="suggestion-name">{academy.name}</span>
@@ -502,7 +528,10 @@ function App() {
               key={academy.id + index}
               className="academy-card animate-enter"
               style={{ animationDelay: `${index * 0.05}s` }}
-              onClick={() => setSelectedAcademy(academy)}
+              onClick={() => {
+                setDetailOrigin('main');
+                setSelectedAcademy(academy);
+              }}
             >
               <div className="card-top">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -645,100 +674,148 @@ function App() {
 
       {/* 하단 섹션: AI 상담 및 법령 자료 */}
       {!hasSearched && !searchQuery && (
-        <div style={{ marginTop: '32px', paddingBottom: '32px' }}>
+        <div style={{ marginTop: '0px', paddingBottom: '32px' }}>
           {/* NotebookLM AI 상담 링크 */}
           <div
             onClick={() => window.open('https://notebooklm.google.com/notebook/bc3a0bc5-bad0-4450-bf8b-96573e39fdce', '_blank')}
             style={{
-              padding: '14px 18px',
+              padding: '12px 16px',
               background: 'var(--bg-card)',
               border: '1px solid var(--border-color)',
-              borderRadius: '12px',
+              borderRadius: '14px',
               cursor: 'pointer',
-              transition: 'all 0.2s',
+              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              gap: '10px'
+              gap: '10px',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
             }}
             onMouseOver={(e) => {
               e.currentTarget.style.borderColor = 'var(--primary)';
-              e.currentTarget.style.backgroundColor = 'var(--primary-glow)';
+              e.currentTarget.style.boxShadow = '0 6px 12px -2px rgba(0,0,0,0.05)';
+              e.currentTarget.style.transform = 'translateY(-2px)';
             }}
             onMouseOut={(e) => {
               e.currentTarget.style.borderColor = 'var(--border-color)';
-              e.currentTarget.style.backgroundColor = 'var(--bg-card)';
+              e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.02)';
+              e.currentTarget.style.transform = 'translateY(0)';
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span style={{ fontSize: '18px' }}>💡</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: '10px',
+                background: '#fef3c7',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '1.2rem'
+              }}>
+                💡
+              </div>
               <span style={{
-                fontSize: '0.95rem',
-                fontWeight: '600',
+                fontSize: '1rem',
+                fontWeight: '700',
                 color: 'var(--text-main)'
               }}>
                 학원 업무 AI 상담 (노트북LM)
               </span>
             </div>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-              <polyline points="15 3 21 3 21 9"></polyline>
-              <line x1="10" y1="14" x2="21" y2="3"></line>
-            </svg>
+            <div style={{
+              width: '28px',
+              height: '28px',
+              borderRadius: '6px',
+              background: 'var(--bg-light)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                <polyline points="15 3 21 3 21 9"></polyline>
+                <line x1="10" y1="14" x2="21" y2="3"></line>
+              </svg>
+            </div>
           </div>
 
           {/* 관련 법령 자료 섹션 */}
-          <div style={{ marginTop: '16px' }}>
+          <div style={{ marginTop: '10px' }}>
             {/* 접기/펼치기 헤더 */}
             <div
               onClick={() => setShowLegalResources(!showLegalResources)}
               style={{
-                padding: '14px 18px',
+                padding: '12px 16px',
                 background: 'var(--bg-card)',
                 border: '1px solid var(--border-color)',
-                borderRadius: '12px',
+                borderRadius: '14px',
                 cursor: 'pointer',
-                transition: 'all 0.2s',
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                gap: '10px'
+                gap: '10px',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
               }}
               onMouseOver={(e) => {
                 e.currentTarget.style.borderColor = 'var(--primary)';
-                e.currentTarget.style.backgroundColor = 'var(--primary-glow)';
+                e.currentTarget.style.boxShadow = '0 6px 12px -2px rgba(0,0,0,0.05)';
+                e.currentTarget.style.transform = 'translateY(-2px)';
               }}
               onMouseOut={(e) => {
                 e.currentTarget.style.borderColor = 'var(--border-color)';
-                e.currentTarget.style.backgroundColor = 'var(--bg-card)';
+                e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.02)';
+                e.currentTarget.style.transform = 'translateY(0)';
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span style={{ fontSize: '18px' }}>📚</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '10px',
+                  background: '#e0e7ff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '1.2rem'
+                }}>
+                  📚
+                </div>
                 <span style={{
-                  fontSize: '0.95rem',
-                  fontWeight: '600',
+                  fontSize: '1rem',
+                  fontWeight: '700',
                   color: 'var(--text-main)'
                 }}>
                   관련 법령 자료 보기
                 </span>
               </div>
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="var(--text-muted)"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                style={{
-                  transform: showLegalResources ? 'rotate(180deg)' : 'rotate(0deg)',
-                  transition: 'transform 0.3s'
-                }}
-              >
-                <polyline points="6 9 12 15 18 9"></polyline>
-              </svg>
+              <div style={{
+                width: '28px',
+                height: '28px',
+                borderRadius: '6px',
+                background: 'var(--bg-light)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="var(--text-muted)"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{
+                    transform: showLegalResources ? 'rotate(180deg)' : 'rotate(0deg)',
+                    transition: 'transform 0.3s'
+                  }}
+                >
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </div>
             </div>
 
             {/* 펼쳐진 내용 */}
@@ -1204,7 +1281,7 @@ function App() {
           </div>
 
           {/* 행정처분/과태료 1차 적발 기준 아코디언 */}
-          <div style={{ marginTop: '16px' }}>
+          <div style={{ marginTop: '10px' }}>
             <InspectionStandardAccordion />
           </div>
 
@@ -1212,65 +1289,61 @@ function App() {
           <div
             onClick={() => setShowInspection(true)}
             style={{
-              marginTop: '24px',
-              padding: '16px 20px',
-              background: '#ffffff',
-              border: '2px solid #e2e8f0',
-              borderRadius: '16px',
+              marginTop: '10px',
+              padding: '12px 16px',
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border-color)',
+              borderRadius: '14px',
               cursor: 'pointer',
               transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
-              position: 'relative',
-              overflow: 'hidden'
+              gap: '10px',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
             }}
             onMouseOver={(e) => {
-              e.currentTarget.style.borderColor = '#3b82f6';
-              e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(59, 130, 246, 0.1)';
+              e.currentTarget.style.borderColor = '#1e3a8a';
+              e.currentTarget.style.boxShadow = '0 6px 12px -2px rgba(30,58,138,0.1)';
               e.currentTarget.style.transform = 'translateY(-2px)';
             }}
             onMouseOut={(e) => {
-              e.currentTarget.style.borderColor = '#e2e8f0';
-              e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.05)';
+              e.currentTarget.style.borderColor = 'var(--border-color)';
+              e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.02)';
               e.currentTarget.style.transform = 'translateY(0)';
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', position: 'relative', zIndex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', position: 'relative', zIndex: 1 }}>
               <div style={{
-                width: '44px',
-                height: '44px',
-                borderRadius: '12px',
+                width: '36px',
+                height: '36px',
+                borderRadius: '10px',
                 background: '#eff6ff',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: '1.4rem'
+                fontSize: '1.2rem'
               }}>
                 📊
               </div>
               <div>
-                <div style={{ fontSize: '1.05rem', fontWeight: '800', color: '#1e293b' }}>
+                <div style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--text-main)' }}>
                   지도점검 업무관리
-                </div>
-                <div style={{ fontSize: '0.82rem', color: '#64748b', marginTop: '3px', fontWeight: '500' }}>
-                  하남지역 지도점검 현황 및 통계 확인
                 </div>
               </div>
             </div>
             <div style={{
-              width: '32px',
-              height: '32px',
-              borderRadius: '8px',
-              background: '#f8fafc',
+              width: '28px',
+              height: '28px',
+              borderRadius: '6px',
+              background: 'var(--bg-light)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               position: 'relative',
               zIndex: 1
             }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="9 18 15 12 9 6"></polyline>
               </svg>
             </div>
