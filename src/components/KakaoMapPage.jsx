@@ -15,10 +15,13 @@ function KakaoMapPage({ academies, onBack, onSelectAcademy }) {
     const mapInstanceRef = useRef(null);
     const clustererRef = useRef(null);
     const overlayRef = useRef(null);
-    const textOverlaysRef = useRef([]); // 줌 레벨에 따라 표시할 텍스트 오버레이들
+    const textOverlaysRef = useRef([]);
+    const markersRef = useRef([]); // 마커들 관리
+    const [filterAcademy, setFilterAcademy] = useState(true);
+    const [filterTutoring, setFilterTutoring] = useState(true);
 
-    // 중복 제거 및 휴/폐원 상태 제외 고유 기관 리스트 생성
-    const uniqueAcademies = React.useMemo(() => {
+    // 1. 중복 제거 및 기본 필터링 (운영 상태 등)
+    const baseAcademies = React.useMemo(() => {
         if (!academies) return [];
         const map = new Map();
 
@@ -36,6 +39,18 @@ function KakaoMapPage({ academies, onBack, onSelectAcademy }) {
 
         return Array.from(map.values());
     }, [academies]);
+
+    // 2. 카테고리 필터링 (학원/교습소)
+    const filteredAcademies = React.useMemo(() => {
+        return baseAcademies.filter(a => {
+            const isAcademy = a.category.includes('학원');
+            const isTutoring = a.category.includes('교습소');
+
+            if (filterAcademy && isAcademy) return true;
+            if (filterTutoring && isTutoring) return true;
+            return false;
+        });
+    }, [baseAcademies, filterAcademy, filterTutoring]);
 
     // 카카오맵 스크립트 로드
     const loadKakaoMapScript = () => {
@@ -134,17 +149,17 @@ function KakaoMapPage({ academies, onBack, onSelectAcademy }) {
                 clustererRef.current = clusterer;
 
                 // 좌표 데이터 수집 및 그룹핑 시작
-                setStatusMsg(`주소 좌표 변환 및 그룹핑 중... (총 ${uniqueAcademies.length}건)`);
+                setStatusMsg(`주소 좌표 변환 및 그룹핑 중... (총 ${filteredAcademies.length}건)`);
                 const cachedLocations = JSON.parse(localStorage.getItem('academyMapLocations') || '{}');
                 let newCacheNeeded = false;
 
                 // 좌표를 기준으로 학원들을 그룹핑
                 const groupedMarkers = new Map();
 
-                for (let i = 0; i < uniqueAcademies.length; i++) {
+                for (let i = 0; i < filteredAcademies.length; i++) {
                     if (!isMounted) return;
 
-                    const academy = uniqueAcademies[i];
+                    const academy = filteredAcademies[i];
                     const cacheKey = `${academy.id}-${academy.category}`;
                     let coords = cachedLocations[cacheKey];
 
@@ -169,8 +184,8 @@ function KakaoMapPage({ academies, onBack, onSelectAcademy }) {
                     }
 
                     // 프로그레스 리포트 및 카카오 API 지연(부하 방지)
-                    if (i % 20 === 0 || i === uniqueAcademies.length - 1) {
-                        setProgress(Math.round(((i + 1) / uniqueAcademies.length) * 100));
+                    if (i % 20 === 0 || i === filteredAcademies.length - 1) {
+                        setProgress(Math.round(((i + 1) / filteredAcademies.length) * 100));
                     }
                     if (!coords && i % 30 === 0) {
                         await new Promise(r => setTimeout(r, 200));
@@ -187,12 +202,27 @@ function KakaoMapPage({ academies, onBack, onSelectAcademy }) {
                 if (textOverlaysRef.current) {
                     textOverlaysRef.current.forEach(to => to.setMap(null));
                 }
+                // 기존 마커 제거
+                if (markersRef.current) {
+                    clusterer.removeMarkers(markersRef.current);
+                }
 
                 groupsArray.forEach((group) => {
                     const markerPosition = new kakao.maps.LatLng(group.lat, group.lng);
-                    const marker = new kakao.maps.Marker({
-                        position: markerPosition,
-                        title: group.list.length > 1 ? `${group.list[0].name} 외 ${group.list.length - 1}곳` : group.list[0].name
+
+                    // 각 학원마다 마커 생성 (클러스터러가 학원 개수를 세도록 함)
+                    group.list.forEach(academy => {
+                        const marker = new kakao.maps.Marker({
+                            position: markerPosition,
+                            title: academy.name
+                        });
+
+                        // 마커 클릭 이벤트 설정
+                        kakao.maps.event.addListener(marker, 'click', () => {
+                            showOverlay(kakao, map, markerPosition, group.list);
+                        });
+
+                        markers.push(marker);
                     });
 
                     // --- 마커 상단 텍스트 오버레이 생성 ---
@@ -231,13 +261,10 @@ function KakaoMapPage({ academies, onBack, onSelectAcademy }) {
                     });
                     textOverlays.push(textOverlay);
 
-                    // 마커 클릭 이벤트 설정
-                    kakao.maps.event.addListener(marker, 'click', () => {
-                        showOverlay(kakao, map, markerPosition, group.list);
-                    });
-
-                    markers.push(marker);
+                    // 마커 클릭 이벤트 설정은 이미 위에서 개별 마커별로 수행됨 (group.list.forEach 내)
                 });
+
+                markersRef.current = markers;
 
                 textOverlaysRef.current = textOverlays;
 
@@ -296,7 +323,7 @@ function KakaoMapPage({ academies, onBack, onSelectAcademy }) {
         return () => {
             isMounted = false;
         };
-    }, [apiKey, uniqueAcademies]);
+    }, [apiKey, filteredAcademies]);
 
     // 커스텀 오버레이 (바닐라 JS) - 한 위치에 여러 학원이 있을 경우 리스트로 표시
     const showOverlay = (kakao, map, position, academyList) => {
@@ -501,8 +528,30 @@ function KakaoMapPage({ academies, onBack, onSelectAcademy }) {
                                 🗺️ 학원/교습소 분포 지도
                             </h2>
                             <p style={{ margin: '2px 0 0', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '700' }}>
-                                실시간 운영중인 기관 총 <span style={{ color: 'var(--primary)', fontWeight: '900' }}>{uniqueAcademies.length}</span>곳
+                                실시간 운영중인 기관 총 <span style={{ color: 'var(--primary)', fontWeight: '900' }}>{filteredAcademies.length}</span>곳
                             </p>
+                        </div>
+
+                        {/* Filter Checkboxes */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginLeft: '10px' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', fontWeight: '800', color: 'var(--text-main)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                                <input
+                                    type="checkbox"
+                                    checked={filterAcademy}
+                                    onChange={(e) => setFilterAcademy(e.target.checked)}
+                                    style={{ width: '16px', height: '16px', accentColor: 'var(--primary)', cursor: 'pointer' }}
+                                />
+                                학원
+                            </label>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', fontWeight: '800', color: 'var(--text-main)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                                <input
+                                    type="checkbox"
+                                    checked={filterTutoring}
+                                    onChange={(e) => setFilterTutoring(e.target.checked)}
+                                    style={{ width: '16px', height: '16px', accentColor: '#ec4899', cursor: 'pointer' }}
+                                />
+                                교습소
+                            </label>
                         </div>
                     </div>
                     {/* 환경 변수 키가 없을 때(사용자 직접 입력 모드일 때)만 재설정 버튼 노출 */}
