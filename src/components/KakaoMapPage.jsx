@@ -19,6 +19,16 @@ function KakaoMapPage({ academies, onBack, onSelectAcademy }) {
     const markersRef = useRef([]); // 마커들 관리
     const [filterAcademy, setFilterAcademy] = useState(true);
     const [filterTutoring, setFilterTutoring] = useState(true);
+    const [filterGwangju, setFilterGwangju] = useState(true);
+    const [filterHanam, setFilterHanam] = useState(true);
+    const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
+
+    // 모바일 감지
+    useEffect(() => {
+        const handleResize = () => setIsMobile(window.innerWidth < 640);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
 
     // 1. 중복 제거 및 기본 필터링 (운영 상태 등)
     const baseAcademies = React.useMemo(() => {
@@ -28,8 +38,9 @@ function KakaoMapPage({ academies, onBack, onSelectAcademy }) {
         academies.forEach(a => {
             if (!a.id || !a.address) return;
 
-            // "개소" 또는 "개원" 등 운영 중인 상태만 포함 (휴소/휴원, 폐소/폐원 등 제외)
-            if (a.status !== '개원' && a.status !== '개소' && a.status !== '운영' && a.status !== '정상') return;
+            // "폐", "휴" 상태만 제외하고 나머지는 노출 (비어있는 경우 포함하여 최대한 노출되도록 완화)
+            const status = a.status || '';
+            if (status.includes('폐') || status.includes('휴')) return;
 
             const key = `${a.id}-${a.category}`;
             if (!map.has(key)) {
@@ -40,17 +51,23 @@ function KakaoMapPage({ academies, onBack, onSelectAcademy }) {
         return Array.from(map.values());
     }, [academies]);
 
-    // 2. 카테고리 필터링 (학원/교습소)
+    // 2. 카테고리(학원/교습소) 및 지역(광주/하남) 필터링
     const filteredAcademies = React.useMemo(() => {
         return baseAcademies.filter(a => {
             const isAcademy = a.category.includes('학원');
             const isTutoring = a.category.includes('교습소');
+            const isGwangju = a.address.includes('광주시');
+            const isHanam = a.address.includes('하남시');
 
-            if (filterAcademy && isAcademy) return true;
-            if (filterTutoring && isTutoring) return true;
-            return false;
+            // 카테고리 체크
+            let categoryMatch = (filterAcademy && isAcademy) || (filterTutoring && isTutoring);
+
+            // 지역 체크
+            let regionMatch = (filterGwangju && isGwangju) || (filterHanam && isHanam);
+
+            return categoryMatch && regionMatch;
         });
-    }, [baseAcademies, filterAcademy, filterTutoring]);
+    }, [baseAcademies, filterAcademy, filterTutoring, filterGwangju, filterHanam]);
 
     // 카카오맵 스크립트 로드
     const loadKakaoMapScript = () => {
@@ -113,6 +130,7 @@ function KakaoMapPage({ academies, onBack, onSelectAcademy }) {
         setStatusMsg("스크립트 로딩 중...");
 
         const initMap = async () => {
+            console.log(`[KakaoMap] 필터링된 학원 수: ${filteredAcademies.length} / 전체: ${academies?.length}`);
             try {
                 const kakao = await loadKakaoMapScript();
                 if (!isMounted) return;
@@ -276,7 +294,7 @@ function KakaoMapPage({ academies, onBack, onSelectAcademy }) {
                         const overlay = textOverlays[idx];
                         if (!overlay) return;
 
-                        if (level <= 3) {
+                        if (level <= 4) {
                             // 최대로 확대되었을 때는 전수 노출
                             if (level <= 1) {
                                 overlay.getContent().innerHTML = group.list.map(a => `<div style="line-height: 1.2; padding: 1px 0;">${a.name}</div>`).join('');
@@ -496,9 +514,9 @@ function KakaoMapPage({ academies, onBack, onSelectAcademy }) {
             {apiKey && (
                 <div style={{
                     position: 'absolute',
-                    top: '20px',
-                    left: '20px',
-                    right: '25px',
+                    top: isMobile ? '10px' : '20px',
+                    left: isMobile ? '10px' : '20px',
+                    right: isMobile ? '10px' : '25px',
                     zIndex: 100,
                     display: 'flex',
                     alignItems: 'center',
@@ -507,52 +525,152 @@ function KakaoMapPage({ academies, onBack, onSelectAcademy }) {
                 }}>
                     <div style={{
                         display: 'flex',
-                        alignItems: 'center',
-                        padding: '12px 20px',
-                        backgroundColor: 'rgba(255, 255, 255, 0.82)',
-                        backdropFilter: 'blur(12px)',
-                        border: '1px solid rgba(255, 255, 255, 0.4)',
-                        borderRadius: '20px',
-                        gap: '16px',
-                        boxShadow: 'var(--shadow-lg)',
-                        pointerEvents: 'auto'
+                        flexDirection: 'column',
+                        padding: isMobile ? '6px 10px' : '10px 18px',
+                        backgroundColor: 'rgba(255, 255, 255, 0.92)',
+                        backdropFilter: 'blur(16px)',
+                        border: '1px solid rgba(255, 255, 255, 0.6)',
+                        borderRadius: isMobile ? '12px' : '20px',
+                        gap: isMobile ? '0' : '8px',
+                        boxShadow: '0 8px 32px -4px rgba(0, 0, 0, 0.12)',
+                        pointerEvents: 'auto',
+                        width: isMobile ? 'calc(100% - 20px)' : 'auto',
+                        maxWidth: isMobile ? '500px' : 'none'
                     }}>
-                        <button
-                            onClick={onBack}
-                            style={{ background: 'var(--primary)', border: 'none', color: 'white', fontSize: '1.2rem', cursor: 'pointer', padding: '0', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px', borderRadius: '12px', boxShadow: '0 4px 6px rgba(79, 70, 229, 0.3)' }}
-                        >
-                            ←
-                        </button>
-                        <div>
-                            <h2 style={{ fontSize: '1.2rem', margin: 0, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '900', letterSpacing: '-0.5px' }}>
-                                🗺️ 학원/교습소 분포 지도
-                            </h2>
-                            <p style={{ margin: '2px 0 0', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '700' }}>
-                                실시간 운영중인 기관 총 <span style={{ color: 'var(--primary)', fontWeight: '900' }}>{filteredAcademies.length}</span>곳
-                            </p>
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: isMobile ? '8px' : '12px',
+                            width: '100%',
+                            flexWrap: isMobile ? 'nowrap' : 'wrap'
+                        }}>
+                            <button
+                                onClick={onBack}
+                                style={{ background: 'var(--primary)', border: 'none', color: 'white', fontSize: isMobile ? '0.9rem' : '1.1rem', cursor: 'pointer', padding: '0', display: 'flex', alignItems: 'center', justifyContent: 'center', width: isMobile ? '26px' : '32px', height: isMobile ? '26px' : '32px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(79, 70, 229, 0.2)', flexShrink: 0 }}
+                            >
+                                ←
+                            </button>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '8px' : '10px', flex: isMobile ? '1' : 'none' }}>
+                                {!isMobile && (
+                                    <h2 style={{ fontSize: '1.05rem', margin: 0, color: 'var(--text-main)', fontWeight: '900', letterSpacing: '-0.5px', whiteSpace: 'nowrap' }}>
+                                        🗺️ 분포 지도
+                                    </h2>
+                                )}
+
+                                <div style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    backgroundColor: 'var(--primary-glow)',
+                                    padding: isMobile ? '2px 6px' : '3px 8px',
+                                    borderRadius: '8px',
+                                    fontSize: isMobile ? '0.75rem' : '0.8rem',
+                                    color: 'var(--primary)',
+                                    fontWeight: '900',
+                                    whiteSpace: 'nowrap'
+                                }}>
+                                    <span>{filteredAcademies.length.toLocaleString()}</span>
+                                    <span style={{ opacity: 0.7, marginLeft: '1px' }}>곳</span>
+                                </div>
+
+                                {isMobile && (
+                                    <div style={{ display: 'flex', gap: '8px', marginLeft: '2px' }}>
+                                        <div
+                                            onClick={() => setFilterAcademy(!filterAcademy)}
+                                            style={{ fontSize: '0.75rem', fontWeight: '800', color: filterAcademy ? 'var(--primary)' : '#94a3b8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}
+                                        >
+                                            <div style={{ width: '13px', height: '13px', borderRadius: '3px', border: `1.5px solid ${filterAcademy ? 'var(--primary)' : '#cbd5e1'}`, backgroundColor: filterAcademy ? 'var(--primary)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                {filterAcademy && <div style={{ width: '5px', height: '5px', backgroundColor: 'white', borderRadius: '2px' }} />}
+                                            </div>
+                                            학원
+                                        </div>
+                                        <div
+                                            onClick={() => setFilterTutoring(!filterTutoring)}
+                                            style={{ fontSize: '0.75rem', fontWeight: '800', color: filterTutoring ? '#ec4899' : '#94a3b8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}
+                                        >
+                                            <div style={{ width: '13px', height: '13px', borderRadius: '3px', border: `1.5px solid ${filterTutoring ? '#ec4899' : '#cbd5e1'}`, backgroundColor: filterTutoring ? '#ec4899' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                {filterTutoring && <div style={{ width: '5px', height: '5px', backgroundColor: 'white', borderRadius: '2px' }} />}
+                                            </div>
+                                            교습소
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div style={{ display: 'flex', gap: '4px', flexShrink: 0, marginLeft: isMobile ? 'auto' : '0' }}>
+                                <div
+                                    onClick={() => setFilterGwangju(!filterGwangju)}
+                                    style={{
+                                        padding: isMobile ? '3px 8px' : '3px 7px',
+                                        borderRadius: '6px',
+                                        fontSize: isMobile ? '0.75rem' : '0.75rem',
+                                        fontWeight: '800',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s',
+                                        backgroundColor: filterGwangju ? '#DCFCE7' : '#f1f5f9',
+                                        color: filterGwangju ? '#16A34A' : '#94a3b8',
+                                        border: `1.2px solid ${filterGwangju ? '#16A34A' : '#e2e8f0'}`,
+                                        userSelect: 'none'
+                                    }}
+                                >
+                                    광주
+                                </div>
+                                <div
+                                    onClick={() => setFilterHanam(!filterHanam)}
+                                    style={{
+                                        padding: isMobile ? '3px 8px' : '3px 7px',
+                                        borderRadius: '6px',
+                                        fontSize: isMobile ? '0.75rem' : '0.75rem',
+                                        fontWeight: '800',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s',
+                                        backgroundColor: filterHanam ? '#E8F4FD' : '#f1f5f9',
+                                        color: filterHanam ? '#2563EB' : '#94a3b8',
+                                        border: `1.2px solid ${filterHanam ? '#2563EB' : '#e2e8f0'}`,
+                                        userSelect: 'none'
+                                    }}
+                                >
+                                    하남
+                                </div>
+                            </div>
                         </div>
 
-                        {/* Filter Checkboxes */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginLeft: '10px' }}>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', fontWeight: '800', color: 'var(--text-main)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                                <input
-                                    type="checkbox"
-                                    checked={filterAcademy}
-                                    onChange={(e) => setFilterAcademy(e.target.checked)}
-                                    style={{ width: '16px', height: '16px', accentColor: 'var(--primary)', cursor: 'pointer' }}
-                                />
-                                학원
-                            </label>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', fontWeight: '800', color: 'var(--text-main)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                                <input
-                                    type="checkbox"
-                                    checked={filterTutoring}
-                                    onChange={(e) => setFilterTutoring(e.target.checked)}
-                                    style={{ width: '16px', height: '16px', accentColor: '#ec4899', cursor: 'pointer' }}
-                                />
-                                교습소
-                            </label>
-                        </div>
+                        {!isMobile && (
+                            <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '10px',
+                                paddingTop: '4px',
+                                borderTop: '1px solid rgba(0,0,0,0.05)',
+                                marginTop: '2px'
+                            }}>
+                                <div style={{ display: 'flex', gap: '10px' }}>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.8rem', fontWeight: '800', color: filterAcademy ? 'var(--text-main)' : '#94a3b8', cursor: 'pointer', userSelect: 'none' }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={filterAcademy}
+                                            onChange={(e) => setFilterAcademy(e.target.checked)}
+                                            style={{ width: '14px', height: '14px', accentColor: 'var(--primary)', cursor: 'pointer' }}
+                                        />
+                                        학원
+                                    </label>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.8rem', fontWeight: '800', color: filterTutoring ? 'var(--text-main)' : '#94a3b8', cursor: 'pointer', userSelect: 'none' }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={filterTutoring}
+                                            onChange={(e) => setFilterTutoring(e.target.checked)}
+                                            style={{ width: '14px', height: '14px', accentColor: '#ec4899', cursor: 'pointer' }}
+                                        />
+                                        교습소
+                                    </label>
+                                </div>
+                                <div style={{ flex: 1, minWidth: '15px' }}></div>
+                                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '700', display: 'flex', gap: '6px', opacity: 0.8 }}>
+                                    <span>학원 <span style={{ color: 'var(--primary)' }}>{filteredAcademies.filter(a => a.category.includes('학원')).length}</span></span>
+                                    <span>교습소 <span style={{ color: '#ec4899' }}>{filteredAcademies.filter(a => a.category.includes('교습소')).length}</span></span>
+                                </div>
+                            </div>
+                        )}
                     </div>
                     {/* 환경 변수 키가 없을 때(사용자 직접 입력 모드일 때)만 재설정 버튼 노출 */}
                     {!import.meta.env.VITE_KAKAO_MAP_API_KEY && apiKey && (

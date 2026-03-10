@@ -1413,7 +1413,7 @@ function App() {
               </div>
               <div>
                 <div style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--text-main)' }}>
-                  학원 교습소 지도 (Beta)
+                  학원 교습소 지도
                 </div>
               </div>
             </div>
