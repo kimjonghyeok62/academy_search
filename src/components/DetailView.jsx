@@ -3,6 +3,22 @@ import './DetailView.css';
 import AdminSanctionAccordion from './AdminSanctionAccordion';
 import FineGuideAccordion from './FineGuideAccordion';
 
+const TUITION_STANDARDS = [
+    { process: '보습', target: '단과(초등)', price: 210 },
+    { process: '보습', target: '단과(중등)', price: 222 },
+    { process: '보습', target: '단과(고등)', price: 234 },
+    { process: '진학상담, 지도', target: '진학상담, 지도', price: 234 },
+    { process: '어학', target: '어학', price: 259 },
+    { process: '음악', target: '유,초,중,고', price: 224 },
+    { process: '음악', target: '입시', price: 336 },
+    { process: '미술', target: '유,초,중,고', price: 212 },
+    { process: '미술', target: '입시', price: 255 },
+    { process: '무용', target: '유,초,중,고', price: 212 },
+    { process: '무용', target: '입시', price: 255 },
+    { process: '정보', target: '일반', price: 230 },
+    { process: '기타', target: '일반(직업기술, 인문사회, 기예, 공예 등)', price: 230 }
+];
+
 const TABS = [
     { id: 'status', label: '현황' },
     { id: 'founder', label: '설립자' },
@@ -345,32 +361,6 @@ function InspectionTab({ inspections, totalCount, violationCount }) {
             {/* ① 과태료 부과기준 + 행정처분 기준 아코디언 */}
             <FineGuideAccordion />
             <AdminSanctionAccordion />
-
-            {/* ② 시트 링크 */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '10px 0 4px' }}>
-                <button
-                    onClick={() => window.open('https://docs.google.com/spreadsheets/d/1zSGd9TBcJRculSJzUoZ2N8bB2iENuCI0x9KBpyfXMUo/edit?gid=851352573#gid=851352573', '_blank')}
-                    style={{
-                        display: 'inline-flex', alignItems: 'center', gap: '4px',
-                        background: 'none', border: 'none', padding: '0',
-                        color: 'var(--text-muted)', fontSize: '0.82rem', fontWeight: '500',
-                        cursor: 'pointer', textDecoration: 'underline',
-                        textDecorationColor: 'var(--border-color)', transition: 'color 0.2s'
-                    }}
-                    onMouseOver={e => e.currentTarget.style.color = 'var(--primary)'}
-                    onMouseOut={e => e.currentTarget.style.color = 'var(--text-muted)'}
-                    title="지도점검조회 시트 열기"
-                >
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                        <polyline points="15 3 21 3 21 9" />
-                        <line x1="10" y1="14" x2="21" y2="3" />
-                    </svg>
-                    <span>지도점검 시트</span>
-                </button>
-            </div>
-            {/* 구분선: 시트 링크 아래 */}
-            <hr style={{ border: 'none', borderTop: '2px dashed var(--border-color)', margin: '8px 0 12px' }} />
 
             {/* ③ 통계 카드 */}
             <div style={{ display: 'flex', gap: '10px', margin: '8px 0 16px' }}>
@@ -738,7 +728,8 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
     // 탭 변경 시 해당 탭이 화면에 보이도록 스크롤
     useEffect(() => {
         if (tabsRef.current) {
-            const activeTabIndex = TABS.findIndex(tab => tab.id === activeTab);
+            const currentTabs = TABS.filter(tab => !(tab.id === 'instructor' && academy.category.includes('교습소')));
+            const activeTabIndex = currentTabs.findIndex(tab => tab.id === activeTab);
             const tabButtons = tabsRef.current.querySelectorAll('.tab-btn');
             const activeButton = tabButtons[activeTabIndex];
 
@@ -792,11 +783,12 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
         const isRightSwipe = distance < -minSwipeDistance;
 
         if (isLeftSwipe || isRightSwipe) {
-            const currentIndex = TABS.findIndex(tab => tab.id === activeTab);
-            if (isLeftSwipe && currentIndex < TABS.length - 1) {
-                setActiveTab(TABS[currentIndex + 1].id);
+            const currentTabs = TABS.filter(tab => !(tab.id === 'instructor' && academy.category.includes('교습소')));
+            const currentIndex = currentTabs.findIndex(tab => tab.id === activeTab);
+            if (isLeftSwipe && currentIndex < currentTabs.length - 1) {
+                setActiveTab(currentTabs[currentIndex + 1].id);
             } else if (isRightSwipe && currentIndex > 0) {
-                setActiveTab(TABS[currentIndex - 1].id);
+                setActiveTab(currentTabs[currentIndex - 1].id);
             }
         }
     };
@@ -1474,7 +1466,7 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
                                                                 </span>
                                                                 {hasValidCompare && (
                                                                     <span style={{ color: isExcess ? '#dc2626' : '#2563eb', fontWeight: '800', fontSize: '0.75rem' }}>
-                                                                        [{isExcess ? '초과' : '적합'}]
+                                                                        [{isExcess ? '단가 초과' : '단가 적합'}]
                                                                     </span>
                                                                 )}
                                                             </div>
@@ -1483,18 +1475,25 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
                                                         {validCombinations.length > 0 && (() => {
                                                             const best = validCombinations[0];
                                                             const weeklyMinutes = best.minutes * best.sessions;
-                                                            const hours = weeklyMinutes / 60;
-                                                            const hoursText = hours % 1 === 0 ? hours : hours.toFixed(1);
+                                                            const h = Math.floor(weeklyMinutes / 60);
+                                                            const m = Math.round(weeklyMinutes % 60);
+                                                            let formattedTime = '';
+                                                            if (h > 0) {
+                                                                formattedTime = `${h}시간 ${m.toString().padStart(2, '0')}분`;
+                                                            } else {
+                                                                formattedTime = `${m}분`;
+                                                            }
+                                                            const unitPriceLabel = academy.category.includes('교습소') ? '교습소단가' : '학원단가';
+
                                                             return (
                                                                 <div style={{ marginTop: '4px', fontSize: '0.78rem', color: '#000000', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                                                     <div>
-                                                                        총교습시간 검토 : {totalTimeNum.toLocaleString()}분 = <span style={{ fontWeight: '800' }}>{best.minutes}분씩</span> × <span style={{ fontWeight: '800' }}>주{best.sessions}회</span> × {best.weeks !== 4.3 ? <span style={{ color: '#10b981', fontWeight: '800' }}>{best.weeks}주</span> : <span>{best.weeks}주</span>}
-                                                                        <span>, <br />&nbsp;&nbsp;<span style={{ color: '#ea580c' }}>→</span> 주당 {weeklyMinutes}분({hoursText}시간)</span>
+                                                                        (교습시간) {totalTimeNum.toLocaleString()}분 = <span style={{ fontWeight: '800' }}>{best.minutes}분씩</span> × <span style={{ fontWeight: '800' }}>주{best.sessions}회</span> × {best.weeks !== 4.3 ? <span style={{ color: '#10b981', fontWeight: '800' }}>{best.weeks}주</span> : <span>{best.weeks}주</span>} <span style={{ color: '#ea580c' }}>→</span> 주당 {weeklyMinutes}분({formattedTime})
                                                                     </div>
                                                                     <div>
-                                                                        총교습비 검토 : {totalTimeNum.toLocaleString()}분 × <span style={{ color: calcUnitPriceColor, fontWeight: '800' }}>{displayUnitPrice}원</span> = {feeNum.toLocaleString()}원
+                                                                        (교습비) {totalTimeNum.toLocaleString()}분 × <span style={{ color: calcUnitPriceColor, fontWeight: '800' }}>{displayUnitPrice}원</span> = {feeNum.toLocaleString()}원
                                                                         <span style={{ marginLeft: '6px', color: isSimilar ? '#2563eb' : '#dc2626', fontWeight: '800' }}>
-                                                                            [{isSimilar ? '적합' : '이상'}]
+                                                                            [{isSimilar ? `${unitPriceLabel} 적합` : `${unitPriceLabel} 이상`}]
                                                                         </span>
                                                                     </div>
                                                                 </div>
@@ -1612,6 +1611,62 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
                                 </div>
                             );
                         })}
+
+                        {/* 교습비 분당단가 기준표 */}
+                        {(() => {
+                            const academyStdPrices = new Set(academy.courses.map(c => Number(String(c.standardUnitPrice || '0').replace(/[^0-9]/g, ''))).filter(p => p > 0));
+
+                            return (
+                                <div style={{ marginTop: '24px', backgroundColor: 'var(--bg-card)', borderRadius: '12px', padding: '16px', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)' }}>
+                                    <h3 style={{ fontSize: '1rem', marginBottom: '12px', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        <span>📋</span> 교습비 분당단가 기준
+                                    </h3>
+                                    <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid var(--border-color)', overflow: 'hidden' }}>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', textAlign: 'center', backgroundColor: 'var(--bg-card)' }}>
+                                            <thead style={{ backgroundColor: '#f8fafc' }}>
+                                                <tr>
+                                                    <th style={{ padding: '10px', borderBottom: '2px solid var(--border-color)', color: 'var(--text-main)', fontWeight: '700', whiteSpace: 'nowrap' }}>교습과정</th>
+                                                    <th style={{ padding: '10px', borderBottom: '2px solid var(--border-color)', color: 'var(--text-main)', fontWeight: '700', whiteSpace: 'nowrap' }}>교습과목(반)</th>
+                                                    <th style={{ padding: '10px', borderBottom: '2px solid var(--border-color)', color: 'var(--text-main)', fontWeight: '700', whiteSpace: 'nowrap' }}>분당단가(원)</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {TUITION_STANDARDS.map((std, idx) => {
+                                                    const isHighlighted = academyStdPrices.has(std.price);
+                                                    return (
+                                                        <tr key={idx} style={{
+                                                            backgroundColor: isHighlighted ? '#eff6ff' : (idx % 2 === 0 ? 'transparent' : '#f8fafc'),
+                                                            borderBottom: idx === TUITION_STANDARDS.length - 1 ? 'none' : '1px solid var(--border-color)',
+                                                            transition: 'all 0.2s',
+                                                        }}>
+                                                            <td style={{
+                                                                padding: '10px',
+                                                                fontWeight: isHighlighted ? '700' : '400',
+                                                                color: isHighlighted ? '#1d4ed8' : 'var(--text-main)',
+                                                                borderLeft: isHighlighted ? '4px solid #3b82f6' : '4px solid transparent'
+                                                            }}>{std.process}</td>
+                                                            <td style={{
+                                                                padding: '10px',
+                                                                fontWeight: isHighlighted ? '700' : '400',
+                                                                color: isHighlighted ? '#1d4ed8' : 'var(--text-main)'
+                                                            }}>{std.target}</td>
+                                                            <td style={{
+                                                                padding: '10px',
+                                                                fontWeight: isHighlighted ? '800' : '500',
+                                                                color: isHighlighted ? '#2563eb' : 'var(--text-muted)'
+                                                            }}>{std.price}</td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div style={{ marginTop: '10px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                                        * 해당 학원의 교습과목에 적용된 <strong>기준 단가</strong>가 <span style={{ color: '#1d4ed8', fontWeight: '700', backgroundColor: '#eff6ff', padding: '2px 6px', borderRadius: '4px' }}>파란색 배경(강조표시)</span>으로 나타납니다.
+                                    </div>
+                                </div>
+                            );
+                        })()}
                     </div>
                 );
             case 'insurance':
@@ -1676,7 +1731,7 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
                 onTouchMove={onTouchMove}
                 onTouchEnd={onTouchEnd}
             >
-                {TABS.map(tab => (
+                {TABS.filter(tab => !(tab.id === 'instructor' && academy.category.includes('교습소'))).map(tab => (
                     <button
                         key={tab.id}
                         className={`tab-btn ${activeTab === tab.id ? 'active' : ''}`}

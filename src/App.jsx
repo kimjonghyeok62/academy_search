@@ -5,6 +5,7 @@ import { fetchGoogleSheetData, transformAcademyData, fetchSheetName, fetchInspec
 import './App.css';
 import InspectionStandardAccordion from './components/InspectionStandardAccordion';
 import InspectionPage from './components/InspectionPage';
+import KakaoMapPage from './components/KakaoMapPage';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -31,7 +32,9 @@ class ErrorBoundary extends React.Component {
 }
 
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    return localStorage.getItem('academy_auth_v2') === 'true';
+  });
   const [academies, setAcademies] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -44,11 +47,12 @@ function App() {
   const [dataAsOf, setDataAsOf] = useState(''); // 데이터 기준일
   const [showLegalResources, setShowLegalResources] = useState(false); // 법령 자료 표시 여부
   const [showInspection, setShowInspection] = useState(false); // 지도점검 화면
-  const [detailOrigin, setDetailOrigin] = useState('main'); // 상세화면 진입 출처 ('main' 또는 'inspection')
+  const [showMap, setShowMap] = useState(false); // 맵 화면
+  const [detailOrigin, setDetailOrigin] = useState('main'); // 상세화면 진입 출처 ('main' 또는 'inspection' 또는 'map')
 
   // Clean up any old auth data on mount
   useEffect(() => {
-    // Remove old localStorage auth (migration cleanup)
+    // Remove old localStorage auth (migration cleanup from older versions if any)
     localStorage.removeItem('academy_auth');
     sessionStorage.removeItem('academy_auth');
   }, []);
@@ -112,13 +116,13 @@ function App() {
 
   const handleLogin = () => {
     setIsAuthenticated(true);
-    // No storage - auth state only in memory
+    localStorage.setItem('academy_auth_v2', 'true');
   };
 
   const handleLogout = () => {
     setIsAuthenticated(false);
     setAcademies([]);
-    // No storage - auth state only in memory
+    localStorage.removeItem('academy_auth_v2');
   };
 
   // Search/Filter Logic with Priority
@@ -366,6 +370,21 @@ function App() {
     );
   }
 
+  // 맵 화면
+  if (showMap) {
+    return (
+      <KakaoMapPage
+        academies={academies}
+        onBack={() => setShowMap(false)}
+        onSelectAcademy={(academy) => {
+          setDetailOrigin('map');
+          setShowMap(false);
+          setSelectedAcademy(academy);
+        }}
+      />
+    );
+  }
+
   return (
     <div className="container">
       {selectedAcademy && (
@@ -379,6 +398,7 @@ function App() {
             onBack={() => {
               setSelectedAcademy(null);
               if (detailOrigin === 'inspection') setShowInspection(true);
+              if (detailOrigin === 'map') setShowMap(true);
             }}
             onSelectAcademy={(academy) => setSelectedAcademy(academy)}
           />
@@ -394,6 +414,7 @@ function App() {
             setSuggestions([]);
             setSelectedAcademy(null);
             setShowInspection(false);
+            setShowMap(false);
             setDetailOrigin('main');
           }}
           style={{ cursor: 'pointer' }}
@@ -490,7 +511,7 @@ function App() {
                 const locationBadge = getLocationBadge(academy.address);
                 return (
                   <li
-                    key={academy.id}
+                    key={academy.id + academy.category}
                     onMouseDown={(e) => {
                       e.preventDefault(); // Prevents the input from losing focus before the click is registered
                       selectSuggestion(academy);
@@ -521,11 +542,11 @@ function App() {
         </form>
       </header>
 
-      <div className="results-list">
+      <div className="results-list" style={{ paddingBottom: (hasSearched || searchQuery) ? '60px' : '0px' }}>
         {hasSearched && displayList.length > 0 ? (
           displayList.map((academy, index) => (
             <div
-              key={academy.id + index}
+              key={academy.id + academy.category + index}
               className="academy-card animate-enter"
               style={{ animationDelay: `${index * 0.05}s` }}
               onClick={() => {
@@ -1329,6 +1350,70 @@ function App() {
               <div>
                 <div style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--text-main)' }}>
                   지도점검 업무관리
+                </div>
+              </div>
+            </div>
+            <div style={{
+              width: '28px',
+              height: '28px',
+              borderRadius: '6px',
+              background: 'var(--bg-light)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              position: 'relative',
+              zIndex: 1
+            }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
+            </div>
+          </div>
+
+          {/* 학원 교습소 지도 버튼 */}
+          <div
+            onClick={() => setShowMap(true)}
+            style={{
+              marginTop: '10px',
+              padding: '12px 16px',
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border-color)',
+              borderRadius: '14px',
+              cursor: 'pointer',
+              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '10px',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.borderColor = '#10b981';
+              e.currentTarget.style.boxShadow = '0 6px 12px -2px rgba(16,185,129,0.1)';
+              e.currentTarget.style.transform = 'translateY(-2px)';
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.borderColor = 'var(--border-color)';
+              e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.02)';
+              e.currentTarget.style.transform = 'translateY(0)';
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', position: 'relative', zIndex: 1 }}>
+              <div style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: '10px',
+                background: '#ecfdf5',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '1.2rem'
+              }}>
+                🗺️
+              </div>
+              <div>
+                <div style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--text-main)' }}>
+                  학원 교습소 지도 (Beta)
                 </div>
               </div>
             </div>
