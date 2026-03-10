@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 
 function KakaoMapPage({ academies, onBack, onSelectAcademy }) {
-    const [apiKey, setApiKey] = useState(localStorage.getItem('kakao_api_key') || '');
+    // 환경 변수(.env)에서 먼저 키를 찾고, 없으면 localStorage 확인
+    const [apiKey, setApiKey] = useState(
+        import.meta.env.VITE_KAKAO_MAP_API_KEY || localStorage.getItem('kakao_api_key') || ''
+    );
     const [inputKey, setInputKey] = useState('');
     const [errorMsg, setErrorMsg] = useState('');
     const [statusMsg, setStatusMsg] = useState('');
