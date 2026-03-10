@@ -505,24 +505,26 @@ function KakaoMapPage({ academies, onBack, onSelectAcademy }) {
                             </p>
                         </div>
                     </div>
-
-                    <button
-                        onClick={handleClearApiKey}
-                        style={{
-                            background: 'rgba(255, 255, 255, 0.8)',
-                            backdropFilter: 'blur(8px)',
-                            border: '1px solid #fee2e2',
-                            padding: '10px 18px',
-                            borderRadius: '14px',
-                            color: '#ef4444',
-                            fontSize: '0.85rem',
-                            fontWeight: '800',
-                            cursor: 'pointer',
-                            boxShadow: 'var(--shadow-md)',
-                            pointerEvents: 'auto'
-                        }}>
-                        API 키 재설정
-                    </button>
+                    {/* 환경 변수 키가 없을 때(사용자 직접 입력 모드일 때)만 재설정 버튼 노출 */}
+                    {!import.meta.env.VITE_KAKAO_MAP_API_KEY && apiKey && (
+                        <button
+                            onClick={handleClearApiKey}
+                            style={{
+                                background: 'rgba(255, 255, 255, 0.8)',
+                                backdropFilter: 'blur(8px)',
+                                border: '1px solid #fee2e2',
+                                padding: '10px 18px',
+                                borderRadius: '14px',
+                                color: '#ef4444',
+                                fontSize: '0.85rem',
+                                fontWeight: '800',
+                                cursor: 'pointer',
+                                boxShadow: 'var(--shadow-md)',
+                                pointerEvents: 'auto'
+                            }}>
+                            API 키 재설정
+                        </button>
+                    )}
                 </div>
             )}
 
