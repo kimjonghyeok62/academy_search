@@ -33,7 +33,7 @@ class ErrorBoundary extends React.Component {
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    return localStorage.getItem('academy_auth_v2') === 'true';
+    return sessionStorage.getItem('academy_auth_v2') === 'true';
   });
   const [academies, setAcademies] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -64,65 +64,96 @@ function App() {
     }
   }, [isAuthenticated]);
 
+  const CACHE_KEY = 'academy_data_v1';
+  const CACHE_TTL = 30 * 60 * 1000; // 30분
+
+  const mergeSupplementaryData = (rawData, inspectionMap, map2026, instructorMap) => {
+    const fullAcademies = transformAcademyData(rawData, inspectionMap);
+    fullAcademies.forEach(academy => {
+      const normName = academy.name.replace(/[^a-zA-Z0-9가-힣]/g, '').toLowerCase();
+
+      // 2026 점검 병합
+      const records2026 = map2026.get(normName) || [];
+      if (records2026.length > 0) {
+        const existingDates = new Set(academy.inspections.map(r => r.date));
+        const newRecords = records2026.filter(r => !existingDates.has(r.date));
+        academy.inspections = [...academy.inspections, ...newRecords].sort((a, b) => {
+          const toDate = str => {
+            if (!str) return new Date(0);
+            const d = new Date(str.replace(/\./g, '-'));
+            return isNaN(d.getTime()) ? new Date(0) : d;
+          };
+          return toDate(b.date) - toDate(a.date);
+        });
+      }
+
+      // 강사 데이터 병합
+      academy.instructors = instructorMap.get(academy.id) || instructorMap.get(normName) || [];
+    });
+    return fullAcademies;
+  };
+
   const loadData = async () => {
+    // 1. 캐시 확인 (30분 내 데이터면 즉시 사용)
+    try {
+      const cached = sessionStorage.getItem(CACHE_KEY);
+      if (cached) {
+        const { academies: cachedAcademies, dataAsOf: cachedAsOf, timestamp } = JSON.parse(cached);
+        if (Date.now() - timestamp < CACHE_TTL) {
+          setAcademies(cachedAcademies);
+          setDataAsOf(cachedAsOf);
+          return;
+        }
+      }
+    } catch (e) { /* 캐시 오류 무시 */ }
+
     setLoading(true);
     try {
-      const [academyData, gyoseupsoData, sheetName, inspectionMap, map2026, instructorMap] = await Promise.all([
+      // 2. Phase 1: 핵심 데이터 먼저 로드 → 즉시 목록 표시
+      const [academyData, gyoseupsoData] = await Promise.all([
         fetchGoogleSheetData(DATA_GID),
         fetchGoogleSheetData(GYOSEUPSO_GID),
+      ]);
+      const rawData = [...academyData, ...gyoseupsoData];
+      setAcademies(transformAcademyData(rawData, new Map()));
+      setLoading(false);
+
+      // 3. Phase 2: 보조 데이터 백그라운드 로드 (점검·강사·시트명)
+      const [sheetName, inspectionMap, map2026, instructorMap] = await Promise.all([
         fetchSheetName(),
         fetchInspectionData(),
         fetch2026InspectionData(),
-        fetchInstructorData()
+        fetchInstructorData(),
       ]);
-      const rawData = [...academyData, ...gyoseupsoData];
-      const transformed = transformAcademyData(rawData, inspectionMap);
-
-      // 2026년 점검 + 강사 데이터 병합
-      transformed.forEach(academy => {
-        const normName = academy.name.replace(/[^a-zA-Z0-9가-힣]/g, '').toLowerCase();
-
-        // 2026 점검 병합
-        const records2026 = map2026.get(normName) || [];
-        if (records2026.length > 0) {
-          const existingDates = new Set(academy.inspections.map(r => r.date));
-          const newRecords = records2026.filter(r => !existingDates.has(r.date));
-          academy.inspections = [...academy.inspections, ...newRecords].sort((a, b) => {
-            const toDate = str => {
-              if (!str) return new Date(0);
-              const d = new Date(str.replace(/\./g, '-'));
-              return isNaN(d.getTime()) ? new Date(0) : d;
-            };
-            return toDate(b.date) - toDate(a.date);
-          });
-        }
-
-        // 강사 데이터 병합 (등록번호 우선, 없으면 학원명 fallback)
-        const instructors = instructorMap.get(academy.id)
-          || instructorMap.get(normName)
-          || [];
-        academy.instructors = instructors;
-      });
-
-      setAcademies(transformed);
+      const fullAcademies = mergeSupplementaryData(rawData, inspectionMap, map2026, instructorMap);
+      setAcademies(fullAcademies);
       setDataAsOf(sheetName);
+
+      // 4. 캐시 저장 (용량 초과 시 무시)
+      try {
+        sessionStorage.setItem(CACHE_KEY, JSON.stringify({
+          academies: fullAcademies,
+          dataAsOf: sheetName,
+          timestamp: Date.now(),
+        }));
+      } catch (e) { /* 용량 초과 무시 */ }
     } catch (err) {
       console.error(err);
       setError('데이터를 불러오는데 실패했습니다.');
-    } finally {
       setLoading(false);
     }
   };
 
   const handleLogin = () => {
     setIsAuthenticated(true);
-    localStorage.setItem('academy_auth_v2', 'true');
+    sessionStorage.setItem('academy_auth_v2', 'true');
   };
 
   const handleLogout = () => {
     setIsAuthenticated(false);
     setAcademies([]);
-    localStorage.removeItem('academy_auth_v2');
+    sessionStorage.removeItem('academy_auth_v2');
+    sessionStorage.removeItem(CACHE_KEY);
   };
 
   // Search/Filter Logic with Priority
