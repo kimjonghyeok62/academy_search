@@ -11,7 +11,7 @@ export const INSPECTION_GID = '1438819657';
 export const DATA_AS_OF = '2026.  1.  17. (토) 기준';
 
 // 매칭용 이름 정규화 (공백 및 특수문자 모두 제거)
-const normalizeName = (name) => (name || '').toString().replace(/[^a-zA-Z0-9가-힣]/g, '').toLowerCase();
+export const normalizeName = (name) => (name || '').toString().replace(/[^a-zA-Z0-9가-힣]/g, '').toLowerCase();
 
 /**
  * 유연한 컬럼 데이터 추출기
@@ -108,102 +108,48 @@ export async function fetch2026InspectionData() {
     const url = `https://docs.google.com/spreadsheets/d/${RECENT_SHEET_ID}/export?format=csv&gid=${RECENT_GID}`;
     try {
         const response = await fetch(url);
-        const txt = await response.text().then(t => t.replace(/^\uFEFF/, '')); // BOM 제거
+        const txt = await response.text();
+        const allRows = parseCSV(txt);
 
-        // ── 원시 행 파싱 (inspectionSheets.js의 parseCSVText와 동일) ──
-        const rawRows = [];
-        let currentField = '';
-        let inQuotes = false;
-        let currentRow = [];
-        for (let i = 0; i < txt.length; i++) {
-            const char = txt[i];
-            const nextChar = txt[i + 1];
-            if (char === '"' && inQuotes && nextChar === '"') { currentField += '"'; i++; }
-            else if (char === '"') { inQuotes = !inQuotes; }
-            else if (char === ',' && !inQuotes) { currentRow.push(currentField); currentField = ''; }
-            else if ((char === '\r' || char === '\n') && !inQuotes) {
-                if (i === 0 || txt[i - 1] === '\r' || txt[i - 1] === '\n') {
-                    // 연속 줄바꿈 무시
-                } else {
-                    currentRow.push(currentField);
-                    rawRows.push(currentRow);
-                    currentField = '';
-                    currentRow = [];
-                }
-            } else { currentField += char; }
-        }
-        if (currentRow.length > 0 || currentField) {
-            currentRow.push(currentField);
-            rawRows.push(currentRow);
-        }
+        if (!allRows || allRows.length < 1) return new Map();
 
-        if (!rawRows || rawRows.length < 2) return new Map();
-
-        // ── 가장 많은 값을 가진 행을 헤더로 자동 감지 (fetchRecentRawRows와 동일) ──
-        let headerIdx = 0;
-        let maxFilled = 0;
-        for (let i = 0; i < Math.min(5, rawRows.length); i++) {
-            const filled = rawRows[i].filter(c => c && c.trim()).length;
-            if (filled > maxFilled) { maxFilled = filled; headerIdx = i; }
-        }
-
-        const headers = rawRows[headerIdx].map(h => h.trim());
-        const bodyRows = rawRows.slice(headerIdx + 1)
-            .filter(row => row.some(c => c && c.trim()))
-            .map(row => {
-                const obj = {};
-                headers.forEach((h, i) => { obj[h] = (row[i] || '').trim(); });
-                return obj;
-            });
-
-        // ── colVal 스타일로 유연하게 컬럼 값 추출 ──
-        const cv = (rowObj, keys) => {
-            for (const k of keys) {
-                const found = Object.keys(rowObj).find(rk =>
-                    rk.replace(/\s+/g, '') === k.replace(/\s+/g, '') ||
-                    rk.replace(/\s+/g, '').includes(k.replace(/\s+/g, ''))
-                );
-                if (found && rowObj[found] !== undefined && String(rowObj[found]).trim() !== '') {
-                    return String(rowObj[found]).trim();
-                }
-            }
-            return '';
-        };
+        // parseCSV는 이미 헤더를 처리하므로 bodyRows = allRows
+        const bodyRows = allRows;
 
         const inspectionMap = new Map();
 
         bodyRows.forEach(row => {
-            const name = cv(row, ['학원(교습소)명', '명칭', '학원명', '기관명']);
+            const name = getFlexibleVal(row, ['학원(교습소)명', '명칭', '학원명', '기관명']);
             if (!name) return;
 
             // ★ 실제 시트 콜럼명: '지도내용', '위반내용'
             // '이상없음' / '없음' / '-' 는 위반 아님
             const NON_VIOL = ['', '-', '없음', '이상없음', 'none', 'n/a'];
-            const violRaw = cv(row, ['위반내용', '위반사항']);
-            const guidanceRaw = cv(row, ['지도내용', '지도사항', '현지조치', '현지지도']);
+            const violRaw = getFlexibleVal(row,['위반내용', '위반사항']);
+            const guidanceRaw = getFlexibleVal(row,['지도내용', '지도사항', '현지조치', '현지지도']);
             const isViolNonEmpty = violRaw && !NON_VIOL.includes(violRaw.trim().toLowerCase());
             const isGuidanceNonEmpty = guidanceRaw && !NON_VIOL.includes(guidanceRaw.trim().toLowerCase());
 
             const record = {
-                date: cv(row, ['점검일', '점검일자', '지도점검일']).replace(/-/g, '.'),
+                date: getFlexibleVal(row,['점검일', '점검일자', '지도점검일']).replace(/-/g, '.'),
                 isViolation: isViolNonEmpty,
                 violationType: isViolNonEmpty ? violRaw : '',
                 // 지도내용은 별도 필드로 보관
                 guidanceContent: isGuidanceNonEmpty ? guidanceRaw : '',
                 violationDetail: '',
                 note: '',
-                punishmentDate: cv(row, ['행정처분일', '처분일자', '처분일']),
-                punishmentCode: cv(row, ['행정처분', '처분종류', '행정처분종류']),
-                punishmentStart: cv(row, ['사전의견청취일', '사전청취']),
+                punishmentDate: getFlexibleVal(row,['행정처분일', '처분일자', '처분일']),
+                punishmentCode: getFlexibleVal(row,['행정처분', '처분종류', '행정처분종류']),
+                punishmentStart: getFlexibleVal(row,['사전의견청취일', '사전청취']),
                 punishmentEnd: '',
                 penalty: '',
-                fine: cv(row, ['과태료', '과태료금액', '부과금액']),
+                fine: getFlexibleVal(row,['과태료', '과태료금액', '부과금액']),
                 cancelYn: '',
                 excessFee: '',
                 correctionStart: '',
                 correctionEnd: '',
-                correctionContent: cv(row, ['비고', '기타']),
-                inspectionType: cv(row, ['구분', '유형', '점검목적', '점검구분']),
+                correctionContent: getFlexibleVal(row,['비고', '기타']),
+                inspectionType: getFlexibleVal(row,['구분', '유형', '점검목적', '점검구분']),
                 inspectionItems: '',
                 source: '2026',
             };
