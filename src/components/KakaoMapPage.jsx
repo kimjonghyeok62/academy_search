@@ -19,7 +19,7 @@ function KakaoMapPage({ academies, onBack, onSelectAcademy }) {
     const markersRef = useRef([]); // 마커들 관리
     const [filterAcademy, setFilterAcademy] = useState(true);
     const [filterTutoring, setFilterTutoring] = useState(true);
-    const [filterGwangju, setFilterGwangju] = useState(true);
+    const [filterGwangju, setFilterGwangju] = useState(false);
     const [filterHanam, setFilterHanam] = useState(true);
     const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
 
@@ -143,7 +143,7 @@ function KakaoMapPage({ academies, onBack, onSelectAcademy }) {
                 }
 
                 // 지도 생성
-                const centerPosition = new kakao.maps.LatLng(37.5393, 127.2144); // 하남시청 기준
+                const centerPosition = new kakao.maps.LatLng(37.5670, 127.1962); // 미사역 기준
                 const mapOptions = {
                     center: centerPosition,
                     level: 4
