@@ -443,6 +443,7 @@ function App() {
       {selectedAcademy && selectedAcademy.type === 'privateTutor' && (
         <PrivateTutorDetailView
           tutor={selectedAcademy}
+          allTutors={privateTutors}
           onBack={() => {
             setSelectedAcademy(null);
             if (detailOrigin === 'map') setShowMap(true);
@@ -468,6 +469,8 @@ function App() {
         </ErrorBoundary>
       )}
 
+      {!selectedAcademy && (
+      <>
       <header className={`header animate-enter ${hasSearched ? 'header-compact' : ''}`}>
         <h1
           className="title primary-gradient-text"
@@ -1517,6 +1520,8 @@ function App() {
             </div>
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
   );
