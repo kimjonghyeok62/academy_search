@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import DetailView from './components/DetailView';
 import Login from './components/Login';
-import { fetchGoogleSheetData, transformAcademyData, fetchSheetName, fetchInspectionData, fetch2026InspectionData, fetchInstructorData, DATA_GID, GYOSEUPSO_GID } from './utils/googleSheets';
+import PrivateTutorDetailView from './components/PrivateTutorDetailView';
+import { fetchGoogleSheetData, transformAcademyData, fetchSheetName, fetchInspectionData, fetch2026InspectionData, fetchInstructorData, fetchPrivateTutorData, DATA_GID, GYOSEUPSO_GID } from './utils/googleSheets';
 import './App.css';
 import InspectionStandardAccordion from './components/InspectionStandardAccordion';
 import InspectionPage from './components/InspectionPage';
@@ -36,6 +37,7 @@ function App() {
     return sessionStorage.getItem('academy_auth_v2') === 'true';
   });
   const [academies, setAcademies] = useState([]);
+  const [privateTutors, setPrivateTutors] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -44,6 +46,7 @@ function App() {
   const [hasSearched, setHasSearched] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const searchInputRef = useRef(null);
   const [dataAsOf, setDataAsOf] = useState(''); // 데이터 기준일
   const [showLegalResources, setShowLegalResources] = useState(false); // 법령 자료 표시 여부
   const [showInspection, setShowInspection] = useState(false); // 지도점검 화면
@@ -64,7 +67,7 @@ function App() {
     }
   }, [isAuthenticated]);
 
-  const CACHE_KEY = 'academy_data_v1';
+  const CACHE_KEY = 'academy_data_v4'; // v4: 대시 주변 공백 있는 주소 정규화
   const CACHE_TTL = 30 * 60 * 1000; // 30분
 
   const mergeSupplementaryData = (rawData, inspectionMap, map2026, instructorMap) => {
@@ -98,9 +101,10 @@ function App() {
     try {
       const cached = sessionStorage.getItem(CACHE_KEY);
       if (cached) {
-        const { academies: cachedAcademies, dataAsOf: cachedAsOf, timestamp } = JSON.parse(cached);
+        const { academies: cachedAcademies, privateTutors: cachedTutors, dataAsOf: cachedAsOf, timestamp } = JSON.parse(cached);
         if (Date.now() - timestamp < CACHE_TTL) {
           setAcademies(cachedAcademies);
+          if (cachedTutors) setPrivateTutors(cachedTutors);
           setDataAsOf(cachedAsOf);
           return;
         }
@@ -110,12 +114,14 @@ function App() {
     setLoading(true);
     try {
       // 2. Phase 1: 핵심 데이터 먼저 로드 → 즉시 목록 표시
-      const [academyData, gyoseupsoData] = await Promise.all([
+      const [academyData, gyoseupsoData, tutorData] = await Promise.all([
         fetchGoogleSheetData(DATA_GID),
         fetchGoogleSheetData(GYOSEUPSO_GID),
+        fetchPrivateTutorData(),
       ]);
       const rawData = [...academyData, ...gyoseupsoData];
       setAcademies(transformAcademyData(rawData, new Map()));
+      setPrivateTutors(tutorData);
       setLoading(false);
 
       // 3. Phase 2: 보조 데이터 백그라운드 로드 (점검·강사·시트명)
@@ -133,6 +139,7 @@ function App() {
       try {
         sessionStorage.setItem(CACHE_KEY, JSON.stringify({
           academies: fullAcademies,
+          privateTutors: tutorData,
           dataAsOf: sheetName,
           timestamp: Date.now(),
         }));
@@ -163,18 +170,24 @@ function App() {
 
     if (!target) return [];
 
-    // Search across multiple fields: name, founder, address, id
-    const results = academies.filter(academy => {
+    // 학원·교습소 검색
+    const academyResults = academies.filter(academy => {
       const name = normalize(academy.name || '');
       const founder = normalize(academy.founder?.name || '');
       const address = normalize(academy.address || '');
       const id = normalize(academy.id || '');
-
-      return name.includes(target) ||
-        founder.includes(target) ||
-        address.includes(target) ||
-        id.includes(target);
+      return name.includes(target) || founder.includes(target) || address.includes(target) || id.includes(target);
     });
+
+    // 개인과외교습자 검색
+    const tutorResults = privateTutors.filter(t => {
+      const name = normalize(t.name || '');
+      const address = normalize(t.address || '');
+      const id = normalize(t.id || '');
+      return name.includes(target) || address.includes(target) || id.includes(target);
+    });
+
+    const results = [...academyResults, ...tutorResults];
 
     // Sort by priority: name > founder > address > id
     results.sort((a, b) => {
@@ -235,18 +248,24 @@ function App() {
 
     const normalizedValue = value.toLowerCase().replace(/\s+/g, '');
 
-    // Search across all fields: name, founder, address, id
-    const matched = academies.filter(academy => {
+    // 학원·교습소 검색
+    const matchedAcademies = academies.filter(academy => {
       const name = (academy.name || '').toLowerCase().replace(/\s+/g, '');
       const founder = (academy.founder?.name || '').toLowerCase().replace(/\s+/g, '');
       const address = (academy.address || '').toLowerCase().replace(/\s+/g, '');
       const id = (academy.id || '').toLowerCase().replace(/\s+/g, '');
-
-      return name.includes(normalizedValue) ||
-        founder.includes(normalizedValue) ||
-        address.includes(normalizedValue) ||
-        id.includes(normalizedValue);
+      return name.includes(normalizedValue) || founder.includes(normalizedValue) || address.includes(normalizedValue) || id.includes(normalizedValue);
     });
+
+    // 개인과외교습자 검색
+    const matchedTutors = privateTutors.filter(t => {
+      const name = (t.name || '').toLowerCase().replace(/\s+/g, '');
+      const address = (t.address || '').toLowerCase().replace(/\s+/g, '');
+      const id = (t.id || '').toLowerCase().replace(/\s+/g, '');
+      return name.includes(normalizedValue) || address.includes(normalizedValue) || id.includes(normalizedValue);
+    });
+
+    const matched = [...matchedAcademies, ...matchedTutors];
 
     // Sort by priority: name > founder > address > id
     matched.sort((a, b) => {
@@ -315,6 +334,8 @@ function App() {
     setHasSearched(true);
     setDetailOrigin('main');
     setSelectedAcademy(academy);
+    // 모바일 키보드 내리기
+    searchInputRef.current?.blur();
   };
 
   // 주소에서 기본 주소(도로명 + 번지수)만 추출하는 함수
@@ -406,11 +427,12 @@ function App() {
     return (
       <KakaoMapPage
         academies={academies}
+        privateTutors={privateTutors}
         onBack={() => setShowMap(false)}
-        onSelectAcademy={(academy) => {
+        onSelectAcademy={(item) => {
           setDetailOrigin('map');
           setShowMap(false);
-          setSelectedAcademy(academy);
+          setSelectedAcademy(item);
         }}
       />
     );
@@ -418,7 +440,19 @@ function App() {
 
   return (
     <div className="container">
-      {selectedAcademy && (
+      {selectedAcademy && selectedAcademy.type === 'privateTutor' && (
+        <PrivateTutorDetailView
+          tutor={selectedAcademy}
+          allTutors={privateTutors}
+          onBack={() => {
+            setSelectedAcademy(null);
+            if (detailOrigin === 'map') setShowMap(true);
+          }}
+          onSelectTutor={(t) => setSelectedAcademy(t)}
+        />
+      )}
+
+      {selectedAcademy && selectedAcademy.type !== 'privateTutor' && (
         <ErrorBoundary onBack={() => {
           setSelectedAcademy(null);
           if (detailOrigin === 'inspection') setShowInspection(true);
@@ -436,6 +470,8 @@ function App() {
         </ErrorBoundary>
       )}
 
+      {!selectedAcademy && (
+      <>
       <header className={`header animate-enter ${hasSearched ? 'header-compact' : ''}`}>
         <h1
           className="title primary-gradient-text"
@@ -451,7 +487,7 @@ function App() {
           style={{ cursor: 'pointer' }}
           title="초기 화면으로 이동"
         >
-          학원 교습소 관리
+          학원 등 관리
         </h1>
 
         {/* 시트연결, 기준일, 로그아웃 버튼을 한 줄에 배치 */}
@@ -513,7 +549,7 @@ function App() {
           </button>
         </div>
 
-        <p className="subtitle">검색할 학원(교습소)명, 주소, 운영자를 입력하세요</p>
+        <p className="subtitle">검색할 학원(교습소, 과외)명, 주소, 운영자를 입력하세요</p>
 
         <form className="search-bar" onSubmit={handleSearchSubmit}>
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="search-icon">
@@ -522,11 +558,12 @@ function App() {
           </svg>
           <input
             type="text"
-            placeholder="학원(교습소)명, 주소, 운영자..."
+            placeholder="학원(교습소,과외)명, 주소, 운영자..."
             value={searchQuery}
             onChange={handleInputChange}
             onFocus={() => searchQuery && setShowSuggestions(true)}
             onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+            ref={searchInputRef}
           />
           {searchQuery && (
             <button type="button" className="clear-btn" onClick={() => {
@@ -548,7 +585,7 @@ function App() {
                       selectSuggestion(academy);
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
                       <span className="suggestion-name">{academy.name}</span>
                       {locationBadge && (
                         <span style={{
@@ -558,13 +595,28 @@ function App() {
                           borderRadius: '6px',
                           fontSize: '0.8rem',
                           fontWeight: '600',
-                          whiteSpace: 'nowrap'
+                          whiteSpace: 'nowrap',
+                          flexShrink: 0
                         }}>
                           {locationBadge.text}
                         </span>
                       )}
                     </div>
-                    <span className="suggestion-meta">{academy.founder.name}</span>
+                    <span style={{
+                      padding: '3px 10px',
+                      borderRadius: '6px',
+                      fontSize: '0.75rem',
+                      fontWeight: '700',
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0,
+                      ...(academy.type === 'privateTutor'
+                        ? { backgroundColor: '#FFF7ED', color: '#D97706', border: '1px solid #FED7AA' }
+                        : academy.category?.includes('교습소')
+                          ? { backgroundColor: '#FDF2F8', color: '#C026D3', border: '1px solid #F0ABFC' }
+                          : { backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', border: '1px solid rgba(79,70,229,0.2)' })
+                    }}>
+                      {academy.type === 'privateTutor' ? '과외' : academy.category?.includes('교습소') ? '교습소' : '학원'}
+                    </span>
                   </li>
                 );
               })}
@@ -650,7 +702,11 @@ function App() {
               </div>
 
               <div className="academy-meta">
-                <span style={{ color: 'var(--text-muted)' }}>설립자: <b style={{ color: 'var(--text-main)' }}>{academy.founder.name}</b></span>
+                {academy.type === 'privateTutor' ? (
+                  <span style={{ color: 'var(--text-muted)' }}>교습과목: <b style={{ color: 'var(--text-main)' }}>{academy.subjects?.map(s => s.subject).filter(Boolean).join(', ') || '-'}</b></span>
+                ) : (
+                  <span style={{ color: 'var(--text-muted)' }}>설립자: <b style={{ color: 'var(--text-main)' }}>{academy.founder.name}</b></span>
+                )}
                 <span style={{ color: 'var(--border-color)' }}>•</span>
                 {(() => {
                   const locationBadge = getLocationBadge(academy.address);
@@ -671,6 +727,7 @@ function App() {
                     </span>
                   );
                 })()}
+                {academy.type !== 'privateTutor' && (<>
                 <span style={{ color: 'var(--border-color)' }}>•</span>
                 <button
                   onClick={(e) => {
@@ -712,6 +769,7 @@ function App() {
                   </svg>
                   <span>네이버</span>
                 </button>
+                </>)}
               </div>
             </div>
           ))
@@ -1444,7 +1502,7 @@ function App() {
               </div>
               <div>
                 <div style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--text-main)' }}>
-                  학원 교습소 지도
+                  학원 등 분포지도
                 </div>
               </div>
             </div>
@@ -1465,6 +1523,8 @@ function App() {
             </div>
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
   );
