@@ -157,13 +157,34 @@ export default function PrivateTutorDetailView({ tutor, onBack, allTutors = [], 
         {email  && <InfoRow label="이메일" value={email} />}
       </Section>
 
-      <Section title="주소 정보">
-        <InfoRow
-          label="교습자 주소"
-          isClickable={!!address}
-          onClick={() => openMap(address)}
-          value={address || '-'}
-        />
+      <Section
+        title="주소 정보"
+        rightButton={
+          <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: '600' }}>
+            교습자 주소
+          </span>
+        }
+      >
+        <div
+          onClick={address ? () => openMap(address) : undefined}
+          style={{
+            marginTop: '12px',
+            padding: '14px 16px',
+            background: 'var(--bg-light)',
+            borderRadius: '10px',
+            fontSize: '0.95rem',
+            fontWeight: '600',
+            color: 'var(--text-main)',
+            lineHeight: '1.6',
+            width: '100%',
+            boxSizing: 'border-box',
+            cursor: address ? 'pointer' : 'default',
+            textDecoration: address ? 'underline' : 'none',
+            textDecorationColor: 'var(--border-color)',
+          }}
+        >
+          {address || '-'}
+        </div>
       </Section>
 
       {sameBuildingTutors.length > 0 && (
@@ -277,13 +298,15 @@ export default function PrivateTutorDetailView({ tutor, onBack, allTutors = [], 
       {address && (
         <Section title="교습자 주소">
           <div
-            className="info-value clickable"
             onClick={() => openMap(address)}
             style={{
+              marginTop: '12px', padding: '14px 16px',
+              background: 'var(--bg-light)', borderRadius: '10px',
               cursor: 'pointer', textDecoration: 'underline',
               textDecorationColor: 'var(--border-color)',
-              padding: '14px 0', display: 'block',
-              fontSize: '0.95rem', fontWeight: '600', lineHeight: '1.5'
+              fontSize: '0.95rem', fontWeight: '600',
+              color: 'var(--text-main)', lineHeight: '1.6',
+              width: '100%', boxSizing: 'border-box'
             }}
           >
             {address}
@@ -305,13 +328,15 @@ export default function PrivateTutorDetailView({ tutor, onBack, allTutors = [], 
           ) : null}
         >
           <div
-            className="info-value clickable"
             onClick={() => openMap(tp.place)}
             style={{
+              marginTop: '12px', padding: '14px 16px',
+              background: 'var(--bg-light)', borderRadius: '10px',
               cursor: 'pointer', textDecoration: 'underline',
               textDecorationColor: 'var(--border-color)',
-              padding: '14px 0', display: 'block',
-              fontSize: '0.95rem', fontWeight: '600', lineHeight: '1.5'
+              fontSize: '0.95rem', fontWeight: '600',
+              color: 'var(--text-main)', lineHeight: '1.6',
+              width: '100%', boxSizing: 'border-box'
             }}
           >
             {tp.place}
