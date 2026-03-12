@@ -581,7 +581,7 @@ function App() {
                       selectSuggestion(academy);
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
                       <span className="suggestion-name">{academy.name}</span>
                       {locationBadge && (
                         <span style={{
@@ -591,16 +591,27 @@ function App() {
                           borderRadius: '6px',
                           fontSize: '0.8rem',
                           fontWeight: '600',
-                          whiteSpace: 'nowrap'
+                          whiteSpace: 'nowrap',
+                          flexShrink: 0
                         }}>
                           {locationBadge.text}
                         </span>
                       )}
                     </div>
-                    <span className="suggestion-meta">
-                      {academy.type === 'privateTutor'
-                        ? (academy.subjects?.[0]?.subject || '과외')
-                        : academy.founder.name}
+                    <span style={{
+                      padding: '3px 10px',
+                      borderRadius: '6px',
+                      fontSize: '0.75rem',
+                      fontWeight: '700',
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0,
+                      ...(academy.type === 'privateTutor'
+                        ? { backgroundColor: '#FFF7ED', color: '#D97706', border: '1px solid #FED7AA' }
+                        : academy.category?.includes('교습소')
+                          ? { backgroundColor: '#FDF2F8', color: '#C026D3', border: '1px solid #F0ABFC' }
+                          : { backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', border: '1px solid rgba(79,70,229,0.2)' })
+                    }}>
+                      {academy.type === 'privateTutor' ? '과외' : academy.category?.includes('교습소') ? '교습소' : '학원'}
                     </span>
                   </li>
                 );
