@@ -61,8 +61,8 @@ function parseUnit(address) {
     return { sortKey: d * 10000 + h, label: `${d}동 ${h}호` };
   }
 
-  // "108-1105" 형식 (쉼표 뒤 또는 공백 뒤의 숫자-숫자)
-  const dashUnit = address.match(/[,\s]\s*(\d{2,4})-(\d{3,4})[\s(]/);
+  // "108-1105" 또는 "112 - 402" 형식 (쉼표 뒤 또는 공백 뒤의 숫자-숫자)
+  const dashUnit = address.match(/[,\s]\s*(\d{2,4})\s*-\s*(\d{3,4})(?:[\s(]|$)/);
   if (dashUnit) {
     const d = parseInt(dashUnit[1]), h = parseInt(dashUnit[2]);
     return { sortKey: d * 10000 + h, label: `${d}동 ${h}호` };

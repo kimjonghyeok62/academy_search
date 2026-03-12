@@ -366,7 +366,7 @@ function parseCSV(text) {
  */
 function normalizeTutorAddress(address) {
     if (!address) return '';
-    const m = address.match(/^(.+?[로길]\s+\d+(?:-\d+)?)\s+(.+?)\s+(\d{2,4})-(\d{3,4})$/);
+    const m = address.match(/^(.+?[로길]\s+\d+(?:-\d+)?)\s+(.+?)\s+(\d{2,4})\s*-\s*(\d{3,4})$/);
     if (m) {
         const road = m[1].trim();
         const building = m[2].trim();

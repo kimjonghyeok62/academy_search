@@ -67,7 +67,7 @@ function App() {
     }
   }, [isAuthenticated]);
 
-  const CACHE_KEY = 'academy_data_v3'; // v3: normalizeTutorAddress 적용
+  const CACHE_KEY = 'academy_data_v4'; // v4: 대시 주변 공백 있는 주소 정규화
   const CACHE_TTL = 30 * 60 * 1000; // 30분
 
   const mergeSupplementaryData = (rawData, inspectionMap, map2026, instructorMap) => {
