@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import DetailView from './components/DetailView';
 import Login from './components/Login';
 import PrivateTutorDetailView from './components/PrivateTutorDetailView';
@@ -46,6 +46,7 @@ function App() {
   const [hasSearched, setHasSearched] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const searchInputRef = useRef(null);
   const [dataAsOf, setDataAsOf] = useState(''); // 데이터 기준일
   const [showLegalResources, setShowLegalResources] = useState(false); // 법령 자료 표시 여부
   const [showInspection, setShowInspection] = useState(false); // 지도점검 화면
@@ -333,6 +334,8 @@ function App() {
     setHasSearched(true);
     setDetailOrigin('main');
     setSelectedAcademy(academy);
+    // 모바일 키보드 내리기
+    searchInputRef.current?.blur();
   };
 
   // 주소에서 기본 주소(도로명 + 번지수)만 추출하는 함수
@@ -556,6 +559,7 @@ function App() {
             onChange={handleInputChange}
             onFocus={() => searchQuery && setShowSuggestions(true)}
             onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+            ref={searchInputRef}
           />
           {searchQuery && (
             <button type="button" className="clear-btn" onClick={() => {

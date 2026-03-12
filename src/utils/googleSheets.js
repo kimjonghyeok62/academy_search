@@ -476,7 +476,8 @@ export function transformAcademyData(rawRows, inspectionMap = new Map()) {
             subject: row['교습과목(반)'] || '',
             track: row['교습계열'] || '',
             quota: row['정원'] || '',
-            totalFee: row['총교습비'] || '',
+            tuitionFee: row['교습비'] || '',          // AL열: 순수 교습비
+            totalFee: row['총교습비'] || '',           // AO열: 교습비+재료비 등 합계
             period: row['교습기간'] || row['교습기간(개월)'] || '',
             feePerHour: row['총교습비(시간당)'] || '',
             totalTime: row['총교습시간(분)'] || row['총교습기간(분)'] || '',
