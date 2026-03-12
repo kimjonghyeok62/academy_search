@@ -448,6 +448,7 @@ function App() {
             setSelectedAcademy(null);
             if (detailOrigin === 'map') setShowMap(true);
           }}
+          onSelectTutor={(t) => setSelectedAcademy(t)}
         />
       )}
 

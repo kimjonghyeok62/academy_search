@@ -35,14 +35,38 @@ function Section({ title, children, rightButton }) {
   );
 }
 
-// Extract base road address (strip unit numbers after comma)
+// Extract base road address (up to road number, stripping unit/dong/ho info)
 function getBaseAddress(address) {
   if (!address) return '';
   const match = address.match(/^(.+?[시군구]\s+.+?[로길]\s+\d+)/);
   return match ? match[1].trim() : address.split(',')[0].trim();
 }
 
-export default function PrivateTutorDetailView({ tutor, onBack, allTutors = [] }) {
+// Extract sort key from address: dong*10000 + ho (ascending)
+function extractHoSortKey(address) {
+  if (!address) return 999999;
+  const dongHo = address.match(/(\d+)동\s*(\d+)호/);
+  if (dongHo) return parseInt(dongHo[1]) * 10000 + parseInt(dongHo[2]);
+  const alphaHo = address.match(/[A-Za-z](\d+)호/);
+  if (alphaHo) return parseInt(alphaHo[1]);
+  const ho = address.match(/(\d+)호/);
+  if (ho) return parseInt(ho[1]);
+  return 999999;
+}
+
+// Extract "동호수" display label from address
+function extractUnitLabel(address) {
+  if (!address) return '';
+  const dongHo = address.match(/(\d+동\s*\d+호)/);
+  if (dongHo) return dongHo[1].replace(/\s+/g, ' ');
+  const alphaHo = address.match(/([A-Za-z]\d+호)/);
+  if (alphaHo) return alphaHo[1];
+  const ho = address.match(/(\d+호)/);
+  if (ho) return ho[1];
+  return '';
+}
+
+export default function PrivateTutorDetailView({ tutor, onBack, allTutors = [], onSelectTutor }) {
   const [activeTab, setActiveTab] = useState('status');
   const tabsRef = useRef(null);
   const contentRef = useRef(null);
@@ -80,19 +104,14 @@ export default function PrivateTutorDetailView({ tutor, onBack, allTutors = [] }
     if (dist < -minSwipe && idx > 0)               setActiveTab(TABS[idx - 1].id);
   };
 
-  // Location badge
-  const locationBadge = address?.includes('하남시')
-    ? { text: '하남', bg: '#E8F4FD', color: '#2563EB' }
-    : address?.includes('광주시')
-    ? { text: '광주', bg: '#DCFCE7', color: '#16A34A' }
-    : null;
-
-  // Same-building tutors
+  // Same-building tutors (include current tutor, sorted by ho number)
+  const baseAddress = useMemo(() => getBaseAddress(address), [address]);
   const sameBuildingTutors = useMemo(() => {
     if (!address) return [];
-    const base = getBaseAddress(address);
-    return allTutors.filter(t => t.id !== id && t.address && getBaseAddress(t.address) === base);
-  }, [address, id, allTutors]);
+    return allTutors
+      .filter(t => t.address && getBaseAddress(t.address) === baseAddress)
+      .sort((a, b) => extractHoSortKey(a.address) - extractHoSortKey(b.address));
+  }, [address, baseAddress, allTutors]);
 
   // Naver map open
   const openMap = (addr) => {
@@ -127,7 +146,7 @@ export default function PrivateTutorDetailView({ tutor, onBack, allTutors = [] }
     <div className="tab-content animate-enter">
       <Section title="기본 정보">
         <InfoRow label="신고번호" value={id} />
-        <InfoRow label="교습자명" value={name} />
+        <InfoRow label="개인과외교습자명" value={name} />
         <InfoRow label="신고일" value={reportDate} />
         <InfoRow label="상태">
           <span style={{
@@ -176,28 +195,104 @@ export default function PrivateTutorDetailView({ tutor, onBack, allTutors = [] }
       </Section>
 
       {sameBuildingTutors.length > 0 && (
-        <Section title={`같은 건물 과외교습자 (${sameBuildingTutors.length}명)`}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px' }}>
-            {sameBuildingTutors.map(t => (
-              <div key={t.id} style={{
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                padding: '12px 14px', borderRadius: '12px',
-                background: 'var(--bg-light)', border: '1px solid var(--border-color)'
-              }}>
-                <div>
-                  <div style={{ fontSize: '0.95rem', fontWeight: '800', color: 'var(--text-main)', marginBottom: '2px' }}>{t.name}</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '500' }}>
-                    {t.subjects?.map(s => s.subject).filter(Boolean).join(', ') || '과목 정보 없음'}
-                  </div>
-                </div>
-                <span style={{
-                  padding: '3px 10px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: '700',
-                  background: t.status === '신고' ? '#ECFDF5' : '#FEF2F2',
-                  color: t.status === '신고' ? '#059669' : '#DC2626', flexShrink: 0
-                }}>{t.status}</span>
+        <Section title={`동일 건축물단지 개인과외교습자 목록 (${sameBuildingTutors.length}명)`}>
+          {/* 📍 주소 박스 */}
+          <div style={{
+            fontSize: '0.9rem', color: 'var(--text-muted)',
+            marginBottom: '16px', padding: '12px',
+            backgroundColor: 'var(--bg-light)', borderRadius: '8px', lineHeight: '1.6'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+              <span style={{ fontSize: '1rem', marginTop: '2px' }}>📍</span>
+              <div style={{ flex: 1, fontWeight: '500', color: 'var(--text-muted)' }}>
+                {baseAddress}
               </div>
-            ))}
+            </div>
           </div>
+
+          {/* 목록 */}
+          {sameBuildingTutors.map((t, idx) => {
+            const isCurrent = t.id === id;
+            const unitLabel = extractUnitLabel(t.address);
+            // Collect unique subject category info for display
+            const subjectParts = [];
+            if (t.subjects?.length > 0) {
+              const s0 = t.subjects[0];
+              if (s0.field)       subjectParts.push(s0.field);
+              if (s0.series)      subjectParts.push(s0.series);
+              if (s0.schoolLevel) subjectParts.push(s0.schoolLevel);
+            }
+            const subjectNames = t.subjects?.map(s => s.subject).filter(Boolean).join(', ') || '';
+
+            return (
+              <div
+                key={t.id}
+                style={{
+                  padding: '12px',
+                  marginBottom: idx === sameBuildingTutors.length - 1 ? '0' : '12px',
+                  border: isCurrent ? '2px solid var(--primary)' : '1px solid var(--border-color)',
+                  borderRadius: '12px',
+                  backgroundColor: isCurrent ? 'rgba(79, 70, 229, 0.05)' : 'var(--bg-card)',
+                  cursor: isCurrent ? 'default' : 'pointer',
+                  transition: 'all 0.2s',
+                  boxShadow: 'var(--shadow-sm)',
+                  position: 'relative'
+                }}
+                onClick={() => !isCurrent && onSelectTutor && onSelectTutor(t)}
+                onMouseOver={e => {
+                  if (!isCurrent) {
+                    e.currentTarget.style.backgroundColor = 'var(--bg-light)';
+                    e.currentTarget.style.borderColor = 'var(--primary)';
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = 'var(--shadow-md)';
+                  }
+                }}
+                onMouseOut={e => {
+                  if (!isCurrent) {
+                    e.currentTarget.style.backgroundColor = 'var(--bg-card)';
+                    e.currentTarget.style.borderColor = 'var(--border-color)';
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = 'var(--shadow-sm)';
+                  }
+                }}
+              >
+                {/* 이름 + 동호수 + 현재 뱃지 */}
+                <div style={{
+                  fontWeight: '700', color: 'var(--primary)',
+                  marginBottom: '6px', fontSize: '1rem',
+                  display: 'flex', alignItems: 'baseline', gap: '6px', flexWrap: 'wrap'
+                }}>
+                  <span>{t.name}</span>
+                  {unitLabel && (
+                    <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: '500' }}>
+                      ({unitLabel})
+                    </span>
+                  )}
+                  {isCurrent && (
+                    <span style={{
+                      fontSize: '0.75rem', color: 'white',
+                      backgroundColor: 'var(--primary)',
+                      padding: '2px 8px', borderRadius: '6px', fontWeight: '600'
+                    }}>현재 보는 개인과외교습자</span>
+                  )}
+                </div>
+
+                {/* 분야·계열·학교급 */}
+                {subjectParts.length > 0 && (
+                  <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '4px' }}>
+                    {subjectParts.join(' · ')}
+                  </div>
+                )}
+
+                {/* 교습과목 */}
+                {subjectNames && (
+                  <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                    {subjectNames}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </Section>
       )}
     </div>
@@ -322,26 +417,7 @@ export default function PrivateTutorDetailView({ tutor, onBack, allTutors = [] }
       {/* ── 헤더 ── */}
       <div className="detail-header">
         <button className="back-btn" onClick={onBack} title="목록으로">←</button>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px', flexWrap: 'wrap' }}>
-            <span style={{
-              padding: '2px 8px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: '800',
-              background: '#FFF7ED', color: '#D97706', border: '1px solid #FED7AA'
-            }}>과외</span>
-            {locationBadge && (
-              <span style={{
-                padding: '2px 8px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: '700',
-                background: locationBadge.bg, color: locationBadge.color
-              }}>{locationBadge.text}</span>
-            )}
-            <span style={{
-              padding: '2px 8px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: '700',
-              background: status === '신고' ? '#ECFDF5' : '#FEF2F2',
-              color: status === '신고' ? '#059669' : '#DC2626'
-            }}>{status}</span>
-          </div>
-          <h2 style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</h2>
-        </div>
+        <h2 style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', margin: 0 }}>{name}</h2>
       </div>
 
       {/* ── 탭 ── */}
