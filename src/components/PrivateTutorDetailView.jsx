@@ -216,6 +216,8 @@ export default function PrivateTutorDetailView({ tutor, onBack, allTutors = [], 
               if (s0.schoolLevel) subjectParts.push(s0.schoolLevel);
             }
             const subjectNames = t.subjects?.map(s => s.subject).filter(Boolean).join(', ') || '';
+            // 연락처: 유효한 번호만 (-- 제외)
+            const contact = [t.mobile, t.phone].find(v => v && v.trim() && v.trim() !== '--') || '';
 
             return (
               <div
@@ -252,7 +254,7 @@ export default function PrivateTutorDetailView({ tutor, onBack, allTutors = [], 
                 {/* 이름 + 동호수 + 현재 뱃지 */}
                 <div style={{
                   fontWeight: '700', color: 'var(--primary)',
-                  marginBottom: '6px', fontSize: '1rem',
+                  marginBottom: '4px', fontSize: '1rem',
                   display: 'flex', alignItems: 'baseline', gap: '6px', flexWrap: 'wrap'
                 }}>
                   <span>{t.name}</span>
@@ -270,16 +272,29 @@ export default function PrivateTutorDetailView({ tutor, onBack, allTutors = [], 
                   )}
                 </div>
 
+                {/* 연락처 */}
+                {contact && (
+                  <div style={{
+                    fontSize: '0.88rem', fontWeight: '700',
+                    color: 'var(--text-main)', marginBottom: '6px'
+                  }}>
+                    {contact}
+                  </div>
+                )}
+
                 {/* 분야·계열·학교급 */}
                 {subjectParts.length > 0 && (
-                  <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '4px' }}>
+                  <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '3px' }}>
                     {subjectParts.join(' · ')}
                   </div>
                 )}
 
-                {/* 교습과목 */}
+                {/* 교습과목 - 녹색 */}
                 {subjectNames && (
-                  <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                  <div style={{
+                    fontSize: '0.82rem', fontWeight: '600',
+                    color: '#059669'
+                  }}>
                     {subjectNames}
                   </div>
                 )}

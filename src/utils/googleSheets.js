@@ -360,6 +360,24 @@ function parseCSV(text) {
 }
 
 /**
+ * "도로명 번지 건물명 동-호" 형식을 "도로명 번지, 동동 호호 (건물명)" 으로 정규화
+ * e.g. "경기도 하남시 대청로 79 대명강변타운아파트 108-1101"
+ *    → "경기도 하남시 대청로 79, 108동 1101호 (대명강변타운아파트)"
+ */
+function normalizeTutorAddress(address) {
+    if (!address) return '';
+    const m = address.match(/^(.+?[로길]\s+\d+(?:-\d+)?)\s+(.+?)\s+(\d{2,4})-(\d{3,4})$/);
+    if (m) {
+        const road = m[1].trim();
+        const building = m[2].trim();
+        const dong = parseInt(m[3]);
+        const ho = parseInt(m[4]);
+        return `${road}, ${dong}동 ${ho}호 (${building})`;
+    }
+    return address;
+}
+
+/**
  * 개인과외교습자 시트에서 데이터 가져오기
  * 반환: privateTutor[]
  */
@@ -384,7 +402,7 @@ export async function fetchPrivateTutorData() {
                     name,
                     phone: (row['전화번호'] || '').trim(),
                     mobile: (row['휴대폰'] || '').trim(),
-                    address: (row['주소'] || '').trim(),
+                    address: normalizeTutorAddress((row['주소'] || '').trim()),
                     reportDate: (row['신고일'] || '').trim(),
                     status: (row['신고상태'] || '신고').trim(),
                     education: (row['학력'] || '').trim(),
