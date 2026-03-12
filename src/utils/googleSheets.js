@@ -3,6 +3,7 @@ export const SHEET_ID = '158ZNBb88raJ1kzBL3eFcgPZS9CGs5in0YtPtiPWfdic';
 export const DATA_GID = '1863320151';
 export const GYOSEUPSO_GID = '1929773080';
 export const PASSWORD_GID = '59615156';
+export const PRIVATE_TUTOR_GID = '482385921';
 
 // 지도점검 전용 시트 (2025년 이전 통계)
 export const INSPECTION_SHEET_ID = '1xxaBOZMuLqozEm10f4lXnme_ARLfRHzGcsk5QlqoYKI';
@@ -356,6 +357,74 @@ function parseCSV(text) {
         });
         return obj;
     });
+}
+
+/**
+ * 개인과외교습자 시트에서 데이터 가져오기
+ * 반환: privateTutor[]
+ */
+export async function fetchPrivateTutorData() {
+    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${PRIVATE_TUTOR_GID}`;
+    try {
+        const response = await fetch(url);
+        const txt = await response.text();
+        const rows = parseCSV(txt);
+
+        const tutorMap = new Map();
+
+        rows.forEach(row => {
+            const id = (row['신고번호'] || '').trim();
+            const name = (row['개인과외교습자명'] || '').trim();
+            if (!id && !name) return;
+
+            const key = id || name;
+            if (!tutorMap.has(key)) {
+                tutorMap.set(key, {
+                    id,
+                    name,
+                    phone: (row['전화번호'] || '').trim(),
+                    mobile: (row['휴대폰'] || '').trim(),
+                    address: (row['주소'] || '').trim(),
+                    reportDate: (row['신고일'] || '').trim(),
+                    status: (row['신고상태'] || '신고').trim(),
+                    education: (row['학력'] || '').trim(),
+                    region: (row['행정구역'] || '').trim(),
+                    teachingPlace: (row['교습장소'] || '').trim(),
+                    teachingPlaceType: (row['교습장소구분'] || '').trim(),
+                    email: (row['이메일'] || '').trim(),
+                    category: '과외',
+                    type: 'privateTutor',
+                    founder: { name: '' }, // 검색 호환성
+                    subjects: [],
+                });
+            }
+
+            const tutor = tutorMap.get(key);
+            const subject = (row['교습과목'] || '').trim();
+            const course = (row['교습과정'] || '').trim();
+
+            if (subject || course) {
+                const entry = {
+                    field: (row['분야구분'] || '').trim(),
+                    series: (row['교습계열'] || '').trim(),
+                    course,
+                    schoolLevel: (row['초중고구분'] || '').trim(),
+                    subject,
+                    capacity: (row['수강인원'] || '').trim(),
+                    fee: (row['수강료'] || '').trim(),
+                    changeDate: (row['변경일'] || '').trim(),
+                };
+                if (!tutor.subjects.some(s => s.subject === entry.subject && s.course === entry.course)) {
+                    tutor.subjects.push(entry);
+                }
+            }
+        });
+
+        return Array.from(tutorMap.values());
+    } catch (error) {
+        console.error('Error fetching private tutor data:', error);
+        return [];
+    }
 }
 
 export function transformAcademyData(rawRows, inspectionMap = new Map()) {

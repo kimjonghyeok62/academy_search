@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 
-function KakaoMapPage({ academies, onBack, onSelectAcademy }) {
+function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy }) {
     // 환경 변수(.env)에서 먼저 키를 찾고, 없으면 localStorage 확인
     const [apiKey, setApiKey] = useState(
         import.meta.env.VITE_KAKAO_MAP_API_KEY || localStorage.getItem('kakao_api_key') || ''
@@ -21,6 +21,7 @@ function KakaoMapPage({ academies, onBack, onSelectAcademy }) {
     const [filterTutoring, setFilterTutoring] = useState(true);
     const [filterGwangju, setFilterGwangju] = useState(false);
     const [filterHanam, setFilterHanam] = useState(true);
+    const [filterPrivateTutor, setFilterPrivateTutor] = useState(true);
     const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
 
     // 모바일 감지
@@ -59,15 +60,23 @@ function KakaoMapPage({ academies, onBack, onSelectAcademy }) {
             const isGwangju = a.address.includes('광주시');
             const isHanam = a.address.includes('하남시');
 
-            // 카테고리 체크
             let categoryMatch = (filterAcademy && isAcademy) || (filterTutoring && isTutoring);
-
-            // 지역 체크
             let regionMatch = (filterGwangju && isGwangju) || (filterHanam && isHanam);
 
             return categoryMatch && regionMatch;
         });
     }, [baseAcademies, filterAcademy, filterTutoring, filterGwangju, filterHanam]);
+
+    // 3. 개인과외교습자 필터링
+    const filteredPrivateTutors = React.useMemo(() => {
+        if (!privateTutors || !filterPrivateTutor) return [];
+        return privateTutors.filter(t => {
+            if (!t.address) return false;
+            const isHanam = t.address.includes('하남시');
+            const isGwangju = t.address.includes('광주시');
+            return (filterHanam && isHanam) || (filterGwangju && isGwangju);
+        });
+    }, [privateTutors, filterPrivateTutor, filterHanam, filterGwangju]);
 
     // 카카오맵 스크립트 로드
     const loadKakaoMapScript = () => {
@@ -130,7 +139,7 @@ function KakaoMapPage({ academies, onBack, onSelectAcademy }) {
         setStatusMsg("스크립트 로딩 중...");
 
         const initMap = async () => {
-            console.log(`[KakaoMap] 필터링된 학원 수: ${filteredAcademies.length} / 전체: ${academies?.length}`);
+            console.log(`[KakaoMap] 학원/교습소: ${filteredAcademies.length} / 과외: ${filteredPrivateTutors.length}`);
             try {
                 const kakao = await loadKakaoMapScript();
                 if (!isMounted) return;
@@ -167,18 +176,21 @@ function KakaoMapPage({ academies, onBack, onSelectAcademy }) {
                 clustererRef.current = clusterer;
 
                 // 좌표 데이터 수집 및 그룹핑 시작
-                setStatusMsg(`주소 좌표 변환 및 그룹핑 중... (총 ${filteredAcademies.length}건)`);
+                const allItems = [...filteredAcademies, ...filteredPrivateTutors];
+                setStatusMsg(`주소 좌표 변환 및 그룹핑 중... (총 ${allItems.length}건)`);
                 const cachedLocations = JSON.parse(localStorage.getItem('academyMapLocations') || '{}');
                 let newCacheNeeded = false;
 
-                // 좌표를 기준으로 학원들을 그룹핑
+                // 좌표를 기준으로 기관들을 그룹핑
                 const groupedMarkers = new Map();
 
-                for (let i = 0; i < filteredAcademies.length; i++) {
+                for (let i = 0; i < allItems.length; i++) {
                     if (!isMounted) return;
 
-                    const academy = filteredAcademies[i];
-                    const cacheKey = `${academy.id}-${academy.category}`;
+                    const academy = allItems[i];
+                    const cacheKey = academy.type === 'privateTutor'
+                        ? `tutor-${academy.id}`
+                        : `${academy.id}-${academy.category}`;
                     let coords = cachedLocations[cacheKey];
 
                     if (!coords) {
@@ -202,8 +214,8 @@ function KakaoMapPage({ academies, onBack, onSelectAcademy }) {
                     }
 
                     // 프로그레스 리포트 및 카카오 API 지연(부하 방지)
-                    if (i % 20 === 0 || i === filteredAcademies.length - 1) {
-                        setProgress(Math.round(((i + 1) / filteredAcademies.length) * 100));
+                    if (i % 20 === 0 || i === allItems.length - 1) {
+                        setProgress(Math.round(((i + 1) / allItems.length) * 100));
                     }
                     if (!coords && i % 30 === 0) {
                         await new Promise(r => setTimeout(r, 200));
@@ -341,7 +353,7 @@ function KakaoMapPage({ academies, onBack, onSelectAcademy }) {
         return () => {
             isMounted = false;
         };
-    }, [apiKey, filteredAcademies]);
+    }, [apiKey, filteredAcademies, filteredPrivateTutors]);
 
     // 커스텀 오버레이 (바닐라 JS) - 한 위치에 여러 학원이 있을 경우 리스트로 표시
     const showOverlay = (kakao, map, position, academyList) => {
@@ -569,7 +581,7 @@ function KakaoMapPage({ academies, onBack, onSelectAcademy }) {
                                     fontWeight: '900',
                                     whiteSpace: 'nowrap'
                                 }}>
-                                    <span>{filteredAcademies.length.toLocaleString()}</span>
+                                    <span>{(filteredAcademies.length + filteredPrivateTutors.length).toLocaleString()}</span>
                                     <span style={{ opacity: 0.7, marginLeft: '1px' }}>곳</span>
                                 </div>
 
@@ -592,6 +604,15 @@ function KakaoMapPage({ academies, onBack, onSelectAcademy }) {
                                                 {filterTutoring && <div style={{ width: '5px', height: '5px', backgroundColor: 'white', borderRadius: '2px' }} />}
                                             </div>
                                             교습소
+                                        </div>
+                                        <div
+                                            onClick={() => setFilterPrivateTutor(!filterPrivateTutor)}
+                                            style={{ fontSize: '0.75rem', fontWeight: '800', color: filterPrivateTutor ? '#f59e0b' : '#94a3b8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}
+                                        >
+                                            <div style={{ width: '13px', height: '13px', borderRadius: '3px', border: `1.5px solid ${filterPrivateTutor ? '#f59e0b' : '#cbd5e1'}`, backgroundColor: filterPrivateTutor ? '#f59e0b' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                {filterPrivateTutor && <div style={{ width: '5px', height: '5px', backgroundColor: 'white', borderRadius: '2px' }} />}
+                                            </div>
+                                            과외
                                         </div>
                                     </div>
                                 )}
@@ -663,11 +684,21 @@ function KakaoMapPage({ academies, onBack, onSelectAcademy }) {
                                         />
                                         교습소
                                     </label>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.8rem', fontWeight: '800', color: filterPrivateTutor ? 'var(--text-main)' : '#94a3b8', cursor: 'pointer', userSelect: 'none' }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={filterPrivateTutor}
+                                            onChange={(e) => setFilterPrivateTutor(e.target.checked)}
+                                            style={{ width: '14px', height: '14px', accentColor: '#f59e0b', cursor: 'pointer' }}
+                                        />
+                                        과외
+                                    </label>
                                 </div>
                                 <div style={{ flex: 1, minWidth: '15px' }}></div>
                                 <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '700', display: 'flex', gap: '6px', opacity: 0.8 }}>
                                     <span>학원 <span style={{ color: 'var(--primary)' }}>{filteredAcademies.filter(a => a.category.includes('학원')).length}</span></span>
                                     <span>교습소 <span style={{ color: '#ec4899' }}>{filteredAcademies.filter(a => a.category.includes('교습소')).length}</span></span>
+                                    <span>과외 <span style={{ color: '#f59e0b' }}>{filteredPrivateTutors.length}</span></span>
                                 </div>
                             </div>
                         )}
