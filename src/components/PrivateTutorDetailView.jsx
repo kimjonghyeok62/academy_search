@@ -35,36 +35,54 @@ function Section({ title, children, rightButton }) {
   );
 }
 
-// Extract base road address (up to road number, stripping unit/dong/ho info)
+// Normalize: strip 읍/면/동 subdivision between 시/군/구 and road name
+// e.g. "경기도 광주시 오포읍 마루들길 294" → "경기도 광주시 마루들길 294"
+function normalizeAddress(address) {
+  if (!address) return '';
+  return address.replace(/([시군구]\s+)\S+[읍면]\s+/, '$1');
+}
+
+// Extract base road address (up to road number, after normalization)
 function getBaseAddress(address) {
   if (!address) return '';
-  const match = address.match(/^(.+?[시군구]\s+.+?[로길]\s+\d+)/);
-  return match ? match[1].trim() : address.split(',')[0].trim();
+  const norm = normalizeAddress(address);
+  const match = norm.match(/^(.+?[시군구]\s+.+?[로길]\s+\d+)/);
+  return match ? match[1].trim() : norm.split(',')[0].trim();
 }
 
-// Extract sort key from address: dong*10000 + ho (ascending)
-function extractHoSortKey(address) {
-  if (!address) return 999999;
+// Parse unit: handles "102동 802호", "108-1105" (=108동 1105호), "A2505호", "802호"
+function parseUnit(address) {
+  if (!address) return { sortKey: 999999, label: '' };
+
+  // "102동 802호" 형식
   const dongHo = address.match(/(\d+)동\s*(\d+)호/);
-  if (dongHo) return parseInt(dongHo[1]) * 10000 + parseInt(dongHo[2]);
-  const alphaHo = address.match(/[A-Za-z](\d+)호/);
-  if (alphaHo) return parseInt(alphaHo[1]);
+  if (dongHo) {
+    const d = parseInt(dongHo[1]), h = parseInt(dongHo[2]);
+    return { sortKey: d * 10000 + h, label: `${d}동 ${h}호` };
+  }
+
+  // "108-1105" 형식 (쉼표 뒤 또는 공백 뒤의 숫자-숫자)
+  const dashUnit = address.match(/[,\s]\s*(\d{2,4})-(\d{3,4})[\s(]/);
+  if (dashUnit) {
+    const d = parseInt(dashUnit[1]), h = parseInt(dashUnit[2]);
+    return { sortKey: d * 10000 + h, label: `${d}동 ${h}호` };
+  }
+
+  // "A2505호" 형식
+  const alphaHo = address.match(/([A-Za-z])(\d+)호/);
+  if (alphaHo) {
+    return { sortKey: parseInt(alphaHo[2]), label: `${alphaHo[1]}${alphaHo[2]}호` };
+  }
+
+  // "802호" 형식
   const ho = address.match(/(\d+)호/);
-  if (ho) return parseInt(ho[1]);
-  return 999999;
+  if (ho) return { sortKey: parseInt(ho[1]), label: `${ho[1]}호` };
+
+  return { sortKey: 999999, label: '' };
 }
 
-// Extract "동호수" display label from address
-function extractUnitLabel(address) {
-  if (!address) return '';
-  const dongHo = address.match(/(\d+동\s*\d+호)/);
-  if (dongHo) return dongHo[1].replace(/\s+/g, ' ');
-  const alphaHo = address.match(/([A-Za-z]\d+호)/);
-  if (alphaHo) return alphaHo[1];
-  const ho = address.match(/(\d+호)/);
-  if (ho) return ho[1];
-  return '';
-}
+function extractHoSortKey(address) { return parseUnit(address).sortKey; }
+function extractUnitLabel(address)  { return parseUnit(address).label; }
 
 export default function PrivateTutorDetailView({ tutor, onBack, allTutors = [], onSelectTutor }) {
   const [activeTab, setActiveTab] = useState('status');
@@ -113,33 +131,10 @@ export default function PrivateTutorDetailView({ tutor, onBack, allTutors = [], 
       .sort((a, b) => extractHoSortKey(a.address) - extractHoSortKey(b.address));
   }, [address, baseAddress, allTutors]);
 
-  // Naver map open
+  // Naver map open (address text is clickable)
   const openMap = (addr) => {
     if (addr) window.open(`https://map.naver.com/v5/search/${encodeURIComponent(addr)}`, '_blank');
   };
-
-  // Map address button (same style as academy 주소 button)
-  const MapBtn = ({ addr }) => (
-    <button
-      onClick={(e) => { e.stopPropagation(); openMap(addr); }}
-      style={{
-        display: 'inline-flex', alignItems: 'center', gap: '3px',
-        padding: '4px 8px', backgroundColor: 'var(--bg-card)', color: 'var(--primary)',
-        border: '1px solid var(--border-color)', borderRadius: '6px',
-        fontSize: '0.75rem', fontWeight: '600', cursor: 'pointer',
-        transition: 'all 0.2s', boxShadow: 'var(--shadow-sm)', whiteSpace: 'nowrap'
-      }}
-      onMouseOver={e => { e.currentTarget.style.backgroundColor = 'var(--primary-glow)'; e.currentTarget.style.borderColor = 'var(--primary)'; }}
-      onMouseOut={e => { e.currentTarget.style.backgroundColor = 'var(--bg-card)'; e.currentTarget.style.borderColor = 'var(--border-color)'; }}
-      title="네이버 지도에서 보기"
-    >
-      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-        <circle cx="12" cy="10" r="3"></circle>
-      </svg>
-      <span>지도</span>
-    </button>
-  );
 
   // ── 현황 탭 ──────────────────────────────────────────
   const renderStatus = () => (
@@ -164,33 +159,23 @@ export default function PrivateTutorDetailView({ tutor, onBack, allTutors = [], 
       <Section title="주소 정보">
         {address ? (
           <>
-            <div className="info-row">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span className="info-label">교습자 주소</span>
-                <MapBtn addr={address} />
-              </div>
-              <span
-                className="info-value clickable"
-                onClick={() => openMap(address)}
-                style={{ cursor: 'pointer', textDecoration: 'underline', textDecorationColor: 'var(--border-color)' }}
-              >{address}</span>
-            </div>
+            <InfoRow
+              label="교습자 주소"
+              isClickable
+              onClick={() => openMap(address)}
+              value={address}
+            />
             {teachingPlace && teachingPlace !== address && (
-              <div className="info-row">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span className="info-label">교습장소{teachingPlaceType ? ` (${teachingPlaceType})` : ''}</span>
-                  <MapBtn addr={teachingPlace} />
-                </div>
-                <span
-                  className="info-value clickable"
-                  onClick={() => openMap(teachingPlace)}
-                  style={{ cursor: 'pointer', textDecoration: 'underline', textDecorationColor: 'var(--border-color)' }}
-                >{teachingPlace}</span>
-              </div>
+              <InfoRow
+                label={`교습장소${teachingPlaceType ? ` (${teachingPlaceType})` : ''}`}
+                isClickable
+                onClick={() => openMap(teachingPlace)}
+                value={teachingPlace}
+              />
             )}
           </>
         ) : (
-          <div className="info-row"><span className="info-label">주소</span><span className="info-value">-</span></div>
+          <InfoRow label="주소" value="-" />
         )}
       </Section>
 
@@ -303,17 +288,12 @@ export default function PrivateTutorDetailView({ tutor, onBack, allTutors = [], 
     <div className="tab-content animate-enter">
       {address ? (
         <Section title="교습자 주소">
-          <div className="info-row">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span className="info-label">주소</span>
-              <MapBtn addr={address} />
-            </div>
-            <span
-              className="info-value clickable"
-              onClick={() => openMap(address)}
-              style={{ cursor: 'pointer', textDecoration: 'underline', textDecorationColor: 'var(--border-color)' }}
-            >{address}</span>
-          </div>
+          <InfoRow
+            label="주소"
+            isClickable
+            onClick={() => openMap(address)}
+            value={address}
+          />
         </Section>
       ) : null}
 
@@ -327,17 +307,12 @@ export default function PrivateTutorDetailView({ tutor, onBack, allTutors = [], 
             }}>{teachingPlaceType}</span>
           ) : null}
         >
-          <div className="info-row">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span className="info-label">장소</span>
-              <MapBtn addr={teachingPlace} />
-            </div>
-            <span
-              className="info-value clickable"
-              onClick={() => openMap(teachingPlace)}
-              style={{ cursor: 'pointer', textDecoration: 'underline', textDecorationColor: 'var(--border-color)' }}
-            >{teachingPlace}</span>
-          </div>
+          <InfoRow
+            label="장소"
+            isClickable
+            onClick={() => openMap(teachingPlace)}
+            value={teachingPlace}
+          />
           {teachingPlaceType && (
             <div style={{
               marginTop: '16px', padding: '12px', background: 'var(--bg-light)',

@@ -727,6 +727,7 @@ function App() {
                     </span>
                   );
                 })()}
+                {academy.type !== 'privateTutor' && (<>
                 <span style={{ color: 'var(--border-color)' }}>•</span>
                 <button
                   onClick={(e) => {
@@ -768,6 +769,7 @@ function App() {
                   </svg>
                   <span>네이버</span>
                 </button>
+                </>)}
               </div>
             </div>
           ))
