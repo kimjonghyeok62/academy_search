@@ -92,7 +92,8 @@ export default function PrivateTutorDetailView({ tutor, onBack, allTutors = [], 
   const [touchEnd, setTouchEnd] = useState(null);
 
   const {
-    name, id, status, reportDate, address, teachingPlace, teachingPlaceType,
+    name, id, status, reportDate, address,
+    teachingPlaces = [],
     education, phone, mobile, email, subjects
   } = tutor;
 
@@ -157,26 +158,12 @@ export default function PrivateTutorDetailView({ tutor, onBack, allTutors = [], 
       </Section>
 
       <Section title="주소 정보">
-        {address ? (
-          <>
-            <InfoRow
-              label="교습자 주소"
-              isClickable
-              onClick={() => openMap(address)}
-              value={address}
-            />
-            {teachingPlace && teachingPlace !== address && (
-              <InfoRow
-                label={`교습장소${teachingPlaceType ? ` (${teachingPlaceType})` : ''}`}
-                isClickable
-                onClick={() => openMap(teachingPlace)}
-                value={teachingPlace}
-              />
-            )}
-          </>
-        ) : (
-          <InfoRow label="주소" value="-" />
-        )}
+        <InfoRow
+          label="교습자 주소"
+          isClickable={!!address}
+          onClick={() => openMap(address)}
+          value={address || '-'}
+        />
       </Section>
 
       {sameBuildingTutors.length > 0 && (
@@ -286,47 +273,63 @@ export default function PrivateTutorDetailView({ tutor, onBack, allTutors = [], 
   // ── 교습장소 탭 ──────────────────────────────────────
   const renderPlace = () => (
     <div className="tab-content animate-enter">
-      {address ? (
+      {/* 교습자 주소 */}
+      {address && (
         <Section title="교습자 주소">
-          <InfoRow
-            label="주소"
-            isClickable
+          <div
+            className="info-value clickable"
             onClick={() => openMap(address)}
-            value={address}
-          />
+            style={{
+              cursor: 'pointer', textDecoration: 'underline',
+              textDecorationColor: 'var(--border-color)',
+              padding: '14px 0', display: 'block',
+              fontSize: '0.95rem', fontWeight: '600', lineHeight: '1.5'
+            }}
+          >
+            {address}
+          </div>
         </Section>
-      ) : null}
+      )}
 
-      {teachingPlace ? (
+      {/* 교습장소 목록 (여러 곳) */}
+      {teachingPlaces.length > 0 && teachingPlaces.map((tp, i) => (
         <Section
-          title="교습장소"
-          rightButton={teachingPlaceType ? (
+          key={i}
+          title={`교습장소${teachingPlaces.length > 1 ? ` ${i + 1}` : ''}`}
+          rightButton={tp.type ? (
             <span style={{
               padding: '4px 10px', borderRadius: '8px', fontSize: '0.8rem', fontWeight: '700',
-              background: '#EDE9FE', color: '#7C3AED', border: '1px solid #DDD6FE'
-            }}>{teachingPlaceType}</span>
+              background: '#EDE9FE', color: '#7C3AED', border: '1px solid #DDD6FE',
+              whiteSpace: 'nowrap'
+            }}>{tp.type}</span>
           ) : null}
         >
-          <InfoRow
-            label="장소"
-            isClickable
-            onClick={() => openMap(teachingPlace)}
-            value={teachingPlace}
-          />
-          {teachingPlaceType && (
+          <div
+            className="info-value clickable"
+            onClick={() => openMap(tp.place)}
+            style={{
+              cursor: 'pointer', textDecoration: 'underline',
+              textDecorationColor: 'var(--border-color)',
+              padding: '14px 0', display: 'block',
+              fontSize: '0.95rem', fontWeight: '600', lineHeight: '1.5'
+            }}
+          >
+            {tp.place}
+          </div>
+          {tp.type && (
             <div style={{
-              marginTop: '16px', padding: '12px', background: 'var(--bg-light)',
-              borderRadius: '10px', fontSize: '0.88rem', color: 'var(--text-muted)', fontWeight: '500', lineHeight: '1.5'
+              padding: '10px 12px', background: 'var(--bg-light)',
+              borderRadius: '10px', fontSize: '0.88rem', color: 'var(--text-muted)', fontWeight: '500'
             }}>
-              {teachingPlaceType === '교습자주거지' && '📌 교습자 주거지에서 교습이 이루어집니다.'}
-              {teachingPlaceType === '학습자주거지' && '📌 학습자 주거지에서 교습이 이루어집니다.'}
-              {teachingPlaceType !== '교습자주거지' && teachingPlaceType !== '학습자주거지' && `📌 교습장소 유형: ${teachingPlaceType}`}
+              {tp.type === '교습자주거지' && '📌 교습자 주거지에서 교습이 이루어집니다.'}
+              {tp.type === '학습자주거지' && '📌 학습자 주거지에서 교습이 이루어집니다.'}
+              {tp.type !== '교습자주거지' && tp.type !== '학습자주거지' && `📌 교습장소 유형: ${tp.type}`}
             </div>
           )}
         </Section>
-      ) : null}
+      ))}
 
-      {!address && !teachingPlace && (
+      {!address && teachingPlaces.length === 0 && (
         <div className="empty-msg">교습장소 정보가 없습니다.</div>
       )}
     </div>

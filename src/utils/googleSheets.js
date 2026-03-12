@@ -389,8 +389,7 @@ export async function fetchPrivateTutorData() {
                     status: (row['신고상태'] || '신고').trim(),
                     education: (row['학력'] || '').trim(),
                     region: (row['행정구역'] || '').trim(),
-                    teachingPlace: (row['교습장소'] || '').trim(),
-                    teachingPlaceType: (row['교습장소구분'] || '').trim(),
+                    teachingPlaces: [], // 교습장소 배열 (여러 곳 가능)
                     email: (row['이메일'] || '').trim(),
                     category: '과외',
                     type: 'privateTutor',
@@ -400,6 +399,14 @@ export async function fetchPrivateTutorData() {
             }
 
             const tutor = tutorMap.get(key);
+
+            // 교습장소 중복 없이 추가
+            const tp = (row['교습장소'] || '').trim();
+            const tpt = (row['교습장소구분'] || '').trim();
+            if (tp && !tutor.teachingPlaces.some(p => p.place === tp)) {
+                tutor.teachingPlaces.push({ place: tp, type: tpt });
+            }
+
             const subject = (row['교습과목'] || '').trim();
             const course = (row['교습과정'] || '').trim();
 

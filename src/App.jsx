@@ -67,7 +67,7 @@ function App() {
     }
   }, [isAuthenticated]);
 
-  const CACHE_KEY = 'academy_data_v1';
+  const CACHE_KEY = 'academy_data_v2'; // v2: privateTutor teachingPlaces 배열 구조
   const CACHE_TTL = 30 * 60 * 1000; // 30분
 
   const mergeSupplementaryData = (rawData, inspectionMap, map2026, instructorMap) => {
