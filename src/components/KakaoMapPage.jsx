@@ -23,6 +23,7 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy }) {
     const [filterHanam, setFilterHanam] = useState(true);
     const [filterPrivateTutor, setFilterPrivateTutor] = useState(true);
     const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
+    const [failCount, setFailCount] = useState(0); // 좌표 변환 실패 건수
 
     // 모바일 감지
     useEffect(() => {
@@ -185,6 +186,7 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy }) {
 
                 // 좌표를 기준으로 기관들을 그룹핑
                 const groupedMarkers = new Map();
+                let localFail = 0;
 
                 for (let i = 0; i < allItems.length; i++) {
                     if (!isMounted) return;
@@ -200,6 +202,8 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy }) {
                         if (coords) {
                             cachedLocations[cacheKey] = coords;
                             newCacheNeeded = true;
+                        } else {
+                            localFail++;
                         }
                     }
 
@@ -336,6 +340,7 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy }) {
                 }
 
                 // 완료
+                setFailCount(localFail);
                 setLoading(false);
                 setStatusMsg('');
                 setErrorMsg('');
@@ -786,6 +791,21 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy }) {
 
                     {/* Native Kakao Map Container */}
                     <div ref={mapContainerRef} style={{ width: '100%', height: '100%' }}></div>
+
+                    {/* 좌표 변환 실패 안내 */}
+                    {!loading && failCount > 0 && (
+                        <div style={{
+                            position: 'absolute', bottom: '12px', left: '50%',
+                            transform: 'translateX(-50%)',
+                            background: 'rgba(254,242,242,0.95)', backdropFilter: 'blur(8px)',
+                            border: '1px solid #fca5a5', borderRadius: '10px',
+                            padding: '6px 14px', zIndex: 50,
+                            fontSize: '0.75rem', color: '#b91c1c', fontWeight: '600',
+                            whiteSpace: 'nowrap', boxShadow: '0 2px 8px rgba(0,0,0,0.12)'
+                        }}>
+                            ⚠️ {failCount.toLocaleString()}개 기관이 주소 변환에 실패하여 지도에 표시되지 않았습니다
+                        </div>
+                    )}
                 </div>
             )}
         </div>

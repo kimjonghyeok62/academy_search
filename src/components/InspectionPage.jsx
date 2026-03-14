@@ -896,20 +896,28 @@ function TabStats({ region, statRows, academies, privateTutors }) {
                 {categoryStats.length === 0
                     ? <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', padding: '16px 0' }}>분야 데이터 없음</div>
                     : <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                            <thead><tr><Th>순위</Th><Th>분야</Th><Th>학원</Th><Th>교습소</Th><Th>과외</Th><Th>합계</Th><Th>비율</Th></tr></thead>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '420px' }}>
+                            <thead><tr>
+                                <Th style={{ whiteSpace: 'nowrap' }}>순위</Th>
+                                <Th style={{ whiteSpace: 'nowrap', minWidth: '90px' }}>분야</Th>
+                                <Th style={{ whiteSpace: 'nowrap' }}>학원</Th>
+                                <Th style={{ whiteSpace: 'nowrap' }}>교습소</Th>
+                                <Th style={{ whiteSpace: 'nowrap' }}>과외</Th>
+                                <Th style={{ whiteSpace: 'nowrap' }}>합계</Th>
+                                <Th style={{ whiteSpace: 'nowrap' }}>비율</Th>
+                            </tr></thead>
                             <tbody>
                                 {categoryStats.map((s, i) => (
                                     <tr key={s.cat} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
-                                        <Td style={{ color: 'var(--text-muted)', fontWeight: '700' }}>{i + 1}</Td>
-                                        <Td style={{ fontWeight: '700' }}>{s.cat}</Td>
-                                        <Td style={{ color: '#3b82f6' }}>{s.academy > 0 ? s.academy : '-'}</Td>
-                                        <Td style={{ color: '#10b981' }}>{s.hagwon  > 0 ? s.hagwon  : '-'}</Td>
-                                        <Td style={{ color: '#8b5cf6' }}>{s.priv    > 0 ? s.priv    : '-'}</Td>
-                                        <Td style={{ fontWeight: '700' }}>{s.total}</Td>
-                                        <Td>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                <div style={{ height: '6px', width: Math.max(2, s.pct * 0.8) + 'px', background: 'var(--primary)', borderRadius: '3px' }} />
+                                        <Td style={{ color: 'var(--text-muted)', fontWeight: '700', whiteSpace: 'nowrap' }}>{i + 1}</Td>
+                                        <Td style={{ fontWeight: '700', whiteSpace: 'nowrap' }}>{s.cat}</Td>
+                                        <Td style={{ color: '#3b82f6', whiteSpace: 'nowrap' }}>{s.academy > 0 ? s.academy : '-'}</Td>
+                                        <Td style={{ color: '#10b981', whiteSpace: 'nowrap' }}>{s.hagwon  > 0 ? s.hagwon  : '-'}</Td>
+                                        <Td style={{ color: '#8b5cf6', whiteSpace: 'nowrap' }}>{s.priv    > 0 ? s.priv    : '-'}</Td>
+                                        <Td style={{ fontWeight: '700', whiteSpace: 'nowrap' }}>{s.total}</Td>
+                                        <Td style={{ whiteSpace: 'nowrap' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                <div style={{ height: '6px', width: Math.max(2, s.pct * 0.6) + 'px', background: 'var(--primary)', borderRadius: '3px', flexShrink: 0 }} />
                                                 <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{s.pct}%</span>
                                             </div>
                                         </Td>
