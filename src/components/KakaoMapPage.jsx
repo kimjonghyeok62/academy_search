@@ -379,36 +379,32 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy }) {
         const isOnTop   = markerPixel.y < mapSize.height * 0.4;
         const isOnBottom = markerPixel.y > mapSize.height * 0.65;
 
-        // 변형(transform) 값 및 간격 최적화
-        let translateX = '-50%';
-        let translateY = '-100%';
-        let marginTop = mobileMode ? '-42px' : '-50px';
+        // xAnchor/yAnchor 계산 (transform 대신 Kakao 내장 앵커 사용 → 히트박스가 시각적 팝업과 일치)
+        let xAnchor = 0.5;
+        let yAnchor = 1.0;
         let arrowStyle = `bottom: -10px; left: 50%; transform: translateX(-50%); border-top: 10px solid rgba(79, 70, 229, 0.9);`;
         let arrowShadowStyle = `bottom: -8px; left: 50%; transform: translateX(-50%); border-top: 9px solid rgba(255, 255, 255, 0.98);`;
 
         if (isOnTop) {
-            translateY = '0%';
-            marginTop = mobileMode ? '18px' : '22px';
+            yAnchor = 0.0;
             arrowStyle = `top: -10px; left: 50%; transform: translateX(-50%); border-bottom: 10px solid rgba(79, 70, 229, 0.9);`;
             arrowShadowStyle = `top: -8px; left: 50%; transform: translateX(-50%); border-bottom: 9px solid rgba(255, 255, 255, 0.98);`;
         }
 
-        if (isOnRight) {
-            translateX = mobileMode ? 'calc(-100% + 16px)' : '-100%';
-            if (!isOnTop && !isOnBottom) {
-                translateY = '-50%';
-                marginTop = '0';
-                arrowStyle = `top: 50%; right: -10px; transform: translateY(-50%); border-left: 10px solid rgba(79, 70, 229, 0.9);`;
-                arrowShadowStyle = `top: 50%; right: -8px; transform: translateY(-50%); border-left: 9px solid rgba(255, 255, 255, 0.98);`;
-            }
+        if (isOnRight && !isOnTop && !isOnBottom) {
+            xAnchor = 1.0;
+            yAnchor = 0.5;
+            arrowStyle = `top: 50%; right: -10px; transform: translateY(-50%); border-left: 10px solid rgba(79, 70, 229, 0.9);`;
+            arrowShadowStyle = `top: 50%; right: -8px; transform: translateY(-50%); border-left: 9px solid rgba(255, 255, 255, 0.98);`;
+        } else if (isOnLeft && !isOnTop && !isOnBottom) {
+            xAnchor = 0.0;
+            yAnchor = 0.5;
+            arrowStyle = `top: 50%; left: -10px; transform: translateY(-50%); border-right: 10px solid rgba(79, 70, 229, 0.9);`;
+            arrowShadowStyle = `top: 50%; left: -8px; transform: translateY(-50%); border-right: 9px solid rgba(255, 255, 255, 0.98);`;
+        } else if (isOnRight) {
+            xAnchor = 1.0;
         } else if (isOnLeft) {
-            translateX = mobileMode ? 'calc(0% - 16px)' : '0%';
-            if (!isOnTop && !isOnBottom) {
-                translateY = '-50%';
-                marginTop = '0';
-                arrowStyle = `top: 50%; left: -10px; transform: translateY(-50%); border-right: 10px solid rgba(79, 70, 229, 0.9);`;
-                arrowShadowStyle = `top: 50%; left: -8px; transform: translateY(-50%); border-right: 9px solid rgba(255, 255, 255, 0.98);`;
-            }
+            xAnchor = 0.0;
         }
 
         const isMultiple = academyList.length > 1;
@@ -427,8 +423,6 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy }) {
             border: 2px solid rgba(79, 70, 229, 0.9);
             box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.4);
             position: relative;
-            transform: translate(${translateX}, ${translateY});
-            margin-top: ${marginTop};
             z-index: 2000;
         `;
 
@@ -437,10 +431,12 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy }) {
         styleTag.innerHTML = `div::-webkit-scrollbar { display: none; }`;
         overlayContent.appendChild(styleTag);
 
-        // 팝업 내에서의 스크롤이나 클릭이 지도로 전달되지 않도록 차단
+        // 팝업 내 이벤트가 지도로 전달되지 않도록 차단 (touchmove 포함 → 드래그 시 지도 이동 방지)
         const stopEvent = (e) => e.stopPropagation();
         overlayContent.addEventListener('mousedown', stopEvent);
-        overlayContent.addEventListener('touchstart', stopEvent);
+        overlayContent.addEventListener('touchstart', stopEvent, { passive: false });
+        overlayContent.addEventListener('touchmove', stopEvent, { passive: false });
+        overlayContent.addEventListener('touchend', stopEvent);
         overlayContent.addEventListener('wheel', (e) => e.stopPropagation());
 
         let html = `
@@ -494,12 +490,14 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy }) {
             });
         });
 
-        // 오버레이 생성 (zIndex를 높게 설정하여 라벨 위로 올림)
+        // 오버레이 생성 (xAnchor/yAnchor로 위치 제어 → 히트박스가 시각적 팝업과 정확히 일치)
         const overlay = new kakao.maps.CustomOverlay({
             position: position,
             content: overlayContent,
             clickable: true,
-            zIndex: 1000
+            zIndex: 1000,
+            xAnchor: xAnchor,
+            yAnchor: yAnchor,
         });
 
         overlay.setMap(map);
