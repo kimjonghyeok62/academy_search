@@ -151,8 +151,10 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy }) {
                     throw new Error("지도 컨테이너를 찾을 수 없습니다.");
                 }
 
-                // 지도 생성
-                const centerPosition = new kakao.maps.LatLng(37.5670, 127.1962); // 미사역 기준
+                // 지도 중심: 광주만 선택 시 → 경기도광주하남교육지원청, 그 외 → 미사역(하남 기준)
+                const centerPosition = (filterGwangju && !filterHanam)
+                    ? new kakao.maps.LatLng(37.4249, 127.2553) // 경기도광주하남교육지원청 (경기도 광주시 광주대로 178)
+                    : new kakao.maps.LatLng(37.5670, 127.1962); // 미사역 (하남 기준)
                 const mapOptions = {
                     center: centerPosition,
                     level: 4

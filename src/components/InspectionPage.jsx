@@ -1046,7 +1046,7 @@ export default function InspectionPage({ onBack, academies, privateTutors, onSel
             background: region === r ? 'var(--primary)' : 'transparent',
             color: region === r ? 'white' : 'var(--text-muted)',
             fontWeight: '700', fontSize: '0.82rem', cursor: 'pointer',
-        }}>{r}시</button>
+        }}>{r}</button>
     );
 
     return (
