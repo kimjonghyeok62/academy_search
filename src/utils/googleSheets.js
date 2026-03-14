@@ -110,12 +110,25 @@ export async function fetch2026InspectionData() {
     try {
         const response = await fetch(url);
         const txt = await response.text();
-        const allRows = parseCSV(txt);
+        // raw rows로 파싱 후 헤더 행 자동감지 (시트가 3행 헤더인 경우 대응)
+        const rawRows = parseCSVRaw(txt);
+        if (!rawRows || rawRows.length < 2) return new Map();
 
-        if (!allRows || allRows.length < 1) return new Map();
-
-        // parseCSV는 이미 헤더를 처리하므로 bodyRows = allRows
-        const bodyRows = allRows;
+        // 값이 가장 많이 채워진 행을 헤더로 사용 (시트가 3행 헤더인 경우 대응)
+        let headerIdx = 0;
+        let maxFilled = 0;
+        for (let i = 0; i < Math.min(5, rawRows.length); i++) {
+            const filled = rawRows[i].filter(c => c && c.trim()).length;
+            if (filled > maxFilled) { maxFilled = filled; headerIdx = i; }
+        }
+        const headers = rawRows[headerIdx].map(h => h.trim());
+        const bodyRows = rawRows.slice(headerIdx + 1)
+            .filter(row => row.some(c => c && c.trim()))
+            .map(row => {
+                const obj = {};
+                headers.forEach((h, i) => { obj[h] = (row[i] || '').trim(); });
+                return obj;
+            });
 
         const inspectionMap = new Map();
 
@@ -247,10 +260,10 @@ export async function fetchSheetName() {
 }
 
 /**
- * 견고한 CSV 파서
+ * 견고한 CSV 파서 (raw: 배열의 배열 반환)
  * 데이터 내의 쉼표(,), 줄바꿈, 따옴표를 완벽하게 처리합니다.
  */
-function parseCSV(text) {
+function parseCSVRaw(text) {
     if (!text) return [];
 
     const rows = [];
@@ -292,6 +305,14 @@ function parseCSV(text) {
         rows.push(currentRow);
     }
 
+    return rows;
+}
+
+/**
+ * 견고한 CSV 파서 (첫 번째 행을 헤더로 사용)
+ */
+function parseCSV(text) {
+    const rows = parseCSVRaw(text);
     if (rows.length < 2) return [];
 
     const headers = rows[0].map(h => h.trim().replace(/^"|"$/g, ''));

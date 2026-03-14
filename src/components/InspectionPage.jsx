@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo } from 'react';
+﻿import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
     Chart as ChartJS, ArcElement, Tooltip, Legend,
     CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title,
@@ -7,6 +7,7 @@ import { Doughnut, Bar, Line } from 'react-chartjs-2';
 import {
     fetchStatRawRows, fetchRecentRawRows, APPS_SCRIPT_URL,
     fetchHanamAcademyRawRows, fetchHanamHagwonRawRows,
+    fetchNiceAcademyRawRows, fetchNiceHagwonRawRows, fetchNicePrivateRawRows,
 } from '../utils/inspectionSheets';
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title);
@@ -612,428 +613,458 @@ function TabRecent({ region, academies, onSelectAcademy }) {
 }
 
 // ───────────────────────────────────────────────
-// 탭2/탭3: 학원 or 교습소 통계
-
+// 탭: 통계 (5개 섹션)
 // ───────────────────────────────────────────────
 
-function TabAcademyOnly({ rows, region, type }) {
-    const [academyRaw, setAcademyRaw] = useState([]);
-    const [filterViolType, setFilterViolType] = useState(null);
+function TabStats({ region, statRows, academies, privateTutors }) {
+    const [recentRows, setRecentRows] = useState([]);
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        if (region !== '하남') return;
-        (type === '학원' ? fetchHanamAcademyRawRows() : fetchHanamHagwonRawRows())
-            .then(raw => setAcademyRaw(raw)).catch(() => { });
-    }, [region, type]);
+        setLoading(true);
+        fetchRecentRawRows()
+            .then(rec => setRecentRows(rec.bodyRows || []))
+            .catch(() => {})
+            .finally(() => setLoading(false));
+    }, []);
 
-    const typeRows = useMemo(() => rows.filter(row => {
-        const t = colVal(row, ['대상', '유형', '학원종류', '점검유형', '구분']);
-        if (!t.includes(type)) return false;
+    const city = region.endsWith('시') ? region : region + '시';
 
-        // 최근 5년 이내 (2022 ~ 2026)
-        const year = getYear(colVal(row, ['점검일자', '점검일', '지도점검일']));
-        if (!year) return false;
+    // 하남시 / 광주시 법정동 화이트리스트
+    const HANAM_DONGS = useMemo(() => new Set([
+        '신장동','덕풍동','풍산동','미사동','망월동','선동','교산동','학암동',
+        '초일동','초이동','광암동','천현동','창우동','배일미동','하산곡동',
+        '상산곡동','감이동','감일동','항동','하사창동','상사창동','위례동','순궁동',
+    ]), []);
+    const GWANGJU_DONGS = useMemo(() => new Set([
+        '경안동','광남동','태전동','송정동','역동','삼동','탄벌동','목현동',
+        '오포읍','초월읍','곤지암읍','도척면','퇴촌면','남종면','남한산성면',
+    ]), []);
+    const DONG_WL = region === '하남' ? HANAM_DONGS : GWANGJU_DONGS;
 
-        const yNum = parseInt(year, 10);
-        const currentYearNum = parseInt(CURRENT_YEAR, 10);
-        return yNum >= currentYearNum - 4 && yNum <= currentYearNum;
-    }), [rows, type]);
+    // academies prop 기반으로 기관 분류 (지도 데이터와 동일)
+    const filtered = useMemo(() => (academies || []).filter(a => (a.address || '').includes(city)), [academies, city]);
+    const aList = useMemo(() => filtered.filter(a => a.category !== '교습소'), [filtered]);
+    const hList = useMemo(() => filtered.filter(a => a.category === '교습소'), [filtered]);
+    // 과외는 별도 privateTutors 배열에서 지역 필터링
+    const pList = useMemo(() => (privateTutors || []).filter(a => (a.address || '').includes(city)), [privateTutors, city]);
 
-    const years = useMemo(() =>
-        [...new Set(typeRows.map(r => getYear(colVal(r, ['점검일자', '점검일', '지도점검일']))).filter(Boolean))].sort()
-        , [typeRows]);
+    // 섹션 2: 연도별 등록 추이 — regDate 기반
+    const YEARS = useMemo(() => {
+        const cur = parseInt(CURRENT_YEAR);
+        return Array.from({ length: 8 }, (_, i) => String(cur - 7 + i));
+    }, []);
 
-    // 연도별 학원수 (설립일/폐원일 기반)
-    const academyByYear = useMemo(() => {
-        const { headers, dataRows } = parseAcademyRawRows(academyRaw);
-        if (!dataRows.length) return {};
-        const nameIdx = headers.findIndex(h => h.includes('학원명') || h.includes('명칭') || h.includes('기관명') || h.includes('상호'));
-        const startIdx = headers.findIndex(h => h.includes('설립') || h.includes('개원일') || h.includes('등록일') || h.includes('인가'));
-        const endIdx = headers.findIndex(h => h.includes('폐원') || h.includes('종료') || h.includes('폐쇄') || h.includes('말소'));
-        const statusIdx = headers.findIndex(h => h.includes('현황') || h.includes('상태') || h.includes('운영구분'));
-        const allYears = [...new Set([...years, CURRENT_YEAR])];
-        const result = {};
-        allYears.forEach(y => {
+    const yearStats = useMemo(() => {
+        const getY = d => { const m = (d || '').match(/(\d{4})/); return m ? m[1] : ''; };
+        const countByYear = (list, dateKey = 'regDate') => list.reduce((m, a) => { const y = getY(a[dateKey] || a.regDate || ''); if (y) m[y] = (m[y] || 0) + 1; return m; }, {});
+        const aYearCnt       = countByYear(aList);
+        // 점검률 분모용: 학교교과교습학원만 (평생직업교육학원 제외)
+        const aSchoolYearCnt = countByYear(aList.filter(a => a.category === '학교교과교습학원'));
+        const hYearCnt       = countByYear(hList);
+        const pYearCnt       = countByYear(pList, 'reportDate');
+        const cumul = (cnt, yNum) => Object.entries(cnt).filter(([yr]) => parseInt(yr) <= yNum).reduce((s, [, c]) => s + c, 0);
+        return YEARS.map(y => {
             const yNum = parseInt(y);
-            const nameSet = new Set();
-            dataRows.forEach(row => {
-                const name = nameIdx >= 0 ? (row[nameIdx] || '').trim() : '';
-                if (!name) return;
-                const startDate = startIdx >= 0 ? (row[startIdx] || '') : '';
-                const endDate = endIdx >= 0 ? (row[endIdx] || '') : '';
-                const status = statusIdx >= 0 ? (row[statusIdx] || '') : '';
-                const startY = getYear(startDate);
-                const endY = getYear(endDate);
-                const startOk = !startY || parseInt(startY) <= yNum;
-                const endOk = !endY || parseInt(endY) >= yNum;
-                const statusOk = !status.includes('폐원') || (endY && parseInt(endY) >= yNum);
-                if (startOk && endOk && statusOk) nameSet.add(name);
-            });
-            result[y] = nameSet.size;
+            const aNew          = aYearCnt[y] || 0;
+            const aActive       = cumul(aYearCnt, yNum);
+            const aSchoolActive = cumul(aSchoolYearCnt, yNum); // 점검률 분모용
+            const hNew          = hYearCnt[y] || 0;
+            const hActive       = cumul(hYearCnt, yNum);
+            const pNew          = pYearCnt[y] || 0;
+            const pActive       = cumul(pYearCnt, yNum);
+            return { year: y, aNew, aActive, aSchoolActive, hNew, hActive, pNew, pActive };
         });
-        return result;
-    }, [academyRaw, years]);
+    }, [YEARS, aList, hList, pList]);
 
-    // 2026년 기준 요약
-    const summary = useMemo(() => {
-        const y26 = typeRows.filter(r => getYear(colVal(r, ['점검일자', '점검일', '지도점검일'])) === CURRENT_YEAR);
-        const viols = y26.filter(r => { const v = colVal(r, ['위반여부', '위반사항', '결과', '점검결과']); return v && v.trim().toUpperCase() === 'Y'; });
-        const inspected = new Set(y26.map(r => colVal(r, ['학원(교습소)명', '학원명', '명칭', '기관명'])).filter(Boolean));
-        const total = academyByYear[CURRENT_YEAR] || 0;
-        return {
-            inspCount: y26.length, inspAcad: inspected.size, violCount: viols.length, totalAcad: total,
-            inspRate: total > 0 ? Math.round(inspected.size / total * 100) : 0,
-            violRate: total > 0 ? Math.round(viols.length / total * 100) : 0
+    // 섹션 3: 분야별 분포 — 기관 단위 집계 (과외 포함)
+    const categoryStats = useMemo(() => {
+        const map = {};
+        const add = (list, key) => list.forEach(a => {
+            const raw = key === 'priv'
+                ? (a.subjects?.[0]?.field || a.field || '기타')
+                : (a.field || '기타');
+            const c = raw.trim() || '기타';
+            if (!map[c]) map[c] = { academy: 0, hagwon: 0, priv: 0 };
+            map[c][key]++;
+        });
+        add(aList, 'academy');
+        add(hList, 'hagwon');
+        add(pList, 'priv');
+        const total = (aList.length + hList.length + pList.length) || 1;
+        return Object.entries(map)
+            .map(([cat, v]) => ({
+                cat, ...v,
+                total: v.academy + v.hagwon + v.priv,
+                pct: Math.round((v.academy + v.hagwon + v.priv) / total * 100),
+            }))
+            .sort((a, b) => b.total - a.total)
+            .slice(0, 15);
+    }, [aList, hList, pList]);
+
+    // 섹션 4: 지도점검 현황 — 학원 단위로 그룹핑 후 집계
+    const inspStats = useMemo(() => {
+        // recentRows = 하남 최근 지도점검 현황 (현재연도, 과태료 만원 단위)
+        // statRows   = 통계 시트 (광주 전체 + 하남 역대, 과태료 원 단위)
+        // 하남: 현재연도는 recentRows가 정본 → statRows에서 제외
+        // 광주: 통계 시트가 전체 정본 → 연도 제한 없이 사용
+        const isHanam = region === '하남';
+        const allInsp = [
+            ...statRows
+                .filter(r => !isHanam || getYear(colVal(r, ['점검일자', '점검일', '지도점검일'])) !== CURRENT_YEAR)
+                .map(r => ({ ...r, _fineUnit: 'won' })),
+            ...(isHanam
+                ? recentRows
+                    .filter(r => colVal(r, ['주소', '소재지']).includes(region))
+                    .map(r => ({ ...r, _fineUnit: 'manwon' }))
+                : []),
+        ];
+
+        // 1단계: 연번+점검일 (또는 명칭+점검일 fallback) 단위로 그룹핑
+        const groups = {};
+        allInsp.forEach(r => {
+            const date = colVal(r, ['점검일자', '점검일', '지도점검일']).trim();
+            const y = getYear(date);
+            if (!y || parseInt(y) < 2019) return;
+            // 연번이 있으면 우선 사용 (recentRows 구조), 없으면 명칭+점검일 fallback
+            const num  = colVal(r, ['연번', '번호']).trim();
+            const name = colVal(r, ['명칭', '학원명', '교습소명', '기관명', '업소명']).trim();
+            const key  = num ? `${y}|seq${num}|${date}` : `${y}|${name}|${date}`;
+            if (!groups[key]) {
+                const typeV = colVal(r, ['학원종류', '종류', '기관유형', '구분']).trim();
+                groups[key] = {
+                    year: y,
+                    type: typeV.includes('교습소') ? 'hagwon' : (typeV.includes('과외') || typeV.includes('개인') ? 'priv' : 'academy'),
+                    viol: false,
+                    punishSet: new Set(),
+                    fine: 0,
+                };
+            }
+            const g = groups[key];
+            // 위반 여부: 위반여부(Y/N)=Y 이거나, 위반사항이 실질 내용이면 위반
+            const NON_VIOL_VALS = ['', '-', '없음', '이상없음', '해당없음', 'n', 'N'];
+            const vRaw = colVal(r, ['위반내용', '위반사항']).trim();
+            const vY   = colVal(r, ['위반여부', '결과', '점검결과']).toUpperCase() === 'Y';
+            if (vY || (vRaw && !NON_VIOL_VALS.includes(vRaw.toLowerCase()))) {
+                g.viol = true;
+            }
+            // 행정처분: 같은 그룹 내 중복 제거 (Set으로 값 수집 후 나중에 size로 판단)
+            // STAT 시트는 행정처분코드(숫자), recentRows는 처분명 — 둘 다 처리
+            const p = colVal(r, ['행정처분', '처분종류', '처분결과']).trim();
+            if (p && p !== '-' && p !== '없음' && p !== '' && p !== '0') g.punishSet.add(p);
+            // 과태료: recentRows는 만원 단위, statRows는 원 단위
+            const fStr = colVal(r, ['과태료', '과태료금액', '부과금액']).replace(/[^0-9]/g, '');
+            const fRaw = fStr ? parseInt(fStr) : 0;
+            const f = r._fineUnit === 'won' ? Math.round(fRaw / 10000) : fRaw;
+            if (!isNaN(f) && f > 0) g.fine += f;
+        });
+
+        // 2단계: 연도별로 합산
+        const byYear = {};
+        Object.values(groups).forEach(g => {
+            const y = g.year;
+            if (!byYear[y]) byYear[y] = { total: 0, academy: 0, hagwon: 0, priv: 0, viol: 0, punish: 0, fine: 0 };
+            byYear[y].total++;
+            byYear[y][g.type]++;
+            if (g.viol) byYear[y].viol++;
+            if (g.punishSet.size > 0) byYear[y].punish++;
+            byYear[y].fine += g.fine;
+        });
+
+        return Object.entries(byYear).sort(([a], [b]) => a.localeCompare(b))
+            .map(([year, v]) => ({ year, ...v, violRate: v.total > 0 ? Math.round(v.viol / v.total * 100) : 0 }));
+    }, [statRows, recentRows, region]);
+
+    // 섹션 5: 동별 기관 분포 — 법정동 화이트리스트 적용 + 미분류 보완
+    const dongStats = useMemo(() => {
+        const map = {};
+        const getDong = addr => {
+            const a = addr || '';
+            // 1차: 화이트리스트 동 이름을 주소에서 직접 검색
+            //      동 이름 뒤가 공백·숫자·구두점·괄호 또는 문자열 끝이어야 함
+            //      → 도로명 주소 (미사대로, 역동로 등) 와 구분
+            for (const d of DONG_WL) {
+                if (new RegExp(d + '(?=[\\s\\d,()[\\]]|$)').test(a)) return d;
+            }
+            // 2차: "시" 이후 동/리/읍/면 패턴을 모두 추출 후 화이트리스트 대조
+            const after = a.replace(/^.*?시\s*/, '');
+            const tokens = [...after.matchAll(/([가-힣]+(?:동|리|읍|면))/g)].map(m => m[1]);
+            for (const t of tokens) {
+                if (DONG_WL.has(t)) return t;
+            }
+            // 매칭 실패 → 미분류
+            return '';
         };
-    }, [typeRows, academyByYear]);
-
-    // 연도별 통계
-    const yearStats = useMemo(() => years.map(y => {
-        const yRows = typeRows.filter(r => getYear(colVal(r, ['점검일자', '점검일', '지도점검일'])) === y);
-        const viols = yRows.filter(r => { const v = colVal(r, ['위반여부', '위반사항', '결과', '점검결과']); return v && v.trim().toUpperCase() === 'Y'; });
-        const violTypeMap = {};
-        viols.forEach(r => { const t = colVal(r, ['위반사항', '위반유형', '위반내용', '현지조치']) || '기타'; violTypeMap[t] = (violTypeMap[t] || 0) + 1; });
-        const punishMap = {};
-        viols.forEach(r => { const p = colVal(r, ['행정처분', '행정처분종류', '처분종류', '처분내용']); if (p && p !== '-' && p !== '') punishMap[p] = (punishMap[p] || 0) + 1; });
-        const fine = yRows.reduce((s, r) => { const f = parseInt((colVal(r, ['과태료', '과태료금액', '부과금액', '과태료부과금액']) || '').replace(/[^0-9]/g, '')); return s + (isNaN(f) ? 0 : f); }, 0);
-        return { year: y, total: yRows.length, violCount: viols.length, violTypeMap, punishMap, fine, totalAcad: academyByYear[y] || 0 };
-    }), [typeRows, years, academyByYear]);
-
-    const allViolTypes = useMemo(() => { const s = new Set(); yearStats.forEach(ys => Object.keys(ys.violTypeMap).forEach(t => s.add(t))); return [...s]; }, [yearStats]);
-    const allPunishTypes = useMemo(() => { const s = new Set(); yearStats.forEach(ys => Object.keys(ys.punishMap).forEach(t => s.add(t))); return [...s]; }, [yearStats]);
-    const violColorMap = useMemo(() => { const m = {}; allViolTypes.forEach((t, i) => { m[t] = VIOL_COLORS[i % VIOL_COLORS.length]; }); return m; }, [allViolTypes]);
-
-    const filteredByViolType = useMemo(() => {
-        if (!filterViolType) return null;
-        return typeRows.filter(r => {
-            const v = colVal(r, ['위반여부', '위반사항', '결과', '점검결과']);
-            if (!v || v.trim().toUpperCase() !== 'Y') return false;
-            return colVal(r, ['위반사항', '위반유형', '위반내용', '현지조치']) === filterViolType;
-        }).sort((a, b) => colVal(a, ['점검일', '점검일자']).localeCompare(colVal(b, ['점검일', '점검일자'])));
-    }, [typeRows, filterViolType]);
-
-    const detailByYear = useMemo(() => {
-        const g = {};
-        typeRows.forEach(row => {
-            const y = getYear(colVal(row, ['점검일자', '점검일', '지도점검일'])) || '미상';
-            if (!g[y]) g[y] = [];
-            g[y].push(row);
+        const add = (list, key) => list.forEach(a => {
+            const d = getDong(a.address || '');
+            const dongKey = d || '미분류';
+            if (!map[dongKey]) map[dongKey] = { academy: 0, hagwon: 0, priv: 0 };
+            map[dongKey][key]++;
         });
-        Object.keys(g).forEach(y => g[y].sort((a, b) => colVal(a, ['점검일', '점검일자', '지도점검일']).localeCompare(colVal(b, ['점검일', '점검일자', '지도점검일']))));
-        return g;
-    }, [typeRows]);
+        add(aList, 'academy');
+        add(hList, 'hagwon');
+        add(pList, 'priv');
+        return Object.entries(map)
+            .map(([dong, v]) => ({ dong, ...v, total: v.academy + v.hagwon + v.priv }))
+            .sort((a, b) => {
+                if (a.dong === '미분류') return 1;   // 미분류는 항상 맨 아래
+                if (b.dong === '미분류') return -1;
+                return b.total - a.total;
+            });
+    }, [aList, hList, pList, DONG_WL]);
 
-    const color = type === '학원' ? '#3b82f6' : '#10b981';
-    const icon = type === '학원' ? '🏫' : '📖';
+    if (loading) return <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>⏳ 데이터 로딩 중...</div>;
 
-    const baseOpts = {
-        responsive: true,
-        plugins: { legend: { position: 'bottom', labels: { font: { size: 10 }, color: '#94a3b8', padding: 6 } } },
-        scales: { x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: '#1e293b20' } }, y: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: '#1e293b' }, beginAtZero: true } }
-    };
-    const stackedOpts = { ...baseOpts, scales: { ...baseOpts.scales, x: { ...baseOpts.scales.x, stacked: true }, y: { ...baseOpts.scales.y, stacked: true } } };
+    const Th = ({ children, colSpan, rowSpan, style }) => (
+        <th colSpan={colSpan} rowSpan={rowSpan} style={{ padding: '9px 12px', fontSize: '0.78rem', fontWeight: '700', color: 'var(--text-muted)', background: 'var(--bg-main)', borderBottom: '2px solid var(--border-color)', textAlign: 'left', whiteSpace: 'nowrap', ...style }}>{children}</th>
+    );
+    const Td = ({ children, style }) => (
+        <td style={{ padding: '8px 12px', fontSize: '0.84rem', borderBottom: '1px solid var(--border-color)', ...style }}>{children}</td>
+    );
+    const Section = ({ title, children }) => (
+        <div style={{ background: 'var(--bg-card)', borderRadius: '16px', padding: '18px 20px', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)', marginBottom: '14px' }}>
+            <div style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--text-main)', marginBottom: '14px', paddingBottom: '8px', borderBottom: '2px solid var(--primary)' }}>{title}</div>
+            {children}
+        </div>
+    );
 
     return (
         <div>
-            {/* 2026 배지 */}
-            <div style={{ marginBottom: '12px' }}>
-                <span style={{ fontSize: '0.75rem', color: '#6366f1', background: '#eef2ff', border: '1px solid #c7d2fe', padding: '4px 12px', borderRadius: '20px', fontWeight: '700' }}>
-                    📅 요약 카드는 {CURRENT_YEAR}년 기준
-                </span>
-            </div>
-
-            {/* 요약 카드 */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(140px,1fr))', gap: '10px', marginBottom: '20px' }}>
-                <StatCard icon={icon} label={`${type} 점검건수`} value={summary.inspCount + '건'} color={color} />
-                {summary.totalAcad > 0 && <StatCard icon="🏢" label={`전체 ${type}수`} value={summary.totalAcad.toLocaleString() + '개'} color="#64748b" />}
-                <StatCard icon="⚠️" label="위반건수" value={summary.violCount + '건'} color="#ef4444" />
-                <StatCard icon="🔍" label="점검율" value={summary.inspRate + '%'} color="#f59e0b" />
-                <StatCard icon="📋" label="위반율" value={summary.violRate + '%'} color="#ef4444" />
-            </div>
-
-            {/* 연도별 차트 4종 */}
-            {yearStats.length > 0 && (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(300px,1fr))', gap: '14px', marginBottom: '20px' }}>
-                    <div style={{ background: 'var(--bg-card)', borderRadius: '14px', padding: '16px', border: '1px solid var(--border-color)' }}>
-                        <div style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-muted)', marginBottom: '8px' }}>① 연도별 점검 · 위반 건수</div>
-                        <Line data={{
-                            labels: yearStats.map(s => s.year + '년'), datasets: [
-                                { label: '점검건수', data: yearStats.map(s => s.total), borderColor: '#6366f1', backgroundColor: '#6366f122', tension: 0.3, pointRadius: 4 },
-                                { label: '위반건수', data: yearStats.map(s => s.violCount), borderColor: '#ef4444', backgroundColor: '#ef444422', tension: 0.3, pointRadius: 4 },
-                            ]
-                        }} options={baseOpts} />
-                    </div>
-                    {allViolTypes.length > 0 && (
-                        <div style={{ background: 'var(--bg-card)', borderRadius: '14px', padding: '16px', border: '1px solid var(--border-color)' }}>
-                            <div style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-muted)', marginBottom: '8px' }}>② 연도별 위반유형별 건수</div>
-                            <Bar data={{ labels: yearStats.map(s => s.year + '년'), datasets: allViolTypes.slice(0, 10).map((t, i) => ({ label: t, data: yearStats.map(s => s.violTypeMap[t] || 0), backgroundColor: VIOL_COLORS[i % VIOL_COLORS.length] + 'cc', borderColor: VIOL_COLORS[i % VIOL_COLORS.length], borderWidth: 1, borderRadius: 3, stack: 'v' })) }} options={stackedOpts} />
-                        </div>
-                    )}
-                    {allPunishTypes.length > 0 && (
-                        <div style={{ background: 'var(--bg-card)', borderRadius: '14px', padding: '16px', border: '1px solid var(--border-color)' }}>
-                            <div style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-muted)', marginBottom: '8px' }}>③ 연도별 행정처분 종류</div>
-                            <Bar data={{ labels: yearStats.map(s => s.year + '년'), datasets: allPunishTypes.map((t, i) => ({ label: t, data: yearStats.map(s => s.punishMap[t] || 0), backgroundColor: COLORS[i % COLORS.length] + 'cc', borderColor: COLORS[i % COLORS.length], borderWidth: 1, borderRadius: 3, stack: 'p' })) }} options={stackedOpts} />
-                        </div>
-                    )}
-                    {yearStats.some(s => s.fine > 0) && (
-                        <div style={{ background: 'var(--bg-card)', borderRadius: '14px', padding: '16px', border: '1px solid var(--border-color)' }}>
-                            <div style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-muted)', marginBottom: '8px' }}>④ 연도별 과태료 부과액 (만원)</div>
-                            <Line data={{ labels: yearStats.map(s => s.year + '년'), datasets: [{ label: '과태료(만원)', data: yearStats.map(s => Math.round(s.fine / 10000)), borderColor: '#f59e0b', backgroundColor: '#f59e0b22', tension: 0.3, pointRadius: 4, fill: true }] }} options={baseOpts} />
-                        </div>
-                    )}
+            {/* 섹션 1 */}
+            <Section title="📊 기관 현황 요약">
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(130px,1fr))', gap: '10px' }}>
+                    <StatCard icon="🏫" label="학원"     value={aList.length.toLocaleString() + '개'} color="#3b82f6" />
+                    <StatCard icon="📖" label="교습소"   value={hList.length.toLocaleString() + '개'} color="#10b981" />
+                    <StatCard icon="👤" label="개인과외" value={pList.length.toLocaleString() + '명'} color="#8b5cf6" />
+                    <StatCard icon="🏢" label="합계"     value={(aList.length + hList.length + pList.length).toLocaleString() + '개'} color="#f59e0b" />
                 </div>
-            )}
+            </Section>
 
-            {/* 위반유형 필터 상세 */}
-            {filterViolType && filteredByViolType && (
-                <div style={{ background: '#fef2f2', borderRadius: '14px', padding: '18px', border: '1px solid #fecaca', marginBottom: '20px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                        <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '700', color: '#ef4444' }}>
-                            ⚠️ 위반유형: <span style={{ borderBottom: '2px solid #ef4444' }}>{filterViolType}</span> — {filteredByViolType.length}건 (연도 오름차순)
-                        </h3>
-                        <button onClick={() => setFilterViolType(null)} style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: '8px', padding: '5px 14px', cursor: 'pointer', fontSize: '0.82rem', fontWeight: '700' }}>✕ 닫기</button>
-                    </div>
-                    <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
-                            <thead>
-                                <tr style={{ background: '#fee2e2', borderBottom: '2px solid #fecaca' }}>
-                                    {['연도', '점검일', `${type}명`, '위반내용', '행정처분'].map(h => (
-                                        <th key={h} style={{ padding: '9px 12px', textAlign: 'left', color: '#991b1b', fontWeight: '700', whiteSpace: 'nowrap' }}>{h}</th>
-                                    ))}
+            {/* 섹션 2 */}
+            <Section title="📅 연도별 등록 추이">
+                <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '380px' }}>
+                        <thead>
+                            <tr>
+                                <Th rowSpan={2}>연도</Th>
+                                <Th colSpan={2} style={{ textAlign: 'center', borderBottom: '1px solid var(--border-color)', color: '#3b82f6' }}>학원</Th>
+                                <Th colSpan={2} style={{ textAlign: 'center', borderBottom: '1px solid var(--border-color)', color: '#10b981', borderLeft: '2px solid var(--border-color)' }}>교습소</Th>
+                                <Th colSpan={2} style={{ textAlign: 'center', borderBottom: '1px solid var(--border-color)', color: '#8b5cf6', borderLeft: '2px solid var(--border-color)' }}>과외</Th>
+                            </tr>
+                            <tr>
+                                <Th style={{ padding: '9px 3px 9px 12px' }}>누적<span style={{ fontSize: '0.72em', opacity: 0.75, marginLeft: '2px' }}>(교과)</span></Th>
+                                <Th style={{ padding: '9px 12px 9px 3px' }}>신규</Th>
+                                <Th style={{ padding: '9px 3px 9px 14px', borderLeft: '2px solid var(--border-color)' }}>누적</Th>
+                                <Th style={{ padding: '9px 12px 9px 3px' }}>신규</Th>
+                                <Th style={{ padding: '9px 3px 9px 14px', borderLeft: '2px solid var(--border-color)' }}>누적</Th>
+                                <Th style={{ padding: '9px 12px 9px 3px' }}>신규</Th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {yearStats.map((s, i) => (
+                                <tr key={s.year} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
+                                    <Td style={{ fontWeight: '700', color: s.year === CURRENT_YEAR ? 'var(--primary)' : 'var(--text-main)' }}>{s.year}년</Td>
+                                    <Td style={{ color: s.aActive > 0 ? '#3b82f6' : 'var(--text-muted)', fontWeight: '700', padding: '8px 3px 8px 12px' }}>
+                                        {s.aActive > 0 ? (
+                                            <>
+                                                {s.aActive.toLocaleString()}
+                                                {s.aSchoolActive > 0 && (
+                                                    <span style={{ fontSize: '0.78em', color: '#60a5fa', fontWeight: '400', marginLeft: '3px', opacity: 0.85 }}>
+                                                        ({s.aSchoolActive.toLocaleString()})
+                                                    </span>
+                                                )}
+                                            </>
+                                        ) : '-'}
+                                    </Td>
+                                    <Td style={{ color: s.aNew > 0 ? '#3b82f6' : 'var(--text-muted)', fontWeight: '400', padding: '8px 12px 8px 3px' }}>{s.aNew > 0 ? '+' + s.aNew : '-'}</Td>
+                                    <Td style={{ color: s.hActive > 0 ? '#10b981' : 'var(--text-muted)', fontWeight: '700', padding: '8px 3px 8px 14px', borderLeft: '2px solid var(--border-color)' }}>{s.hActive > 0 ? s.hActive.toLocaleString() : '-'}</Td>
+                                    <Td style={{ color: s.hNew > 0 ? '#10b981' : 'var(--text-muted)', fontWeight: '400', padding: '8px 12px 8px 3px' }}>{s.hNew > 0 ? '+' + s.hNew : '-'}</Td>
+                                    <Td style={{ color: s.pActive > 0 ? '#8b5cf6' : 'var(--text-muted)', fontWeight: '700', padding: '8px 3px 8px 14px', borderLeft: '2px solid var(--border-color)' }}>{s.pActive > 0 ? s.pActive.toLocaleString() : '-'}</Td>
+                                    <Td style={{ color: s.pNew > 0 ? '#8b5cf6' : 'var(--text-muted)', fontWeight: '400', padding: '8px 12px 8px 3px' }}>{s.pNew > 0 ? '+' + s.pNew : '-'}</Td>
                                 </tr>
-                            </thead>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+                <div style={{ marginTop: '6px', fontSize: '0.75rem', color: 'var(--text-muted)', paddingLeft: '2px' }}>
+                    ※ (교과)는 학교교과교습학원의 갯수를 말함.
+                </div>
+            </Section>
+
+            {/* 섹션 3 */}
+            <Section title="📚 교습 분야별 분포 (상위 15)">
+                {categoryStats.length === 0
+                    ? <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', padding: '16px 0' }}>분야 데이터 없음</div>
+                    : <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                            <thead><tr><Th>순위</Th><Th>분야</Th><Th>학원</Th><Th>교습소</Th><Th>과외</Th><Th>합계</Th><Th>비율</Th></tr></thead>
                             <tbody>
-                                {filteredByViolType.map((row, i) => (
-                                    <tr key={i} style={{ borderBottom: '1px solid #fecaca', background: i % 2 === 0 ? 'transparent' : '#fff5f5' }}>
-                                        <td style={{ padding: '8px 12px', color: '#64748b', fontWeight: '700', whiteSpace: 'nowrap' }}>{getYear(colVal(row, ['점검일', '점검일자', '지도점검일'])) || '-'}년</td>
-                                        <td style={{ padding: '8px 12px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{colVal(row, ['점검일', '점검일자', '지도점검일']) || '-'}</td>
-                                        <td style={{ padding: '8px 12px', color: '#2563eb', fontWeight: '600', whiteSpace: 'nowrap' }}>{colVal(row, ['학원(교습소)명', '학원명', '명칭', '기관명']) || '-'}</td>
-                                        <td style={{ padding: '8px 12px', color: '#ef4444', fontWeight: '600' }}>{colVal(row, ['위반사항', '위반유형', '위반내용', '현지조치']) || '-'}</td>
-                                        <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>{colVal(row, ['행정처분', '처분종류', '처분내용']) || '-'}</td>
+                                {categoryStats.map((s, i) => (
+                                    <tr key={s.cat} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
+                                        <Td style={{ color: 'var(--text-muted)', fontWeight: '700' }}>{i + 1}</Td>
+                                        <Td style={{ fontWeight: '700' }}>{s.cat}</Td>
+                                        <Td style={{ color: '#3b82f6' }}>{s.academy > 0 ? s.academy : '-'}</Td>
+                                        <Td style={{ color: '#10b981' }}>{s.hagwon  > 0 ? s.hagwon  : '-'}</Td>
+                                        <Td style={{ color: '#8b5cf6' }}>{s.priv    > 0 ? s.priv    : '-'}</Td>
+                                        <Td style={{ fontWeight: '700' }}>{s.total}</Td>
+                                        <Td>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <div style={{ height: '6px', width: Math.max(2, s.pct * 0.8) + 'px', background: 'var(--primary)', borderRadius: '3px' }} />
+                                                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{s.pct}%</span>
+                                            </div>
+                                        </Td>
                                     </tr>
                                 ))}
                             </tbody>
                         </table>
                     </div>
-                </div>
-            )}
+                }
+            </Section>
 
-            {/* 연도별 상세 점검 내역 */}
-            <div style={{ background: 'var(--bg-card)', borderRadius: '16px', padding: '20px', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)' }}>
-                <h3 style={{ margin: '0 0 16px 0', fontSize: '1rem', fontWeight: '700' }}>📋 연도별 상세 점검 내역</h3>
-                {Object.keys(detailByYear).sort().map(year => {
-                    const yRows = detailByYear[year];
-                    const yViols = yRows.filter(r => { const v = colVal(r, ['위반여부', '위반사항', '결과', '점검결과']); return v && v.trim().toUpperCase() === 'Y'; });
-                    const yViolMap = {};
-                    yViols.forEach(r => { const t = colVal(r, ['위반사항', '위반유형', '위반내용', '현지조치']) || '기타'; yViolMap[t] = (yViolMap[t] || 0) + 1; });
-                    const yFine = yRows.reduce((s, r) => { const f = parseInt((colVal(r, ['과태료', '과태료금액', '부과금액']) || '').replace(/[^0-9]/g, '')); return s + (isNaN(f) ? 0 : f); }, 0);
+            {/* 섹션 4 */}
+            <Section title="🔍 지도점검 현황 (2019~)">
+                {(() => {
+                    // 연도별 분모: 학원 누적 + 교습소 누적 (yearStats에서 참조)
+                    const ysMap = new Map(yearStats.map(s => [s.year, s]));
                     return (
-                        <div key={year} style={{ marginBottom: '32px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px', paddingBottom: '8px', borderBottom: '3px solid var(--primary)' }}>
-                                <span style={{ fontSize: '1.15rem', fontWeight: '800', color: 'var(--primary)' }}>📅 {year}년</span>
-                                <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', background: 'var(--bg-main)', padding: '3px 12px', borderRadius: '20px', border: '1px solid var(--border-color)' }}>
-                                    총 {yRows.length}건 · 위반 {yViols.length}건
-                                </span>
-                            </div>
-                            <div style={{ overflowX: 'auto', borderRadius: '10px', border: '1px solid var(--border-color)', marginBottom: '12px' }}>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem' }}>
-                                    <thead style={{ position: 'sticky', top: 0, zIndex: 5 }}>
-                                        <tr style={{ background: 'var(--bg-main)', borderBottom: '2px solid var(--border-color)' }}>
-                                            {['점검일', `${type}명`, '위반내용', '행정처분', '비고'].map(h => (
-                                                <th key={h} style={{ padding: '10px 14px', textAlign: 'left', color: 'var(--text-muted)', fontWeight: '700', whiteSpace: 'nowrap', fontSize: '0.82rem', background: 'var(--bg-main)' }}>{h}</th>
-                                            ))}
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {yRows.map((row, i) => {
-                                            const name = colVal(row, ['학원(교습소)명', '학원명', '명칭', '기관명']);
-                                            const date = colVal(row, ['점검일', '점검일자', '지도점검일']);
-                                            const viol = colVal(row, ['위반사항', '위반유형', '위반내용', '현지조치']);
-                                            const punish = colVal(row, ['행정처분', '처분종류', '처분내용', '행정처분종류']);
-                                            const note = colVal(row, ['비고', '기타']);
-                                            const isY = colVal(row, ['위반여부', '위반사항', '결과', '점검결과']).toUpperCase() === 'Y';
-                                            const vc = violColorMap[viol] || '#ef4444';
-                                            return (
-                                                <tr key={i} style={{ borderBottom: '1px solid var(--border-color)', background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}
-                                                    onMouseOver={e => e.currentTarget.style.background = 'var(--primary-glow)'}
-                                                    onMouseOut={e => e.currentTarget.style.background = i % 2 === 0 ? 'transparent' : 'var(--bg-main)'}>
-                                                    <td style={{ padding: '9px 14px', color: 'var(--text-muted)', whiteSpace: 'nowrap', fontSize: '0.85rem' }}>{date || '-'}</td>
-                                                    <td style={{ padding: '9px 14px', whiteSpace: 'nowrap' }}>
-                                                        <span style={{ color: '#2563eb', textDecoration: 'underline', cursor: 'pointer', fontWeight: '700', fontSize: '0.9rem' }}
-                                                            onClick={() => window.open(`https://www.google.com/search?q=${encodeURIComponent(name + ' ' + region + ' 학원')}`, '_blank')}>{name || '-'}</span>
-                                                    </td>
-                                                    <td style={{ padding: '9px 14px', maxWidth: '260px' }}>
-                                                        {isY && viol
-                                                            ? <span style={{ color: vc, textDecoration: 'underline', cursor: 'pointer', fontWeight: '700', fontSize: '0.87rem' }} onClick={() => setFilterViolType(viol === filterViolType ? null : viol)}>{viol}</span>
-                                                            : <span style={{ color: '#10b981', fontSize: '0.85rem' }}>{viol || '이상없음'}</span>}
-                                                    </td>
-                                                    <td style={{ padding: '9px 14px', color: isY && punish ? '#ef4444' : 'var(--text-muted)', fontWeight: isY && punish ? '700' : '400', whiteSpace: 'nowrap', fontSize: '0.85rem' }}>{punish || '-'}</td>
-                                                    <td style={{ padding: '9px 14px', color: 'var(--text-muted)', fontSize: '0.82rem' }}>{note || '-'}</td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
-                            {/* 연도 브리핑 */}
-                            <div style={{ background: 'linear-gradient(135deg,#f8fafc,#eef2ff)', borderRadius: '12px', padding: '14px 18px', border: '1px solid #c7d2fe' }}>
-                                <div style={{ fontSize: '0.85rem', fontWeight: '800', color: '#312e81', marginBottom: '10px' }}>📊 {year}년 종합 브리핑</div>
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '14px', fontSize: '0.83rem' }}>
-                                    {academyByYear[year] > 0 && <span>🏢 전체 {type}수: <b style={{ color: 'var(--text-main)' }}>{academyByYear[year].toLocaleString()}개</b></span>}
-                                    <span>📋 총 점검: <b style={{ color: '#6366f1' }}>{yRows.length}건</b></span>
-                                    <span>⚠️ 위반: <b style={{ color: '#ef4444' }}>{yViols.length}건</b></span>
-                                    {yFine > 0 && <span>💰 과태료: <b style={{ color: '#f59e0b' }}>{Math.round(yFine / 10000).toLocaleString()}만원</b></span>}
-                                    {Object.entries(yViolMap).map(([t, c]) => (
-                                        <span key={t} style={{ color: violColorMap[t] || '#ef4444', fontWeight: '700', cursor: 'pointer', textDecoration: 'underline' }} onClick={() => setFilterViolType(t === filterViolType ? null : t)}>[{t}: {c}건]</span>
-                                    ))}
-                                </div>
-                            </div>
+                        <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '580px' }}>
+                                <thead><tr>
+                                    <Th>연도</Th>
+                                    <Th>학원</Th><Th>교습소</Th><Th>과외</Th><Th>합계</Th>
+                                    <Th>점검률</Th><Th>위반건수</Th><Th>행정처분</Th><Th>과태료(만원)</Th>
+                                </tr></thead>
+                                <tbody>
+                                    {inspStats.map((s, i) => {
+                                        const ys = ysMap.get(s.year);
+                                        const denom = ys ? (ys.aSchoolActive + ys.hActive) : 0;
+                                        const checkRate = denom > 0 ? Math.round(s.total / denom * 100) : null;
+                                        const crColor = checkRate === null ? 'var(--text-muted)'
+                                            : checkRate >= 80 ? '#10b981'
+                                            : checkRate >= 50 ? '#f59e0b'
+                                            : '#3b82f6';
+                                        return (
+                                            <tr key={s.year} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
+                                                <Td style={{ fontWeight: '700', color: s.year === CURRENT_YEAR ? 'var(--primary)' : 'var(--text-main)' }}>{s.year}년{s.year === CURRENT_YEAR ? ' ★' : ''}</Td>
+                                                <Td style={{ color: '#3b82f6' }}>{s.academy > 0 ? s.academy : '-'}</Td>
+                                                <Td style={{ color: '#10b981' }}>{s.hagwon  > 0 ? s.hagwon  : '-'}</Td>
+                                                <Td style={{ color: '#8b5cf6' }}>{s.priv    > 0 ? s.priv    : '-'}</Td>
+                                                <Td style={{ fontWeight: '700' }}>{s.total}</Td>
+                                                <Td><span style={{ color: crColor, fontWeight: '700' }}>{checkRate !== null ? checkRate + '%' : '-'}</span></Td>
+                                                <Td style={{ color: s.viol > 0 ? '#ef4444' : 'var(--text-muted)', fontWeight: s.viol > 0 ? '700' : '400' }}>{s.viol > 0 ? s.viol : '-'}</Td>
+                                                <Td style={{ color: s.punish > 0 ? '#8b5cf6' : 'var(--text-muted)' }}>{s.punish > 0 ? s.punish + '건' : '-'}</Td>
+                                                <Td style={{ color: s.fine > 0 ? '#f59e0b' : 'var(--text-muted)', fontWeight: s.fine > 0 ? '700' : '400' }}>{s.fine > 0 ? s.fine.toLocaleString() : '-'}</Td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
                         </div>
                     );
-                })}
-            </div>
+                })()}
+            </Section>
+
+            {/* 섹션 5 */}
+            <Section title="🗺️ 동별 기관 분포">
+                {dongStats.length === 0
+                    ? <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>동 데이터 없음</div>
+                    : <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                            <thead><tr><Th>동/읍/면</Th><Th>학원</Th><Th>교습소</Th><Th>과외</Th><Th>합계</Th></tr></thead>
+                            <tbody>
+                                {dongStats.map((s, i) => {
+                                    const isMisc = s.dong === '미분류';
+                                    return (
+                                    <tr key={s.dong} style={{ background: isMisc ? 'rgba(0,0,0,0.04)' : (i % 2 === 0 ? 'transparent' : 'var(--bg-main)') }}>
+                                        <Td style={{ fontWeight: isMisc ? '400' : '700', color: isMisc ? 'var(--text-muted)' : undefined, fontStyle: isMisc ? 'italic' : undefined }}>
+                                            {isMisc ? '미분류 (주소 불명확)' : s.dong}
+                                        </Td>
+                                        <Td style={{ color: isMisc ? 'var(--text-muted)' : '#3b82f6' }}>{s.academy > 0 ? s.academy : '-'}</Td>
+                                        <Td style={{ color: isMisc ? 'var(--text-muted)' : '#10b981' }}>{s.hagwon  > 0 ? s.hagwon  : '-'}</Td>
+                                        <Td style={{ color: isMisc ? 'var(--text-muted)' : '#8b5cf6' }}>{s.priv    > 0 ? s.priv    : '-'}</Td>
+                                        <Td style={{ fontWeight: '800', color: isMisc ? 'var(--text-muted)' : undefined }}>{s.total}</Td>
+                                    </tr>
+                                    );
+                                })}
+                                <tr style={{ background: 'rgba(99,102,241,0.06)', borderTop: '2px solid var(--border-color)' }}>
+                                    <Td style={{ fontWeight: '800' }}>합계</Td>
+                                    <Td style={{ color: '#3b82f6', fontWeight: '800' }}>{dongStats.reduce((s, r) => s + r.academy, 0).toLocaleString()}</Td>
+                                    <Td style={{ color: '#10b981', fontWeight: '800' }}>{dongStats.reduce((s, r) => s + r.hagwon,  0).toLocaleString()}</Td>
+                                    <Td style={{ color: '#8b5cf6', fontWeight: '800' }}>{dongStats.reduce((s, r) => s + r.priv,    0).toLocaleString()}</Td>
+                                    <Td style={{ fontWeight: '800' }}>{dongStats.reduce((s, r) => s + r.total, 0).toLocaleString()}</Td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </Section>
         </div>
     );
 }
 
-// ───────────────────────────────────────────────
-// 탭4: 개인과외 통계
-// ───────────────────────────────────────────────
-function TabPrivate({ rows }) {
-    const filtered = useMemo(() => rows.filter(row => {
-        const type = colVal(row, ['대상', '유형', '학원종류', '점검유형', '구분']);
-        if (!(type.includes('개인') || type.includes('과외') || type.includes('교습자'))) return false;
-
-        const year = getYear(colVal(row, ['점검일자', '점검일', '지도점검일']));
-        if (!year) return false;
-
-        const yNum = parseInt(year, 10);
-        const currentYearNum = parseInt(CURRENT_YEAR, 10);
-        return yNum >= currentYearNum - 4 && yNum <= currentYearNum;
-    }), [rows]);
-
-    const viols = filtered.filter(r => { const v = colVal(r, ['위반여부', '결과', '점검결과', '위반사항']); return v && v.trim().toUpperCase() === 'Y'; });
-    const typeMap = {}, punishMap = {};
-    viols.forEach(r => { const t = colVal(r, ['위반사항', '결과', '위반내역']) || '기타'; typeMap[t] = (typeMap[t] || 0) + 1; });
-    filtered.forEach(r => { const p = colVal(r, ['처분결과', '행정처분', '처분종류']); if (p && p !== '-' && p !== '') punishMap[p] = (punishMap[p] || 0) + 1; });
-
+function TabPlaceholder({ label }) {
     return (
-        <div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(160px,1fr))', gap: '12px', marginBottom: '20px' }}>
-                <StatCard icon="👤" label="개인과외 점검" value={filtered.length + '건'} color="#8b5cf6" />
-                <StatCard icon="⚠️" label="위반(Y)" value={viols.length + '건'} color="#ef4444" />
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: '12px', marginBottom: '16px' }}>
-                {Object.keys(typeMap).length > 0 && <DoughnutChart title="위반 유형" labels={Object.keys(typeMap)} data={Object.values(typeMap)} />}
-                {Object.keys(punishMap).length > 0 && <DoughnutChart title="처분 현황" labels={Object.keys(punishMap)} data={Object.values(punishMap)} />}
-            </div>
-            <div style={{ background: 'var(--bg-card)', borderRadius: '14px', padding: '16px', border: '1px solid var(--border-color)' }}>
-                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>총 {filtered.length}건 중 위반(Y) {viols.length}건</div>
-            </div>
+        <div style={{ textAlign: 'center', padding: '80px 20px', color: 'var(--text-muted)' }}>
+            <div style={{ fontSize: '2.2rem', marginBottom: '12px' }}>🚧</div>
+            <div style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--text-main)' }}>{label} 탭</div>
+            <div style={{ fontSize: '0.85rem', marginTop: '8px' }}>곧 추가될 기능입니다</div>
         </div>
     );
 }
 
-// ───────────────────────────────────────────────
-// 탭5: 과태료 통계
-// ───────────────────────────────────────────────
-function TabFine({ rows }) {
-    const fineRows = rows.filter(r => {
-        // 최근 5년 이내 (2022 ~ 2026) 필터링
-        const year = getYear(colVal(r, ['점검일자', '점검일', '지도점검일']));
-        if (!year) return false;
-        const yNum = parseInt(year, 10);
-        const currentYearNum = parseInt(CURRENT_YEAR, 10);
-        if (yNum < currentYearNum - 4 || yNum > currentYearNum) return false;
-
-        const fine = colVal(r, ['과태료부과금액', '과태료', '부과금액', '과태료금액']);
-        return parseInt((fine || '').replace(/[^0-9]/g, '')) > 0;
-    });
-    const totalFine = fineRows.reduce((s, r) => { const v = parseInt((colVal(r, ['과태료부과금액', '과태료', '부과금액']) || '').replace(/[^0-9]/g, '')); return s + (isNaN(v) ? 0 : v); }, 0);
-    const reasonMap = {};
-    fineRows.forEach(r => { const t = colVal(r, ['위반사항', '사유', '위반내역']) || '기타'; reasonMap[t] = (reasonMap[t] || 0) + 1; });
-    return (
-        <div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(160px,1fr))', gap: '12px', marginBottom: '20px' }}>
-                <StatCard icon="💰" label="과태료 건수" value={fineRows.length + '건'} color="#f59e0b" />
-                <StatCard icon="💵" label="총 부과액(만원)" value={Math.round(totalFine / 10000).toLocaleString() + '만원'} color="#f59e0b" />
-            </div>
-            {Object.keys(reasonMap).length > 0 && <DoughnutChart title="위반사항별 과태료" labels={Object.keys(reasonMap)} data={Object.values(reasonMap)} />}
-        </div>
-    );
-}
-
-// ───────────────────────────────────────────────
-// 탭6: 무등록 통계
-// ───────────────────────────────────────────────
-function TabUnregistered({ rows }) {
-    const filtered = rows.filter(r => {
-        // 최근 5년 이내 (2022 ~ 2026) 필터링
-        const year = getYear(colVal(r, ['점검일자', '점검일', '지도점검일']));
-        if (!year) return false;
-        const yNum = parseInt(year, 10);
-        const currentYearNum = parseInt(CURRENT_YEAR, 10);
-        if (yNum < currentYearNum - 4 || yNum > currentYearNum) return false;
-
-        const t = colVal(r, ['대상', '유형', '점검유형', '위반사항', '결과', '점검결과']);
-        return t.includes('무등록') || t.includes('미등록') || t.includes('불법');
-    });
-    return (
-        <div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(160px,1fr))', gap: '12px', marginBottom: '20px' }}>
-                <StatCard icon="🚫" label="무등록 적발" value={filtered.length + '건'} color="#ef4444" />
-            </div>
-            {filtered.length === 0
-                ? <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>✨ 무등록 적발 데이터가 없습니다</div>
-                : <div style={{ overflowX: 'auto', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
-                    <div style={{ padding: '12px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>총 {filtered.length}건 무등록 적발 내역</div>
-                </div>
-            }
-        </div>
-    );
-}
 
 // ───────────────────────────────────────────────
 // 메인 InspectionPage
 // ───────────────────────────────────────────────
-export default function InspectionPage({ onBack, academies, onSelectAcademy }) {
+export default function InspectionPage({ onBack, academies, privateTutors, onSelectAcademy }) {
     const [region, setRegion] = useState('하남');
     const [activeTab, setActiveTab] = useState(0);
     const [statRows, setStatRows] = useState([]);
     const [loadingStat, setLoadingStat] = useState(false);
     const [errorStat, setErrorStat] = useState('');
 
-    const TABS = ['2026 지도점검', '학원', '교습소', '개인과외', '과태료', '무등록'];
-    const TAB_ICONS = ['🕐', '🏫', '📖', '👤', '💰', '🚫'];
+    const TABS      = ['2026 지도점검', '통계', '검토', '주의'];
+    const TAB_ICONS = ['🕐', '📊', '🔬', '⚠️'];
 
     useEffect(() => {
         if (!region) return;
         setLoadingStat(true);
         setErrorStat('');
-        setActiveTab(0);
         fetchStatRawRows()
             .then(raw => {
                 const { bodyRows } = parseRows(raw);
-                const filtered = filterByRegion(bodyRows, region);
-                setStatRows(filtered);
+                setStatRows(filterByRegion(bodyRows, region));
             })
             .catch(() => setErrorStat('통계 데이터를 불러오는데 실패했습니다.'))
             .finally(() => setLoadingStat(false));
     }, [region]);
 
+    const regionBtn = (r) => (
+        <button key={r} onClick={() => setRegion(r)} style={{
+            padding: '5px 16px', borderRadius: '20px', border: '1.5px solid',
+            borderColor: region === r ? 'var(--primary)' : 'var(--border-color)',
+            background: region === r ? 'var(--primary)' : 'transparent',
+            color: region === r ? 'white' : 'var(--text-muted)',
+            fontWeight: '700', fontSize: '0.82rem', cursor: 'pointer',
+        }}>{r}시</button>
+    );
 
-
-    // 메인 뷰
     return (
         <div style={{ minHeight: '100vh', background: 'var(--bg-main)', padding: '0 0 60px 0' }}>
             {/* 헤더 */}
             <div style={{ padding: '0 16px', position: 'sticky', top: 0, zIndex: 100, background: 'var(--bg-card)', borderBottom: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 0' }}>
-                    <button onClick={onBack} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', fontWeight: '600', padding: '6px 0' }}>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
-                        홈
-                    </button>
-                    <span style={{ fontSize: '1rem', fontWeight: '800', color: 'var(--text-main)' }}>🔍 지도점검 업무관리</span>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0 8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <button onClick={onBack} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', fontWeight: '600', padding: '4px 0' }}>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                            홈
+                        </button>
+                        <span style={{ fontSize: '1rem', fontWeight: '800', color: 'var(--text-main)' }}>🔍 지도점검 업무관리</span>
+                    </div>
+                    {/* 지역 토글 */}
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                        {['하남', '광주'].map(regionBtn)}
+                    </div>
                 </div>
                 {/* 탭 */}
                 <div style={{ display: 'flex', gap: '4px', overflowX: 'auto', paddingBottom: '2px' }}>
@@ -1047,18 +1078,14 @@ export default function InspectionPage({ onBack, academies, onSelectAcademy }) {
 
             {/* 탭 콘텐츠 */}
             <div style={{ padding: '20px 16px' }}>
-                {loadingStat ? (
-                    <div style={{ textAlign: 'center', padding: '80px', color: 'var(--text-muted)' }}>⏳ 데이터 로딩 중...</div>
-                ) : errorStat ? (
+                {errorStat ? (
                     <div style={{ textAlign: 'center', padding: '40px', color: '#ef4444' }}>{errorStat}</div>
                 ) : (
                     <div>
                         {activeTab === 0 && <TabRecent region={region} academies={academies} onSelectAcademy={onSelectAcademy} />}
-                        {activeTab === 1 && <TabAcademyOnly rows={statRows} region={region} type="학원" />}
-                        {activeTab === 2 && <TabAcademyOnly rows={statRows} region={region} type="교습소" />}
-                        {activeTab === 3 && <TabPrivate rows={statRows} />}
-                        {activeTab === 4 && <TabFine rows={statRows} />}
-                        {activeTab === 5 && <TabUnregistered rows={statRows} />}
+                        {activeTab === 1 && <TabStats region={region} statRows={statRows} academies={academies} privateTutors={privateTutors} />}
+                        {activeTab === 2 && <TabPlaceholder label="검토" />}
+                        {activeTab === 3 && <TabPlaceholder label="주의" />}
                     </div>
                 )}
             </div>

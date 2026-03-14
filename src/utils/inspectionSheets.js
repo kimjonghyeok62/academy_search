@@ -180,3 +180,27 @@ export async function fetchHanamHagwonRawRows() {
     return parseCSVText(text);
 }
 
+// 나이스 통합 시트 (학원/교습소/과외 전체 조회용)
+export const NICE_SHEET_ID = '158ZNBb88raJ1kzBL3eFcgPZS9CGs5in0YtPtiPWfdic';
+export const NICE_ACADEMY_GID = '1863320151';
+export const NICE_HAGWON_GID  = '1929773080';
+export const NICE_PRIVATE_GID = '482385921';
+
+// 나이스 학원조회 전체 rows
+export async function fetchNiceAcademyRawRows() {
+    const text = await fetchCSV(NICE_SHEET_ID, NICE_ACADEMY_GID);
+    return parseCSVText(text);
+}
+
+// 나이스 교습소조회 전체 rows
+export async function fetchNiceHagwonRawRows() {
+    const text = await fetchCSV(NICE_SHEET_ID, NICE_HAGWON_GID);
+    return parseCSVText(text);
+}
+
+// 나이스 개인과외교습자조회 전체 rows
+export async function fetchNicePrivateRawRows() {
+    const text = await fetchCSV(NICE_SHEET_ID, NICE_PRIVATE_GID);
+    return parseCSVText(text);
+}
+
