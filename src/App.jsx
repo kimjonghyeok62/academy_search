@@ -67,7 +67,7 @@ function App() {
     }
   }, [isAuthenticated]);
 
-  const CACHE_KEY = 'academy_data_v4'; // v4: 대시 주변 공백 있는 주소 정규화
+  const CACHE_KEY = 'academy_data_v5'; // v5: 2번 시트 헤더 자동감지 + 중복 복합키 적용
   const CACHE_TTL = 30 * 60 * 1000; // 30분
 
   const mergeSupplementaryData = (rawData, inspectionMap, map2026, instructorMap) => {
@@ -75,11 +75,18 @@ function App() {
     fullAcademies.forEach(academy => {
       const normName = academy.name.replace(/[^a-zA-Z0-9가-힣]/g, '').toLowerCase();
 
-      // 2026 점검 병합
+      // 2026 점검 병합 (중복: 같은 날짜 + 같은 위반사항 + 같은 위반내역 기준, 1번 시트 우선)
       const records2026 = map2026.get(normName) || [];
       if (records2026.length > 0) {
-        const existingDates = new Set(academy.inspections.map(r => r.date));
-        const newRecords = records2026.filter(r => !existingDates.has(r.date));
+        const existingKeys = new Set(
+          academy.inspections.map(r =>
+            `${r.date}__${(r.violationType || '').trim()}__${(r.violationDetail || '').trim()}`
+          )
+        );
+        const newRecords = records2026.filter(r => {
+          const key = `${r.date}__${(r.violationType || '').trim()}__${(r.violationDetail || '').trim()}`;
+          return !existingKeys.has(key);
+        });
         academy.inspections = [...academy.inspections, ...newRecords].sort((a, b) => {
           const toDate = str => {
             if (!str) return new Date(0);
@@ -97,6 +104,9 @@ function App() {
   };
 
   const loadData = async () => {
+    // 이전 버전 캐시 정리
+    ['academy_data_v1','academy_data_v2','academy_data_v3','academy_data_v4'].forEach(k => sessionStorage.removeItem(k));
+
     // 1. 캐시 확인 (30분 내 데이터면 즉시 사용)
     try {
       const cached = sessionStorage.getItem(CACHE_KEY);
@@ -413,6 +423,7 @@ function App() {
       <InspectionPage
         onBack={() => setShowInspection(false)}
         academies={academies}
+        privateTutors={privateTutors}
         onSelectAcademy={(academy) => {
           setDetailOrigin('inspection');
           setShowInspection(false);

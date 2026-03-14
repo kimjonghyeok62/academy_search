@@ -370,39 +370,40 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy }) {
             height: mapContainerRef.current.offsetHeight
         };
 
-        // 화면 중앙 기준으로 어느 쪽에 있는지 판별
-        const isOnRight = markerPixel.x > mapSize.width * 0.6;
-        const isOnLeft = markerPixel.x < mapSize.width * 0.4;
-        const isOnTop = markerPixel.y < mapSize.height * 0.4;
-        const isOnBottom = markerPixel.y > mapSize.height * 0.6;
+        // 화면 중앙 기준으로 어느 쪽에 있는지 판별 (모바일에서 더 엄격하게)
+        const mobileMode = window.innerWidth < 640;
+        const rightThresh = mobileMode ? 0.55 : 0.6;
+        const leftThresh  = mobileMode ? 0.45 : 0.4;
+        const isOnRight = markerPixel.x > mapSize.width * rightThresh;
+        const isOnLeft  = markerPixel.x < mapSize.width * leftThresh;
+        const isOnTop   = markerPixel.y < mapSize.height * 0.4;
+        const isOnBottom = markerPixel.y > mapSize.height * 0.65;
 
-        // 변형(transform) 값 및 간격 최적화 (마커 포인트를 완벽히 피하도록 조정)
+        // 변형(transform) 값 및 간격 최적화
         let translateX = '-50%';
         let translateY = '-100%';
-        let marginTop = '-55px'; // 기본 위치(마커 위)에서 마커 이미지를 완전히 벗어나도록 상향 조정
+        let marginTop = mobileMode ? '-42px' : '-50px';
         let arrowStyle = `bottom: -10px; left: 50%; transform: translateX(-50%); border-top: 10px solid rgba(79, 70, 229, 0.9);`;
         let arrowShadowStyle = `bottom: -8px; left: 50%; transform: translateX(-50%); border-top: 9px solid rgba(255, 255, 255, 0.98);`;
 
         if (isOnTop) {
             translateY = '0%';
-            marginTop = '25px'; // 마커 아래쪽으로 뜰 때도 중심부 가리지 않게 하향 조정
+            marginTop = mobileMode ? '18px' : '22px';
             arrowStyle = `top: -10px; left: 50%; transform: translateX(-50%); border-bottom: 10px solid rgba(79, 70, 229, 0.9);`;
             arrowShadowStyle = `top: -8px; left: 50%; transform: translateX(-50%); border-bottom: 9px solid rgba(255, 255, 255, 0.98);`;
         }
 
         if (isOnRight) {
-            translateX = '-100%';
+            translateX = mobileMode ? 'calc(-100% + 16px)' : '-100%';
             if (!isOnTop && !isOnBottom) {
-                translateX = '-100%';
                 translateY = '-50%';
                 marginTop = '0';
                 arrowStyle = `top: 50%; right: -10px; transform: translateY(-50%); border-left: 10px solid rgba(79, 70, 229, 0.9);`;
                 arrowShadowStyle = `top: 50%; right: -8px; transform: translateY(-50%); border-left: 9px solid rgba(255, 255, 255, 0.98);`;
             }
         } else if (isOnLeft) {
-            translateX = '0%';
+            translateX = mobileMode ? 'calc(0% - 16px)' : '0%';
             if (!isOnTop && !isOnBottom) {
-                translateX = '0%';
                 translateY = '-50%';
                 marginTop = '0';
                 arrowStyle = `top: 50%; left: -10px; transform: translateY(-50%); border-right: 10px solid rgba(79, 70, 229, 0.9);`;
@@ -411,20 +412,20 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy }) {
         }
 
         const isMultiple = academyList.length > 1;
+        const mobileW = window.innerWidth < 640;
         const overlayContent = document.createElement('div');
 
-        // 불투명도 90%로 높임 (시인성 강화)
         overlayContent.style.cssText = `
-            width: 300px;
-            max-height: 480px;
+            width: ${mobileW ? Math.min(window.innerWidth - 24, 260) + 'px' : '280px'};
+            max-height: 360px;
             overflow-y: auto;
             scrollbar-width: none;
             -ms-overflow-style: none;
-            padding: 24px;
-            background-color: rgba(255, 255, 255, 0.95);
-            border-radius: 28px;
+            padding: ${mobileW ? '12px 14px' : '14px 16px'};
+            background-color: rgba(255, 255, 255, 0.97);
+            border-radius: 18px;
             border: 2px solid rgba(79, 70, 229, 0.9);
-            box-shadow: 0 20px 50px -12px rgba(0, 0, 0, 0.5);
+            box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.4);
             position: relative;
             transform: translate(${translateX}, ${translateY});
             margin-top: ${marginTop};
@@ -443,23 +444,28 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy }) {
         overlayContent.addEventListener('wheel', (e) => e.stopPropagation());
 
         let html = `
-            <div id="close-btn" style="position: absolute; top: 16px; right: 18px; cursor: pointer; z-index: 10; font-size: 1.2rem; color: #4b5563; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.9); border-radius: 50%; box-shadow: 0 2px 6px rgba(0,0,0,0.2);">×</div>
-            <div style="font-size: 0.85rem; color: #1f2937; margin-bottom: 18px; border-bottom: 2px solid rgba(79, 70, 229, 0.15); padding-bottom: 12px; padding-right: 35px; word-break: keep-all; font-weight: 800; text-shadow: 0 1px 1px rgba(255,255,255,1);">
-                📍 ${academyList[0].address.split('(')[0]}
-                ${isMultiple ? `<div style="color: #4f46e5; font-weight: 900; margin-top: 5px; font-size: 0.8rem; text-shadow: 0 1px 1px rgba(255,255,255,0.8);">이 건물 내 ${academyList.length}개 기관</div>` : ''}
+            <div id="close-btn" style="position: absolute; top: 10px; right: 12px; cursor: pointer; z-index: 10; font-size: 1rem; color: #4b5563; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.9); border-radius: 50%; box-shadow: 0 1px 4px rgba(0,0,0,0.2);">×</div>
+            <div style="margin-bottom: 8px; border-bottom: 1.5px solid rgba(79, 70, 229, 0.15); padding-bottom: 7px; padding-right: 26px; word-break: keep-all;">
+                <div style="font-size: 0.75rem; color: #1f2937; font-weight: 700;">📍 ${academyList[0].address.split('(')[0].trim()}</div>
+                ${isMultiple ? `<div style="color: #4f46e5; font-weight: 900; margin-top: 4px; font-size: 0.78rem;">이 건물 내 ${academyList.length}개 기관</div>` : ''}
             </div>
-            <div style="display: flex; flex-direction: column; gap: 18px;">
+            <div style="display: flex; flex-direction: column; gap: 0;">
         `;
 
         academyList.forEach((academy, idx) => {
-            const displayCategory = academy.category === '학교교과교습학원' ? '' : academy.category;
+            // 교습소: 이름 끝에 이미 '교습소' 표시됨 → 배지 불필요
+            // 학교교과교습학원: 배지 불필요
+            // 평생직업교육학원: '평생직업교육'으로 축약하여 이름 오른쪽에 표시
+            const cat = academy.category;
+            const showBadge = cat && cat !== '학교교과교습학원' && cat !== '교습소';
+            const badgeLabel = cat === '평생직업교육학원' ? '평생직업교육' : cat;
 
             html += `
-                <div style="padding-bottom: ${idx === academyList.length - 1 ? '0' : '16px'}; border-bottom: ${idx === academyList.length - 1 ? 'none' : '1px dashed rgba(0,0,0,0.2)'}">
-                    ${displayCategory ? `<div style="font-size: 0.7rem; color: #4f46e5; font-weight: 900; padding: 2px 7px; background: rgba(79, 70, 229, 0.15); display: inline-block; border-radius: 6px; margin-bottom: 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">${displayCategory}</div>` : ''}
-                    <div class="academy-name-link" data-idx="${idx}" style="font-size: 1.15rem; font-weight: 950; color: #1e1b4b; margin-bottom: 4px; word-break: keep-all; cursor: pointer; text-decoration: underline; text-underline-offset: 5px; line-height: 1.35; text-shadow: 0 0.5px 1px rgba(0,0,0,0.1);">
+                <div style="padding: ${idx === academyList.length - 1 ? '5px 0 0' : '5px 0'}; border-bottom: ${idx === academyList.length - 1 ? 'none' : '1px solid rgba(0,0,0,0.07)'}; display: flex; align-items: center; justify-content: space-between; gap: 6px;">
+                    <div class="academy-name-link" data-idx="${idx}" style="font-size: 0.93rem; font-weight: 800; color: #1e1b4b; word-break: keep-all; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; line-height: 1.3; flex: 1;">
                         ${academy.name}
                     </div>
+                    ${showBadge ? `<div style="font-size: 0.6rem; color: #4f46e5; font-weight: 800; padding: 1px 5px; background: rgba(79,70,229,0.1); border-radius: 5px; white-space: nowrap; flex-shrink: 0;">${badgeLabel}</div>` : ''}
                 </div>
             `;
         });
