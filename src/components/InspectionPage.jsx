@@ -236,7 +236,7 @@ function DetailModal({ row, index, onClose }) {
 // ───────────────────────────────────────────────
 // 탭1: 2026 지도점검
 // ───────────────────────────────────────────────
-const TOTAL_ACADEMY_COUNT = 751; // 전체 학원 수 (고정값)
+const INSP_H_CLOSED = ['자진폐원', '직권폐원', '자진폐소', '직권폐소']; // 폐소 교습소 제외용
 
 // 점검목적 분류 (컬럼값 → 표시명 매핑)
 function classifyPurpose(row) {
@@ -278,6 +278,15 @@ function TabRecent({ region, academies, onSelectAcademy }) {
     const uniqueAcademyCount = useMemo(() =>
         new Set(rows.map(r => colVal(r, ['학원(교습소)명', '학원명', '명칭', '기관명'])).filter(Boolean)).size
         , [rows]);
+
+    // 전체 점검 대상: 학교교과교습학원 + 활성 교습소 (academies prop 기반, 동적)
+    const totalInspTarget = useMemo(() => {
+        const city = region.endsWith('시') ? region : region + '시';
+        const ac = (academies || []).filter(a => (a.address || '').includes(city));
+        const subjectCount = ac.filter(a => a.category === '학교교과교습학원').length;
+        const hagwonCount  = ac.filter(a => a.category === '교습소' && !INSP_H_CLOSED.some(s => (a.status || '').includes(s))).length;
+        return subjectCount + hagwonCount;
+    }, [academies, region]);
 
     // ── 학원명+점검일 기준으로 그룹핑 ──
     const groupedRows = useMemo(() => {
@@ -332,9 +341,9 @@ function TabRecent({ region, academies, onSelectAcademy }) {
         return map;
     }, [groupedRows]);
 
-    const inspRate = Math.round(uniqueAcademyCount / TOTAL_ACADEMY_COUNT * 100);
-    const targetAcademyCount = Math.round(TOTAL_ACADEMY_COUNT * 0.5); // 50% 목표수치
-    const targetRate = Math.round(uniqueAcademyCount / targetAcademyCount * 100); // 목표수치 대비 달성률
+    const inspRate = totalInspTarget > 0 ? Math.round(uniqueAcademyCount / totalInspTarget * 100) : 0;
+    const targetAcademyCount = Math.round(totalInspTarget * 0.49); // 49% 목표수치
+    const targetRate = targetAcademyCount > 0 ? Math.round(uniqueAcademyCount / targetAcademyCount * 100) : 0;
 
     // ── 월별 1차, 2차 통계 계산 ──
     const monthlyStats = useMemo(() => {
@@ -434,7 +443,7 @@ function TabRecent({ region, academies, onSelectAcademy }) {
                             <div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
                                     <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '600' }}>
-                                        전체 점검률 <span style={{ fontSize: '0.7rem' }}>(전체 {TOTAL_ACADEMY_COUNT}개 기준)</span>
+                                        전체 점검률 <span style={{ fontSize: '0.7rem' }}>(교과학원+교습소 {totalInspTarget}개 기준)</span>
                                     </span>
                                     <span style={{ fontSize: '0.9rem', fontWeight: '800', color: '#6366f1' }}>{inspRate}%</span>
                                 </div>
@@ -446,7 +455,7 @@ function TabRecent({ region, academies, onSelectAcademy }) {
                             <div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
                                     <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '600' }}>
-                                        목표 점검률 <span style={{ fontSize: '0.7rem' }}>(목표 {targetAcademyCount}개 기준)</span>
+                                        목표 점검률 <span style={{ fontSize: '0.7rem' }}>(목표 {targetAcademyCount}개, 49% 기준)</span>
                                     </span>
                                     <span style={{ fontSize: '0.9rem', fontWeight: '800', color: '#10b981' }}>{targetRate}%</span>
                                 </div>
@@ -470,7 +479,7 @@ function TabRecent({ region, academies, onSelectAcademy }) {
                                         fontWeight: '600'
                                     }}
                                 >
-                                    <span>🎯 목표: 전체의 50%({targetAcademyCount}개소) 점검</span>
+                                    <span>🎯 목표: 전체의 49%({targetAcademyCount}개소) 점검</span>
                                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: showMonthlyDrop ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
                                         <polyline points="6 9 12 15 18 9"></polyline>
                                     </svg>
