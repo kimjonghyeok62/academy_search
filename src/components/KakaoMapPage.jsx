@@ -197,14 +197,13 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy }) {
                         : `${academy.id}-${academy.category}`;
                     let coords = cachedLocations[cacheKey];
 
-                    if (!coords) {
+                    if (coords === undefined) {
                         coords = await geocodeAddress(kakao, academy.address);
-                        if (coords) {
-                            cachedLocations[cacheKey] = coords;
-                            newCacheNeeded = true;
-                        } else {
-                            localFail++;
-                        }
+                        cachedLocations[cacheKey] = coords || null; // 실패도 null로 저장 (검토 탭 감지용)
+                        newCacheNeeded = true;
+                        if (!coords) localFail++;
+                    } else if (!coords) {
+                        localFail++; // 이미 null로 캐시된 실패 항목
                     }
 
                     if (coords) {

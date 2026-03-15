@@ -4,6 +4,7 @@ export const DATA_GID = '1863320151';
 export const GYOSEUPSO_GID = '1929773080';
 export const PASSWORD_GID = '59615156';
 export const PRIVATE_TUTOR_GID = '482385921';
+export const ACADEMY_CLOSED_GID = '1101934141'; // 폐원된 학원 데이터
 
 // 지도점검 전용 시트 (2025년 이전 통계)
 export const INSPECTION_SHEET_ID = '1xxaBOZMuLqozEm10f4lXnme_ARLfRHzGcsk5QlqoYKI';
@@ -35,6 +36,40 @@ export async function fetchGoogleSheetData(gid) {
     } catch (error) {
         console.error("Error fetching Google Sheet:", error);
         throw error;
+    }
+}
+
+/**
+ * 폐원된 학원 시트에서 데이터 가져오기
+ * 반환: { regDate, closeDate, address, category }[]
+ */
+export async function fetchAcademyClosureData() {
+    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${ACADEMY_CLOSED_GID}`;
+    try {
+        const response = await fetch(url);
+        const txt = await response.text();
+        const rows = parseCSV(txt);
+        // 등록번호 기준 중복 제거 (교습과정별 다수 행 → 학원 1개로)
+        const seen = new Set();
+        return rows
+            .map(row => ({
+                regNum:    (row['등록번호']           || '').trim(),
+                name:      (row['학원명']             || '').trim(),
+                regDate:   (row['등록일']             || '').trim(),
+                closeDate: (row['개원/휴원/폐원일']   || '').trim(),
+                address:   (row['학원주소']            || '').trim(),
+                category:  (row['학원종류']            || '').trim(),
+            }))
+            .filter(r => {
+                if (!r.closeDate) return false;
+                const key = r.regNum || `${r.regDate}|${r.address}`;
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            });
+    } catch (error) {
+        console.error('Error fetching academy closure data:', error);
+        return [];
     }
 }
 

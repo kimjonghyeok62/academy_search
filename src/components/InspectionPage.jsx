@@ -9,6 +9,7 @@ import {
     fetchHanamAcademyRawRows, fetchHanamHagwonRawRows,
     fetchNiceAcademyRawRows, fetchNiceHagwonRawRows, fetchNicePrivateRawRows,
 } from '../utils/inspectionSheets';
+import { fetchAcademyClosureData } from '../utils/googleSheets';
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title);
 
@@ -16,6 +17,20 @@ ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarEle
 const COLORS = ['#6366f1', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#14b8a6', '#f97316', '#ec4899', '#84cc16'];
 const VIOL_COLORS = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#14b8a6', '#3b82f6', '#8b5cf6', '#ec4899', '#06b6d4', '#10b981'];
 const CURRENT_YEAR = '2026';
+
+// ── 동 화이트리스트 (동별 분포 + 검토 탭 공유) ──
+const HANAM_DONG_SET = new Set(['신장동','덕풍동','풍산동','미사동','망월동','선동','교산동','학암동','초일동','초이동','광암동','천현동','창우동','배일미동','하산곡동','상산곡동','감이동','감일동','항동','하사창동','상사창동','위례동','순궁동']);
+const GWANGJU_DONG_SET = new Set(['경안동','광남동','태전동','송정동','역동','삼동','탄벌동','목현동','오포읍','초월읍','곤지암읍','도척면','퇴촌면','남종면','남한산성면']);
+function getDongFromAddr(addr, wl) {
+    const a = addr || '';
+    for (const d of wl) {
+        if (new RegExp(d + '(?=[\\s\\d,()[\\]]|$)').test(a)) return d;
+    }
+    const after = a.replace(/^.*?시\s*/, '');
+    const tokens = [...after.matchAll(/([가-힣]+(?:동|리|읍|면))/g)].map(m => m[1]);
+    for (const t of tokens) { if (wl.has(t)) return t; }
+    return '';
+}
 
 // ── 유틸 ──
 function colVal(row, keys) {
@@ -616,7 +631,7 @@ function TabRecent({ region, academies, onSelectAcademy }) {
 // 탭: 통계 (5개 섹션)
 // ───────────────────────────────────────────────
 
-function TabStats({ region, statRows, academies, privateTutors }) {
+function TabStats({ region, statRows, academies, privateTutors, academyClosures }) {
     const [recentRows, setRecentRows] = useState([]);
     const [loading, setLoading] = useState(true);
 
@@ -646,10 +661,13 @@ function TabStats({ region, statRows, academies, privateTutors }) {
     const filtered = useMemo(() => (academies || []).filter(a => (a.address || '').includes(city)), [academies, city]);
     const aList = useMemo(() => filtered.filter(a => a.category !== '교습소'), [filtered]);
     const hList = useMemo(() => filtered.filter(a => a.category === '교습소'), [filtered]);
+    // 요약 카드용: 폐소된 교습소 제외 (교습소 시트에는 폐소분도 포함되므로)
+    const H_CLOSED = ['자진폐원', '직권폐원', '자진폐소', '직권폐소'];
+    const hActiveList = useMemo(() => hList.filter(h => !H_CLOSED.some(s => (h.status || '').includes(s))), [hList]);
     // 과외는 별도 privateTutors 배열에서 지역 필터링
     const pList = useMemo(() => (privateTutors || []).filter(a => (a.address || '').includes(city)), [privateTutors, city]);
 
-    // 섹션 2: 연도별 등록 추이 — regDate 기반
+    // 섹션 2: 연도별 등록 추이 — regDate 기반 + 폐원/폐소 차감
     const YEARS = useMemo(() => {
         const cur = parseInt(CURRENT_YEAR);
         return Array.from({ length: 8 }, (_, i) => String(cur - 7 + i));
@@ -657,25 +675,64 @@ function TabStats({ region, statRows, academies, privateTutors }) {
 
     const yearStats = useMemo(() => {
         const getY = d => { const m = (d || '').match(/(\d{4})/); return m ? m[1] : ''; };
-        const countByYear = (list, dateKey = 'regDate') => list.reduce((m, a) => { const y = getY(a[dateKey] || a.regDate || ''); if (y) m[y] = (m[y] || 0) + 1; return m; }, {});
-        const aYearCnt       = countByYear(aList);
-        // 점검률 분모용: 학교교과교습학원만 (평생직업교육학원 제외)
-        const aSchoolYearCnt = countByYear(aList.filter(a => a.category === '학교교과교습학원'));
-        const hYearCnt       = countByYear(hList);
-        const pYearCnt       = countByYear(pList, 'reportDate');
+        const addToMap = (map, year) => { if (year) map[year] = (map[year] || 0) + 1; };
+
+        // ── 학원 ──
+        // 현재 운영 중인 학원(aList) + 폐원된 학원(academyClosures) 지역 필터 합산
+        // aList의 등록번호 Set으로 폐원 시트 중복 제거 (같은 학원이 두 시트 모두 있으면 aList 우선)
+        const aListIds = new Set(aList.map(a => a.id).filter(Boolean));
+        const cityClosures = academyClosures
+            .filter(a => (a.address || '').includes(city))
+            .filter(a => !a.regNum || !aListIds.has(a.regNum)); // aList에 이미 있는 학원 제외
+        const aNewByYear = {};
+        aList.forEach(a => addToMap(aNewByYear, getY(a.regDate)));
+        cityClosures.forEach(a => addToMap(aNewByYear, getY(a.regDate)));
+        // 폐원 연도별 카운트
+        const aCloseByYear = {};
+        cityClosures.forEach(a => addToMap(aCloseByYear, getY(a.closeDate)));
+
+        // 학교교과교습학원 (점검률 분모용): 같은 방식
+        const aSchoolNewByYear = {};
+        aList.filter(a => a.category === '학교교과교습학원').forEach(a => addToMap(aSchoolNewByYear, getY(a.regDate)));
+        cityClosures.filter(a => a.category === '학교교과교습학원').forEach(a => addToMap(aSchoolNewByYear, getY(a.regDate)));
+        const aSchoolCloseByYear = {};
+        cityClosures.filter(a => a.category === '학교교과교습학원').forEach(a => addToMap(aSchoolCloseByYear, getY(a.closeDate)));
+
+        // ── 교습소 ──
+        // hList에는 현재 활성 + 폐소된 교습소가 모두 포함됨
+        const CLOSED_STATUSES = ['자진폐원', '직권폐원', '자진폐소', '직권폐소'];
+        const hNewByYear = {};
+        hList.forEach(a => addToMap(hNewByYear, getY(a.regDate)));
+        const hCloseByYear = {};
+        hList
+            .filter(h => CLOSED_STATUSES.some(s => (h.status || '').includes(s)))
+            .forEach(h => addToMap(hCloseByYear, getY(h.statusDate)));
+
+        // ── 과외: 신규 카운트만 (폐소 개념 없음) ──
+        const pNewByYear = {};
+        pList.forEach(a => addToMap(pNewByYear, getY(a.reportDate)));
+
+        // 누적 순증(순감) 계산
+        const netCumul = (newCnt, closeCnt, yNum) => {
+            let total = 0;
+            Object.entries(newCnt).forEach(([yr, c]) => { if (parseInt(yr) <= yNum) total += c; });
+            Object.entries(closeCnt).forEach(([yr, c]) => { if (parseInt(yr) <= yNum) total -= c; });
+            return total;
+        };
         const cumul = (cnt, yNum) => Object.entries(cnt).filter(([yr]) => parseInt(yr) <= yNum).reduce((s, [, c]) => s + c, 0);
+
         return YEARS.map(y => {
             const yNum = parseInt(y);
-            const aNew          = aYearCnt[y] || 0;
-            const aActive       = cumul(aYearCnt, yNum);
-            const aSchoolActive = cumul(aSchoolYearCnt, yNum); // 점검률 분모용
-            const hNew          = hYearCnt[y] || 0;
-            const hActive       = cumul(hYearCnt, yNum);
-            const pNew          = pYearCnt[y] || 0;
-            const pActive       = cumul(pYearCnt, yNum);
+            const aNew          = (aNewByYear[y] || 0) - (aCloseByYear[y] || 0);   // 증감
+            const aActive       = netCumul(aNewByYear, aCloseByYear, yNum);
+            const aSchoolActive = netCumul(aSchoolNewByYear, aSchoolCloseByYear, yNum);
+            const hNew          = (hNewByYear[y] || 0) - (hCloseByYear[y] || 0);   // 증감
+            const hActive       = netCumul(hNewByYear, hCloseByYear, yNum);
+            const pNew          = pNewByYear[y] || 0;
+            const pActive       = cumul(pNewByYear, yNum);
             return { year: y, aNew, aActive, aSchoolActive, hNew, hActive, pNew, pActive };
         });
-    }, [YEARS, aList, hList, pList]);
+    }, [YEARS, aList, hList, pList, city, academyClosures]);
 
     // 섹션 3: 분야별 분포 — 기관 단위 집계 (과외 포함)
     const categoryStats = useMemo(() => {
@@ -802,7 +859,7 @@ function TabStats({ region, statRows, academies, privateTutors }) {
             map[dongKey][key]++;
         });
         add(aList, 'academy');
-        add(hList, 'hagwon');
+        add(hActiveList, 'hagwon');
         add(pList, 'priv');
         return Object.entries(map)
             .map(([dong, v]) => ({ dong, ...v, total: v.academy + v.hagwon + v.priv }))
@@ -834,9 +891,9 @@ function TabStats({ region, statRows, academies, privateTutors }) {
             <Section title="📊 기관 현황 요약">
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(130px,1fr))', gap: '10px' }}>
                     <StatCard icon="🏫" label="학원"     value={aList.length.toLocaleString() + '개'} color="#3b82f6" />
-                    <StatCard icon="📖" label="교습소"   value={hList.length.toLocaleString() + '개'} color="#10b981" />
+                    <StatCard icon="📖" label="교습소"   value={hActiveList.length.toLocaleString() + '개'} color="#10b981" />
                     <StatCard icon="👤" label="개인과외" value={pList.length.toLocaleString() + '명'} color="#8b5cf6" />
-                    <StatCard icon="🏢" label="합계"     value={(aList.length + hList.length + pList.length).toLocaleString() + '개'} color="#f59e0b" />
+                    <StatCard icon="🏢" label="합계"     value={(aList.length + hActiveList.length + pList.length).toLocaleString() + '개'} color="#f59e0b" />
                 </div>
             </Section>
 
@@ -853,9 +910,9 @@ function TabStats({ region, statRows, academies, privateTutors }) {
                             </tr>
                             <tr>
                                 <Th style={{ padding: '9px 3px 9px 12px' }}>누적<span style={{ fontSize: '0.72em', opacity: 0.75, marginLeft: '2px' }}>(교과)</span></Th>
-                                <Th style={{ padding: '9px 12px 9px 3px' }}>신규</Th>
+                                <Th style={{ padding: '9px 12px 9px 3px' }}>증감</Th>
                                 <Th style={{ padding: '9px 3px 9px 14px', borderLeft: '2px solid var(--border-color)' }}>누적</Th>
-                                <Th style={{ padding: '9px 12px 9px 3px' }}>신규</Th>
+                                <Th style={{ padding: '9px 12px 9px 3px' }}>증감</Th>
                                 <Th style={{ padding: '9px 3px 9px 14px', borderLeft: '2px solid var(--border-color)' }}>누적</Th>
                                 <Th style={{ padding: '9px 12px 9px 3px' }}>신규</Th>
                             </tr>
@@ -876,9 +933,9 @@ function TabStats({ region, statRows, academies, privateTutors }) {
                                             </>
                                         ) : '-'}
                                     </Td>
-                                    <Td style={{ color: s.aNew > 0 ? '#3b82f6' : 'var(--text-muted)', fontWeight: '400', padding: '8px 12px 8px 3px' }}>{s.aNew > 0 ? '+' + s.aNew : '-'}</Td>
+                                    <Td style={{ color: s.aNew > 0 ? '#3b82f6' : s.aNew < 0 ? '#ef4444' : 'var(--text-muted)', fontWeight: '400', padding: '8px 12px 8px 3px' }}>{s.aNew > 0 ? '+' + s.aNew : s.aNew < 0 ? String(s.aNew) : '-'}</Td>
                                     <Td style={{ color: s.hActive > 0 ? '#10b981' : 'var(--text-muted)', fontWeight: '700', padding: '8px 3px 8px 14px', borderLeft: '2px solid var(--border-color)' }}>{s.hActive > 0 ? s.hActive.toLocaleString() : '-'}</Td>
-                                    <Td style={{ color: s.hNew > 0 ? '#10b981' : 'var(--text-muted)', fontWeight: '400', padding: '8px 12px 8px 3px' }}>{s.hNew > 0 ? '+' + s.hNew : '-'}</Td>
+                                    <Td style={{ color: s.hNew > 0 ? '#10b981' : s.hNew < 0 ? '#ef4444' : 'var(--text-muted)', fontWeight: '400', padding: '8px 12px 8px 3px' }}>{s.hNew > 0 ? '+' + s.hNew : s.hNew < 0 ? String(s.hNew) : '-'}</Td>
                                     <Td style={{ color: s.pActive > 0 ? '#8b5cf6' : 'var(--text-muted)', fontWeight: '700', padding: '8px 3px 8px 14px', borderLeft: '2px solid var(--border-color)' }}>{s.pActive > 0 ? s.pActive.toLocaleString() : '-'}</Td>
                                     <Td style={{ color: s.pNew > 0 ? '#8b5cf6' : 'var(--text-muted)', fontWeight: '400', padding: '8px 12px 8px 3px' }}>{s.pNew > 0 ? '+' + s.pNew : '-'}</Td>
                                 </tr>
@@ -887,7 +944,7 @@ function TabStats({ region, statRows, academies, privateTutors }) {
                     </table>
                 </div>
                 <div style={{ marginTop: '6px', fontSize: '0.75rem', color: 'var(--text-muted)', paddingLeft: '2px' }}>
-                    ※ (교과)는 학교교과교습학원의 갯수를 말함.
+                    ※ (교과)는 학교교과교습학원의 갯수를 말함. 증감 = 해당 연도 개원 − 폐원 순증감 (학원·교습소).
                 </div>
             </Section>
 
@@ -1010,6 +1067,453 @@ function TabStats({ region, statRows, academies, privateTutors }) {
     );
 }
 
+// ───────────────────────────────────────────────
+// 탭: 검토 (데이터 품질 7개 검사)
+// ───────────────────────────────────────────────
+const toDateRev = (s) => {
+    const m = (s || '').match(/(\d{4})[\.\-\/](\d{1,2})[\.\-\/](\d{1,2})/);
+    return m ? new Date(parseInt(m[1]), parseInt(m[2]) - 1, parseInt(m[3])) : null;
+};
+
+function TabReview({ region, academies, privateTutors, academyClosures }) {
+    const city = region.endsWith('시') ? region : region + '시';
+    const [openSections, setOpenSections] = useState({
+        dateReverse: true, geoFail: true, dongUnclassified: false, noContact: false,
+        insurance: false, hagwonClosure: true, dupReg: true, missingInfo: false,
+        zipIssues: false,
+    });
+    const toggleSection = (key) => setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
+
+    const aList = useMemo(() => (academies || []).filter(a => (a.address || '').includes(city) && a.category !== '교습소'), [academies, city]);
+    const hList = useMemo(() => (academies || []).filter(a => (a.address || '').includes(city) && a.category === '교습소'), [academies, city]);
+    const pList = useMemo(() => (privateTutors || []).filter(a => (a.address || '').includes(city)), [privateTutors, city]);
+    // 통계 탭과 동일: 폐소된 교습소 제외한 활성 교습소 수
+    const H_CLOSED_R = ['자진폐원', '직권폐원', '자진폐소', '직권폐소'];
+    const hActiveList = useMemo(() => hList.filter(h => !H_CLOSED_R.some(s => (h.status || '').includes(s))), [hList]);
+
+    // 1. 폐원 시트 날짜 오류 (등록 후 1개월 이내 폐원 또는 역전)
+    const dateReversals = useMemo(() => (academyClosures || [])
+        .filter(a => (a.address || '').includes(city))
+        .filter(a => {
+            const reg = toDateRev(a.regDate);
+            const close = toDateRev(a.closeDate);
+            if (!reg || !close) return false;
+            const regPlus1M = new Date(reg);
+            regPlus1M.setMonth(regPlus1M.getMonth() + 1);
+            return regPlus1M >= close;
+        }), [academyClosures, city]);
+
+    // 2. 지도 주소 변환 실패 (localStorage 캐시 기반)
+    const geoFailures = useMemo(() => {
+        try {
+            const raw = localStorage.getItem('academyMapLocations');
+            if (!raw) return [];
+            const cache = JSON.parse(raw);
+            const allAc = [...aList, ...hList];
+            const results = [];
+            Object.entries(cache).forEach(([key, val]) => {
+                if (val !== null) return;
+                if (key.startsWith('tutor-')) {
+                    const id = key.slice(6);
+                    const t = pList.find(p => p.id === id);
+                    if (t) results.push({ type: '과외', id, name: t.name, address: t.address });
+                } else {
+                    const ac = allAc.find(a => `${a.id}-${a.category}` === key);
+                    if (ac) results.push({ type: ac.category === '교습소' ? '교습소' : '학원', id: ac.id, name: ac.name, address: ac.address });
+                }
+            });
+            return results;
+        } catch { return []; }
+    }, [aList, hList, pList]);
+
+    // 2b. 동별 분류 미분류 (주소 불명확)
+    const dongUnclassified = useMemo(() => {
+        const wl = region === '하남' ? HANAM_DONG_SET : GWANGJU_DONG_SET;
+        const result = [];
+        aList.forEach(a => { if (!getDongFromAddr(a.address, wl)) result.push({ type: '학원', id: a.id, name: a.name, address: a.address }); });
+        hActiveList.forEach(a => { if (!getDongFromAddr(a.address, wl)) result.push({ type: '교습소', id: a.id, name: a.name, address: a.address }); });
+        pList.forEach(a => { if (!getDongFromAddr(a.address, wl)) result.push({ type: '과외', id: a.id, name: a.name, address: a.address }); });
+        return result;
+    }, [aList, hActiveList, pList, region]);
+
+    // 3. 연락처 누락
+    const noContact = useMemo(() => {
+        const r = [];
+        aList.forEach(a => {
+            const hp = !!(a.founder?.phone), hm = !!(a.founder?.mobile);
+            if (!hp && !hm) r.push({ type: '학원', id: a.id, name: a.name, issue: '전화+핸드폰 없음' });
+            else if (!hm) r.push({ type: '학원', id: a.id, name: a.name, issue: '핸드폰 없음' });
+        });
+        hList.forEach(a => {
+            const hp = !!(a.founder?.phone), hm = !!(a.founder?.mobile);
+            if (!hp && !hm) r.push({ type: '교습소', id: a.id, name: a.name, issue: '전화+핸드폰 없음' });
+            else if (!hm) r.push({ type: '교습소', id: a.id, name: a.name, issue: '핸드폰 없음' });
+        });
+        pList.forEach(a => {
+            const hp = !!(a.phone), hm = !!(a.mobile);
+            if (!hp && !hm) r.push({ type: '과외', id: a.id, name: a.name, issue: '전화+핸드폰 없음' });
+            else if (!hm) r.push({ type: '과외', id: a.id, name: a.name, issue: '핸드폰 없음' });
+        });
+        return r;
+    }, [aList, hList, pList]);
+
+    // 4. 보험 만료/미가입 (학원 + 교습소)
+    const insuranceIssues = useMemo(() => {
+        const today = new Date();
+        const check = (list, type) => list.map(a => {
+            if (!a.insurances || a.insurances.length === 0)
+                return { type, id: a.id, name: a.name, phone: a.founder?.phone || '', mobile: a.founder?.mobile || '', issue: '미가입' };
+            const hasActive = a.insurances.some(ins => { const e = toDateRev(ins.endDate); return e && e >= today; });
+            if (hasActive) return null;
+            const latest = a.insurances.reduce((b, ins) => {
+                const d = toDateRev(ins.endDate), bd = b ? toDateRev(b.endDate) : null;
+                return d && (!bd || d > bd) ? ins : b;
+            }, null);
+            return { type, id: a.id, name: a.name, phone: a.founder?.phone || '', mobile: a.founder?.mobile || '', issue: `만료 (${latest?.endDate || '-'})` };
+        }).filter(Boolean);
+        return [...check(aList, '학원'), ...check(hActiveList, '교습소')];
+    }, [aList, hActiveList]);
+
+    // 5. 교습소 폐소 상태이나 날짜 누락
+    const hagwonClosureMissing = useMemo(() => {
+        const CLOSED = ['자진폐원', '직권폐원', '자진폐소', '직권폐소'];
+        return hList.filter(h => CLOSED.some(s => (h.status || '').includes(s)) && !h.statusDate);
+    }, [hList]);
+
+    // 6. 등록번호 중복 (현행 + 폐원 시트 모두 존재)
+    const duplicateRegs = useMemo(() => {
+        const closureIds = new Set(
+            (academyClosures || []).filter(a => (a.address || '').includes(city)).map(a => a.regNum).filter(Boolean)
+        );
+        return aList.filter(a => a.id && closureIds.has(a.id));
+    }, [aList, academyClosures, city]);
+
+    // 7. 필수 정보 누락
+    const missingInfo = useMemo(() => {
+        const r = [];
+        [...aList, ...hList].forEach(a => {
+            const ms = [];
+            if (!a.regDate) ms.push('등록일');
+            if (!a.address) ms.push('주소');
+            if (!a.founder?.name) ms.push('설립자');
+            if (!a.zip) ms.push('우편번호');
+            if (ms.length > 0) r.push({ type: a.category === '교습소' ? '교습소' : '학원', id: a.id, name: a.name, missing: ms.join(', ') });
+        });
+        pList.forEach(a => {
+            const ms = [];
+            if (!a.reportDate) ms.push('신고일');
+            if (!a.address) ms.push('주소');
+            if (ms.length > 0) r.push({ type: '과외', id: a.id, name: a.name, missing: ms.join(', ') });
+        });
+        return r;
+    }, [aList, hList, pList]);
+
+    // 8. 우편번호 검증
+    // zipAllItems: 전체 학원·교습소 (API 조회 대상)
+    const zipAllItems = useMemo(() =>
+        [...aList, ...hList].map(a => ({
+            type: a.category === '교습소' ? '교습소' : '학원',
+            id: a.id, name: a.name,
+            currentZip: a.zip || '',
+            address: a.address,
+        }))
+    , [aList, hList]);
+    const [zipLookups, setZipLookups] = useState({});
+    const [zipLoading, setZipLoading] = useState(false);
+    const [zipProgress, setZipProgress] = useState(0);
+    // zipDisplayed: 조회 전 = 5자리 아닌 것, 조회 후 = 5자리 아닌 것 + 불일치 5자리
+    const zipDisplayed = useMemo(() => {
+        const lookupDone = Object.keys(zipLookups).length > 0;
+        return zipAllItems.filter(a => {
+            const key = `${a.id}-${a.type}`;
+            if (!/^\d{5}$/.test(a.currentZip)) return true;
+            if (!lookupDone) return false;
+            const correct = zipLookups[key];
+            return correct && correct !== '조회실패' && correct !== '-' && correct !== a.currentZip;
+        });
+    }, [zipAllItems, zipLookups]);
+    const startZipLookup = useCallback(async () => {
+        if (zipLoading || zipAllItems.length === 0) return;
+        setZipLoading(true); setZipProgress(0);
+        let kakao = window.kakao?.maps?.services ? window.kakao : null;
+        if (!kakao) {
+            const apiKey = import.meta.env.VITE_KAKAO_MAP_API_KEY || localStorage.getItem('kakao_api_key');
+            if (!apiKey) {
+                alert('학원 분포지도 페이지를 먼저 방문하거나 Kakao API 키를 등록하세요.');
+                setZipLoading(false); return;
+            }
+            try {
+                kakao = await new Promise((resolve, reject) => {
+                    if (window.kakao?.maps?.services) { resolve(window.kakao); return; }
+                    const existing = document.getElementById('kakao-map-script') || document.getElementById('kakao-zip-script');
+                    if (existing && window.kakao) { window.kakao.maps.load(() => resolve(window.kakao)); return; }
+                    const script = document.createElement('script');
+                    script.id = 'kakao-zip-script';
+                    script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${apiKey}&libraries=services&autoload=false`;
+                    script.onload = () => window.kakao.maps.load(() => resolve(window.kakao));
+                    script.onerror = () => reject(new Error('SDK 로드 실패'));
+                    document.head.appendChild(script);
+                });
+            } catch { alert('Kakao SDK 로드 실패. API 키를 확인하세요.'); setZipLoading(false); return; }
+        }
+        const geocoder = new kakao.maps.services.Geocoder();
+        const newLookups = { ...zipLookups };
+        for (let i = 0; i < zipAllItems.length; i++) {
+            const item = zipAllItems[i];
+            const key = `${item.id}-${item.type}`;
+            if (newLookups[key] !== undefined) { setZipProgress(i + 1); continue; }
+            if (!item.address) { newLookups[key] = '-'; setZipProgress(i + 1); setZipLookups({ ...newLookups }); continue; }
+            const cleanAddr = item.address.split(',')[0].trim();
+            const zone = await new Promise(resolve => {
+                geocoder.addressSearch(cleanAddr, (result, status) => {
+                    if (status === kakao.maps.services.Status.OK)
+                        resolve(result[0]?.road_address?.zone_no || '조회실패');
+                    else resolve('조회실패');
+                });
+            });
+            newLookups[key] = zone;
+            setZipLookups({ ...newLookups });
+            setZipProgress(i + 1);
+            await new Promise(r => setTimeout(r, 40));
+        }
+        setZipLoading(false);
+    }, [zipAllItems, zipLookups, zipLoading]);
+
+    const Th = ({ children, style }) => (
+        <th style={{ padding: '7px 10px', fontSize: '0.74rem', fontWeight: '700', color: 'var(--text-muted)', background: 'var(--bg-main)', borderBottom: '2px solid var(--border-color)', textAlign: 'left', whiteSpace: 'nowrap', ...style }}>{children}</th>
+    );
+    const Td = ({ children, style }) => (
+        <td style={{ padding: '6px 10px', fontSize: '0.8rem', borderBottom: '1px solid var(--border-color)', ...style }}>{children}</td>
+    );
+    const Badge = ({ count, color }) => (
+        <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: '22px', height: '20px', borderRadius: '10px', padding: '0 6px', background: count > 0 ? (color || '#ef4444') : '#94a3b8', color: 'white', fontSize: '0.72rem', fontWeight: '800' }}>{count}</span>
+    );
+    const typeColor = (t) => t === '학원' ? '#3b82f6' : t === '교습소' ? '#10b981' : '#8b5cf6';
+
+    const ReviewSection = ({ id, title, badge, badgeColor, children }) => {
+        const isOpen = openSections[id];
+        return (
+            <div style={{ background: 'var(--bg-card)', borderRadius: '14px', padding: '14px 16px', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)', marginBottom: '12px' }}>
+                <button onClick={() => toggleSection(id)} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Badge count={badge} color={badgeColor} />
+                        <span style={{ fontSize: '0.88rem', fontWeight: '700', color: 'var(--text-main)', textAlign: 'left' }}>{title}</span>
+                    </div>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginLeft: '8px', flexShrink: 0 }}>{isOpen ? '▲' : '▼'}</span>
+                </button>
+                {isOpen && (
+                    <div style={{ marginTop: '10px' }}>
+                        {badge === 0
+                            ? <div style={{ fontSize: '0.82rem', color: '#10b981', fontWeight: '600', padding: '4px 0' }}>✓ 이상 없음</div>
+                            : <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid var(--border-color)' }}>{children}</div>
+                        }
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    return (
+        <div>
+            {/* 요약 헤더 */}
+            <div style={{ background: 'var(--bg-card)', borderRadius: '14px', padding: '14px 16px', border: '1px solid var(--border-color)', marginBottom: '14px', boxShadow: 'var(--shadow-sm)' }}>
+                <div style={{ fontSize: '0.88rem', fontWeight: '800', color: 'var(--text-main)', marginBottom: '8px' }}>🔬 데이터 품질 검토</div>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: '1.6' }}>
+                    학원 {aList.length}개 · 교습소 {hActiveList.length}개 · 개인과외 {pList.length}명 대상 검토 중.
+                    주소 변환 실패 항목은 지도 페이지를 먼저 방문한 경우에만 표시됩니다.
+                </div>
+            </div>
+
+            {/* 1. 날짜 오류 */}
+            <ReviewSection id="dateReverse" title="폐원시트 날짜 오류 가능 학원 (등록 후 1개월 이내 폐원)" badge={dateReversals.length} badgeColor="#ef4444">
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead><tr>
+                        <Th>등록번호</Th><Th>학원명</Th><Th style={{ color: '#ef4444' }}>등록일</Th><Th style={{ color: '#f59e0b' }}>폐원일</Th><Th>주소</Th>
+                    </tr></thead>
+                    <tbody>
+                        {dateReversals.map((a, i) => (
+                            <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
+                                <Td style={{ color: 'var(--text-muted)', fontSize: '0.74rem' }}>{a.regNum || '-'}</Td>
+                                <Td style={{ fontWeight: '600' }}>{a.name || '-'}</Td>
+                                <Td style={{ color: '#ef4444', fontWeight: '600' }}>{a.regDate}</Td>
+                                <Td style={{ color: '#f59e0b', fontWeight: '600' }}>{a.closeDate}</Td>
+                                <Td style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{a.address}</Td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </ReviewSection>
+
+            {/* 2. 주소 변환 실패 */}
+            <ReviewSection id="geoFail" title="지도 주소 변환 실패" badge={geoFailures.length} badgeColor="#f59e0b">
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead><tr>
+                        <Th>구분</Th><Th>등록번호</Th><Th>명칭</Th><Th>주소</Th>
+                    </tr></thead>
+                    <tbody>
+                        {geoFailures.map((a, i) => (
+                            <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
+                                <Td><span style={{ color: typeColor(a.type), fontWeight: '700', fontSize: '0.78rem' }}>{a.type}</span></Td>
+                                <Td style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{a.id || '-'}</Td>
+                                <Td style={{ fontWeight: '600' }}>{a.name}</Td>
+                                <Td style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{a.address}</Td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </ReviewSection>
+
+            {/* 2b. 동별 미분류 */}
+            <ReviewSection id="dongUnclassified" title="동별 분류 미분류 (주소 불명확)" badge={dongUnclassified.length} badgeColor="#64748b">
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead><tr>
+                        <Th style={{ whiteSpace: 'nowrap', width: '3.5rem' }}>구분</Th><Th>등록번호</Th><Th>명칭</Th><Th>주소</Th>
+                    </tr></thead>
+                    <tbody>
+                        {dongUnclassified.map((a, i) => (
+                            <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
+                                <Td style={{ whiteSpace: 'nowrap' }}><span style={{ color: typeColor(a.type), fontWeight: '700', fontSize: '0.78rem' }}>{a.type}</span></Td>
+                                <Td style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{a.id || '-'}</Td>
+                                <Td style={{ fontWeight: '600' }}>{a.name}</Td>
+                                <Td style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{a.address}</Td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </ReviewSection>
+
+            {/* 3. 연락처 누락 */}
+            <ReviewSection id="noContact" title="연락처 누락 (전화번호·핸드폰)" badge={noContact.length} badgeColor="#8b5cf6">
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead><tr>
+                        <Th>구분</Th><Th>등록번호</Th><Th>명칭</Th><Th>누락 항목</Th>
+                    </tr></thead>
+                    <tbody>
+                        {noContact.map((a, i) => (
+                            <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
+                                <Td><span style={{ color: typeColor(a.type), fontWeight: '700', fontSize: '0.78rem' }}>{a.type}</span></Td>
+                                <Td style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{a.id || '-'}</Td>
+                                <Td style={{ fontWeight: '600' }}>{a.name}</Td>
+                                <Td style={{ color: '#8b5cf6', fontWeight: '600' }}>{a.issue}</Td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </ReviewSection>
+
+            {/* 4. 보험 만료/미가입 */}
+            <ReviewSection id="insurance" title="보험 만료 · 미가입 (학원·교습소)" badge={insuranceIssues.length} badgeColor="#ef4444">
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead><tr>
+                        <Th style={{ whiteSpace: 'nowrap', width: '3.5rem' }}>구분</Th>
+                        <Th>등록(신고)번호</Th><Th>학원명(교습소명)</Th><Th>연락처(휴대폰)</Th><Th>보험 상태</Th>
+                    </tr></thead>
+                    <tbody>
+                        {insuranceIssues.map((a, i) => (
+                            <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
+                                <Td style={{ whiteSpace: 'nowrap' }}><span style={{ color: typeColor(a.type), fontWeight: '700', fontSize: '0.78rem' }}>{a.type}</span></Td>
+                                <Td style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{a.id || '-'}</Td>
+                                <Td style={{ fontWeight: '600' }}>{a.name}</Td>
+                                <Td style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{a.mobile || a.phone || '-'}</Td>
+                                <Td style={{ color: '#ef4444', fontWeight: '700' }}>{a.issue}</Td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </ReviewSection>
+
+            {/* 5. 교습소 폐소일 누락 */}
+            <ReviewSection id="hagwonClosure" title="교습소 폐소 상태이나 날짜 누락" badge={hagwonClosureMissing.length} badgeColor="#f59e0b">
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead><tr>
+                        <Th>등록번호</Th><Th>교습소명</Th><Th>등록상태</Th>
+                    </tr></thead>
+                    <tbody>
+                        {hagwonClosureMissing.map((a, i) => (
+                            <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
+                                <Td style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{a.id || '-'}</Td>
+                                <Td style={{ fontWeight: '600' }}>{a.name}</Td>
+                                <Td style={{ color: '#f59e0b', fontWeight: '600' }}>{a.status}</Td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </ReviewSection>
+
+            {/* 6. 등록번호 중복 */}
+            <ReviewSection id="dupReg" title="등록번호 중복 (현행 + 폐원 시트 모두 존재)" badge={duplicateRegs.length} badgeColor="#ef4444">
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead><tr>
+                        <Th>등록번호</Th><Th>학원명</Th><Th>주소</Th>
+                    </tr></thead>
+                    <tbody>
+                        {duplicateRegs.map((a, i) => (
+                            <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
+                                <Td style={{ fontSize: '0.74rem', color: '#ef4444', fontWeight: '700' }}>{a.id}</Td>
+                                <Td style={{ fontWeight: '600' }}>{a.name}</Td>
+                                <Td style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{a.address}</Td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </ReviewSection>
+
+            {/* 8. 우편번호 불일치 */}
+            <ReviewSection id="zipIssues" title="우편번호 불일치 (Kakao 검증)" badge={zipDisplayed.length} badgeColor="#f59e0b">
+                <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                    <button onClick={startZipLookup} disabled={zipLoading} style={{ padding: '5px 14px', borderRadius: '8px', border: 'none', background: zipLoading ? '#94a3b8' : 'var(--primary)', color: 'white', fontWeight: '700', fontSize: '0.8rem', cursor: zipLoading ? 'default' : 'pointer' }}>
+                        {zipLoading ? `조회 중... (${zipProgress}/${zipAllItems.length})` : `Kakao API로 전체 ${zipAllItems.length}건 우편번호 검증`}
+                    </button>
+                    {Object.keys(zipLookups).length > 0 && !zipLoading && (
+                        <span style={{ fontSize: '0.78rem', color: '#10b981', fontWeight: '600' }}>✓ {Object.keys(zipLookups).length}건 조회 완료 · 불일치 {zipDisplayed.length}건</span>
+                    )}
+                </div>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead><tr>
+                        <Th>구분</Th><Th>등록(신고)번호</Th><Th>학원(교습소)명</Th><Th>현재값</Th><Th>올바른값</Th>
+                    </tr></thead>
+                    <tbody>
+                        {zipDisplayed.map((a, i) => {
+                            const key = `${a.id}-${a.type}`;
+                            const correct = zipLookups[key];
+                            return (
+                                <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
+                                    <Td><span style={{ color: typeColor(a.type), fontWeight: '700', fontSize: '0.78rem' }}>{a.type}</span></Td>
+                                    <Td style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{a.id || '-'}</Td>
+                                    <Td style={{ fontWeight: '600' }}>{a.name}</Td>
+                                    <Td style={{ color: '#ef4444', fontWeight: '600' }}>{a.currentZip || '(없음)'}</Td>
+                                    <Td style={{ color: correct === '조회실패' ? '#ef4444' : correct ? '#10b981' : 'var(--text-muted)', fontWeight: correct && correct !== '조회실패' ? '700' : '400' }}>
+                                        {correct === undefined ? '-' : correct}
+                                    </Td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
+            </ReviewSection>
+
+            {/* 7. 필수 정보 누락 */}
+            <ReviewSection id="missingInfo" title="필수 정보 누락 (등록일·주소·설립자·우편번호)" badge={missingInfo.length} badgeColor="#8b5cf6">
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead><tr>
+                        <Th>구분</Th><Th>등록번호</Th><Th>명칭</Th><Th>누락 항목</Th>
+                    </tr></thead>
+                    <tbody>
+                        {missingInfo.map((a, i) => (
+                            <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
+                                <Td><span style={{ color: typeColor(a.type), fontWeight: '700', fontSize: '0.78rem' }}>{a.type}</span></Td>
+                                <Td style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{a.id || '-'}</Td>
+                                <Td style={{ fontWeight: '600' }}>{a.name}</Td>
+                                <Td style={{ color: '#8b5cf6' }}>{a.missing}</Td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </ReviewSection>
+        </div>
+    );
+}
+
 function TabPlaceholder({ label }) {
     return (
         <div style={{ textAlign: 'center', padding: '80px 20px', color: 'var(--text-muted)' }}>
@@ -1030,9 +1534,16 @@ export default function InspectionPage({ onBack, academies, privateTutors, onSel
     const [statRows, setStatRows] = useState([]);
     const [loadingStat, setLoadingStat] = useState(false);
     const [errorStat, setErrorStat] = useState('');
+    const [academyClosures, setAcademyClosures] = useState([]);
 
     const TABS      = ['2026 지도점검', '통계', '검토', '주의'];
     const TAB_ICONS = ['🕐', '📊', '🔬', '⚠️'];
+
+    useEffect(() => {
+        fetchAcademyClosureData()
+            .then(setAcademyClosures)
+            .catch(() => {});
+    }, []);
 
     useEffect(() => {
         if (!region) return;
@@ -1091,8 +1602,8 @@ export default function InspectionPage({ onBack, academies, privateTutors, onSel
                 ) : (
                     <div>
                         {activeTab === 0 && <TabRecent region={region} academies={academies} onSelectAcademy={onSelectAcademy} />}
-                        {activeTab === 1 && <TabStats region={region} statRows={statRows} academies={academies} privateTutors={privateTutors} />}
-                        {activeTab === 2 && <TabPlaceholder label="검토" />}
+                        {activeTab === 1 && <TabStats region={region} statRows={statRows} academies={academies} privateTutors={privateTutors} academyClosures={academyClosures} />}
+                        {activeTab === 2 && <TabReview region={region} academies={academies} privateTutors={privateTutors} academyClosures={academyClosures} />}
                         {activeTab === 3 && <TabPlaceholder label="주의" />}
                     </div>
                 )}
