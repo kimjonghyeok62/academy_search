@@ -1143,7 +1143,7 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
     const city = region.endsWith('시') ? region : region + '시';
     const [openSections, setOpenSections] = useState({
         dateReverse: true, geoFail: true, dongUnclassified: false, noContact: false,
-        insurance: false, hagwonClosure: true, dupReg: true, missingInfo: false,
+        hagwonClosure: true, dupReg: true, missingInfo: false,
         zipIssues: false,
     });
     const toggleSection = (key) => setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
@@ -1221,22 +1221,7 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
         return r;
     }, [aList, hList, pList]);
 
-    // 4. 보험 만료/미가입 (학원 + 교습소)
-    const insuranceIssues = useMemo(() => {
-        const today = new Date();
-        const check = (list, type) => list.map(a => {
-            if (!a.insurances || a.insurances.length === 0)
-                return { type, id: a.id, name: a.name, phone: a.founder?.phone || '', mobile: a.founder?.mobile || '', issue: '미가입' };
-            const hasActive = a.insurances.some(ins => { const e = toDateRev(ins.endDate); return e && e >= today; });
-            if (hasActive) return null;
-            const latest = a.insurances.reduce((b, ins) => {
-                const d = toDateRev(ins.endDate), bd = b ? toDateRev(b.endDate) : null;
-                return d && (!bd || d > bd) ? ins : b;
-            }, null);
-            return { type, id: a.id, name: a.name, phone: a.founder?.phone || '', mobile: a.founder?.mobile || '', issue: `만료 (${latest?.endDate || '-'})` };
-        }).filter(Boolean);
-        return [...check(aList, '학원'), ...check(hActiveList, '교습소')];
-    }, [aList, hActiveList]);
+    // 4(이전됨). 보험 만료/미가입 → 주의 탭으로 이전
 
     // 5. 교습소 폐소 상태이나 날짜 누락
     const hagwonClosureMissing = useMemo(() => {
@@ -1347,7 +1332,7 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
         <th style={{ padding: '7px 10px', fontSize: '0.74rem', fontWeight: '700', color: 'var(--text-muted)', background: 'var(--bg-main)', borderBottom: '2px solid var(--border-color)', textAlign: 'left', whiteSpace: 'nowrap', ...style }}>{children}</th>
     );
     const Td = ({ children, style }) => (
-        <td style={{ padding: '6px 10px', fontSize: '0.8rem', borderBottom: '1px solid var(--border-color)', ...style }}>{children}</td>
+        <td style={{ padding: '6px 10px', fontSize: '0.8rem', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap', ...style }}>{children}</td>
     );
     const Badge = ({ count, color }) => (
         <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: '22px', height: '20px', borderRadius: '10px', padding: '0 6px', background: count > 0 ? (color || '#ef4444') : '#94a3b8', color: 'white', fontSize: '0.72rem', fontWeight: '800' }}>{count}</span>
@@ -1492,27 +1477,6 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
                 </table>
             </ReviewSection>
 
-            {/* 4. 보험 만료/미가입 */}
-            <ReviewSection id="insurance" title="보험 만료 · 미가입 (학원·교습소)" badge={insuranceIssues.length} badgeColor="#ef4444">
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                    <thead><tr>
-                        <Th style={{ whiteSpace: 'nowrap', width: '3.5rem' }}>구분</Th>
-                        <Th>등록(신고)번호</Th><Th>학원명(교습소명)</Th><Th>연락처(휴대폰)</Th><Th>보험 상태</Th>
-                    </tr></thead>
-                    <tbody>
-                        {insuranceIssues.map((a, i) => (
-                            <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
-                                <Td style={{ whiteSpace: 'nowrap' }}><span style={{ color: typeColor(a.type), fontWeight: '700', fontSize: '0.78rem' }}>{a.type}</span></Td>
-                                <Td style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{a.id || '-'}</Td>
-                                <Td><NameLink id={a.id} type={a.type} name={a.name} /></Td>
-                                <Td style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{a.mobile || a.phone || '-'}</Td>
-                                <Td style={{ color: '#ef4444', fontWeight: '700' }}>{a.issue}</Td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </ReviewSection>
-
             {/* 5. 교습소 폐소일 누락 */}
             <ReviewSection id="hagwonClosure" title="교습소 폐소 상태이나 날짜 누락" badge={hagwonClosureMissing.length} badgeColor="#f59e0b">
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -1601,6 +1565,194 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
                     </tbody>
                 </table>
             </ReviewSection>
+        </div>
+    );
+}
+
+// ───────────────────────────────────────────────
+// 탭: 주의 (운영 위반 점검)
+// ───────────────────────────────────────────────
+function TabCaution({ region, academies, privateTutors, academyClosures, onSelectAcademy, addrDongCacheVer }) {
+    const city = region.endsWith('시') ? region : region + '시';
+    const H_CLOSED_R = ['자진폐원', '직권폐원', '자진폐소', '직권폐소'];
+    const aList = useMemo(() => (academies || []).filter(a => (a.address || '').includes(city) && a.category !== '교습소'), [academies, city]);
+    const hList = useMemo(() => (academies || []).filter(a => (a.address || '').includes(city) && a.category === '교습소'), [academies, city]);
+    const hActiveList = useMemo(() => hList.filter(h => !H_CLOSED_R.some(s => (h.status || '').includes(s))), [hList]);
+
+    const [openSections, setOpenSections] = useState({ insurance: true, feeExceed: true });
+    const toggleSection = (key) => setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
+
+    const typeColor = (t) => t === '학원' ? '#3b82f6' : t === '교습소' ? '#8b5cf6' : '#10b981';
+
+    const Th = ({ children, style }) => (
+        <th style={{ padding: '7px 10px', fontSize: '0.74rem', fontWeight: '700', color: 'var(--text-muted)', background: 'var(--bg-main)', borderBottom: '2px solid var(--border-color)', textAlign: 'left', whiteSpace: 'nowrap', ...style }}>{children}</th>
+    );
+    const Td = ({ children, style }) => (
+        <td style={{ padding: '6px 10px', fontSize: '0.8rem', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap', ...style }}>{children}</td>
+    );
+    const Badge = ({ count, color }) => (
+        <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: '22px', height: '20px', borderRadius: '10px', padding: '0 6px', background: count > 0 ? (color || '#ef4444') : '#94a3b8', color: 'white', fontSize: '0.72rem', fontWeight: '800' }}>{count}</span>
+    );
+    const NameLink = ({ id, type, name }) => {
+        if (!onSelectAcademy || !id) return <span style={{ fontWeight: '600' }}>{name || '-'}</span>;
+        const pool = type === '교습소' ? hList : aList;
+        const item = pool.find(a => a.id === id);
+        if (!item) return <span style={{ fontWeight: '600' }}>{name || '-'}</span>;
+        return (
+            <span onClick={() => onSelectAcademy(item)} style={{ fontWeight: '700', color: 'var(--primary)', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '2px' }}>{name || '-'}</span>
+        );
+    };
+    const CautionSection = ({ id, title, badge, badgeColor, children }) => {
+        const isOpen = openSections[id];
+        return (
+            <div style={{ background: 'var(--bg-card)', borderRadius: '14px', padding: '14px 16px', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)', marginBottom: '12px' }}>
+                <button onClick={() => toggleSection(id)} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Badge count={badge} color={badgeColor} />
+                        <span style={{ fontSize: '0.88rem', fontWeight: '700', color: 'var(--text-main)', textAlign: 'left' }}>{title}</span>
+                    </div>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginLeft: '8px', flexShrink: 0 }}>{isOpen ? '▲' : '▼'}</span>
+                </button>
+                {isOpen && (
+                    <div style={{ marginTop: '10px' }}>
+                        {badge === 0
+                            ? <div style={{ fontSize: '0.82rem', color: '#10b981', fontWeight: '600', padding: '4px 0' }}>✓ 이상 없음</div>
+                            : <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid var(--border-color)' }}>{children}</div>
+                        }
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    // A. 보험 만료/미가입 (검토 탭에서 이전)
+    const insuranceIssues = useMemo(() => {
+        const today = new Date();
+        const check = (list, type) => list.map(a => {
+            if (!a.insurances || a.insurances.length === 0)
+                return { type, id: a.id, name: a.name, phone: a.founder?.phone || '', mobile: a.founder?.mobile || '', issue: '미가입' };
+            const hasActive = a.insurances.some(ins => { const e = toDateRev(ins.endDate); return e && e >= today; });
+            if (hasActive) return null;
+            const latest = a.insurances.reduce((b, ins) => {
+                const d = toDateRev(ins.endDate), bd = b ? toDateRev(b.endDate) : null;
+                return d && (!bd || d > bd) ? ins : b;
+            }, null);
+            return { type, id: a.id, name: a.name, phone: a.founder?.phone || '', mobile: a.founder?.mobile || '', issue: `만료 (${latest?.endDate || '-'})` };
+        }).filter(Boolean);
+        return [...check(aList, '학원'), ...check(hActiveList, '교습소')];
+    }, [aList, hActiveList]);
+
+    // B. 교습비 단가 기준 초과 (unitPrice > standardUnitPrice)
+    const ADULT_KEYWORDS = ['성인', '일반인', '직장', '주부', '노인'];
+    // 과정 레벨 축약 (음악·미술·무용 유초중고 구분용)
+    const procLevel = (proc) => {
+        if (proc.includes('유아')) return '유';
+        if (proc.includes('초등')) return '초';
+        if (proc.includes('중등')) return '중';
+        if (proc.includes('고등')) return '고';
+        return '';
+    };
+    // 분당단가 값 + 교습계열(track) + 교습과정(process) → 기준단가 레이블
+    const getStdLabel = (std, track, process) => {
+        const p = Math.round(std);
+        const t = (track || '');
+        const proc = (process || '');
+        if (p === 210) return '보습-단과(초등)';
+        if (p === 222) return '보습-단과(중등)';
+        if (p === 259) return '어학';
+        if (p === 336) return '음악-입시';
+        if (p === 234) return t.includes('진학') ? '진학상담' : '보습-단과(고등)';
+        if (p === 224) { const lv = procLevel(proc); return lv ? `음악-${lv}` : '음악'; }
+        if (p === 212) {
+            const lv = procLevel(proc);
+            if (t.includes('미술')) return lv ? `미술-${lv}` : '미술';
+            if (t.includes('무용')) return lv ? `무용-${lv}` : '무용';
+            return lv ? `${lv}` : '';
+        }
+        if (p === 255) {
+            if (t.includes('미술')) return '미술-입시';
+            if (t.includes('무용')) return '무용-입시';
+            return '입시';
+        }
+        if (p === 230) return t.includes('정보') ? '정보-일반' : '기타-일반';
+        return '';
+    };
+    const feeExceed = useMemo(() => {
+        const results = [];
+        [...aList, ...hActiveList].forEach(a => {
+            if ((a.category || '').includes('평생직업')) return;
+            (a.courses || []).forEach(course => {
+                const proc = course.process || '';
+                const subj = course.subject || '';
+                if (ADULT_KEYWORDS.some(k => proc.includes(k) || subj.includes(k))) return;
+                const unit = parseFloat((course.unitPrice || '').toString().replace(/,/g, ''));
+                const std  = parseFloat((course.standardUnitPrice || '').toString().replace(/,/g, ''));
+                if (unit > 0 && std > 0 && unit > std) {
+                    results.push({
+                        type: a.category === '교습소' ? '교습소' : '학원',
+                        id: a.id, name: a.name,
+                        subject: course.subject || '-',
+                        stdLabel: getStdLabel(std, course.track, course.process),
+                        unit, std,
+                        diff: Math.round(unit - std),
+                    });
+                }
+            });
+        });
+        return results;
+    }, [aList, hActiveList]);
+
+    return (
+        <div>
+            {/* 요약 헤더 */}
+            <div style={{ background: 'var(--bg-card)', borderRadius: '14px', padding: '14px 16px', border: '1px solid var(--border-color)', marginBottom: '14px', boxShadow: 'var(--shadow-sm)' }}>
+                <div style={{ fontSize: '0.88rem', fontWeight: '800', color: 'var(--text-main)', marginBottom: '8px' }}>⚠️ 운영 위반 점검</div>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: '1.6' }}>
+                    학원 {aList.length}개 · 교습소 {hActiveList.length}개 대상 점검 중.
+                </div>
+            </div>
+
+            {/* A. 보험 만료/미가입 */}
+            <CautionSection id="insurance" title="보험 만료 · 미가입 (학원·교습소)" badge={insuranceIssues.length} badgeColor="#ef4444">
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead><tr>
+                        <Th>구분</Th><Th>등록(신고)번호</Th><Th>학원명(교습소명)</Th><Th>연락처(휴대폰)</Th><Th>보험 상태</Th>
+                    </tr></thead>
+                    <tbody>
+                        {insuranceIssues.map((a, i) => (
+                            <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
+                                <Td><span style={{ color: typeColor(a.type), fontWeight: '700', fontSize: '0.78rem' }}>{a.type}</span></Td>
+                                <Td style={{ color: 'var(--text-muted)', fontSize: '0.74rem' }}>{a.id || '-'}</Td>
+                                <Td><NameLink id={a.id} type={a.type} name={a.name} /></Td>
+                                <Td style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>{a.mobile || a.phone || '-'}</Td>
+                                <Td style={{ color: '#ef4444', fontWeight: '700' }}>{a.issue}</Td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </CautionSection>
+
+            {/* B. 교습비 단가 기준 초과 */}
+            <CautionSection id="feeExceed" title="교습비 단가 기준 초과 (학원·교습소)" badge={feeExceed.length} badgeColor="#f97316">
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead><tr>
+                        <Th>구분</Th><Th>등록번호</Th><Th>명칭</Th><Th>교습과목</Th><Th>기준단가(분당)</Th><Th>신고단가(분당)</Th><Th>초과액</Th>
+                    </tr></thead>
+                    <tbody>
+                        {feeExceed.map((a, i) => (
+                            <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
+                                <Td><span style={{ color: typeColor(a.type), fontWeight: '700', fontSize: '0.78rem' }}>{a.type}</span></Td>
+                                <Td style={{ color: 'var(--text-muted)', fontSize: '0.74rem' }}>{a.id || '-'}</Td>
+                                <Td><NameLink id={a.id} type={a.type} name={a.name} /></Td>
+                                <Td>{a.subject}</Td>
+                                <Td><span style={{ fontWeight: '700' }}>{a.std.toLocaleString()}원</span>{a.stdLabel ? <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: '400', marginLeft: '4px' }}>{a.stdLabel}</span> : ''}</Td>
+                                <Td style={{ color: '#f97316', fontWeight: '600' }}>{a.unit.toLocaleString()}원</Td>
+                                <Td style={{ color: '#ef4444', fontWeight: '700' }}>+{a.diff.toLocaleString()}원</Td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </CautionSection>
         </div>
     );
 }
@@ -1775,7 +1927,7 @@ export default function InspectionPage({ onBack, academies, privateTutors, onSel
                         {activeTab === 0 && <TabRecent region={region} academies={academies} onSelectAcademy={onSelectAcademy} />}
                         {activeTab === 1 && <TabStats region={region} statRows={statRows} academies={academies} privateTutors={privateTutors} academyClosures={academyClosures} addrDongCacheVer={addrDongCacheVer} />}
                         {activeTab === 2 && <TabReview region={region} academies={academies} privateTutors={privateTutors} academyClosures={academyClosures} onSelectAcademy={onSelectAcademy} addrDongCacheVer={addrDongCacheVer} />}
-                        {activeTab === 3 && <TabPlaceholder label="주의" />}
+                        {activeTab === 3 && <TabCaution region={region} academies={academies} privateTutors={privateTutors} academyClosures={academyClosures} onSelectAcademy={onSelectAcademy} addrDongCacheVer={addrDongCacheVer} />}
                     </div>
                 )}
             </div>

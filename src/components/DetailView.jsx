@@ -728,7 +728,7 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
     // 탭 변경 시 해당 탭이 화면에 보이도록 스크롤
     useEffect(() => {
         if (tabsRef.current) {
-            const currentTabs = TABS.filter(tab => !(tab.id === 'instructor' && academy.category.includes('교습소')));
+            const currentTabs = TABS.filter(tab => !(tab.id === 'instructor' && (academy.category || '').includes('교습소')));
             const activeTabIndex = currentTabs.findIndex(tab => tab.id === activeTab);
             const tabButtons = tabsRef.current.querySelectorAll('.tab-btn');
             const activeButton = tabButtons[activeTabIndex];
@@ -783,7 +783,7 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
         const isRightSwipe = distance < -minSwipeDistance;
 
         if (isLeftSwipe || isRightSwipe) {
-            const currentTabs = TABS.filter(tab => !(tab.id === 'instructor' && academy.category.includes('교습소')));
+            const currentTabs = TABS.filter(tab => !(tab.id === 'instructor' && (academy.category || '').includes('교습소')));
             const currentIndex = currentTabs.findIndex(tab => tab.id === activeTab);
             if (isLeftSwipe && currentIndex < currentTabs.length - 1) {
                 setActiveTab(currentTabs[currentIndex + 1].id);
@@ -1453,7 +1453,7 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
                                                 }
 
                                                 const calcUnitPriceColor = isSimilar ? '#2563eb' : '#dc2626';
-                                                const unitPriceLabel = academy.category.includes('교습소') ? '교습소단가' : '학원단가';
+                                                const unitPriceLabel = (academy.category || '').includes('교습소') ? '교습소단가' : '학원단가';
 
                                                 return (
                                                     <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -1520,7 +1520,7 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
                                             {course.tuitionFee && <InfoRow label="교습비(AL열)" value={`${course.tuitionFee}원`} />}
                                             <InfoRow label="총교습비" value={`${course.totalFee}원`} />
                                             <InfoRow label="시간당" value={`${course.feePerHour}원`} />
-                                            <InfoRow label={academy.category.includes('교습소') ? '교습소분당단가' : '학원분당단가'} value={course.unitPrice ? `${course.unitPrice}원` : '-'} isExpired={
+                                            <InfoRow label={(academy.category || '').includes('교습소') ? '교습소분당단가' : '학원분당단가'} value={course.unitPrice ? `${course.unitPrice}원` : '-'} isExpired={
                                                 (course.unitPrice || '').toString().replace(/[^0-9.]/g, '') &&
                                                 (course.standardUnitPrice || '').toString().replace(/[^0-9.]/g, '') &&
                                                 Number((course.unitPrice || '').toString().replace(/[^0-9.]/g, '')) > Number((course.standardUnitPrice || '').toString().replace(/[^0-9.]/g, ''))
@@ -1543,7 +1543,7 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
                                                 const isSimilar = !isNaN(unitPriceNum) && unitPriceNum > 0
                                                     ? Math.abs(exactUnitPrice - unitPriceNum) <= 1.5
                                                     : true;
-                                                const unitPriceLabel = academy.category.includes('교습소') ? '교습소단가' : '학원단가';
+                                                const unitPriceLabel = (academy.category || '').includes('교습소') ? '교습소단가' : '학원단가';
 
                                                 // best-fit 교습 구성 (실제 곱이 총교습시간에 가장 가까운 조합)
                                                 const combos = [];
@@ -1751,7 +1751,7 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
                 onTouchMove={onTouchMove}
                 onTouchEnd={onTouchEnd}
             >
-                {TABS.filter(tab => !(tab.id === 'instructor' && academy.category.includes('교습소'))).map(tab => (
+                {TABS.filter(tab => !(tab.id === 'instructor' && (academy.category || '').includes('교습소'))).map(tab => (
                     <button
                         key={tab.id}
                         className={`tab-btn ${activeTab === tab.id ? 'active' : ''}`}
