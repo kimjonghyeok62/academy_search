@@ -40,9 +40,10 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy }) {
         academies.forEach(a => {
             if (!a.id || !a.address) return;
 
-            // "폐", "휴" 상태만 제외하고 나머지는 노출 (비어있는 경우 포함하여 최대한 노출되도록 완화)
+            // 통계 기준과 동일하게 명시적 폐원/폐소 상태만 제외
             const status = a.status || '';
-            if (status.includes('폐') || status.includes('휴')) return;
+            const CLOSED = ['자진폐원', '직권폐원', '자진폐소', '직권폐소'];
+            if (CLOSED.some(s => status.includes(s))) return;
 
             const key = `${a.id}-${a.category}`;
             if (!map.has(key)) {
