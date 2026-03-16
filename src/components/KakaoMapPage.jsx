@@ -120,12 +120,48 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy }) {
     const geocodeAddress = (kakao, address) => {
         return new Promise((resolve) => {
             const geocoder = new kakao.maps.services.Geocoder();
-            const cleanAddress = address.split(',')[0].trim();
-            geocoder.addressSearch(cleanAddress, (result, status) => {
+
+            // 도로명+건물번호만 추출 (호수/층수/괄호 제거)
+            const cleanAddr = (addr) => {
+                let r = addr.split(',')[0].trim();            // 콤마 앞까지만
+                r = r.replace(/\s*\([^)]*\)/g, '').trim();   // (망월동) 등 괄호 제거
+                r = r.replace(/\s+\d+~\d+호.*$/, '').trim(); // 303~305호 등 범위호 제거
+                r = r.replace(/\s+\d+층.*$/, '').trim();     // 3층 이상 정보 제거
+                return r;
+            };
+
+            const primary = cleanAddr(address);
+
+            // 지번 주소 객체에서 법정동명 추출: region_3depth_name 우선, 없으면 address_name 파싱
+            const extractDong = (addrObj) => {
+                const r3 = addrObj?.region_3depth_name || '';
+                if (r3) return r3;
+                // address_name 예: "경기도 하남시 신장동 123" → 동/리/읍/면 패턴 추출
+                const name = addrObj?.address_name || '';
+                const after = name.replace(/^.*?시\s*/, '');
+                const m = after.match(/([가-힣]+(?:동|리|읍|면))/);
+                return m ? m[1] : '';
+            };
+
+            geocoder.addressSearch(primary, (result, status) => {
                 if (status === kakao.maps.services.Status.OK) {
-                    resolve({ lat: parseFloat(result[0].y), lng: parseFloat(result[0].x) });
+                    const dong = extractDong(result[0].address);
+                    resolve({ lat: parseFloat(result[0].y), lng: parseFloat(result[0].x), dong });
                 } else {
-                    resolve(null);
+                    // 부번(-숫자) 제거 후 재시도 (e.g., "270-1" → "270")
+                    const fallback = primary.replace(/(\d+)-\d+(\s*)$/, '$1$2').trim();
+                    if (fallback !== primary) {
+                        geocoder.addressSearch(fallback, (r2, s2) => {
+                            if (s2 === kakao.maps.services.Status.OK) {
+                                const dong = extractDong(r2[0].address);
+                                resolve({ lat: parseFloat(r2[0].y), lng: parseFloat(r2[0].x), dong });
+                            } else {
+                                resolve(null);
+                            }
+                        });
+                    } else {
+                        resolve(null);
+                    }
                 }
             });
         });
@@ -181,12 +217,27 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy }) {
                 // 좌표 데이터 수집 및 그룹핑 시작
                 const allItems = [...filteredAcademies, ...filteredPrivateTutors];
                 setStatusMsg(`주소 좌표 변환 및 그룹핑 중... (총 ${allItems.length}건)`);
-                const cachedLocations = JSON.parse(localStorage.getItem('academyMapLocations') || '{}');
-                let newCacheNeeded = false;
+                // v2: geocoding 정제 로직 개선 → 기존 null 캐시 제거하여 재시도
+                const CACHE_VER = 2;
+                const rawCache = JSON.parse(localStorage.getItem('academyMapLocations') || '{}');
+                const cachedLocations = rawCache._v === CACHE_VER
+                    ? rawCache
+                    : (() => {
+                        const cleaned = {};
+                        Object.entries(rawCache).forEach(([k, v]) => {
+                            if (k !== '_v' && v !== null) cleaned[k] = v;
+                        });
+                        return cleaned;
+                    })();
+                let newCacheNeeded = rawCache._v !== CACHE_VER; // 버전 변경 시 반드시 재저장
 
                 // 좌표를 기준으로 기관들을 그룹핑
                 const groupedMarkers = new Map();
                 let localFail = 0;
+
+                // 주소 → 법정동명 캐시 (검토 탭 동별 분류 fallback용)
+                const addrDongCache = JSON.parse(localStorage.getItem('academyAddrDongCache') || '{}');
+                let addrDongCacheModified = false;
 
                 for (let i = 0; i < allItems.length; i++) {
                     if (!isMounted) return;
@@ -204,6 +255,12 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy }) {
                         if (!coords) localFail++;
                     } else if (!coords) {
                         localFail++; // 이미 null로 캐시된 실패 항목
+                    }
+
+                    // 법정동명 캐시 갱신 (geocoding 결과 또는 기존 캐시에서 dong 확보)
+                    if (coords?.dong && academy.address && !addrDongCache[academy.address]) {
+                        addrDongCache[academy.address] = coords.dong;
+                        addrDongCacheModified = true;
                     }
 
                     if (coords) {
@@ -333,9 +390,14 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy }) {
                 // 클러스터러에 마커들 한 번에 추가
                 clusterer.addMarkers(markers);
 
-                // 캐시 저장
+                // 캐시 저장 (버전 태그 포함)
                 if (newCacheNeeded) {
+                    cachedLocations._v = CACHE_VER;
                     localStorage.setItem('academyMapLocations', JSON.stringify(cachedLocations));
+                }
+                // 주소→법정동 캐시 저장
+                if (addrDongCacheModified) {
+                    localStorage.setItem('academyAddrDongCache', JSON.stringify(addrDongCache));
                 }
 
                 // 완료
@@ -360,6 +422,51 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy }) {
             isMounted = false;
         };
     }, [apiKey, filteredAcademies, filteredPrivateTutors]);
+
+    // 주소에서 호수 정보 추출 (팝업 표시 및 정렬용)
+    const extractUnitInfo = (address) => {
+        if (!address) return { label: '', sortKey: 999999 };
+
+        // 1. 동+호 패턴 (e.g., "108동 1101호")
+        const dongHoMatch = address.match(/(\d{1,4})동\s*(\d{3,4})호/);
+        if (dongHoMatch) {
+            const dong = parseInt(dongHoMatch[1]);
+            const ho = parseInt(dongHoMatch[2]);
+            return { label: `${dong}동 ${ho}호`, sortKey: dong * 10000 + ho };
+        }
+
+        // 2. 범위 호 (e.g., "303~305호")
+        const rangeMatch = address.match(/(\d+)~(\d+)호/);
+        if (rangeMatch) {
+            return { label: rangeMatch[0], sortKey: parseInt(rangeMatch[1]) };
+        }
+
+        // 3. 콤마 이후 부분에서 호 검색 (e.g., ", 202호", ", 2-166호")
+        const commaParts = address.split(',');
+        if (commaParts.length > 1) {
+            const afterComma = commaParts.slice(1).join(',');
+            const hoMatch = afterComma.match(/(\d+(?:-\d+)?)호/);
+            if (hoMatch) {
+                const p = hoMatch[1].split('-');
+                const sortKey = p.length > 1
+                    ? parseInt(p[0]) * 1000 + parseInt(p[1])
+                    : parseInt(p[0]);
+                return { label: hoMatch[0], sortKey };
+            }
+        }
+
+        // 4. 주소 끝의 호 패턴 (콤마 없는 경우, e.g., "303~305호", "202호")
+        const endMatch = address.match(/(\d+(?:-\d+)?)호(?:\s*\([^)]*\))?\s*$/);
+        if (endMatch) {
+            const p = endMatch[1].split('-');
+            const sortKey = p.length > 1
+                ? parseInt(p[0]) * 1000 + parseInt(p[1])
+                : parseInt(p[0]);
+            return { label: endMatch[1] + '호', sortKey };
+        }
+
+        return { label: '', sortKey: 999999 };
+    };
 
     // 커스텀 오버레이 (바닐라 JS) - 한 위치에 여러 학원이 있을 경우 리스트로 표시
     const showOverlay = (kakao, map, position, academyList) => {
@@ -415,6 +522,12 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy }) {
 
         const isMultiple = academyList.length > 1;
         const mobileW = window.innerWidth < 640;
+
+        // 호수 기준 오름차순 정렬 (복사본 사용 → 원본 academyList 불변)
+        const sortedList = [...academyList].sort((a, b) =>
+            extractUnitInfo(a.address).sortKey - extractUnitInfo(b.address).sortKey
+        );
+
         const overlayContent = document.createElement('div');
 
         overlayContent.style.cssText = `
@@ -454,18 +567,19 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy }) {
             <div style="display: flex; flex-direction: column; gap: 0;">
         `;
 
-        academyList.forEach((academy, idx) => {
+        sortedList.forEach((academy, idx) => {
             // 교습소: 이름 끝에 이미 '교습소' 표시됨 → 배지 불필요
             // 학교교과교습학원: 배지 불필요
             // 평생직업교육학원: '평생직업교육'으로 축약하여 이름 오른쪽에 표시
             const cat = academy.category;
             const showBadge = cat && cat !== '학교교과교습학원' && cat !== '교습소';
             const badgeLabel = cat === '평생직업교육학원' ? '평생직업교육' : cat;
+            const unitInfo = extractUnitInfo(academy.address);
 
             html += `
-                <div style="padding: ${idx === academyList.length - 1 ? '5px 0 0' : '5px 0'}; border-bottom: ${idx === academyList.length - 1 ? 'none' : '1px solid rgba(0,0,0,0.07)'}; display: flex; align-items: center; justify-content: space-between; gap: 6px;">
+                <div style="padding: ${idx === sortedList.length - 1 ? '5px 0 0' : '5px 0'}; border-bottom: ${idx === sortedList.length - 1 ? 'none' : '1px solid rgba(0,0,0,0.07)'}; display: flex; align-items: center; justify-content: space-between; gap: 6px;">
                     <div class="academy-name-link" data-idx="${idx}" style="font-size: 0.93rem; font-weight: 800; color: #1e1b4b; word-break: keep-all; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; line-height: 1.3; flex: 1;">
-                        ${academy.name}
+                        ${academy.name}${unitInfo.label ? ` <span style="font-size: 0.72rem; color: #6b7280; font-weight: 600; text-decoration: none;">${unitInfo.label}</span>` : ''}
                     </div>
                     ${showBadge ? `<div style="font-size: 0.6rem; color: #4f46e5; font-weight: 800; padding: 1px 5px; background: rgba(79,70,229,0.1); border-radius: 5px; white-space: nowrap; flex-shrink: 0;">${badgeLabel}</div>` : ''}
                 </div>
@@ -491,8 +605,8 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy }) {
         overlayContent.querySelectorAll('.academy-name-link').forEach(link => {
             link.addEventListener('click', (e) => {
                 e.stopPropagation();
-                const idx = e.currentTarget.getAttribute('data-idx');
-                onSelectAcademy(academyList[idx]);
+                const idx = parseInt(e.currentTarget.getAttribute('data-idx'));
+                onSelectAcademy(sortedList[idx]);
             });
         });
 
