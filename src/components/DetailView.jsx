@@ -888,9 +888,35 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
 
     // Find academies in the same building (including current academy)
     const baseAddress = getBaseAddress(academy.address);
-    const sameBuildingAcademies = allAcademies.filter(a =>
-        getBaseAddress(a.address) === baseAddress
-    );
+
+    // 주소에서 호수 숫자 추출 → 오름차순 정렬용
+    const unitSortKey = (addr) => {
+        if (!addr) return 999999;
+        // 동+호 (e.g., "108동 1101호")
+        const dongHo = addr.match(/(\d{1,4})동\s*(\d{3,4})호/);
+        if (dongHo) return parseInt(dongHo[1]) * 10000 + parseInt(dongHo[2]);
+        // 범위호 (e.g., "303~305호")
+        const range = addr.match(/(\d+)~\d+호/);
+        if (range) return parseInt(range[1]);
+        // 콤마 이후 호 (e.g., ", 202호", ", 2-166호")
+        const afterComma = addr.includes(',') ? addr.split(',').slice(1).join(',') : '';
+        const commaHo = afterComma.match(/(\d+(?:-\d+)?)호/);
+        if (commaHo) {
+            const p = commaHo[1].split('-');
+            return p.length > 1 ? parseInt(p[0]) * 1000 + parseInt(p[1]) : parseInt(p[0]);
+        }
+        // 주소 끝 호 (e.g., "202호")
+        const endHo = addr.match(/(\d+(?:-\d+)?)호(?:\s*\([^)]*\))?\s*$/);
+        if (endHo) {
+            const p = endHo[1].split('-');
+            return p.length > 1 ? parseInt(p[0]) * 1000 + parseInt(p[1]) : parseInt(p[0]);
+        }
+        return 999999;
+    };
+
+    const sameBuildingAcademies = allAcademies
+        .filter(a => getBaseAddress(a.address) === baseAddress)
+        .sort((a, b) => unitSortKey(a.address) - unitSortKey(b.address));
 
     const renderContent = () => {
         switch (activeTab) {

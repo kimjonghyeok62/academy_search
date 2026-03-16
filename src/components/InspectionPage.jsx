@@ -21,14 +21,26 @@ const CURRENT_YEAR = '2026';
 // ── 동 화이트리스트 (동별 분포 + 검토 탭 공유) ──
 const HANAM_DONG_SET = new Set(['신장동','덕풍동','풍산동','미사동','망월동','선동','교산동','학암동','초일동','초이동','광암동','천현동','창우동','배일미동','하산곡동','상산곡동','감이동','감일동','항동','하사창동','상사창동','위례동','순궁동']);
 const GWANGJU_DONG_SET = new Set(['경안동','광남동','태전동','송정동','역동','삼동','탄벌동','목현동','오포읍','초월읍','곤지암읍','도척면','퇴촌면','남종면','남한산성면']);
+// 주소→법정동 캐시 (지도 페이지 geocoding 시 채워짐, 모듈 로드 시 1회 읽기)
+function getAddrDongCache() {
+    try { return JSON.parse(localStorage.getItem('academyAddrDongCache') || '{}'); }
+    catch (e) { return {}; }
+}
+
 function getDongFromAddr(addr, wl) {
     const a = addr || '';
+    // 1차: 화이트리스트 동명 직접 검색
     for (const d of wl) {
         if (new RegExp(d + '(?=[\\s\\d,()[\\]]|$)').test(a)) return d;
     }
+    // 2차: "시" 이후 동/리/읍/면 패턴 추출 후 화이트리스트 대조
     const after = a.replace(/^.*?시\s*/, '');
     const tokens = [...after.matchAll(/([가-힣]+(?:동|리|읍|면))/g)].map(m => m[1]);
     for (const t of tokens) { if (wl.has(t)) return t; }
+    // 3차: 지도 페이지 geocoding 결과 캐시에서 법정동명 조회
+    // (지도 탭 방문 후 자동 채워짐 — 도로명 주소도 정확하게 분류 가능)
+    const cached = getAddrDongCache()[a];
+    if (cached && wl.has(cached)) return cached;
     return '';
 }
 
@@ -94,12 +106,21 @@ function DoughnutChart({ title, labels, data, colors }) {
 }
 
 // ── StatCard ──
-function StatCard({ icon, label, value, color }) {
+function StatCard({ icon, label, value, color, sub }) {
     return (
         <div style={{ background: 'var(--bg-card)', borderRadius: '12px', padding: '14px 16px', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)' }}>
             <div style={{ fontSize: '1.4rem', marginBottom: '6px' }}>{icon}</div>
             <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: '600', marginBottom: '4px' }}>{label}</div>
             <div style={{ fontSize: '1.3rem', fontWeight: '800', color: color || 'var(--text-main)' }}>{value}</div>
+            {sub && sub.length > 0 && (
+                <div style={{ marginTop: '7px', display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                    {sub.map((s, i) => (
+                        <div key={i} style={{ fontSize: '0.68rem', fontWeight: '700', color: s.color || '#64748b', background: s.bg || '#f1f5f9', borderRadius: '4px', padding: '2px 6px', border: `1px solid ${s.border || '#e2e8f0'}` }}>
+                            {s.label} <span>{s.value}</span>
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
     );
 }
@@ -280,12 +301,12 @@ function TabRecent({ region, academies, onSelectAcademy }) {
         , [rows]);
 
     // 전체 점검 대상: 학교교과교습학원 + 활성 교습소 (academies prop 기반, 동적)
-    const totalInspTarget = useMemo(() => {
+    const { totalInspTarget, inspSubjectCount, inspHagwonCount } = useMemo(() => {
         const city = region.endsWith('시') ? region : region + '시';
         const ac = (academies || []).filter(a => (a.address || '').includes(city));
         const subjectCount = ac.filter(a => a.category === '학교교과교습학원').length;
         const hagwonCount  = ac.filter(a => a.category === '교습소' && !INSP_H_CLOSED.some(s => (a.status || '').includes(s))).length;
-        return subjectCount + hagwonCount;
+        return { totalInspTarget: subjectCount + hagwonCount, inspSubjectCount: subjectCount, inspHagwonCount: hagwonCount };
     }, [academies, region]);
 
     // ── 학원명+점검일 기준으로 그룹핑 ──
@@ -432,18 +453,30 @@ function TabRecent({ region, academies, onSelectAcademy }) {
                         ))}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
-                            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: '600' }}>총 점검</span>
-                            <span style={{ fontSize: '1.4rem', fontWeight: '800', color: '#6366f1' }}>{groupedRows.length}</span>
-                            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>건</span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+                                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: '600' }}>총 점검</span>
+                                <span style={{ fontSize: '1.4rem', fontWeight: '800', color: '#6366f1' }}>{groupedRows.length}</span>
+                                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>건</span>
+                            </div>
+                            {totalInspTarget > 0 && (
+                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 8px', background: '#f8fafc', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                                    <span style={{ fontSize: '0.67rem', color: '#3b82f6', fontWeight: '700' }}>교과학원 {inspSubjectCount}</span>
+                                    <span style={{ fontSize: '0.65rem', color: '#94a3b8' }}>+</span>
+                                    <span style={{ fontSize: '0.67rem', color: '#10b981', fontWeight: '700' }}>교습소 {inspHagwonCount}</span>
+                                    <span style={{ fontSize: '0.65rem', color: '#94a3b8' }}>=</span>
+                                    <span style={{ fontSize: '0.72rem', color: 'var(--text-main)', fontWeight: '800' }}>{totalInspTarget}개</span>
+                                    <span style={{ fontSize: '0.63rem', color: '#94a3b8' }}>대상</span>
+                                </div>
+                            )}
                         </div>
-                        <div style={{ width: '1px', height: '28px', background: 'var(--border-color)' }} />
+                        <div style={{ width: '1px', height: '44px', background: 'var(--border-color)' }} />
                         <div style={{ flex: 1, minWidth: '160px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                             {/* 전체 점검률 */}
                             <div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
                                     <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '600' }}>
-                                        전체 점검률 <span style={{ fontSize: '0.7rem' }}>(교과학원+교습소 {totalInspTarget}개 기준)</span>
+                                        전체 점검률
                                     </span>
                                     <span style={{ fontSize: '0.9rem', fontWeight: '800', color: '#6366f1' }}>{inspRate}%</span>
                                 </div>
@@ -640,7 +673,7 @@ function TabRecent({ region, academies, onSelectAcademy }) {
 // 탭: 통계 (5개 섹션)
 // ───────────────────────────────────────────────
 
-function TabStats({ region, statRows, academies, privateTutors, academyClosures }) {
+function TabStats({ region, statRows, academies, privateTutors, academyClosures, addrDongCacheVer }) {
     const [recentRows, setRecentRows] = useState([]);
     const [loading, setLoading] = useState(true);
 
@@ -844,21 +877,20 @@ function TabStats({ region, statRows, academies, privateTutors, academyClosures 
     // 섹션 5: 동별 기관 분포 — 법정동 화이트리스트 적용 + 미분류 보완
     const dongStats = useMemo(() => {
         const map = {};
+        const addrCache = getAddrDongCache();
         const getDong = addr => {
             const a = addr || '';
-            // 1차: 화이트리스트 동 이름을 주소에서 직접 검색
-            //      동 이름 뒤가 공백·숫자·구두점·괄호 또는 문자열 끝이어야 함
-            //      → 도로명 주소 (미사대로, 역동로 등) 와 구분
             for (const d of DONG_WL) {
                 if (new RegExp(d + '(?=[\\s\\d,()[\\]]|$)').test(a)) return d;
             }
-            // 2차: "시" 이후 동/리/읍/면 패턴을 모두 추출 후 화이트리스트 대조
             const after = a.replace(/^.*?시\s*/, '');
             const tokens = [...after.matchAll(/([가-힣]+(?:동|리|읍|면))/g)].map(m => m[1]);
             for (const t of tokens) {
                 if (DONG_WL.has(t)) return t;
             }
-            // 매칭 실패 → 미분류
+            // 3차: geocoding 캐시
+            const cached = addrCache[a];
+            if (cached && DONG_WL.has(cached)) return cached;
             return '';
         };
         const add = (list, key) => list.forEach(a => {
@@ -877,7 +909,12 @@ function TabStats({ region, statRows, academies, privateTutors, academyClosures 
                 if (b.dong === '미분류') return -1;
                 return b.total - a.total;
             });
-    }, [aList, hList, pList, DONG_WL]);
+    }, [aList, hList, pList, DONG_WL, addrDongCacheVer]);
+
+    // 학원 카테고리 분류
+    const aSchoolCount = aList.filter(a => a.category === '학교교과교습학원').length;
+    const aLifeCount   = aList.filter(a => a.category === '평생직업교육학원').length;
+    const ahCombined   = aList.length + hActiveList.length;
 
     if (loading) return <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>⏳ 데이터 로딩 중...</div>;
 
@@ -1006,13 +1043,15 @@ function TabStats({ region, statRows, academies, privateTutors, academyClosures 
                                 <thead><tr>
                                     <Th>연도</Th>
                                     <Th>학원</Th><Th>교습소</Th><Th>과외</Th><Th>합계</Th>
+                                    <Th style={{ color: '#64748b' }}>대상<br/><span style={{ fontSize: '0.65rem', fontWeight: '500', opacity: 0.8 }}>교과+교습소</span></Th>
                                     <Th>점검률</Th><Th>위반건수</Th><Th>행정처분</Th><Th>과태료(만원)</Th>
                                 </tr></thead>
                                 <tbody>
                                     {inspStats.map((s, i) => {
                                         const ys = ysMap.get(s.year);
                                         const denom = ys ? (ys.aSchoolActive + ys.hActive) : 0;
-                                        const checkRate = denom > 0 ? Math.round(s.total / denom * 100) : null;
+                                        const numerator = s.academy + s.hagwon;
+                                        const checkRate = denom > 0 ? Math.round(numerator / denom * 100) : null;
                                         const crColor = checkRate === null ? 'var(--text-muted)'
                                             : checkRate >= 80 ? '#10b981'
                                             : checkRate >= 50 ? '#f59e0b'
@@ -1024,6 +1063,22 @@ function TabStats({ region, statRows, academies, privateTutors, academyClosures 
                                                 <Td style={{ color: '#10b981' }}>{s.hagwon  > 0 ? s.hagwon  : '-'}</Td>
                                                 <Td style={{ color: '#8b5cf6' }}>{s.priv    > 0 ? s.priv    : '-'}</Td>
                                                 <Td style={{ fontWeight: '700' }}>{s.total}</Td>
+                                                <Td style={{ whiteSpace: 'nowrap' }}>
+                                                    {denom > 0 ? (
+                                                        <span style={{ fontSize: '0.8rem', color: '#475569', fontWeight: '600' }}>
+                                                            {ys?.aSchoolActive > 0 && (
+                                                                <span style={{ color: '#3b82f6' }}>{ys.aSchoolActive}</span>
+                                                            )}
+                                                            {ys?.aSchoolActive > 0 && ys?.hActive > 0 && (
+                                                                <span style={{ color: '#94a3b8', margin: '0 2px' }}>+</span>
+                                                            )}
+                                                            {ys?.hActive > 0 && (
+                                                                <span style={{ color: '#10b981' }}>{ys.hActive}</span>
+                                                            )}
+                                                            <span style={{ color: '#64748b', marginLeft: '3px' }}>={denom}</span>
+                                                        </span>
+                                                    ) : <span style={{ color: 'var(--text-muted)' }}>-</span>}
+                                                </Td>
                                                 <Td><span style={{ color: crColor, fontWeight: '700' }}>{checkRate !== null ? checkRate + '%' : '-'}</span></Td>
                                                 <Td style={{ color: s.viol > 0 ? '#ef4444' : 'var(--text-muted)', fontWeight: s.viol > 0 ? '700' : '400' }}>{s.viol > 0 ? s.viol : '-'}</Td>
                                                 <Td style={{ color: s.punish > 0 ? '#8b5cf6' : 'var(--text-muted)' }}>{s.punish > 0 ? s.punish + '건' : '-'}</Td>
@@ -1084,7 +1139,7 @@ const toDateRev = (s) => {
     return m ? new Date(parseInt(m[1]), parseInt(m[2]) - 1, parseInt(m[3])) : null;
 };
 
-function TabReview({ region, academies, privateTutors, academyClosures }) {
+function TabReview({ region, academies, privateTutors, academyClosures, onSelectAcademy, addrDongCacheVer }) {
     const city = region.endsWith('시') ? region : region + '시';
     const [openSections, setOpenSections] = useState({
         dateReverse: true, geoFail: true, dongUnclassified: false, noContact: false,
@@ -1143,7 +1198,7 @@ function TabReview({ region, academies, privateTutors, academyClosures }) {
         hActiveList.forEach(a => { if (!getDongFromAddr(a.address, wl)) result.push({ type: '교습소', id: a.id, name: a.name, address: a.address }); });
         pList.forEach(a => { if (!getDongFromAddr(a.address, wl)) result.push({ type: '과외', id: a.id, name: a.name, address: a.address }); });
         return result;
-    }, [aList, hActiveList, pList, region]);
+    }, [aList, hActiveList, pList, region, addrDongCacheVer]);
 
     // 3. 연락처 누락
     const noContact = useMemo(() => {
@@ -1299,6 +1354,33 @@ function TabReview({ region, academies, privateTutors, academyClosures }) {
     );
     const typeColor = (t) => t === '학원' ? '#3b82f6' : t === '교습소' ? '#10b981' : '#8b5cf6';
 
+    // 학원명 클릭 → 상세화면 이동
+    const NameLink = ({ id, type, name }) => {
+        if (!onSelectAcademy || !id) return <span style={{ fontWeight: '600' }}>{name || '-'}</span>;
+        const pool = type === '과외' ? pList : (type === '교습소' ? hList : aList);
+        const item = pool.find(a => a.id === id);
+        if (!item) return <span style={{ fontWeight: '600' }}>{name || '-'}</span>;
+        return (
+            <span
+                onClick={() => onSelectAcademy(item)}
+                style={{ fontWeight: '700', color: 'var(--primary)', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '2px' }}
+            >{name || '-'}</span>
+        );
+    };
+
+    // 주소 클릭 → 네이버지도 새 탭
+    const AddrLink = ({ address }) => {
+        if (!address) return <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>-</span>;
+        return (
+            <a
+                href={`https://map.naver.com/v5/search/${encodeURIComponent(address)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ fontSize: '0.74rem', color: '#2563eb', textDecoration: 'underline', textUnderlineOffset: '2px', lineHeight: '1.4', wordBreak: 'keep-all' }}
+            >{address}</a>
+        );
+    };
+
     const ReviewSection = ({ id, title, badge, badgeColor, children }) => {
         const isOpen = openSections[id];
         return (
@@ -1364,8 +1446,8 @@ function TabReview({ region, academies, privateTutors, academyClosures }) {
                             <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
                                 <Td><span style={{ color: typeColor(a.type), fontWeight: '700', fontSize: '0.78rem' }}>{a.type}</span></Td>
                                 <Td style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{a.id || '-'}</Td>
-                                <Td style={{ fontWeight: '600' }}>{a.name}</Td>
-                                <Td style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{a.address}</Td>
+                                <Td><NameLink id={a.id} type={a.type} name={a.name} /></Td>
+                                <Td><AddrLink address={a.address} /></Td>
                             </tr>
                         ))}
                     </tbody>
@@ -1383,8 +1465,8 @@ function TabReview({ region, academies, privateTutors, academyClosures }) {
                             <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
                                 <Td style={{ whiteSpace: 'nowrap' }}><span style={{ color: typeColor(a.type), fontWeight: '700', fontSize: '0.78rem' }}>{a.type}</span></Td>
                                 <Td style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{a.id || '-'}</Td>
-                                <Td style={{ fontWeight: '600' }}>{a.name}</Td>
-                                <Td style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{a.address}</Td>
+                                <Td><NameLink id={a.id} type={a.type} name={a.name} /></Td>
+                                <Td><AddrLink address={a.address} /></Td>
                             </tr>
                         ))}
                     </tbody>
@@ -1402,7 +1484,7 @@ function TabReview({ region, academies, privateTutors, academyClosures }) {
                             <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
                                 <Td><span style={{ color: typeColor(a.type), fontWeight: '700', fontSize: '0.78rem' }}>{a.type}</span></Td>
                                 <Td style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{a.id || '-'}</Td>
-                                <Td style={{ fontWeight: '600' }}>{a.name}</Td>
+                                <Td><NameLink id={a.id} type={a.type} name={a.name} /></Td>
                                 <Td style={{ color: '#8b5cf6', fontWeight: '600' }}>{a.issue}</Td>
                             </tr>
                         ))}
@@ -1422,7 +1504,7 @@ function TabReview({ region, academies, privateTutors, academyClosures }) {
                             <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
                                 <Td style={{ whiteSpace: 'nowrap' }}><span style={{ color: typeColor(a.type), fontWeight: '700', fontSize: '0.78rem' }}>{a.type}</span></Td>
                                 <Td style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{a.id || '-'}</Td>
-                                <Td style={{ fontWeight: '600' }}>{a.name}</Td>
+                                <Td><NameLink id={a.id} type={a.type} name={a.name} /></Td>
                                 <Td style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{a.mobile || a.phone || '-'}</Td>
                                 <Td style={{ color: '#ef4444', fontWeight: '700' }}>{a.issue}</Td>
                             </tr>
@@ -1441,7 +1523,7 @@ function TabReview({ region, academies, privateTutors, academyClosures }) {
                         {hagwonClosureMissing.map((a, i) => (
                             <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
                                 <Td style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{a.id || '-'}</Td>
-                                <Td style={{ fontWeight: '600' }}>{a.name}</Td>
+                                <Td><NameLink id={a.id} type="교습소" name={a.name} /></Td>
                                 <Td style={{ color: '#f59e0b', fontWeight: '600' }}>{a.status}</Td>
                             </tr>
                         ))}
@@ -1459,8 +1541,8 @@ function TabReview({ region, academies, privateTutors, academyClosures }) {
                         {duplicateRegs.map((a, i) => (
                             <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
                                 <Td style={{ fontSize: '0.74rem', color: '#ef4444', fontWeight: '700' }}>{a.id}</Td>
-                                <Td style={{ fontWeight: '600' }}>{a.name}</Td>
-                                <Td style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{a.address}</Td>
+                                <Td><NameLink id={a.id} type="학원" name={a.name} /></Td>
+                                <Td><AddrLink address={a.address} /></Td>
                             </tr>
                         ))}
                     </tbody>
@@ -1489,7 +1571,7 @@ function TabReview({ region, academies, privateTutors, academyClosures }) {
                                 <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
                                     <Td><span style={{ color: typeColor(a.type), fontWeight: '700', fontSize: '0.78rem' }}>{a.type}</span></Td>
                                     <Td style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{a.id || '-'}</Td>
-                                    <Td style={{ fontWeight: '600' }}>{a.name}</Td>
+                                    <Td><NameLink id={a.id} type={a.type} name={a.name} /></Td>
                                     <Td style={{ color: '#ef4444', fontWeight: '600' }}>{a.currentZip || '(없음)'}</Td>
                                     <Td style={{ color: correct === '조회실패' ? '#ef4444' : correct ? '#10b981' : 'var(--text-muted)', fontWeight: correct && correct !== '조회실패' ? '700' : '400' }}>
                                         {correct === undefined ? '-' : correct}
@@ -1512,7 +1594,7 @@ function TabReview({ region, academies, privateTutors, academyClosures }) {
                             <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
                                 <Td><span style={{ color: typeColor(a.type), fontWeight: '700', fontSize: '0.78rem' }}>{a.type}</span></Td>
                                 <Td style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{a.id || '-'}</Td>
-                                <Td style={{ fontWeight: '600' }}>{a.name}</Td>
+                                <Td><NameLink id={a.id} type={a.type} name={a.name} /></Td>
                                 <Td style={{ color: '#8b5cf6' }}>{a.missing}</Td>
                             </tr>
                         ))}
@@ -1544,6 +1626,7 @@ export default function InspectionPage({ onBack, academies, privateTutors, onSel
     const [loadingStat, setLoadingStat] = useState(false);
     const [errorStat, setErrorStat] = useState('');
     const [academyClosures, setAcademyClosures] = useState([]);
+    const [addrDongCacheVer, setAddrDongCacheVer] = useState(0);
 
     const TABS      = ['2026 지도점검', '통계', '검토', '주의'];
     const TAB_ICONS = ['🕐', '📊', '🔬', '⚠️'];
@@ -1553,6 +1636,85 @@ export default function InspectionPage({ onBack, academies, privateTutors, onSel
             .then(setAcademyClosures)
             .catch(() => {});
     }, []);
+
+    // 미분류 주소를 Kakao geocoder로 보완 (필요시 SDK 직접 로드)
+    useEffect(() => {
+        if (!academies || academies.length === 0) return;
+        const city = region === '하남' ? '하남' : '광주';
+        const wl = region === '하남' ? HANAM_DONG_SET : GWANGJU_DONG_SET;
+
+        const runGeocode = () => {
+            const geocoder = new window.kakao.maps.services.Geocoder();
+            const cache = getAddrDongCache();
+
+            const allAddrs = [
+                ...(academies || []).filter(a => (a.address || '').includes(city)),
+                ...(privateTutors || []).filter(a => (a.address || '').includes(city)),
+            ].map(a => a.address).filter(Boolean);
+
+            const toGeocode = [...new Set(allAddrs)].filter(addr => {
+                if (cache[addr]) return false;
+                for (const d of wl) {
+                    if (new RegExp(d + '(?=[\\s\\d,()[\\]]|$)').test(addr)) return false;
+                }
+                const after = addr.replace(/^.*?시\s*/, '');
+                const tokens = [...after.matchAll(/([가-힣]+(?:동|리|읍|면))/g)].map(m => m[1]);
+                for (const t of tokens) { if (wl.has(t)) return false; }
+                return true;
+            });
+
+            if (toGeocode.length === 0) return;
+
+            let pending = toGeocode.length;
+            let updated = false;
+            toGeocode.forEach((addr, i) => {
+                setTimeout(() => {
+                    const clean = addr.split(',')[0].replace(/\s*\([^)]*\)/g, '').replace(/\s+\d+~\d+호.*$/, '').trim();
+                    geocoder.addressSearch(clean, (result, status) => {
+                        pending--;
+                        if (status === window.kakao.maps.services.Status.OK && result[0]) {
+                            // 1차: region_3depth_name (법정동명 직접)
+                            let dong = result[0].address?.region_3depth_name || '';
+                            // 2차: whitelist에 없으면 address_name(지번 전체)에서 추출
+                            if (!wl.has(dong)) {
+                                const jibeon = result[0].address?.address_name || '';
+                                const after = jibeon.replace(/^.*?시\s*/, '');
+                                for (const d of wl) {
+                                    if (new RegExp(d + '(?=[\\s\\d,()[\\]]|$)').test(after)) { dong = d; break; }
+                                }
+                            }
+                            if (dong && wl.has(dong)) { cache[addr] = dong; updated = true; }
+                        }
+                        if (pending === 0 && updated) {
+                            localStorage.setItem('academyAddrDongCache', JSON.stringify(cache));
+                            setAddrDongCacheVer(v => v + 1);
+                        }
+                    });
+                }, i * 60);
+            });
+        };
+
+        const ensureKakaoAndRun = () => {
+            if (window.kakao?.maps?.services) { runGeocode(); return; }
+            const apiKey = import.meta.env.VITE_KAKAO_MAP_API_KEY || localStorage.getItem('kakao_api_key');
+            if (!apiKey) return;
+            if (document.getElementById('kakao-map-script')) {
+                // 스크립트 이미 있으면 load 이벤트만 기다림
+                const check = setInterval(() => {
+                    if (window.kakao?.maps?.services) { clearInterval(check); runGeocode(); }
+                }, 300);
+                setTimeout(() => clearInterval(check), 10000);
+                return;
+            }
+            const script = document.createElement('script');
+            script.id = 'kakao-map-script';
+            script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${apiKey}&libraries=services&autoload=false`;
+            script.onload = () => window.kakao.maps.load(runGeocode);
+            document.head.appendChild(script);
+        };
+
+        ensureKakaoAndRun();
+    }, [academies, privateTutors, region]);
 
     useEffect(() => {
         if (!region) return;
@@ -1611,8 +1773,8 @@ export default function InspectionPage({ onBack, academies, privateTutors, onSel
                 ) : (
                     <div>
                         {activeTab === 0 && <TabRecent region={region} academies={academies} onSelectAcademy={onSelectAcademy} />}
-                        {activeTab === 1 && <TabStats region={region} statRows={statRows} academies={academies} privateTutors={privateTutors} academyClosures={academyClosures} />}
-                        {activeTab === 2 && <TabReview region={region} academies={academies} privateTutors={privateTutors} academyClosures={academyClosures} />}
+                        {activeTab === 1 && <TabStats region={region} statRows={statRows} academies={academies} privateTutors={privateTutors} academyClosures={academyClosures} addrDongCacheVer={addrDongCacheVer} />}
+                        {activeTab === 2 && <TabReview region={region} academies={academies} privateTutors={privateTutors} academyClosures={academyClosures} onSelectAcademy={onSelectAcademy} addrDongCacheVer={addrDongCacheVer} />}
                         {activeTab === 3 && <TabPlaceholder label="주의" />}
                     </div>
                 )}
