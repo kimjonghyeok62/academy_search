@@ -508,6 +508,7 @@ function TabRecent({ region, academies, onSelectAcademy, initialPage = 0, initia
                                 <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: '600' }}>총 점검</span>
                                 <span style={{ fontSize: '1.4rem', fontWeight: '800', color: '#6366f1' }}>{pastGroupedRows.length}</span>
                                 <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>건</span>
+                                <span style={{ fontSize: '0.72rem', color: '#94a3b8', marginLeft: '6px' }}>기준일: {TODAY_DATE.getFullYear()}.{String(TODAY_DATE.getMonth()+1).padStart(2,'0')}.{String(TODAY_DATE.getDate()).padStart(2,'0')}.</span>
                             </div>
                             {totalInspTarget > 0 && (
                                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 8px', background: '#f8fafc', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
@@ -601,6 +602,7 @@ function TabRecent({ region, academies, onSelectAcademy, initialPage = 0, initia
                         <table style={{ width: '100%', minWidth: '300px', borderCollapse: 'collapse', fontSize: '0.83rem' }}>
                             <thead>
                                 <tr style={{ background: 'linear-gradient(180deg,#f8fafc 0%,#f1f5f9 100%)', borderBottom: '2px solid var(--border-color)' }}>
+                                    <th style={{ padding: '9px 8px', width: '28px', color: '#64748b', fontWeight: '700', fontSize: '0.72rem', whiteSpace: 'nowrap', textAlign: 'center', background: 'transparent' }}>#</th>
                                     {/* 점검일+학원명 통합 sticky 헤더 */}
                                     <th style={{
                                         padding: '9px 12px', width: '120px', color: '#64748b', fontWeight: '700', fontSize: '0.72rem',
@@ -633,6 +635,8 @@ function TabRecent({ region, academies, onSelectAcademy, initialPage = 0, initia
                                             onMouseEnter={isFuture ? undefined : (e => { e.currentTarget.style.background = '#eef2ff'; e.currentTarget.style.boxShadow = 'inset 0 0 0 1px #c7d2fe'; })}
                                             onMouseLeave={isFuture ? undefined : (e => { e.currentTarget.style.background = finalBg; e.currentTarget.style.boxShadow = 'none'; })}
                                         >
+                                            {/* 연번 */}
+                                            <td style={{ padding: '8px 6px', textAlign: 'center', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: '600', verticalAlign: 'middle', background: finalBg }}>{globalIdx + 1}</td>
                                             {/* 점검일 + 학원명 통합 sticky */}
                                             <td style={{
                                                 padding: '8px 10px',
@@ -1495,8 +1499,9 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
         return results;
     }, [aList, hActiveList]);
 
-    const ReviewSection = ({ id, title, badge, badgeColor, children }) => {
+    const ReviewSection = ({ id, title, badge, badgeColor, children, alwaysShow }) => {
         const isOpen = openSections[id];
+        if (badge === 0 && !alwaysShow) return null;
         return (
             <div style={{ background: 'var(--bg-card)', borderRadius: '14px', padding: '14px 16px', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)', marginBottom: '12px' }}>
                 <button onClick={() => toggleSection(id)} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
@@ -1643,7 +1648,7 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
             </ReviewSection>
 
             {/* 8. 우편번호 불일치 */}
-            <ReviewSection id="zipIssues" title="우편번호 불일치 (Kakao 검증)" badge={zipDisplayed.length} badgeColor="#f59e0b">
+            <ReviewSection id="zipIssues" title="우편번호 불일치 (Kakao 검증)" badge={zipDisplayed.length} badgeColor="#f59e0b" alwaysShow>
                 <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                     <button onClick={startZipLookup} disabled={zipLoading} style={{ padding: '5px 14px', borderRadius: '8px', border: 'none', background: zipLoading ? '#94a3b8' : 'var(--primary)', color: 'white', fontWeight: '700', fontSize: '0.8rem', cursor: zipLoading ? 'default' : 'pointer' }}>
                         {zipLoading ? `조회 중... (${zipProgress}/${zipAllItems.length})` : `Kakao API로 전체 ${zipAllItems.length}건 우편번호 검증`}
@@ -1780,6 +1785,54 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
         onSubStateChange?.(next);
         return next;
     });
+
+    // ── 점검완료 추적 ──
+    const [inspectedNames, setInspectedNames] = useState(new Set());
+    const [riskAcOpen, setRiskAcOpen] = useState(false);
+    const [riskHgOpen, setRiskHgOpen] = useState(false);
+    const [acRefreshed, setAcRefreshed] = useState(false);
+    const [hgRefreshed, setHgRefreshed] = useState(false);
+    const [riskRefreshing, setRiskRefreshing] = useState(false);
+    // overdue per-dong refresh state: Map<dong, Set<'ac'|'hg'>>
+    const [overdueRefreshed, setOverdueRefreshed] = useState(new Map());
+    const [overdueRefreshing, setOverdueRefreshing] = useState(false);
+
+    const normName = (n) => (n || '').replace(/[^a-zA-Z0-9가-힣]/g, '').toLowerCase();
+    const isInsp2026 = useCallback((a) => inspectedNames.has(normName(a.name)), [inspectedNames]);
+
+    const loadInspectedNames = async () => {
+        try {
+            const { bodyRows } = await fetchRecentRawRows();
+            const names = new Set(bodyRows.map(r =>
+                normName(colVal(r, ['학원(교습소)명', '명칭', '학원명', '기관명']))
+            ).filter(Boolean));
+            setInspectedNames(names);
+            return names;
+        } catch { return new Set(); }
+    };
+
+    useEffect(() => { loadInspectedNames(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const handleRiskRefresh = async (type) => {
+        setRiskRefreshing(true);
+        await loadInspectedNames();
+        if (type === 'ac') { setAcRefreshed(true); }
+        else { setHgRefreshed(true); }
+        setRiskRefreshing(false);
+    };
+
+    const handleOverdueRefresh = async (dong, catKey) => {
+        setOverdueRefreshing(true);
+        await loadInspectedNames();
+        setOverdueRefreshed(prev => {
+            const next = new Map(prev);
+            const cur = new Set(next.get(dong) || []);
+            cur.add(catKey);
+            next.set(dong, cur);
+            return next;
+        });
+        setOverdueRefreshing(false);
+    };
 
     const typeColor = (t) => t === '학원' ? '#3b82f6' : t === '교습소' ? '#8b5cf6' : '#10b981';
 
@@ -2247,64 +2300,103 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
             </CautionSection>
 
             {/* C. 점검 우선순위 (신설미점검 포함) */}
-            <CautionSection id="risk" title="🎯 점검 우선순위" badge={riskList.length} badgeColor="#6366f1">
+            <CautionSection id="risk" title={`🎯 점검 우선순위 (전체 ${riskList.length}개 중 상위 50개씩)`} badge={Math.min(riskList.filter(a=>a.category!=='교습소').length,50)+Math.min(riskList.filter(a=>a.category==='교습소').length,50)} badgeColor="#6366f1">
                 {(() => {
-                    const acItems = riskList.filter(a => a.category !== '교습소');
-                    const hgItems = riskList.filter(a => a.category === '교습소');
+                    const allAcItems = riskList.filter(a => a.category !== '교습소');
+                    const allHgItems = riskList.filter(a => a.category === '교습소');
+                    const acDisplayItems = acRefreshed
+                        ? allAcItems.filter(a => !isInsp2026(a)).slice(0, 50)
+                        : allAcItems.slice(0, 50);
+                    const hgDisplayItems = hgRefreshed
+                        ? allHgItems.filter(a => !isInsp2026(a)).slice(0, 50)
+                        : allHgItems.slice(0, 50);
                     const fmtMonths = (a) => a.neverInspected ? '미점검' : a.months >= 12 ? `${Math.floor(a.months/12)}년${a.months%12>0?' '+a.months%12+'개월':''}` : `${a.months}개월`;
-                    const renderRow = (a, i, globalIdx) => (
-                        <tr key={`${a.id}_${i}`} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
-                            <Td style={{ color: globalIdx < 3 ? '#ef4444' : 'var(--text-muted)', fontWeight: '800', fontSize: '0.78rem' }}>{globalIdx + 1}</Td>
-                            <Td style={{ whiteSpace: 'nowrap' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                    <NameLink id={a.id} type={a.category === '교습소' ? '교습소' : '학원'} name={a.name} />
-                                    {a.neverInspected && <span style={{ fontSize: '0.67rem', color: '#10b981', fontWeight: '700' }}>신설</span>}
+                    const renderRow = (a, i) => {
+                        const done = isInsp2026(a);
+                        return (
+                            <tr key={`${a.id}_${i}`} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)', opacity: done ? 0.5 : 1 }}>
+                                <Td style={{ color: i < 3 ? '#ef4444' : 'var(--text-muted)', fontWeight: '800', fontSize: '0.78rem' }}>{i + 1}</Td>
+                                <Td style={{ whiteSpace: 'nowrap' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        <NameLink id={a.id} type={a.category === '교습소' ? '교습소' : '학원'} name={a.name} />
+                                        {a.neverInspected && <span style={{ fontSize: '0.67rem', color: '#10b981', fontWeight: '700' }}>신설</span>}
+                                        {done && <span style={{ fontSize: '0.67rem', color: '#6366f1', fontWeight: '700' }}>(완료)</span>}
+                                    </div>
+                                </Td>
+                                <Td style={{ whiteSpace: 'nowrap' }}>
+                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-main)', fontWeight: '600' }}>{a.founder?.name || '-'}</div>
+                                    {(a.founder?.mobile || a.founder?.phone) && <a href={`tel:${a.founder?.mobile || a.founder?.phone}`} onClick={e => e.stopPropagation()} style={{ color: '#3b82f6', fontWeight: '600', fontSize: '0.75rem', textDecoration: 'none' }}>{a.founder?.mobile || a.founder?.phone}</a>}
+                                </Td>
+                                <Td style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>{a.dong || '-'}</Td>
+                                <Td style={{ fontWeight: '700', fontSize: '0.78rem', color: a.months >= 36 ? '#ef4444' : a.months >= 24 ? '#f59e0b' : 'var(--text-muted)' }}>{fmtMonths(a)}</Td>
+                                <Td>{a.hasIns ? <span style={{ fontSize: '0.71rem', padding: '1px 5px', borderRadius: '4px', background: '#fef3c7', color: '#d97706', fontWeight: '700' }}>⚠️보험</span> : <span style={{ color: '#10b981', fontSize: '0.78rem' }}>✓</span>}</Td>
+                                <Td>{a.viol > 0 ? <span style={{ fontSize: '0.71rem', padding: '1px 5px', borderRadius: '4px', background: '#fee2e2', color: '#dc2626', fontWeight: '700' }}>{a.viol}건</span> : <span style={{ color: 'var(--text-muted)', fontSize: '0.76rem' }}>-</span>}</Td>
+                                <Td style={{ fontWeight: '700', fontSize: '0.78rem', color: a.score >= 0.7 ? '#ef4444' : a.score >= 0.4 ? '#f97316' : 'var(--text-main)' }}>{Math.round(a.score * 100)}</Td>
+                            </tr>
+                        );
+                    };
+                    const SubAccordion = ({ label, color, items, isOpen, setOpen, onRefresh, colCount }) => (
+                        <div style={{ border: '1px solid var(--border-color)', borderRadius: '8px', marginBottom: '8px', overflow: 'hidden' }}>
+                            <div style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'var(--bg-main)', cursor: 'pointer' }} onClick={() => setOpen(v => !v)}>
+                                <span style={{ fontWeight: '700', fontSize: '0.82rem', color }}>{label}</span>
+                                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{items.length}개</span>
+                                <button
+                                    onClick={e => { e.stopPropagation(); onRefresh(); }}
+                                    disabled={riskRefreshing}
+                                    style={{ marginLeft: 'auto', fontSize: '0.72rem', padding: '2px 8px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', cursor: 'pointer', color: 'var(--text-muted)', fontWeight: '600' }}
+                                >
+                                    {riskRefreshing ? '⟳' : '새로고침'}
+                                </button>
+                                <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', flexShrink: 0 }}>{isOpen ? '▲' : '▼'}</span>
+                            </div>
+                            {isOpen && (
+                                <div style={{ overflowX: 'auto' }}>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                        <thead><tr>
+                                            <Th style={{ width: '28px' }}>#</Th>
+                                            <Th>학원명</Th><Th>연락처</Th><Th>동</Th><Th>미점검</Th><Th>보험</Th><Th>위반</Th><Th>점수</Th>
+                                        </tr></thead>
+                                        <tbody>
+                                            {items.map((a, i) => renderRow(a, i))}
+                                        </tbody>
+                                    </table>
                                 </div>
-                            </Td>
-                            <Td style={{ whiteSpace: 'nowrap' }}>
-                                <div style={{ fontSize: '0.75rem', color: 'var(--text-main)', fontWeight: '600' }}>{a.founder?.name || '-'}</div>
-                                {(a.founder?.mobile || a.founder?.phone) && <a href={`tel:${a.founder?.mobile || a.founder?.phone}`} onClick={e => e.stopPropagation()} style={{ color: '#3b82f6', fontWeight: '600', fontSize: '0.75rem', textDecoration: 'none' }}>{a.founder?.mobile || a.founder?.phone}</a>}
-                            </Td>
-                            <Td style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>{a.dong || '-'}</Td>
-                            <Td style={{ fontWeight: '700', fontSize: '0.78rem', color: a.months >= 36 ? '#ef4444' : a.months >= 24 ? '#f59e0b' : 'var(--text-muted)' }}>{fmtMonths(a)}</Td>
-                            <Td>{a.hasIns ? <span style={{ fontSize: '0.71rem', padding: '1px 5px', borderRadius: '4px', background: '#fef3c7', color: '#d97706', fontWeight: '700' }}>⚠️보험</span> : <span style={{ color: '#10b981', fontSize: '0.78rem' }}>✓</span>}</Td>
-                            <Td>{a.viol > 0 ? <span style={{ fontSize: '0.71rem', padding: '1px 5px', borderRadius: '4px', background: '#fee2e2', color: '#dc2626', fontWeight: '700' }}>{a.viol}건</span> : <span style={{ color: 'var(--text-muted)', fontSize: '0.76rem' }}>-</span>}</Td>
-                            <Td style={{ fontWeight: '700', fontSize: '0.78rem', color: a.score >= 0.7 ? '#ef4444' : a.score >= 0.4 ? '#f97316' : 'var(--text-main)' }}>{Math.round(a.score * 100)}</Td>
-                        </tr>
+                            )}
+                        </div>
                     );
                     return (
-                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                            <thead><tr>
-                                <Th style={{ width: '28px' }}>#</Th>
-                                <Th>학원명</Th><Th>연락처</Th><Th>동</Th><Th>미점검</Th><Th>보험</Th><Th>위반</Th><Th>점수</Th>
-                            </tr></thead>
-                            <tbody>
-                                {acItems.length > 0 && <TypeSubHeader label="🏫 학원" count={acItems.length} color="#3b82f6" colSpan={8} />}
-                                {acItems.map((a, i) => renderRow(a, i, i))}
-                                {hgItems.length > 0 && <TypeSubHeader label="🏠 교습소" count={hgItems.length} color="#8b5cf6" colSpan={8} />}
-                                {hgItems.map((a, i) => renderRow(a, i, acItems.length + i))}
-                            </tbody>
-                        </table>
+                        <div style={{ padding: '4px 0' }}>
+                            <SubAccordion label="🏫 학원" color="#3b82f6" items={acDisplayItems} isOpen={riskAcOpen} setOpen={setRiskAcOpen} onRefresh={() => handleRiskRefresh('ac')} colCount={8} />
+                            <SubAccordion label="🏠 교습소" color="#8b5cf6" items={hgDisplayItems} isOpen={riskHgOpen} setOpen={setRiskHgOpen} onRefresh={() => handleRiskRefresh('hg')} colCount={8} />
+                        </div>
                     );
                 })()}
             </CautionSection>
 
             {/* D. 2년 이상 미점검 (동별) */}
             <CautionSection id="overdue" title="📅 2년 이상 미점검 학원·교습소 (동별)" badge={overdueList.length} badgeColor="#f59e0b">
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                    <thead><tr>
-                        <Th>학원명</Th><Th>연락처</Th><Th>미점검</Th><Th>보험</Th><Th>위반</Th><Th>마지막점검일</Th>
-                    </tr></thead>
-                    <tbody>
+                {(() => {
+                    let globalRowNum = 0;
+                    return (
+                        <div style={{ padding: '4px 0' }}>
                         {overdueByDong.map(({ dong, items }) => {
-                            const acItems = items.filter(a => a.category !== '교습소');
-                            const hgItems = items.filter(a => a.category === '교습소');
+                            const refreshedCats = overdueRefreshed.get(dong) || new Set();
+                            const allAcItems = items.filter(a => a.category !== '교습소');
+                            const allHgItems = items.filter(a => a.category === '교습소');
+                            const acItems = refreshedCats.has('ac') ? allAcItems.filter(a => !isInsp2026(a)) : allAcItems;
+                            const hgItems = refreshedCats.has('hg') ? allHgItems.filter(a => !isInsp2026(a)) : allHgItems;
                             const renderRow = (a, i) => {
+                                const rowNum = ++globalRowNum;
                                 const lastD = lastRegularDate(a);
+                                const done = isInsp2026(a);
                                 return (
-                                    <tr key={`${a.id}_${i}`} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
+                                    <tr key={`${a.id}_${i}`} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)', opacity: done ? 0.5 : 1 }}>
+                                        <Td style={{ color: 'var(--text-muted)', fontWeight: '700', fontSize: '0.76rem', textAlign: 'center' }}>{rowNum}</Td>
                                         <Td style={{ whiteSpace: 'nowrap' }}>
-                                            <NameLink id={a.id} type={a.category === '교습소' ? '교습소' : '학원'} name={a.name} />
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                <NameLink id={a.id} type={a.category === '교습소' ? '교습소' : '학원'} name={a.name} />
+                                                {done && <span style={{ fontSize: '0.67rem', color: '#6366f1', fontWeight: '700' }}>(완료)</span>}
+                                            </div>
                                         </Td>
                                         <Td style={{ whiteSpace: 'nowrap' }}>
                                             <div style={{ fontSize: '0.75rem', color: 'var(--text-main)', fontWeight: '600' }}>{a.founder?.name || '-'}</div>
@@ -2321,22 +2413,50 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                                     </tr>
                                 );
                             };
+                            const RefreshBtn = ({ catKey }) => (
+                                <button
+                                    onClick={() => handleOverdueRefresh(dong, catKey)}
+                                    disabled={overdueRefreshing}
+                                    style={{ fontSize: '0.69rem', padding: '1px 6px', borderRadius: '5px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', cursor: 'pointer', color: 'var(--text-muted)', fontWeight: '600', marginLeft: '6px' }}
+                                >{overdueRefreshing ? '⟳' : '새로고침'}</button>
+                            );
                             return (
-                                <React.Fragment key={dong}>
-                                    <tr style={{ background: 'var(--bg-main)' }}>
-                                        <td colSpan={6} style={{ fontWeight: '700', padding: '6px 10px', fontSize: '0.8rem', color: 'var(--text-main)', borderBottom: '1px solid var(--border-color)' }}>
-                                            📍 {dong} <span style={{ fontWeight: '400', color: 'var(--text-muted)' }}>({items.length}개)</span>
-                                        </td>
-                                    </tr>
-                                    {acItems.length > 0 && <TypeSubHeader label="🏫 학원" count={acItems.length} color="#3b82f6" colSpan={6} />}
-                                    {acItems.map((a, i) => renderRow(a, i))}
-                                    {hgItems.length > 0 && <TypeSubHeader label="🏠 교습소" count={hgItems.length} color="#8b5cf6" colSpan={6} />}
-                                    {hgItems.map((a, i) => renderRow(a, i))}
-                                </React.Fragment>
+                                <div key={dong} style={{ border: '1px solid var(--border-color)', borderRadius: '8px', marginBottom: '8px', overflow: 'hidden' }}>
+                                    <div style={{ fontWeight: '700', padding: '7px 12px', fontSize: '0.8rem', color: 'var(--text-main)', background: 'var(--bg-main)', borderBottom: '1px solid var(--border-color)' }}>
+                                        📍 {dong} <span style={{ fontWeight: '400', color: 'var(--text-muted)' }}>({items.length}개)</span>
+                                    </div>
+                                    <div style={{ overflowX: 'auto' }}>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                            <thead><tr>
+                                                <Th style={{ width: '28px' }}>#</Th>
+                                                <Th>학원명</Th><Th>연락처</Th><Th>미점검</Th><Th>보험</Th><Th>위반</Th><Th>마지막점검일</Th>
+                                            </tr></thead>
+                                            <tbody>
+                                                {acItems.length > 0 && (
+                                                    <tr style={{ background: 'var(--bg-main)' }}>
+                                                        <td colSpan={7} style={{ padding: '4px 10px', fontSize: '0.76rem', fontWeight: '700', color: '#3b82f6', borderBottom: '1px solid var(--border-color)' }}>
+                                                            🏫 학원 ({acItems.length}개)<RefreshBtn catKey="ac" />
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                                {acItems.map((a, i) => renderRow(a, i))}
+                                                {hgItems.length > 0 && (
+                                                    <tr style={{ background: 'var(--bg-main)' }}>
+                                                        <td colSpan={7} style={{ padding: '4px 10px', fontSize: '0.76rem', fontWeight: '700', color: '#8b5cf6', borderBottom: '1px solid var(--border-color)' }}>
+                                                            🏠 교습소 ({hgItems.length}개)<RefreshBtn catKey="hg" />
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                                {hgItems.map((a, i) => renderRow(a, i))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
                             );
                         })}
-                    </tbody>
-                </table>
+                        </div>
+                    );
+                })()}
             </CautionSection>
 
         </div>
