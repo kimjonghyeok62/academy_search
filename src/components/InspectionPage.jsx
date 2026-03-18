@@ -397,24 +397,29 @@ function TabRecent({ region, academies, onSelectAcademy, initialPage = 0, initia
     }, [rows]);
 
 
-    // 점검목적별 집계 (그룹 기준)
+    // 오늘 이전(포함) 완료된 점검만 (통계 표시용)
+    const pastGroupedRows = useMemo(() =>
+        groupedRows.filter(g => { const d = parseInspDate(g.date); return d && d <= TODAY_DATE; })
+    , [groupedRows]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // 점검목적별 집계 (오늘까지 완료된 점검 기준)
     const purposeMap = useMemo(() => {
         const map = {};
-        groupedRows.forEach(g => {
+        pastGroupedRows.forEach(g => {
             const p = classifyPurpose(g.row);
             map[p] = (map[p] || 0) + 1;
         });
         return map;
-    }, [groupedRows]);
+    }, [pastGroupedRows]);
 
     const inspRate = totalInspTarget > 0 ? Math.round(uniqueAcademyCount / totalInspTarget * 100) : 0;
     const targetAcademyCount = Math.round(totalInspTarget * 0.49); // 49% 목표수치
     const targetRate = targetAcademyCount > 0 ? Math.round(uniqueAcademyCount / targetAcademyCount * 100) : 0;
 
-    // ── 월별 1차, 2차 통계 계산 ──
+    // ── 월별 1차, 2차 통계 계산 (오늘까지 완료된 점검 기준) ──
     const monthlyStats = useMemo(() => {
         const stats = {};
-        groupedRows.forEach(g => {
+        pastGroupedRows.forEach(g => {
             const d = (g.date || '').trim();
             const m = d.match(/(\d{4})[.\-/\s]+(\d{1,2})[.\-/\s]+(\d{1,2})/);
             if (m) {
@@ -445,7 +450,7 @@ function TabRecent({ region, academies, onSelectAcademy, initialPage = 0, initia
                 count: stats[k]
             };
         });
-    }, [groupedRows]);
+    }, [pastGroupedRows]);
 
     // 학원별 교차 배경 (학원명이 바뀔 때마다 0/1 토글)
     const academyBgMap = useMemo(() => {
@@ -501,7 +506,7 @@ function TabRecent({ region, academies, onSelectAcademy, initialPage = 0, initia
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                             <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
                                 <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: '600' }}>총 점검</span>
-                                <span style={{ fontSize: '1.4rem', fontWeight: '800', color: '#6366f1' }}>{groupedRows.length}</span>
+                                <span style={{ fontSize: '1.4rem', fontWeight: '800', color: '#6366f1' }}>{pastGroupedRows.length}</span>
                                 <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>건</span>
                             </div>
                             {totalInspTarget > 0 && (
@@ -2379,8 +2384,8 @@ export default function InspectionPage({ onBack, academies, privateTutors, onSel
         onSelectAcademy(academy);
     }, [region, activeTab, onSelectAcademy]);
 
-    const TABS      = ['2026 지도점검', '통계', '검토', '주의'];
-    const TAB_ICONS = ['🕐', '📊', '🔬', '⚠️'];
+    const TABS      = ['점검 완료', '점검 계획', '통계', '검토'];
+    const TAB_ICONS = ['🕐', '⚠️', '📊', '🔬'];
 
     useEffect(() => {
         fetchAcademyClosureData()
@@ -2558,9 +2563,9 @@ export default function InspectionPage({ onBack, academies, privateTutors, onSel
                 ) : (
                     <div>
                         {activeTab === 0 && <TabRecent region={region} academies={academies} onSelectAcademy={handleSelectAcademy} initialPage={recentInitPage} initialScrollY={recentInitScrollY} onPageChange={p => handleSubStateChange({ page: p })} />}
-                        {activeTab === 1 && <TabStats region={region} statRows={statRows} academies={academies} privateTutors={privateTutors} academyClosures={academyClosures} addrDongCacheVer={addrDongCacheVer} />}
-                        {activeTab === 2 && <TabReview region={region} academies={academies} privateTutors={privateTutors} academyClosures={academyClosures} onSelectAcademy={handleSelectAcademy} addrDongCacheVer={addrDongCacheVer} initialOpenSections={savedSubState.reviewOpenSections} onSubStateChange={s => handleSubStateChange({ reviewOpenSections: s })} />}
-                        {activeTab === 3 && <TabCaution region={region} academies={academies} privateTutors={privateTutors} academyClosures={academyClosures} onSelectAcademy={handleSelectAcademy} addrDongCacheVer={addrDongCacheVer} initialOpenSections={savedSubState.cautionOpenSections} onSubStateChange={s => handleSubStateChange({ cautionOpenSections: s })} />}
+                        {activeTab === 1 && <TabCaution region={region} academies={academies} privateTutors={privateTutors} academyClosures={academyClosures} onSelectAcademy={handleSelectAcademy} addrDongCacheVer={addrDongCacheVer} initialOpenSections={savedSubState.cautionOpenSections} onSubStateChange={s => handleSubStateChange({ cautionOpenSections: s })} />}
+                        {activeTab === 2 && <TabStats region={region} statRows={statRows} academies={academies} privateTutors={privateTutors} academyClosures={academyClosures} addrDongCacheVer={addrDongCacheVer} />}
+                        {activeTab === 3 && <TabReview region={region} academies={academies} privateTutors={privateTutors} academyClosures={academyClosures} onSelectAcademy={handleSelectAcademy} addrDongCacheVer={addrDongCacheVer} initialOpenSections={savedSubState.reviewOpenSections} onSubStateChange={s => handleSubStateChange({ reviewOpenSections: s })} />}
                     </div>
                 )}
             </div>
