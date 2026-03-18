@@ -117,54 +117,67 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy }) {
         });
     };
 
-    // 주소 -> 좌표 변환 헬퍼 (카카오 네이티브)
+    // 행정동→법정동 정규화: "신장1동" → "신장동"
+    const normDong = d => d.replace(/([가-힣]+)\d+(동|리|읍|면)$/, '$1$2');
+
+    // 주소 객체에서 동명 추출
+    const extractDong = (addrObj) => {
+        const r3 = addrObj?.region_3depth_name || '';
+        if (r3) return normDong(r3);
+        const name = addrObj?.address_name || '';
+        const after = name.replace(/^.*?시\s*/, '');
+        const m = after.match(/([가-힣]+(?:\d+)?(?:동|리|읍|면))/);
+        return m ? normDong(m[1]) : '';
+    };
+
+    // 주소 → 여러 후보 주소 생성 (정제 단계별)
+    const makeAddrCandidates = (address) => {
+        const seen = new Set();
+        const add = (s) => { const t = s.trim(); if (t.length > 4) seen.add(t); };
+
+        // 0. 원본
+        add(address);
+        // 1. 콤마 앞 + 괄호 제거
+        let base = address.split(',')[0].replace(/\s*\([^)]*\)/g, '').trim();
+        add(base);
+        // 2. 범위호·층·단일호 제거
+        let noHo = base
+            .replace(/\s+\d+~\d+호.*$/, '')
+            .replace(/\s+[A-Z동]?\d+층.*$/, '')
+            .replace(/\s+\d+호.*$/, '')
+            .trim();
+        add(noHo);
+        // 3. 아파트 "N동 M호" 제거
+        let noApt = noHo.replace(/\s+\d+동\s*\d*호?.*$/, '').trim();
+        add(noApt);
+        // 4. 부번 제거 (270-1 → 270)
+        add(noApt.replace(/(\d+)-\d+\s*$/, '$1'));
+        add(noHo.replace(/(\d+)-\d+\s*$/, '$1'));
+        // 5. 도로명+번지만 (로/길 + 숫자)
+        const roadMatch = address.match(/^(.*?[로길]\s+\d+(?:-\d+)?)/);
+        if (roadMatch) add(roadMatch[1]);
+
+        return [...seen];
+    };
+
+    // 주소 -> 좌표 변환 헬퍼 (다중 전략 fallback)
     const geocodeAddress = (kakao, address) => {
         return new Promise((resolve) => {
             const geocoder = new kakao.maps.services.Geocoder();
+            const candidates = makeAddrCandidates(address);
 
-            // 도로명+건물번호만 추출 (호수/층수/괄호 제거)
-            const cleanAddr = (addr) => {
-                let r = addr.split(',')[0].trim();            // 콤마 앞까지만
-                r = r.replace(/\s*\([^)]*\)/g, '').trim();   // (망월동) 등 괄호 제거
-                r = r.replace(/\s+\d+~\d+호.*$/, '').trim(); // 303~305호 등 범위호 제거
-                r = r.replace(/\s+\d+층.*$/, '').trim();     // 3층 이상 정보 제거
-                return r;
-            };
-
-            const primary = cleanAddr(address);
-
-            // 지번 주소 객체에서 법정동명 추출: region_3depth_name 우선, 없으면 address_name 파싱
-            const extractDong = (addrObj) => {
-                const r3 = addrObj?.region_3depth_name || '';
-                if (r3) return r3;
-                // address_name 예: "경기도 하남시 신장동 123" → 동/리/읍/면 패턴 추출
-                const name = addrObj?.address_name || '';
-                const after = name.replace(/^.*?시\s*/, '');
-                const m = after.match(/([가-힣]+(?:동|리|읍|면))/);
-                return m ? m[1] : '';
-            };
-
-            geocoder.addressSearch(primary, (result, status) => {
-                if (status === kakao.maps.services.Status.OK) {
-                    const dong = extractDong(result[0].address);
-                    resolve({ lat: parseFloat(result[0].y), lng: parseFloat(result[0].x), dong });
-                } else {
-                    // 부번(-숫자) 제거 후 재시도 (e.g., "270-1" → "270")
-                    const fallback = primary.replace(/(\d+)-\d+(\s*)$/, '$1$2').trim();
-                    if (fallback !== primary) {
-                        geocoder.addressSearch(fallback, (r2, s2) => {
-                            if (s2 === kakao.maps.services.Status.OK) {
-                                const dong = extractDong(r2[0].address);
-                                resolve({ lat: parseFloat(r2[0].y), lng: parseFloat(r2[0].x), dong });
-                            } else {
-                                resolve(null);
-                            }
-                        });
+            const tryNext = (idx) => {
+                if (idx >= candidates.length) { resolve(null); return; }
+                geocoder.addressSearch(candidates[idx], (result, status) => {
+                    if (status === kakao.maps.services.Status.OK && result[0]) {
+                        const dong = extractDong(result[0].address);
+                        resolve({ lat: parseFloat(result[0].y), lng: parseFloat(result[0].x), dong });
                     } else {
-                        resolve(null);
+                        tryNext(idx + 1);
                     }
-                }
-            });
+                });
+            };
+            tryNext(0);
         });
     };
 
@@ -249,7 +262,8 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy }) {
                         : `${academy.id}-${academy.category}`;
                     let coords = cachedLocations[cacheKey];
 
-                    if (coords === undefined) {
+                    if (coords === undefined || coords === null) {
+                        // null(이전 실패)도 개선된 전략으로 재시도
                         coords = await geocodeAddress(kakao, academy.address);
                         cachedLocations[cacheKey] = coords || null; // 실패도 null로 저장 (검토 탭 감지용)
                         newCacheNeeded = true;
