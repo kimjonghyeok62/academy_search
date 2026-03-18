@@ -2375,7 +2375,7 @@ export default function InspectionPage({ onBack, academies, privateTutors, onSel
         onSelectAcademy(academy);
     }, [region, activeTab, onSelectAcademy]);
 
-    const TABS      = ['점검 완료', '점검 계획', '통계', '검토'];
+    const TABS      = ['완료', '계획', '통계', '검토'];
     const TAB_ICONS = ['🕐', '⚠️', '📊', '🔬'];
 
     useEffect(() => {
