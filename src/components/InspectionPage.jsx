@@ -746,17 +746,8 @@ function TabStats({ region, statRows, academies, privateTutors, academyClosures,
 
     const city = region.endsWith('시') ? region : region + '시';
 
-    // 하남시 / 광주시 법정동 화이트리스트
-    const HANAM_DONGS = useMemo(() => new Set([
-        '신장동','덕풍동','풍산동','미사동','망월동','선동','교산동','학암동',
-        '초일동','초이동','광암동','천현동','창우동','배일미동','하산곡동',
-        '상산곡동','감이동','감일동','항동','하사창동','상사창동','위례동','순궁동',
-    ]), []);
-    const GWANGJU_DONGS = useMemo(() => new Set([
-        '경안동','광남동','태전동','송정동','역동','삼동','탄벌동','목현동',
-        '오포읍','초월읍','곤지암읍','도척면','퇴촌면','남종면','남한산성면',
-    ]), []);
-    const DONG_WL = region === '하남' ? HANAM_DONGS : GWANGJU_DONGS;
+    // 동 화이트리스트 — 모듈 상수(HANAM_DONG_SET/GWANGJU_DONG_SET)와 동일하게 유지
+    const DONG_WL = useMemo(() => region === '하남' ? HANAM_DONG_SET : GWANGJU_DONG_SET, [region]);
 
     // academies prop 기반으로 기관 분류 (지도 데이터와 동일)
     const filtered = useMemo(() => (academies || []).filter(a => (a.address || '').includes(city)), [academies, city]);
@@ -1200,7 +1191,7 @@ const toDateRev = (s) => {
 
 function TabReview({ region, academies, privateTutors, academyClosures, onSelectAcademy, addrDongCacheVer, initialOpenSections, onSubStateChange }) {
     const city = region.endsWith('시') ? region : region + '시';
-    const DEFAULT_SECTIONS_REVIEW = { dateReverse: true, geoFail: true, dongUnclassified: false, noContact: false, hagwonClosure: true, dupReg: true, missingInfo: false, zipIssues: false, insurance: false, feeExceed: false };
+    const DEFAULT_SECTIONS_REVIEW = { dateReverse: false, geoFail: false, dongUnclassified: false, noContact: false, hagwonClosure: false, dupReg: false, missingInfo: false, zipIssues: false, insurance: false, feeExceed: false };
     const [openSections, setOpenSections] = useState(() => initialOpenSections || DEFAULT_SECTIONS_REVIEW);
     const toggleSection = (key) => setOpenSections(prev => {
         const next = { ...prev, [key]: !prev[key] };
