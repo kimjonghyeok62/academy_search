@@ -1191,7 +1191,7 @@ const toDateRev = (s) => {
 
 function TabReview({ region, academies, privateTutors, academyClosures, onSelectAcademy, addrDongCacheVer, initialOpenSections, onSubStateChange }) {
     const city = region.endsWith('시') ? region : region + '시';
-    const DEFAULT_SECTIONS_REVIEW = { dateReverse: false, geoFail: false, dongUnclassified: false, noContact: false, hagwonClosure: false, dupReg: false, missingInfo: false, zipIssues: false, insurance: false, feeExceed: false };
+    const DEFAULT_SECTIONS_REVIEW = { dateReverse: false, geoFail: false, dongUnclassified: false, noContact: false, hagwonClosure: false, dupReg: false, missingInfo: false, zipIssues: false, insurance: false, insCountMismatch: false, feeExceed: false };
     const [openSections, setOpenSections] = useState(() => initialOpenSections || DEFAULT_SECTIONS_REVIEW);
     const toggleSection = (key) => setOpenSections(prev => {
         const next = { ...prev, [key]: !prev[key] };
@@ -1434,6 +1434,26 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
                 return d && (!bd || d > bd) ? ins : b;
             }, null);
             return { type, id: a.id, name: a.name, phone: a.founder?.phone || '', mobile: a.founder?.mobile || '', issue: `만료 (${latest?.endDate || '-'})` };
+        }).filter(Boolean);
+        return [...check(aList, '학원'), ...check(hActiveList, '교습소')];
+    }, [aList, hActiveList]);
+
+    // 8c-1. 보험 강사수 vs 등록 강사수 불일치
+    const insCountMismatch = useMemo(() => {
+        const today = new Date();
+        const check = (list, type) => list.filter(a => isActive(a.status)).map(a => {
+            // 현재 유효한 보험 중 가장 최신 것의 강사수
+            const activeIns = (a.insurances || []).filter(ins => { const e = toDateRev(ins.endDate); return e && e >= today; });
+            const ins = activeIns.length > 0
+                ? activeIns.reduce((b, i) => { const d = toDateRev(i.endDate), bd = b ? toDateRev(b.endDate) : null; return d && (!bd || d > bd) ? i : b; }, null)
+                : null;
+            if (!ins) return null;
+            const insCount = parseInt((ins.teachersCount || '').toString().replace(/,/g, ''), 10);
+            if (isNaN(insCount) || insCount <= 0) return null;
+            // 해임일 없는 강사 수 = 현재 등록된 강사 수
+            const regCount = (a.instructors || []).filter(i => !i.dismissDate).length;
+            if (insCount === regCount) return null;
+            return { type, id: a.id, name: a.name, mobile: a.founder?.mobile || '', phone: a.founder?.phone || '', insCount, regCount, diff: regCount - insCount };
         }).filter(Boolean);
         return [...check(aList, '학원'), ...check(hActiveList, '교습소')];
     }, [aList, hActiveList]);
@@ -1689,6 +1709,29 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
                                 <Td><NameLink id={a.id} type={a.type} name={a.name} /></Td>
                                 <Td style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>{a.mobile || a.phone || '-'}</Td>
                                 <Td style={{ color: '#ef4444', fontWeight: '700' }}>{a.issue}</Td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </ReviewSection>
+
+            {/* 8c-1. 보험 강사수 vs 등록 강사수 불일치 */}
+            <ReviewSection id="insCountMismatch" title="보험 강사수 ≠ 등록 강사수" badge={insCountMismatch.length} badgeColor="#f59e0b">
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead><tr>
+                        <Th>구분</Th><Th>등록번호</Th><Th>명칭</Th><Th>보험 강사수</Th><Th>등록 강사수</Th><Th>차이</Th>
+                    </tr></thead>
+                    <tbody>
+                        {insCountMismatch.map((a, i) => (
+                            <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
+                                <Td><span style={{ color: typeColor(a.type), fontWeight: '700', fontSize: '0.78rem' }}>{a.type}</span></Td>
+                                <Td style={{ color: 'var(--text-muted)', fontSize: '0.74rem' }}>{a.id || '-'}</Td>
+                                <Td><NameLink id={a.id} type={a.type} name={a.name} /></Td>
+                                <Td style={{ fontWeight: '700', color: '#0369a1', textAlign: 'center' }}>{a.insCount}명</Td>
+                                <Td style={{ fontWeight: '700', color: '#7c3aed', textAlign: 'center' }}>{a.regCount}명</Td>
+                                <Td style={{ fontWeight: '700', color: a.diff > 0 ? '#10b981' : '#ef4444', textAlign: 'center' }}>
+                                    {a.diff > 0 ? `+${a.diff}` : a.diff}명
+                                </Td>
                             </tr>
                         ))}
                     </tbody>
