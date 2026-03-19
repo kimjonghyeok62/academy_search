@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 
-function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy }) {
+function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy, focusAcademy }) {
     // 환경 변수(.env)에서 먼저 키를 찾고, 없으면 localStorage 확인
     const [apiKey, setApiKey] = useState(
         import.meta.env.VITE_KAKAO_MAP_API_KEY || localStorage.getItem('kakao_api_key') || ''
@@ -18,6 +18,9 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy }) {
     const textOverlaysRef = useRef([]);
     const markersRef = useRef([]); // 마커들 관리
     const myLocationMarkerRef = useRef(null); // 현재 위치 마커
+    const kakaoRef = useRef(null); // kakao 객체 참조 (focusAcademy용)
+    const groupsArrayRef = useRef([]); // 마커 그룹 배열 (focusAcademy용)
+    const focusMarkerRef = useRef(null); // 포커스 학원 보라색 마커
     const [locating, setLocating] = useState(false); // 위치 탐색 중 상태
     const [filterAcademy, setFilterAcademy] = useState(true);
     const [filterTutoring, setFilterTutoring] = useState(true);
@@ -89,16 +92,12 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy }) {
                 return;
             }
 
-            // kakao.maps는 있지만 MarkerClusterer가 아직 초기화 안 된 경우 → maps.load() 재호출
+            // kakao.maps는 있지만 MarkerClusterer가 아직 초기화 안 된 경우
+            // → 기존 스크립트 제거 후 clusterer 포함하여 재로드
             if (window.kakao && window.kakao.maps && !window.kakao.maps.MarkerClusterer) {
-                window.kakao.maps.load(() => {
-                    if (window.kakao.maps.MarkerClusterer) {
-                        resolve(window.kakao);
-                    } else {
-                        reject(new Error("MarkerClusterer를 로드할 수 없습니다."));
-                    }
-                });
-                return;
+                const existingScript = document.getElementById('kakao-map-script');
+                if (existingScript) existingScript.remove();
+                // 아래 공통 스크립트 로드 로직으로 fall-through
             }
 
             const scriptId = 'kakao-map-script';
@@ -210,6 +209,7 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy }) {
             try {
                 const kakao = await loadKakaoMapScript();
                 if (!isMounted) return;
+                kakaoRef.current = kakao;
 
                 setStatusMsg("지도 초기화 중...");
 
@@ -328,6 +328,7 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy }) {
                 if (!isMounted) return;
 
                 const groupsArray = Array.from(groupedMarkers.values());
+                groupsArrayRef.current = groupsArray;
                 const markers = [];
                 const textOverlays = [];
 
@@ -680,6 +681,50 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy }) {
         setErrorMsg('');
         if (overlayRef.current) overlayRef.current.setMap(null);
     };
+
+    // focusAcademy: 지도 로딩 완료 후 해당 학원 위치로 이동 및 팝업 표시
+    useEffect(() => {
+        if (loading || !focusAcademy || !mapInstanceRef.current || !kakaoRef.current) return;
+        const kakao = kakaoRef.current;
+        const map = mapInstanceRef.current;
+        const group = groupsArrayRef.current.find(g => g.list.some(a => a.id === focusAcademy.id));
+        if (!group) return;
+        const position = new kakao.maps.LatLng(group.lat, group.lng);
+
+        // 기존 포커스 마커 제거
+        if (focusMarkerRef.current) {
+            focusMarkerRef.current.setMap(null);
+            focusMarkerRef.current = null;
+        }
+
+        // 보라색 핀 마커 생성
+        const pinEl = document.createElement('div');
+        pinEl.style.cssText = 'cursor:pointer;';
+        pinEl.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="36" height="48" viewBox="0 0 36 48" style="display:block;filter:drop-shadow(0 3px 6px rgba(109,40,217,0.5));">
+                <path d="M18 0C8.059 0 0 8.059 0 18c0 12 18 30 18 30S36 30 36 18C36 8.059 27.941 0 18 0z" fill="#7c3aed"/>
+                <circle cx="18" cy="18" r="9" fill="white"/>
+                <circle cx="18" cy="18" r="5" fill="#7c3aed"/>
+            </svg>
+        `;
+        pinEl.onclick = (e) => {
+            e.stopPropagation();
+            showOverlay(kakao, map, position, group.list);
+        };
+        const focusOverlay = new kakao.maps.CustomOverlay({
+            position,
+            content: pinEl,
+            zIndex: 200,
+            xAnchor: 0.5,
+            yAnchor: 1.0,
+        });
+        focusOverlay.setMap(map);
+        focusMarkerRef.current = focusOverlay;
+
+        map.setCenter(position);
+        map.setLevel(3);
+        showOverlay(kakao, map, position, group.list);
+    }, [loading, focusAcademy]);
 
     // 현재 위치 표시
     const handleMyLocation = () => {

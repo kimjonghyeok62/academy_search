@@ -702,7 +702,7 @@ function Section({ title, children, rightButton }) {
     );
 }
 
-export default function DetailView({ academy, allAcademies = [], onBack, onSelectAcademy }) {
+export default function DetailView({ academy, allAcademies = [], onBack, onSelectAcademy, onShowMap }) {
     const [activeTab, setActiveTab] = useState('status');
     const [showSensitiveInfo, setShowSensitiveInfo] = useState(false);
     const [expandedCourses, setExpandedCourses] = useState([]); // 모두 접힌 상태로 시작
@@ -978,7 +978,11 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
                                     <button
                                         onClick={(e) => {
                                             e.stopPropagation();
-                                            window.open(`https://map.naver.com/v5/search/${encodeURIComponent(academy.address)}`, '_blank');
+                                            if (onShowMap) {
+                                                onShowMap(academy);
+                                            } else {
+                                                window.open(`https://map.naver.com/v5/search/${encodeURIComponent(academy.address)}`, '_blank');
+                                            }
                                         }}
                                         style={{
                                             display: 'inline-flex',
@@ -1004,7 +1008,7 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
                                             e.currentTarget.style.backgroundColor = 'var(--bg-card)';
                                             e.currentTarget.style.borderColor = 'var(--border-color)';
                                         }}
-                                        title="네이버 지도에서 보기"
+                                        title="학원 등 분포지도에서 보기"
                                     >
                                         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                             <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>

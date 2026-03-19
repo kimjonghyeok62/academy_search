@@ -52,6 +52,7 @@ function App() {
   const [showInspection, setShowInspection] = useState(false); // 지도점검 화면
   const [showMap, setShowMap] = useState(false); // 맵 화면
   const [detailOrigin, setDetailOrigin] = useState('main'); // 상세화면 진입 출처 ('main' 또는 'inspection' 또는 'map')
+  const [focusAcademy, setFocusAcademy] = useState(null); // 지도에서 포커스할 학원
 
   // Clean up any old auth data on mount
   useEffect(() => {
@@ -439,10 +440,12 @@ function App() {
       <KakaoMapPage
         academies={academies}
         privateTutors={privateTutors}
-        onBack={() => setShowMap(false)}
+        focusAcademy={focusAcademy}
+        onBack={() => { setShowMap(false); setFocusAcademy(null); }}
         onSelectAcademy={(item) => {
           setDetailOrigin('map');
           setShowMap(false);
+          setFocusAcademy(null);
           setSelectedAcademy(item);
         }}
       />
@@ -477,6 +480,12 @@ function App() {
               if (detailOrigin === 'map') setShowMap(true);
             }}
             onSelectAcademy={(academy) => setSelectedAcademy(academy)}
+            onShowMap={(academy) => {
+              setFocusAcademy(academy);
+              setSelectedAcademy(null);
+              setDetailOrigin('map');
+              setShowMap(true);
+            }}
           />
         </ErrorBoundary>
       )}
