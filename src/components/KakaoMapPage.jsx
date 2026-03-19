@@ -17,6 +17,8 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy }) {
     const overlayRef = useRef(null);
     const textOverlaysRef = useRef([]);
     const markersRef = useRef([]); // 마커들 관리
+    const myLocationMarkerRef = useRef(null); // 현재 위치 마커
+    const [locating, setLocating] = useState(false); // 위치 탐색 중 상태
     const [filterAcademy, setFilterAcademy] = useState(true);
     const [filterTutoring, setFilterTutoring] = useState(true);
     const [filterGwangju, setFilterGwangju] = useState(false);
@@ -40,10 +42,8 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy }) {
         academies.forEach(a => {
             if (!a.id || !a.address) return;
 
-            // 통계 기준과 동일하게 명시적 폐원/폐소 상태만 제외
-            const status = a.status || '';
-            const CLOSED = ['자진폐원', '직권폐원', '자진폐소', '직권폐소'];
-            if (CLOSED.some(s => status.includes(s))) return;
+            // 개원 상태인 것만 포함
+            if (!(a.status || '').includes('개원')) return;
 
             const key = `${a.id}-${a.category}`;
             if (!map.has(key)) {
@@ -74,6 +74,7 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy }) {
         if (!privateTutors || !filterPrivateTutor) return [];
         return privateTutors.filter(t => {
             if (!t.address) return false;
+            if (!(t.status || '').includes('신고')) return false;
             const isHanam = t.address.includes('하남시');
             const isGwangju = t.address.includes('광주시');
             return (filterHanam && isHanam) || (filterGwangju && isGwangju);
@@ -83,8 +84,20 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy }) {
     // 카카오맵 스크립트 로드
     const loadKakaoMapScript = () => {
         return new Promise((resolve, reject) => {
-            if (window.kakao && window.kakao.maps && window.kakao.maps.services) {
+            if (window.kakao && window.kakao.maps && window.kakao.maps.services && window.kakao.maps.MarkerClusterer) {
                 resolve(window.kakao);
+                return;
+            }
+
+            // kakao.maps는 있지만 MarkerClusterer가 아직 초기화 안 된 경우 → maps.load() 재호출
+            if (window.kakao && window.kakao.maps && !window.kakao.maps.MarkerClusterer) {
+                window.kakao.maps.load(() => {
+                    if (window.kakao.maps.MarkerClusterer) {
+                        resolve(window.kakao);
+                    } else {
+                        reject(new Error("MarkerClusterer를 로드할 수 없습니다."));
+                    }
+                });
                 return;
             }
 
@@ -101,7 +114,10 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy }) {
 
             script.onload = () => {
                 window.kakao.maps.load(() => {
-                    if (window.kakao && window.kakao.maps && window.kakao.maps.services) {
+                    if (window.kakao && window.kakao.maps && window.kakao.maps.services && window.kakao.maps.MarkerClusterer) {
+                        resolve(window.kakao);
+                    } else if (window.kakao && window.kakao.maps && window.kakao.maps.services) {
+                        // clusterer 없이도 지도는 동작하도록 허용
                         resolve(window.kakao);
                     } else {
                         reject(new Error("서비스 라이브러리를 찾을 수 없습니다."));
@@ -219,13 +235,23 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy }) {
                     if (overlayRef.current) overlayRef.current.setMap(null);
                 });
 
-                // 클러스터러 생성
-                const clusterer = new kakao.maps.MarkerClusterer({
-                    map: map,
-                    averageCenter: true,
-                    minLevel: 5,
-                    disableClickZoom: false
-                });
+                // 클러스터러 생성 (없으면 마커 직접 map에 추가하는 폴백)
+                let clusterer;
+                try {
+                    clusterer = new kakao.maps.MarkerClusterer({
+                        map: map,
+                        averageCenter: true,
+                        minLevel: 5,
+                        disableClickZoom: false
+                    });
+                } catch (e) {
+                    // MarkerClusterer 미사용 폴백: 마커를 지도에 직접 추가
+                    clusterer = {
+                        addMarkers: (ms) => ms.forEach(m => m.setMap(map)),
+                        removeMarkers: (ms) => ms.forEach(m => m.setMap(null)),
+                    };
+                    console.warn('[KakaoMap] MarkerClusterer 미사용 — 개별 마커로 표시', e.message);
+                }
                 clustererRef.current = clusterer;
 
                 // 좌표 데이터 수집 및 그룹핑 시작
@@ -655,6 +681,59 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy }) {
         if (overlayRef.current) overlayRef.current.setMap(null);
     };
 
+    // 현재 위치 표시
+    const handleMyLocation = () => {
+        if (!navigator.geolocation) {
+            alert('이 브라우저는 위치 정보를 지원하지 않습니다.');
+            return;
+        }
+        const map = mapInstanceRef.current;
+        const kakao = window.kakao;
+        if (!map || !kakao) return;
+
+        setLocating(true);
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                setLocating(false);
+                const { latitude, longitude } = pos.coords;
+                const latlng = new kakao.maps.LatLng(latitude, longitude);
+
+                // 기존 현재 위치 마커 제거
+                if (myLocationMarkerRef.current) {
+                    myLocationMarkerRef.current.setMap(null);
+                }
+
+                // 빨간 마커 (핀 모양)
+                const content = `<div style="
+                    display:flex;flex-direction:column;align-items:center;
+                    transform:translateY(-100%);
+                ">
+                    <div style="
+                        width:22px;height:22px;border-radius:50% 50% 50% 0;
+                        background:#ef4444;border:3px solid #fff;
+                        transform:rotate(-45deg);
+                        box-shadow:0 2px 8px rgba(0,0,0,0.3);
+                    "></div>
+                </div>`;
+                const overlay = new kakao.maps.CustomOverlay({
+                    position: latlng,
+                    content,
+                    zIndex: 10,
+                });
+                overlay.setMap(map);
+                myLocationMarkerRef.current = overlay;
+
+                // 지도 중심 이동
+                map.setCenter(latlng);
+            },
+            () => {
+                setLocating(false);
+                alert('위치 정보를 가져올 수 없습니다. 브라우저 위치 권한을 확인해주세요.');
+            },
+            { enableHighAccuracy: true, timeout: 8000 }
+        );
+    };
+
     // ───────────────────────────────────────────────
     // 렌더링 영역
     // ───────────────────────────────────────────────
@@ -919,6 +998,32 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy }) {
 
                     {/* Native Kakao Map Container */}
                     <div ref={mapContainerRef} style={{ width: '100%', height: '100%' }}></div>
+
+                    {/* 내 위치 버튼 — 우하단 고정 */}
+                    <button
+                        onClick={handleMyLocation}
+                        disabled={locating}
+                        style={{
+                            position: 'absolute',
+                            bottom: failCount > 0 ? '52px' : '16px',
+                            right: '14px',
+                            zIndex: 50,
+                            background: 'rgba(255,255,255,0.95)',
+                            backdropFilter: 'blur(8px)',
+                            border: '1px solid #bfdbfe',
+                            padding: '10px 14px',
+                            borderRadius: '50px',
+                            color: locating ? '#94a3b8' : '#2563eb',
+                            fontSize: '0.85rem',
+                            fontWeight: '800',
+                            cursor: locating ? 'default' : 'pointer',
+                            boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                        }}>
+                        {locating ? '⏳' : '📍'} 내 위치
+                    </button>
 
                     {/* 좌표 변환 실패 안내 */}
                     {!loading && failCount > 0 && (

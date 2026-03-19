@@ -393,6 +393,15 @@ function TabRecent({ region, academies, onSelectAcademy, initialPage = 0, initia
                 groups.push({ name, date, addr, items, hasViol: isViol, row });
             }
         });
+        // 점검일 내림차순 정렬 (최신순), 날짜 없는 것은 맨 뒤
+        groups.sort((a, b) => {
+            const da = parseInspDate(a.date);
+            const db = parseInspDate(b.date);
+            if (!da && !db) return 0;
+            if (!da) return 1;
+            if (!db) return -1;
+            return db - da;
+        });
         return groups;
     }, [rows]);
 
@@ -472,7 +481,7 @@ function TabRecent({ region, academies, onSelectAcademy, initialPage = 0, initia
 
     // 페이지네이션
     const totalPages = Math.ceil(groupedRows.length / PAGE_SIZE);
-    const pagedRows = groupedRows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+    const pagedRows = pastGroupedRows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
     return (
         <div>
@@ -593,7 +602,7 @@ function TabRecent({ region, academies, onSelectAcademy, initialPage = 0, initia
             {/* ── 세부 목록 (표 형식) ── */}
             {loading ? (
                 <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>⏳ 데이터 로딩 중...</div>
-            ) : groupedRows.length === 0 ? (
+            ) : pastGroupedRows.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>📭 점검 데이터가 없습니다</div>
             ) : (
                 <>
@@ -605,7 +614,7 @@ function TabRecent({ region, academies, onSelectAcademy, initialPage = 0, initia
                                     <th style={{ padding: '9px 8px', width: '28px', color: '#64748b', fontWeight: '700', fontSize: '0.72rem', whiteSpace: 'nowrap', textAlign: 'center', background: 'transparent' }}>#</th>
                                     {/* 점검일+학원명 통합 sticky 헤더 */}
                                     <th style={{
-                                        padding: '9px 12px', width: '120px', color: '#64748b', fontWeight: '700', fontSize: '0.72rem',
+                                        padding: '9px 12px', width: '58px', color: '#64748b', fontWeight: '700', fontSize: '0.72rem',
                                         whiteSpace: 'nowrap', position: 'sticky', left: 0, zIndex: 2,
                                         boxShadow: '2px 0 6px rgba(0,0,0,0.07)',
                                         backgroundImage: 'linear-gradient(180deg,#f8fafc,#f1f5f9)'
@@ -618,13 +627,15 @@ function TabRecent({ region, academies, onSelectAcademy, initialPage = 0, initia
                                     const bgTone = academyBgMap.get(g.name) === 0 ? '#ffffff' : '#f8faff';
                                     const rowBg = g.hasViol ? '#fff5f5' : bgTone;
                                     const globalIdx = page * PAGE_SIZE + i;
+                                    // 연번: 가장 오래된 항목이 1번 (내림차순 표시이므로 역산)
+                                    const rowNum = pastGroupedRows.length - globalIdx;
                                     // 날짜 포맷: "2026. 1. 7" → "2026.1.7."
                                     const dateFmt = (() => {
                                         const d = (g.date || '').trim();
                                         const m = d.match(/(\d{4})[.\-/\s]+(\d{1,2})[.\-/\s]+(\d{1,2})/);
                                         return m ? `${m[1]}.${parseInt(m[2])}.${parseInt(m[3])}.` : d;
                                     })();
-                                    const isFuture = (() => { const d = parseInspDate(g.date); return d ? d > TODAY_DATE : false; })();
+                                    const isFuture = false; // pastGroupedRows엔 미래/날짜없음 제외됨
                                     const finalBg = isFuture ? '#f1f5f9' : rowBg;
 
                                     return (
@@ -636,14 +647,14 @@ function TabRecent({ region, academies, onSelectAcademy, initialPage = 0, initia
                                             onMouseLeave={isFuture ? undefined : (e => { e.currentTarget.style.background = finalBg; e.currentTarget.style.boxShadow = 'none'; })}
                                         >
                                             {/* 연번 */}
-                                            <td style={{ padding: '8px 6px', textAlign: 'center', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: '600', verticalAlign: 'middle', background: finalBg }}>{globalIdx + 1}</td>
+                                            <td style={{ padding: '8px 6px', textAlign: 'center', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: '600', verticalAlign: 'middle', background: finalBg }}>{rowNum}</td>
                                             {/* 점검일 + 학원명 통합 sticky */}
                                             <td style={{
                                                 padding: '8px 10px',
                                                 position: 'sticky', left: 0, zIndex: 1,
                                                 background: finalBg,
                                                 boxShadow: '2px 0 6px rgba(0,0,0,0.06)',
-                                                width: '105px', maxWidth: '105px',
+                                                width: '50px', maxWidth: '50px',
                                                 verticalAlign: 'middle',
                                             }}>
                                                 {/* 날짜 */}
@@ -653,7 +664,8 @@ function TabRecent({ region, academies, onSelectAcademy, initialPage = 0, initia
                                                 {/* 학원명 */}
                                                 {(() => {
                                                     const nameStyle = {
-                                                        display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                                        display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+                                                        overflow: 'hidden', wordBreak: 'break-all',
                                                         fontSize: '0.82rem', fontWeight: '800', color: 'var(--text-main)'
                                                     };
                                                     if (!academies || !onSelectAcademy) {
@@ -757,11 +769,50 @@ function TabStats({ region, statRows, academies, privateTutors, academyClosures,
     const filtered = useMemo(() => (academies || []).filter(a => (a.address || '').includes(city)), [academies, city]);
     const aList = useMemo(() => filtered.filter(a => a.category !== '교습소'), [filtered]);
     const hList = useMemo(() => filtered.filter(a => a.category === '교습소'), [filtered]);
-    // 요약 카드용: 폐소된 교습소 제외 (교습소 시트에는 폐소분도 포함되므로)
+    // 요약 카드용: 개원/개소 상태만 포함
     const H_CLOSED = ['자진폐원', '직권폐원', '자진폐소', '직권폐소'];
     const hActiveList = useMemo(() => hList.filter(h => !H_CLOSED.some(s => (h.status || '').includes(s))), [hList]);
-    // 과외는 별도 privateTutors 배열에서 지역 필터링
-    const pList = useMemo(() => (privateTutors || []).filter(a => (a.address || '').includes(city)), [privateTutors, city]);
+    const aActiveList = useMemo(() => aList.filter(a => (a.status || '').includes('개원')), [aList]);
+    // 과외는 별도 privateTutors 배열에서 지역 필터링 + 신고상태 "신고"인 것만
+    const pList = useMemo(() => (privateTutors || []).filter(a => (a.address || '').includes(city) && (a.status || '').includes('신고')), [privateTutors, city]);
+
+    // academyClosures 중 해당 시 + aList 중복 제거
+    const cityClosures = useMemo(() => {
+        const aListIds = new Set(aList.map(a => a.id).filter(Boolean));
+        return (academyClosures || [])
+            .filter(a => (a.address || '').includes(city))
+            .filter(a => !a.regNum || !aListIds.has(a.regNum));
+    }, [academyClosures, aList, city]);
+
+    // 증감 드릴다운 state
+    const [yearDrill, setYearDrill] = useState(null); // { year, kind: 'academy'|'hagwon'|'priv' }
+
+    const yearDrillData = useMemo(() => {
+        if (!yearDrill) return null;
+        const { year, kind } = yearDrill;
+        const getY = d => { const m = (d || '').match(/(\d{4})/); return m ? m[1] : ''; };
+        const CLOSED_STATUSES = ['자진폐원', '직권폐원', '자진폐소', '직권폐소'];
+        if (kind === 'academy') {
+            const opened = [
+                ...aList.filter(a => getY(a.regDate) === year),
+                ...cityClosures.filter(a => getY(a.regDate) === year),
+            ].map(a => a.name || '-');
+            const closed = cityClosures.filter(a => getY(a.closeDate) === year).map(a => a.name || '-');
+            return { opened, closed };
+        }
+        if (kind === 'hagwon') {
+            const opened = hList.filter(a => getY(a.regDate) === year).map(a => a.name || '-');
+            const closed = hList
+                .filter(h => CLOSED_STATUSES.some(s => (h.status || '').includes(s)) && getY(h.statusDate) === year)
+                .map(h => h.name || '-');
+            return { opened, closed };
+        }
+        if (kind === 'priv') {
+            const opened = pList.filter(a => getY(a.reportDate) === year).map(a => a.name || '-');
+            return { opened, closed: [] };
+        }
+        return null;
+    }, [yearDrill, aList, hList, pList, cityClosures]);
 
     // 섹션 2: 연도별 등록 추이 — regDate 기반 + 폐원/폐소 차감
     const YEARS = useMemo(() => {
@@ -774,12 +825,6 @@ function TabStats({ region, statRows, academies, privateTutors, academyClosures,
         const addToMap = (map, year) => { if (year) map[year] = (map[year] || 0) + 1; };
 
         // ── 학원 ──
-        // 현재 운영 중인 학원(aList) + 폐원된 학원(academyClosures) 지역 필터 합산
-        // aList의 등록번호 Set으로 폐원 시트 중복 제거 (같은 학원이 두 시트 모두 있으면 aList 우선)
-        const aListIds = new Set(aList.map(a => a.id).filter(Boolean));
-        const cityClosures = academyClosures
-            .filter(a => (a.address || '').includes(city))
-            .filter(a => !a.regNum || !aListIds.has(a.regNum)); // aList에 이미 있는 학원 제외
         const aNewByYear = {};
         aList.forEach(a => addToMap(aNewByYear, getY(a.regDate)));
         cityClosures.forEach(a => addToMap(aNewByYear, getY(a.regDate)));
@@ -828,7 +873,7 @@ function TabStats({ region, statRows, academies, privateTutors, academyClosures,
             const pActive       = cumul(pNewByYear, yNum);
             return { year: y, aNew, aActive, aSchoolActive, hNew, hActive, pNew, pActive };
         });
-    }, [YEARS, aList, hList, pList, city, academyClosures]);
+    }, [YEARS, aList, hList, pList, cityClosures]);
 
     // 섹션 3: 분야별 분포 — 기관 단위 집계 (과외 포함)
     const categoryStats = useMemo(() => {
@@ -962,17 +1007,17 @@ function TabStats({ region, statRows, academies, privateTutors, academyClosures,
     }, [aList, hList, pList, DONG_WL, addrDongCacheVer]);
 
     // 학원 카테고리 분류
-    const aSchoolCount = aList.filter(a => a.category === '학교교과교습학원').length;
-    const aLifeCount   = aList.filter(a => a.category === '평생직업교육학원').length;
-    const ahCombined   = aList.length + hActiveList.length;
+    const aSchoolCount = aActiveList.filter(a => a.category === '학교교과교습학원').length;
+    const aLifeCount   = aActiveList.filter(a => a.category === '평생직업교육학원').length;
+    const ahCombined   = aActiveList.length + hActiveList.length;
 
     if (loading) return <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>⏳ 데이터 로딩 중...</div>;
 
     const Th = ({ children, colSpan, rowSpan, style }) => (
         <th colSpan={colSpan} rowSpan={rowSpan} style={{ padding: '9px 12px', fontSize: '0.78rem', fontWeight: '700', color: 'var(--text-muted)', background: 'var(--bg-main)', borderBottom: '2px solid var(--border-color)', textAlign: 'left', whiteSpace: 'nowrap', ...style }}>{children}</th>
     );
-    const Td = ({ children, style }) => (
-        <td style={{ padding: '8px 12px', fontSize: '0.84rem', borderBottom: '1px solid var(--border-color)', ...style }}>{children}</td>
+    const Td = ({ children, style, onClick }) => (
+        <td onClick={onClick} style={{ padding: '8px 12px', fontSize: '0.84rem', borderBottom: '1px solid var(--border-color)', ...style }}>{children}</td>
     );
     const Section = ({ title, children }) => (
         <div style={{ background: 'var(--bg-card)', borderRadius: '16px', padding: '18px 20px', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)', marginBottom: '14px' }}>
@@ -986,10 +1031,10 @@ function TabStats({ region, statRows, academies, privateTutors, academyClosures,
             {/* 섹션 1 */}
             <Section title="📊 기관 현황 요약">
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(130px,1fr))', gap: '10px' }}>
-                    <StatCard icon="🏫" label="학원"     value={aList.length.toLocaleString() + '개'} color="#3b82f6" />
+                    <StatCard icon="🏫" label="학원"     value={aActiveList.length.toLocaleString() + '개'} color="#3b82f6" />
                     <StatCard icon="📖" label="교습소"   value={hActiveList.length.toLocaleString() + '개'} color="#10b981" />
                     <StatCard icon="👤" label="개인과외" value={pList.length.toLocaleString() + '명'} color="#8b5cf6" />
-                    <StatCard icon="🏢" label="합계"     value={(aList.length + hActiveList.length + pList.length).toLocaleString() + '개'} color="#f59e0b" />
+                    <StatCard icon="🏢" label="합계"     value={(aActiveList.length + hActiveList.length + pList.length).toLocaleString() + '개'} color="#f59e0b" />
                 </div>
             </Section>
 
@@ -1029,19 +1074,42 @@ function TabStats({ region, statRows, academies, privateTutors, academyClosures,
                                             </>
                                         ) : '-'}
                                     </Td>
-                                    <Td style={{ color: s.aNew > 0 ? '#3b82f6' : s.aNew < 0 ? '#ef4444' : 'var(--text-muted)', fontWeight: '400', padding: '8px 12px 8px 3px' }}>{s.aNew > 0 ? '+' + s.aNew : s.aNew < 0 ? String(s.aNew) : '-'}</Td>
+                                    <Td onClick={() => setYearDrill({ year: s.year, kind: 'academy' })} style={{ color: s.aNew > 0 ? '#3b82f6' : s.aNew < 0 ? '#ef4444' : 'var(--text-muted)', fontWeight: '400', padding: '8px 12px 8px 3px', cursor: 'pointer', textDecoration: 'underline dotted' }}>{s.aNew > 0 ? '+' + s.aNew : s.aNew < 0 ? String(s.aNew) : '-'}</Td>
                                     <Td style={{ color: s.hActive > 0 ? '#10b981' : 'var(--text-muted)', fontWeight: '700', padding: '8px 3px 8px 14px', borderLeft: '2px solid var(--border-color)' }}>{s.hActive > 0 ? s.hActive.toLocaleString() : '-'}</Td>
-                                    <Td style={{ color: s.hNew > 0 ? '#10b981' : s.hNew < 0 ? '#ef4444' : 'var(--text-muted)', fontWeight: '400', padding: '8px 12px 8px 3px' }}>{s.hNew > 0 ? '+' + s.hNew : s.hNew < 0 ? String(s.hNew) : '-'}</Td>
+                                    <Td onClick={() => setYearDrill({ year: s.year, kind: 'hagwon' })} style={{ color: s.hNew > 0 ? '#10b981' : s.hNew < 0 ? '#ef4444' : 'var(--text-muted)', fontWeight: '400', padding: '8px 12px 8px 3px', cursor: 'pointer', textDecoration: 'underline dotted' }}>{s.hNew > 0 ? '+' + s.hNew : s.hNew < 0 ? String(s.hNew) : '-'}</Td>
                                     <Td style={{ color: s.pActive > 0 ? '#8b5cf6' : 'var(--text-muted)', fontWeight: '700', padding: '8px 3px 8px 14px', borderLeft: '2px solid var(--border-color)' }}>{s.pActive > 0 ? s.pActive.toLocaleString() : '-'}</Td>
-                                    <Td style={{ color: s.pNew > 0 ? '#8b5cf6' : 'var(--text-muted)', fontWeight: '400', padding: '8px 12px 8px 3px' }}>{s.pNew > 0 ? '+' + s.pNew : '-'}</Td>
+                                    <Td onClick={() => s.pNew > 0 && setYearDrill({ year: s.year, kind: 'priv' })} style={{ color: s.pNew > 0 ? '#8b5cf6' : 'var(--text-muted)', fontWeight: '400', padding: '8px 12px 8px 3px', cursor: s.pNew > 0 ? 'pointer' : 'default', textDecoration: s.pNew > 0 ? 'underline dotted' : 'none' }}>{s.pNew > 0 ? '+' + s.pNew : '-'}</Td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
                 </div>
                 <div style={{ marginTop: '6px', fontSize: '0.75rem', color: 'var(--text-muted)', paddingLeft: '2px' }}>
-                    ※ (교과)는 학교교과교습학원의 갯수를 말함. 증감 = 해당 연도 개원 − 폐원 순증감 (학원·교습소).
+                    ※ (교과)는 학교교과교습학원의 갯수를 말함. 증감 = 해당 연도 개원 − 폐원 순증감 (학원·교습소). 증감·신규 숫자를 누르면 목록을 볼 수 있습니다.
                 </div>
+                {yearDrill && yearDrillData && (() => {
+                    const kindLabel = { academy: '학원', hagwon: '교습소', priv: '과외' };
+                    return (
+                        <div style={{ marginTop: '10px', border: '1px solid var(--border-color)', borderRadius: '10px', padding: '12px 14px', background: 'var(--bg-card)', fontSize: '0.82rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                <strong style={{ fontSize: '0.85rem' }}>{yearDrill.year}년 {kindLabel[yearDrill.kind]} 상세</strong>
+                                <button onClick={() => setYearDrill(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.1rem', color: 'var(--text-muted)', lineHeight: 1, padding: '0 2px' }}>✕</button>
+                            </div>
+                            {yearDrillData.opened.length > 0 && (
+                                <div style={{ marginBottom: yearDrillData.closed.length > 0 ? '8px' : 0 }}>
+                                    <span style={{ color: '#3b82f6', fontWeight: '600' }}>▲ 개원/신규 {yearDrillData.opened.length}건 </span>
+                                    <span style={{ color: 'var(--text-main)', lineHeight: 1.6 }}>{yearDrillData.opened.join(' · ')}</span>
+                                </div>
+                            )}
+                            {yearDrillData.closed.length > 0 && (
+                                <div>
+                                    <span style={{ color: '#ef4444', fontWeight: '600' }}>▼ 폐원 {yearDrillData.closed.length}건 </span>
+                                    <span style={{ color: 'var(--text-main)', lineHeight: 1.6 }}>{yearDrillData.closed.join(' · ')}</span>
+                                </div>
+                            )}
+                        </div>
+                    );
+                })()}
             </Section>
 
             {/* 섹션 3 */}
@@ -2487,10 +2555,10 @@ export default function InspectionPage({ onBack, academies, privateTutors, onSel
         try { return JSON.parse(sessionStorage.getItem(INSP_STATE_KEY))?.activeTab ?? 0; } catch { return 0; }
     });
     // 탭별 하위 상태 (페이지, 아코디언 open/close)를 sessionStorage에 저장/복원
-    const subStateRef = useRef({});
     const [savedSubState] = useState(() => {
         try { return JSON.parse(sessionStorage.getItem(INSP_STATE_KEY))?.subState || {}; } catch { return {}; }
     });
+    const subStateRef = useRef(savedSubState);
     const [recentInitPage] = useState(() => {
         try { return JSON.parse(sessionStorage.getItem(INSP_STATE_KEY))?.subState?.page ?? 0; } catch { return 0; }
     });
