@@ -613,16 +613,16 @@ function TabRecent({ region, academies, onSelectAcademy, initialPage = 0, initia
                                 <tr style={{ background: 'linear-gradient(180deg,#f8fafc 0%,#f1f5f9 100%)', borderBottom: '2px solid var(--border-color)' }}>
                                     <th style={{ padding: '9px 8px', width: '28px', color: '#64748b', fontWeight: '700', fontSize: '0.72rem', whiteSpace: 'nowrap', textAlign: 'center', background: 'transparent', position: 'sticky', left: 0, zIndex: 2, backgroundImage: 'linear-gradient(180deg,#f8fafc,#f1f5f9)' }}>#</th>
                                     <th style={{
-                                        padding: '9px 10px', width: '90px', color: '#64748b', fontWeight: '700', fontSize: '0.72rem',
-                                        whiteSpace: 'nowrap', position: 'sticky', left: '28px', zIndex: 2,
-                                        backgroundImage: 'linear-gradient(180deg,#f8fafc,#f1f5f9)'
-                                    }}>점검일</th>
-                                    <th style={{
                                         padding: '9px 10px', width: '120px', color: '#64748b', fontWeight: '700', fontSize: '0.72rem',
-                                        whiteSpace: 'nowrap', position: 'sticky', left: '118px', zIndex: 2,
+                                        whiteSpace: 'nowrap', position: 'sticky', left: '28px', zIndex: 2,
                                         boxShadow: '2px 0 6px rgba(0,0,0,0.07)',
                                         backgroundImage: 'linear-gradient(180deg,#f8fafc,#f1f5f9)'
                                     }}>학원명</th>
+                                    <th style={{
+                                        padding: '9px 10px', width: '90px', color: '#64748b', fontWeight: '700', fontSize: '0.72rem',
+                                        whiteSpace: 'nowrap',
+                                        backgroundImage: 'linear-gradient(180deg,#f8fafc,#f1f5f9)'
+                                    }}>점검일</th>
                                     <th style={{ padding: '9px 12px', color: '#64748b', fontWeight: '700', fontSize: '0.72rem', whiteSpace: 'nowrap', background: 'transparent' }}>지도·위반 내용</th>
                                 </tr>
                             </thead>
@@ -654,24 +654,10 @@ function TabRecent({ region, academies, onSelectAcademy, initialPage = 0, initia
                                         >
                                             {/* 연번 */}
                                             <td style={{ padding: '8px 6px', textAlign: 'center', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: '600', verticalAlign: 'middle', position: 'sticky', left: 0, zIndex: 1, background: rowBg }}>{rowNum}</td>
-                                            {/* 점검일 sticky */}
-                                            <td style={{
-                                                padding: '8px 10px',
-                                                position: 'sticky', left: '28px', zIndex: 1,
-                                                background: rowBg,
-                                                width: '90px', minWidth: '90px',
-                                                verticalAlign: 'middle',
-                                                whiteSpace: 'nowrap',
-                                            }}>
-                                                <div style={{ fontSize: '0.72rem', color: isFuture ? '#94a3b8' : '#64748b', fontWeight: '600', letterSpacing: '0.01em' }}>
-                                                    {dateFmt}
-                                                </div>
-                                                {isFuture && <div style={{ fontSize: '0.62rem', color: '#94a3b8', marginTop: '2px' }}>예정</div>}
-                                            </td>
                                             {/* 학원명 sticky */}
                                             <td style={{
                                                 padding: '8px 10px',
-                                                position: 'sticky', left: '118px', zIndex: 1,
+                                                position: 'sticky', left: '28px', zIndex: 1,
                                                 background: rowBg,
                                                 boxShadow: '2px 0 6px rgba(0,0,0,0.06)',
                                                 width: '120px', minWidth: '120px',
@@ -697,6 +683,19 @@ function TabRecent({ region, academies, onSelectAcademy, initialPage = 0, initia
                                                         >{g.name || '-'}</span>
                                                     ) : <span style={nameStyle} title={g.name}>{g.name || '-'}</span>;
                                                 })()}
+                                            </td>
+                                            {/* 점검일 */}
+                                            <td style={{
+                                                padding: '8px 10px',
+                                                background: rowBg,
+                                                width: '90px', minWidth: '90px',
+                                                verticalAlign: 'middle',
+                                                whiteSpace: 'nowrap',
+                                            }}>
+                                                <div style={{ fontSize: '0.72rem', color: isFuture ? '#94a3b8' : '#64748b', fontWeight: '600', letterSpacing: '0.01em' }}>
+                                                    {dateFmt}
+                                                </div>
+                                                {isFuture && <div style={{ fontSize: '0.62rem', color: '#94a3b8', marginTop: '2px' }}>예정</div>}
                                             </td>
                                             {/* 지도·위반 내용 */}
                                             <td style={{ padding: '8px 12px' }}>
@@ -791,6 +790,8 @@ function TabStats({ region, statRows, academies, privateTutors, academyClosures,
     const aActiveList = useMemo(() => aList.filter(a => (a.status || '').includes('개원')), [aList]);
     // 과외는 별도 privateTutors 배열에서 지역 필터링 + 신고상태 "신고"인 것만
     const pList = useMemo(() => (privateTutors || []).filter(a => (a.address || '').includes(city) && (a.status || '').includes('신고')), [privateTutors, city]);
+    // 증감 계산용: 지역 내 전체 과외 (상태 무관)
+    const pAllList = useMemo(() => (privateTutors || []).filter(a => (a.address || '').includes(city)), [privateTutors, city]);
 
     // academyClosures 중 해당 시 + aList 중복 제거
     const cityClosures = useMemo(() => {
@@ -824,11 +825,13 @@ function TabStats({ region, statRows, academies, privateTutors, academyClosures,
             return { opened, closed };
         }
         if (kind === 'priv') {
-            const opened = pList.filter(a => getY(a.reportDate) === year).map(a => a.name || '-');
-            return { opened, closed: [] };
+            const opened = pAllList.filter(a => (a.status || '') === '신고' && getY(a.reportDate) === year).map(a => a.name || '-');
+            const P_CLOSE = ['자진반납', '직권폐지'];
+            const closed = pAllList.filter(a => (P_CLOSE.includes(a.status || '') || (a.status || '') === '') && getY(a.reportDate) === year).map(a => a.name || '-');
+            return { opened, closed };
         }
         return null;
-    }, [yearDrill, aList, hList, pList, cityClosures]);
+    }, [yearDrill, aList, hList, pAllList, cityClosures]);
 
     // 섹션 2: 연도별 등록 추이 — regDate 기반 + 폐원/폐소 차감
     const YEARS = useMemo(() => {
@@ -865,9 +868,12 @@ function TabStats({ region, statRows, academies, privateTutors, academyClosures,
             .filter(h => CLOSED_STATUSES.some(s => (h.status || '').includes(s)))
             .forEach(h => addToMap(hCloseByYear, getY(h.statusDate)));
 
-        // ── 과외: 신규 카운트만 (폐소 개념 없음) ──
+        // ── 과외: 신고(+) / 자진반납·직권폐지·공백(-) 증감
+        const P_CLOSE_ST = ['자진반납', '직권폐지'];
         const pNewByYear = {};
-        pList.forEach(a => addToMap(pNewByYear, getY(a.reportDate)));
+        pAllList.filter(a => (a.status || '') === '신고').forEach(a => addToMap(pNewByYear, getY(a.reportDate)));
+        const pCloseByYear = {};
+        pAllList.filter(a => P_CLOSE_ST.includes(a.status || '') || (a.status || '') === '').forEach(a => addToMap(pCloseByYear, getY(a.reportDate)));
 
         // 누적 순증(순감) 계산
         const netCumul = (newCnt, closeCnt, yNum) => {
@@ -885,11 +891,11 @@ function TabStats({ region, statRows, academies, privateTutors, academyClosures,
             const aSchoolActive = netCumul(aSchoolNewByYear, aSchoolCloseByYear, yNum);
             const hNew          = (hNewByYear[y] || 0) - (hCloseByYear[y] || 0);   // 증감
             const hActive       = netCumul(hNewByYear, hCloseByYear, yNum);
-            const pNew          = pNewByYear[y] || 0;
-            const pActive       = cumul(pNewByYear, yNum);
+            const pNew          = (pNewByYear[y] || 0) - (pCloseByYear[y] || 0);   // 증감
+            const pActive       = netCumul(pNewByYear, pCloseByYear, yNum);
             return { year: y, aNew, aActive, aSchoolActive, hNew, hActive, pNew, pActive };
         });
-    }, [YEARS, aList, hList, pList, cityClosures]);
+    }, [YEARS, aList, hList, pAllList, cityClosures]);
 
     // 섹션 3: 분야별 분포 — 기관 단위 집계 (과외 포함)
     const categoryStats = useMemo(() => {
@@ -1290,13 +1296,11 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
     const aList = useMemo(() => (academies || []).filter(a => (a.address || '').includes(city) && a.category !== '교습소'), [academies, city]);
     const hList = useMemo(() => (academies || []).filter(a => (a.address || '').includes(city) && a.category === '교습소'), [academies, city]);
     const pList = useMemo(() => (privateTutors || []).filter(a => (a.address || '').includes(city)), [privateTutors, city]);
-    // 폐원/폐소/정지 제외 (검토 항목에서 비활성 기관 제외용)
+    // 검토 대상: 학원·교습소는 '개원', 개인과외교습자는 '신고' 상태만
     const H_CLOSED_R = ['자진폐원', '직권폐원', '자진폐소', '직권폐소'];
-    const CLOSED_KEYWORDS = ['폐원', '폐소', '폐지', '정지'];
-    const isActive = (st) => !CLOSED_KEYWORDS.some(k => (st || '').includes(k));
-    const aActiveList = useMemo(() => aList.filter(a => isActive(a.status)), [aList]);
-    const hActiveList = useMemo(() => hList.filter(h => isActive(h.status)), [hList]);
-    const pActiveList = useMemo(() => pList.filter(p => isActive(p.status)), [pList]);
+    const aActiveList = useMemo(() => aList.filter(a => (a.status || '') === '개원'), [aList]);
+    const hActiveList = useMemo(() => hList.filter(h => (h.status || '') === '개원'), [hList]);
+    const pActiveList = useMemo(() => pList.filter(p => (p.status || '') === '신고'), [pList]);
 
     // 1. 폐원 시트 날짜 오류 (등록 후 1개월 이내 폐원 또는 역전)
     const dateReversals = useMemo(() => (academyClosures || [])
@@ -1490,7 +1494,7 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
         if (!item) return <span style={{ fontWeight: '600' }}>{name || '-'}</span>;
         return (
             <span
-                onClick={() => onSelectAcademy(item)}
+                onClick={(e) => { e.stopPropagation(); onSelectAcademy(item); }}
                 style={{ fontWeight: '700', color: 'var(--primary)', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '2px' }}
             >{name || '-'}</span>
         );
@@ -1504,6 +1508,7 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
                 href={`https://map.naver.com/v5/search/${encodeURIComponent(address)}`}
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
                 style={{ fontSize: '0.74rem', color: '#2563eb', textDecoration: 'underline', textUnderlineOffset: '2px', lineHeight: '1.4', wordBreak: 'keep-all' }}
             >{address}</a>
         );
@@ -1512,7 +1517,7 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
     // 8b. 보험 만료/미가입
     const insuranceIssues = useMemo(() => {
         const today = new Date();
-        const check = (list, type) => list.filter(a => isActive(a.status)).map(a => {
+        const check = (list, type) => list.map(a => {
             if (!a.insurances || a.insurances.length === 0)
                 return { type, id: a.id, name: a.name, phone: a.founder?.phone || '', mobile: a.founder?.mobile || '', issue: '미가입' };
             const hasActive = a.insurances.some(ins => { const e = toDateRev(ins.endDate); return e && e >= today; });
@@ -1523,13 +1528,13 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
             }, null);
             return { type, id: a.id, name: a.name, phone: a.founder?.phone || '', mobile: a.founder?.mobile || '', issue: `만료 (${latest?.endDate || '-'})` };
         }).filter(Boolean);
-        return [...check(aList, '학원'), ...check(hActiveList, '교습소')];
-    }, [aList, hActiveList]);
+        return [...check(aActiveList, '학원'), ...check(hActiveList, '교습소')];
+    }, [aActiveList, hActiveList]);
 
     // 8c-1. 보험 강사수 vs 등록 강사수 불일치
     const insCountMismatch = useMemo(() => {
         const today = new Date();
-        const check = (list, type) => list.filter(a => isActive(a.status)).map(a => {
+        const check = (list, type) => list.map(a => {
             // 현재 유효한 보험 중 가장 최신 것의 강사수
             const activeIns = (a.insurances || []).filter(ins => { const e = toDateRev(ins.endDate); return e && e >= today; });
             const ins = activeIns.length > 0
@@ -1543,8 +1548,8 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
             if (insCount === regCount) return null;
             return { type, id: a.id, name: a.name, mobile: a.founder?.mobile || '', phone: a.founder?.phone || '', insCount, regCount, diff: regCount - insCount };
         }).filter(Boolean);
-        return [...check(aList, '학원'), ...check(hActiveList, '교습소')];
-    }, [aList, hActiveList]);
+        return [...check(aActiveList, '학원'), ...check(hActiveList, '교습소')];
+    }, [aActiveList, hActiveList]);
 
     // 8c. 교습비 단가 기준 초과
     const ADULT_KEYWORDS_R = ['성인', '일반인', '직장', '주부', '노인'];
@@ -1568,7 +1573,7 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
     };
     const feeExceed = useMemo(() => {
         const results = [];
-        [...aList, ...hActiveList].filter(a => isActive(a.status)).forEach(a => {
+        [...aActiveList, ...hActiveList].forEach(a => {
             if ((a.category || '').includes('평생직업')) return;
             (a.courses || []).forEach(course => {
                 const proc = course.process || ''; const subj = course.subject || '';
@@ -1581,7 +1586,7 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
             });
         });
         return results;
-    }, [aList, hActiveList]);
+    }, [aActiveList, hActiveList]);
 
     const ReviewSection = ({ id, title, badge, badgeColor, children, alwaysShow }) => {
         const isOpen = openSections[id];
@@ -1599,7 +1604,7 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
                     <div style={{ marginTop: '10px' }}>
                         {badge === 0
                             ? <div style={{ fontSize: '0.82rem', color: '#10b981', fontWeight: '600', padding: '4px 0' }}>✓ 이상 없음</div>
-                            : <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid var(--border-color)' }}>{children}</div>
+                            : <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid var(--border-color)', cursor: 'pointer' }} onClick={() => toggleSection(id)}>{children}</div>
                         }
                     </div>
                 )}
@@ -1852,6 +1857,9 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
     );
 }
 
+// 주소에서 "경기도 하남시" 제거
+const shortAddr = (addr) => addr ? addr.replace(/^경기도\s*하남시\s*/, '') : '-';
+
 // ───────────────────────────────────────────────
 // 탭: 주의 (운영 위반 점검)
 // ───────────────────────────────────────────────
@@ -1862,7 +1870,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
     const hList = useMemo(() => (academies || []).filter(a => (a.address || '').includes(city) && a.category === '교습소'), [academies, city]);
     const hActiveList = useMemo(() => hList.filter(h => !H_CLOSED_R.some(s => (h.status || '').includes(s))), [hList]);
 
-    const DEFAULT_SECTIONS_CAUTION = { weeklyPlan: false, risk: false, overdue: false };
+    const DEFAULT_SECTIONS_CAUTION = { route: true, weeklyPlan: false, risk: false, overdue: false };
     const [openSections, setOpenSections] = useState(() => initialOpenSections || DEFAULT_SECTIONS_CAUTION);
     const toggleSection = (key) => setOpenSections(prev => {
         const next = { ...prev, [key]: !prev[key] };
@@ -2112,7 +2120,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                     <div style={{ marginTop: '10px' }}>
                         {badge === 0
                             ? <div style={{ fontSize: '0.82rem', color: '#10b981', fontWeight: '600', padding: '4px 0' }}>✓ 이상 없음</div>
-                            : <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid var(--border-color)' }}>{children}</div>
+                            : <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid var(--border-color)', cursor: 'pointer' }} onClick={() => toggleSection(id)}>{children}</div>
                         }
                     </div>
                 )}
@@ -2446,16 +2454,24 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
 
             {/* 점검 경로 */}
             <div style={{ background: 'var(--bg-card)', borderRadius: '14px', padding: '14px 16px', border: '1px solid var(--border-color)', marginBottom: '12px', boxShadow: 'var(--shadow-sm)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: '0.88rem', fontWeight: '800', color: 'var(--text-main)' }}>🗺️ 점검 경로</span>
+                <button onClick={() => toggleSection('route')} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Badge count={planDateMap.size} color="#0ea5e9" />
+                        <span style={{ fontSize: '0.88rem', fontWeight: '800', color: 'var(--text-main)', textAlign: 'left' }}>🗺️ 점검 경로</span>
+                    </div>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginLeft: '8px', flexShrink: 0 }}>{openSections.route ? '▲' : '▼'}</span>
+                </button>
+                {openSections.route && (<div style={{ cursor: 'pointer' }} onClick={() => toggleSection('route')}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginTop: '10px' }}>
                     {allRawRows.length > 0 && planDateMap.size === 0 && (
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: 'auto' }}>향후 30일 내 계획 없음</span>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>향후 30일 내 계획 없음</span>
                     )}
                     {planDateMap.size > 0 && (
                         <select
                             value={routeDate}
+                            onClick={e => e.stopPropagation()}
                             onChange={e => setRouteDate(e.target.value)}
-                            style={{ marginLeft: 'auto', fontSize: '0.78rem', padding: '4px 8px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-main)', color: 'var(--text-main)', cursor: 'pointer' }}
+                            style={{ fontSize: '0.78rem', padding: '4px 8px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-light)', color: 'var(--text-main)', cursor: 'pointer' }}
                         >
                             <option value="">날짜 선택...</option>
                             {[...planDateMap.entries()].sort(([a],[b]) => a.localeCompare(b)).map(([date, rows]) => (
@@ -2469,12 +2485,14 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                 )}
                 {routeDate && routeAcademiesSorted.length > 0 && (
                     <div style={{ marginTop: '12px' }}>
-                        <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid var(--border-color)', marginBottom: '10px' }}>
+                        <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid var(--border-color)', marginBottom: '10px' }} onClick={e => e.stopPropagation()}>
                             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                                 <thead>
                                     <tr>
                                         <Th style={{ width: '32px', textAlign: 'center' }}>#</Th>
-                                        <Th>학원명</Th>
+                                        <Th style={{ position: 'sticky', left: 0, zIndex: 2, background: 'var(--bg-main)' }}>학원명</Th>
+                                        <Th>성명</Th>
+                                        <Th>전화번호</Th>
                                         <Th>주소</Th>
                                         <Th style={{ textAlign: 'right' }}>이동</Th>
                                     </tr>
@@ -2483,13 +2501,19 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                                     {routeAcademiesSorted.map((a, i) => (
                                         <tr key={`${a.id}-${i}`} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
                                             <Td style={{ textAlign: 'center', fontWeight: '800', color: '#f97316' }}>{a._order}</Td>
-                                            <Td>
+                                            <Td style={{ position: 'sticky', left: 0, zIndex: 1, background: 'var(--bg-card)', maxWidth: '130px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                 {onSelectAcademy
                                                     ? <span onClick={() => onSelectAcademy(a)} style={{ fontWeight: '700', color: 'var(--primary)', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '2px' }}>{a.name}</span>
                                                     : <span style={{ fontWeight: '600' }}>{a.name}</span>
                                                 }
                                             </Td>
-                                            <Td style={{ color: 'var(--text-muted)', maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.address || '-'}</Td>
+                                            <Td style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{a.founder?.name || '-'}</Td>
+                                            <Td style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>
+                                                {(a.founder?.mobile || a.founder?.phone)
+                                                    ? <a href={`tel:${a.founder?.mobile || a.founder?.phone}`} onClick={e => e.stopPropagation()} style={{ color: '#3b82f6', fontWeight: '600', textDecoration: 'none' }}>{a.founder?.mobile || a.founder?.phone}</a>
+                                                    : '-'}
+                                            </Td>
+                                            <Td style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>{shortAddr(a.address)}</Td>
                                             <Td style={{ textAlign: 'right', color: a._dist != null ? '#0ea5e9' : 'var(--text-muted)' }}>
                                                 {i === 0
                                                     ? <span style={{ color: '#10b981', fontWeight: '700' }}>출발</span>
@@ -2502,6 +2526,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                         </div>
                     </div>
                 )}
+                </div>)}
             </div>
             {/* 인라인 경로 지도 — 항상 DOM에 있고, 경로 선택 시 표시 */}
             <div
@@ -2513,7 +2538,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                     overflow: 'hidden',
                     border: '1px solid var(--border-color)',
                     marginBottom: '12px',
-                    display: (routeDate && routeAcademiesSorted.length > 0) ? 'block' : 'none',
+                    display: (openSections.route && routeDate && routeAcademiesSorted.length > 0) ? 'block' : 'none',
                 }}
             />
 
@@ -2542,14 +2567,14 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                                     const renderRow = (a, ai) => (
                                         <tr key={`${a.id}_${ai}`} style={{ background: ai % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
                                             <Td style={{ color: 'var(--text-muted)', fontSize: '0.76rem' }}>{ai + 1}</Td>
-                                            <Td style={{ whiteSpace: 'nowrap' }}>
+                                            <Td style={{ position: 'sticky', left: 0, zIndex: 1, background: 'var(--bg-card)', maxWidth: '130px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                 <NameLink id={a.id} type={a.category === '교습소' ? '교습소' : '학원'} name={a.name} />
                                             </Td>
                                             <Td style={{ whiteSpace: 'nowrap' }}>
                                                 <div style={{ fontSize: '0.75rem', color: 'var(--text-main)', fontWeight: '600' }}>{a.founder?.name || '-'}</div>
                                                 {(a.founder?.mobile || a.founder?.phone) && <a href={`tel:${a.founder?.mobile || a.founder?.phone}`} onClick={e => e.stopPropagation()} style={{ color: '#3b82f6', fontWeight: '600', fontSize: '0.75rem', textDecoration: 'none' }}>{a.founder?.mobile || a.founder?.phone}</a>}
                                             </Td>
-                                            <Td style={{ color: 'var(--text-muted)', fontSize: '0.76rem' }}>{a.dong || '-'}</Td>
+                                            <Td style={{ color: 'var(--text-muted)', fontSize: '0.76rem' }}>{shortAddr(a.address)}</Td>
                                             <Td>{a.hasIns ? <span style={{ fontSize: '0.71rem', padding: '1px 5px', borderRadius: '4px', background: '#fef3c7', color: '#d97706', fontWeight: '700' }}>⚠️보험</span> : <span style={{ color: '#10b981', fontSize: '0.78rem' }}>✓</span>}</Td>
                                             <Td>{a.viol > 0 ? <span style={{ fontSize: '0.71rem', padding: '1px 5px', borderRadius: '4px', background: '#fee2e2', color: '#dc2626', fontWeight: '700' }}>{a.viol}건</span> : <span style={{ color: 'var(--text-muted)', fontSize: '0.76rem' }}>-</span>}</Td>
                                             <Td style={{ color: a.score >= 0.7 ? '#ef4444' : a.score >= 0.4 ? '#f97316' : 'var(--text-muted)', fontWeight: '700', fontSize: '0.78rem' }}>{Math.round(a.score * 100)}</Td>
@@ -2560,7 +2585,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                                         <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '360px' }}>
                                             <thead><tr>
                                                 <Th style={{ width: '22px' }}>#</Th>
-                                                <Th>학원명</Th><Th>연락처</Th><Th>동</Th><Th>보험</Th><Th>위반</Th><Th>점수</Th>
+                                                <Th style={{ position: 'sticky', left: 0, zIndex: 2, background: 'var(--bg-main)' }}>학원명</Th><Th>연락처</Th><Th>주소</Th><Th>보험</Th><Th>위반</Th><Th>점수</Th>
                                             </tr></thead>
                                             <tbody>
                                                 {acItems.length > 0 && <TypeSubHeader label="🏫 학원" count={acItems.length} color="#3b82f6" colSpan={7} />}
@@ -2579,14 +2604,14 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                                     const renderRow = (a, ai) => (
                                         <tr key={`${a.id}_${ai}`} style={{ background: ai % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
                                             <Td style={{ color: 'var(--text-muted)', fontSize: '0.76rem', width: '22px' }}>{ai + 1}</Td>
-                                            <Td style={{ whiteSpace: 'nowrap' }}>
+                                            <Td style={{ position: 'sticky', left: 0, zIndex: 1, background: 'var(--bg-card)', maxWidth: '130px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                 <NameLink id={a.id} type={a.category === '교습소' ? '교습소' : '학원'} name={a.name} />
                                             </Td>
                                             <Td style={{ whiteSpace: 'nowrap' }}>
                                                 <div style={{ fontSize: '0.75rem', color: 'var(--text-main)', fontWeight: '600' }}>{a.founder?.name || '-'}</div>
                                                 {(a.founder?.mobile || a.founder?.phone) && <a href={`tel:${a.founder?.mobile || a.founder?.phone}`} onClick={e => e.stopPropagation()} style={{ color: '#3b82f6', fontWeight: '600', fontSize: '0.75rem', textDecoration: 'none' }}>{a.founder?.mobile || a.founder?.phone}</a>}
                                             </Td>
-                                            <Td style={{ color: 'var(--text-muted)', fontSize: '0.76rem' }}>{a.dong || '-'}</Td>
+                                            <Td style={{ color: 'var(--text-muted)', fontSize: '0.76rem' }}>{shortAddr(a.address)}</Td>
                                             <Td>{a.hasIns ? <span style={{ fontSize: '0.71rem', padding: '1px 5px', borderRadius: '4px', background: '#fef3c7', color: '#d97706', fontWeight: '700' }}>⚠️보험</span> : <span style={{ color: '#10b981', fontSize: '0.78rem' }}>✓</span>}</Td>
                                             <Td>{a.viol > 0 ? <span style={{ fontSize: '0.71rem', padding: '1px 5px', borderRadius: '4px', background: '#fee2e2', color: '#dc2626', fontWeight: '700' }}>{a.viol}건</span> : <span style={{ color: 'var(--text-muted)', fontSize: '0.76rem' }}>-</span>}</Td>
                                             <Td style={{ color: '#64748b', fontWeight: '700', fontSize: '0.78rem' }}>{Math.round(a.score * 100)}</Td>
@@ -2599,7 +2624,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                                             <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '360px' }}>
                                                 <thead><tr>
                                                     <Th style={{ width: '22px' }}>#</Th>
-                                                    <Th>학원명</Th><Th>연락처</Th><Th>동</Th><Th>보험</Th><Th>위반</Th><Th>점수</Th>
+                                                    <Th style={{ position: 'sticky', left: 0, zIndex: 2, background: 'var(--bg-main)' }}>학원명</Th><Th>연락처</Th><Th>주소</Th><Th>보험</Th><Th>위반</Th><Th>점수</Th>
                                                 </tr></thead>
                                                 <tbody>
                                                     {acM.length > 0 && <TypeSubHeader label="🏫 학원" count={acM.length} color="#3b82f6" colSpan={7} />}
@@ -2636,11 +2661,13 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                         return (
                             <tr key={`${a.id}_${i}`} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)', opacity: done ? 0.5 : 1 }}>
                                 <Td style={{ color: i < 3 ? '#ef4444' : 'var(--text-muted)', fontWeight: '800', fontSize: '0.78rem' }}>{i + 1}</Td>
-                                <Td style={{ whiteSpace: 'nowrap' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                        <NameLink id={a.id} type={a.category === '교습소' ? '교습소' : '학원'} name={a.name} />
-                                        {a.neverInspected && <span style={{ fontSize: '0.67rem', color: '#10b981', fontWeight: '700' }}>신설</span>}
-                                        {done && <span style={{ fontSize: '0.67rem', color: '#6366f1', fontWeight: '700' }}>(완료)</span>}
+                                <Td style={{ position: 'sticky', left: 0, zIndex: 1, background: 'var(--bg-card)', maxWidth: '130px', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0 }}>
+                                        <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, flexShrink: 1 }}>
+                                            <NameLink id={a.id} type={a.category === '교습소' ? '교습소' : '학원'} name={a.name} />
+                                        </span>
+                                        {a.neverInspected && <span style={{ fontSize: '0.67rem', color: '#10b981', fontWeight: '700', flexShrink: 0 }}>신설</span>}
+                                        {done && <span style={{ fontSize: '0.67rem', color: '#6366f1', fontWeight: '700', flexShrink: 0 }}>(완료)</span>}
                                     </div>
                                 </Td>
                                 <Td style={{ whiteSpace: 'nowrap' }}>
@@ -2674,7 +2701,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                                         <thead><tr>
                                             <Th style={{ width: '28px' }}>#</Th>
-                                            <Th>학원명</Th><Th>연락처</Th><Th>동</Th><Th>미점검</Th><Th>보험</Th><Th>위반</Th><Th>점수</Th>
+                                            <Th style={{ position: 'sticky', left: 0, zIndex: 2, background: 'var(--bg-main)' }}>학원명</Th><Th>연락처</Th><Th>동</Th><Th>미점검</Th><Th>보험</Th><Th>위반</Th><Th>점수</Th>
                                         </tr></thead>
                                         <tbody>
                                             {items.map((a, i) => renderRow(a, i))}
@@ -2712,10 +2739,12 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                                 return (
                                     <tr key={`${a.id}_${i}`} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)', opacity: done ? 0.5 : 1 }}>
                                         <Td style={{ color: 'var(--text-muted)', fontWeight: '700', fontSize: '0.76rem', textAlign: 'center' }}>{rowNum}</Td>
-                                        <Td style={{ whiteSpace: 'nowrap' }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                <NameLink id={a.id} type={a.category === '교습소' ? '교습소' : '학원'} name={a.name} />
-                                                {done && <span style={{ fontSize: '0.67rem', color: '#6366f1', fontWeight: '700' }}>(완료)</span>}
+                                        <Td style={{ position: 'sticky', left: 0, zIndex: 1, background: 'var(--bg-card)', maxWidth: '130px', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0 }}>
+                                                <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, flexShrink: 1 }}>
+                                                    <NameLink id={a.id} type={a.category === '교습소' ? '교습소' : '학원'} name={a.name} />
+                                                </span>
+                                                {done && <span style={{ fontSize: '0.67rem', color: '#6366f1', fontWeight: '700', flexShrink: 0 }}>(완료)</span>}
                                             </div>
                                         </Td>
                                         <Td style={{ whiteSpace: 'nowrap' }}>
@@ -2749,7 +2778,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                                         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                                             <thead><tr>
                                                 <Th style={{ width: '28px' }}>#</Th>
-                                                <Th>학원명</Th><Th>연락처</Th><Th>미점검</Th><Th>보험</Th><Th>위반</Th><Th>마지막점검일</Th>
+                                                <Th style={{ position: 'sticky', left: 0, zIndex: 2, background: 'var(--bg-main)' }}>학원명</Th><Th>연락처</Th><Th>미점검</Th><Th>보험</Th><Th>위반</Th><Th>마지막점검일</Th>
                                             </tr></thead>
                                             <tbody>
                                                 {acItems.length > 0 && (
@@ -2818,7 +2847,7 @@ export default function InspectionPage({ onBack, academies, privateTutors, onSel
     const [recentInitScrollY] = useState(() => {
         try {
             const saved = JSON.parse(sessionStorage.getItem(INSP_STATE_KEY));
-            return saved?.activeTab === 0 ? (saved?.scrollY ?? null) : null;
+            return saved?.activeTab === 1 ? (saved?.scrollY ?? null) : null;
         } catch { return null; }
     });
     const [statRows, setStatRows] = useState([]);
@@ -2833,12 +2862,12 @@ export default function InspectionPage({ onBack, academies, privateTutors, onSel
             const saved = JSON.parse(sessionStorage.getItem(INSP_STATE_KEY));
             if (saved?.scrollY != null) {
                 sessionStorage.removeItem(INSP_STATE_KEY);
-                if (saved.activeTab !== 0) {
+                if (saved.activeTab !== 1) {
                     const target = saved.scrollY;
                     // 아코디언 열림 후 DOM 렌더링까지 충분한 시간 확보
                     setTimeout(() => window.scrollTo({ top: target, behavior: 'instant' }), 200);
                 }
-                // tab 0(TabRecent)은 데이터 로드 완료 후 TabRecent 내부에서 복원
+                // tab 1(TabRecent)은 데이터 로드 완료 후 TabRecent 내부에서 복원
             }
         } catch { /* ignore */ }
     }, []);
@@ -2858,8 +2887,8 @@ export default function InspectionPage({ onBack, academies, privateTutors, onSel
         onSelectAcademy(academy);
     }, [region, activeTab, onSelectAcademy]);
 
-    const TABS      = ['완료', '계획', '통계', '검토'];
-    const TAB_ICONS = ['🕐', '⚠️', '📊', '🔬'];
+    const TABS      = ['계획', '완료', '통계', '검토'];
+    const TAB_ICONS = ['⚠️', '🕐', '📊', '🔬'];
 
     useEffect(() => {
         fetchAcademyClosureData()
@@ -3036,8 +3065,8 @@ export default function InspectionPage({ onBack, academies, privateTutors, onSel
                     <div style={{ textAlign: 'center', padding: '40px', color: '#ef4444' }}>{errorStat}</div>
                 ) : (
                     <div>
-                        {activeTab === 0 && <TabRecent region={region} academies={academies} onSelectAcademy={handleSelectAcademy} initialPage={recentInitPage} initialScrollY={recentInitScrollY} onPageChange={p => handleSubStateChange({ page: p })} />}
-                        {activeTab === 1 && <TabCaution region={region} academies={academies} privateTutors={privateTutors} academyClosures={academyClosures} onSelectAcademy={handleSelectAcademy} addrDongCacheVer={addrDongCacheVer} initialOpenSections={savedSubState.cautionOpenSections} onSubStateChange={s => handleSubStateChange({ cautionOpenSections: s })} onShowRouteMap={onShowRouteMap} />}
+                        {activeTab === 0 && <TabCaution region={region} academies={academies} privateTutors={privateTutors} academyClosures={academyClosures} onSelectAcademy={handleSelectAcademy} addrDongCacheVer={addrDongCacheVer} initialOpenSections={savedSubState.cautionOpenSections} onSubStateChange={s => handleSubStateChange({ cautionOpenSections: s })} onShowRouteMap={onShowRouteMap} />}
+                        {activeTab === 1 && <TabRecent region={region} academies={academies} onSelectAcademy={handleSelectAcademy} initialPage={recentInitPage} initialScrollY={recentInitScrollY} onPageChange={p => handleSubStateChange({ page: p })} />}
                         {activeTab === 2 && <TabStats region={region} statRows={statRows} academies={academies} privateTutors={privateTutors} academyClosures={academyClosures} addrDongCacheVer={addrDongCacheVer} />}
                         {activeTab === 3 && <TabReview region={region} academies={academies} privateTutors={privateTutors} academyClosures={academyClosures} onSelectAcademy={handleSelectAcademy} addrDongCacheVer={addrDongCacheVer} initialOpenSections={savedSubState.reviewOpenSections} onSubStateChange={s => handleSubStateChange({ reviewOpenSections: s })} />}
                     </div>

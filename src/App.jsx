@@ -34,7 +34,7 @@ class ErrorBoundary extends React.Component {
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    return sessionStorage.getItem('academy_auth_v2') === 'true';
+    return localStorage.getItem('academy_auth_v2') === 'true';
   });
   const [academies, setAcademies] = useState([]);
   const [privateTutors, setPrivateTutors] = useState([]);
@@ -54,6 +54,7 @@ function App() {
   const [detailOrigin, setDetailOrigin] = useState('main'); // 상세화면 진입 출처 ('main' 또는 'inspection' 또는 'map')
   const [focusAcademy, setFocusAcademy] = useState(null); // 지도에서 포커스할 학원
   const [mapReturnState, setMapReturnState] = useState(null); // 지도 진입 전 복귀 상태
+  const [savedMapState, setSavedMapState] = useState(null); // 지도 위치/줌 복원용
   const [routeAcademies, setRouteAcademies] = useState(null); // 점검 경로 학원 목록
 
   // Clean up any old auth data on mount
@@ -166,13 +167,13 @@ function App() {
 
   const handleLogin = () => {
     setIsAuthenticated(true);
-    sessionStorage.setItem('academy_auth_v2', 'true');
+    localStorage.setItem('academy_auth_v2', 'true');
   };
 
   const handleLogout = () => {
     setIsAuthenticated(false);
     setAcademies([]);
-    sessionStorage.removeItem('academy_auth_v2');
+    localStorage.removeItem('academy_auth_v2');
     sessionStorage.removeItem(CACHE_KEY);
   };
 
@@ -450,10 +451,12 @@ function App() {
         privateTutors={privateTutors}
         focusAcademy={focusAcademy}
         routeAcademies={routeAcademies}
+        initialMapState={savedMapState}
         onBack={() => {
           setShowMap(false);
           setFocusAcademy(null);
           setRouteAcademies(null);
+          setSavedMapState(null);
           if (mapReturnState) {
             if (mapReturnState.fromInspection) {
               setShowInspection(true);
@@ -464,7 +467,8 @@ function App() {
             setMapReturnState(null);
           }
         }}
-        onSelectAcademy={(item) => {
+        onSelectAcademy={(item, mapState) => {
+          setSavedMapState(mapState);
           setDetailOrigin('map');
           setShowMap(false);
           setFocusAcademy(null);
@@ -1085,194 +1089,49 @@ function App() {
                     <span>주요 법령</span>
                   </h4>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <a
-                      href="https://www.law.go.kr/법령/학원의설립·운영및과외교습에관한법률"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        padding: '10px 14px',
-                        background: 'var(--bg-main)',
-                        border: '1px solid var(--border-color)',
-                        borderRadius: '8px',
-                        color: 'var(--text-main)',
-                        textDecoration: 'none',
-                        fontSize: '0.85rem',
-                        fontWeight: '500',
-                        transition: 'all 0.2s',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between'
-                      }}
-                      onMouseOver={(e) => {
-                        e.currentTarget.style.borderColor = 'var(--primary)';
-                        e.currentTarget.style.backgroundColor = 'var(--primary-glow)';
-                      }}
-                      onMouseOut={(e) => {
-                        e.currentTarget.style.borderColor = 'var(--border-color)';
-                        e.currentTarget.style.backgroundColor = 'var(--bg-main)';
-                      }}
-                    >
-                      <span>• 학원의 설립·운영 및 과외교습에 관한 법률 (학원법)</span>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                        <polyline points="15 3 21 3 21 9"></polyline>
-                        <line x1="10" y1="14" x2="21" y2="3"></line>
-                      </svg>
-                    </a>
-                    <a
-                      href="https://www.law.go.kr/법령/학원의설립·운영및과외교습에관한법률시행령"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        padding: '10px 14px',
-                        background: 'var(--bg-main)',
-                        border: '1px solid var(--border-color)',
-                        borderRadius: '8px',
-                        color: 'var(--text-main)',
-                        textDecoration: 'none',
-                        fontSize: '0.85rem',
-                        fontWeight: '500',
-                        transition: 'all 0.2s',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between'
-                      }}
-                      onMouseOver={(e) => {
-                        e.currentTarget.style.borderColor = 'var(--primary)';
-                        e.currentTarget.style.backgroundColor = 'var(--primary-glow)';
-                      }}
-                      onMouseOut={(e) => {
-                        e.currentTarget.style.borderColor = 'var(--border-color)';
-                        e.currentTarget.style.backgroundColor = 'var(--bg-main)';
-                      }}
-                    >
-                      <span>• 학원법 시행령</span>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                        <polyline points="15 3 21 3 21 9"></polyline>
-                        <line x1="10" y1="14" x2="21" y2="3"></line>
-                      </svg>
-                    </a>
-                    <a
-                      href="https://www.law.go.kr/법령/학원의설립·운영및과외교습에관한법률시행규칙"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        padding: '10px 14px',
-                        background: 'var(--bg-main)',
-                        border: '1px solid var(--border-color)',
-                        borderRadius: '8px',
-                        color: 'var(--text-main)',
-                        textDecoration: 'none',
-                        fontSize: '0.85rem',
-                        fontWeight: '500',
-                        transition: 'all 0.2s',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between'
-                      }}
-                      onMouseOver={(e) => {
-                        e.currentTarget.style.borderColor = 'var(--primary)';
-                        e.currentTarget.style.backgroundColor = 'var(--primary-glow)';
-                      }}
-                      onMouseOut={(e) => {
-                        e.currentTarget.style.borderColor = 'var(--border-color)';
-                        e.currentTarget.style.backgroundColor = 'var(--bg-main)';
-                      }}
-                    >
-                      <span>• 학원법 시행규칙</span>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                        <polyline points="15 3 21 3 21 9"></polyline>
-                        <line x1="10" y1="14" x2="21" y2="3"></line>
-                      </svg>
-                    </a>
-                  </div>
-                </div>
-
-                {/* 경기도 조례 */}
-                <div style={{ marginBottom: '24px' }}>
-                  <h4 style={{
-                    fontSize: '0.9rem',
-                    fontWeight: '700',
-                    color: 'var(--text-main)',
-                    marginBottom: '12px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px'
-                  }}>
-                    <span>🏛️</span>
-                    <span>지방 조례 (경기도)</span>
-                  </h4>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <a
-                      href="https://www.law.go.kr/자치법규/경기도학원의설립ㆍ운영및과외교습에관한조례/(7741,20230807)"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        padding: '10px 14px',
-                        background: 'var(--bg-main)',
-                        border: '1px solid var(--border-color)',
-                        borderRadius: '8px',
-                        color: 'var(--text-main)',
-                        textDecoration: 'none',
-                        fontSize: '0.85rem',
-                        fontWeight: '500',
-                        transition: 'all 0.2s',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between'
-                      }}
-                      onMouseOver={(e) => {
-                        e.currentTarget.style.borderColor = 'var(--primary)';
-                        e.currentTarget.style.backgroundColor = 'var(--primary-glow)';
-                      }}
-                      onMouseOut={(e) => {
-                        e.currentTarget.style.borderColor = 'var(--border-color)';
-                        e.currentTarget.style.backgroundColor = 'var(--bg-main)';
-                      }}
-                    >
-                      <span>• 경기도 학원 조례</span>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                        <polyline points="15 3 21 3 21 9"></polyline>
-                        <line x1="10" y1="14" x2="21" y2="3"></line>
-                      </svg>
-                    </a>
-                    <a
-                      href="https://www.law.go.kr/자치법규/경기도학원의설립ㆍ운영및과외교습에관한조례시행규칙/(980,20250901)"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        padding: '10px 14px',
-                        background: 'var(--bg-main)',
-                        border: '1px solid var(--border-color)',
-                        borderRadius: '8px',
-                        color: 'var(--text-main)',
-                        textDecoration: 'none',
-                        fontSize: '0.85rem',
-                        fontWeight: '500',
-                        transition: 'all 0.2s',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between'
-                      }}
-                      onMouseOver={(e) => {
-                        e.currentTarget.style.borderColor = 'var(--primary)';
-                        e.currentTarget.style.backgroundColor = 'var(--primary-glow)';
-                      }}
-                      onMouseOut={(e) => {
-                        e.currentTarget.style.borderColor = 'var(--border-color)';
-                        e.currentTarget.style.backgroundColor = 'var(--bg-main)';
-                      }}
-                    >
-                      <span>• 경기도 학원 조례 시행규칙</span>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                        <polyline points="15 3 21 3 21 9"></polyline>
-                        <line x1="10" y1="14" x2="21" y2="3"></line>
-                      </svg>
-                    </a>
+                    {[
+                      { label: '학원법', href: 'https://www.law.go.kr/법령/학원의설립·운영및과외교습에관한법률' },
+                      { label: '학원법 시행령', href: 'https://www.law.go.kr/법령/학원의설립·운영및과외교습에관한법률시행령' },
+                      { label: '학원법 시행규칙', href: 'https://www.law.go.kr/법령/학원의설립·운영및과외교습에관한법률시행규칙' },
+                      { label: '경기도 학원 조례', href: 'https://www.law.go.kr/자치법규/경기도학원의설립ㆍ운영및과외교습에관한조례/(7741,20230807)' },
+                      { label: '경기도 학원 조례 시행규칙', href: 'https://www.law.go.kr/자치법규/경기도학원의설립ㆍ운영및과외교습에관한조례시행규칙/(980,20250901)' },
+                    ].map(({ label, href }) => (
+                      <a
+                        key={label}
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          padding: '10px 14px',
+                          background: 'var(--bg-main)',
+                          border: '1px solid var(--border-color)',
+                          borderRadius: '8px',
+                          color: 'var(--text-main)',
+                          textDecoration: 'none',
+                          fontSize: '0.85rem',
+                          fontWeight: '500',
+                          transition: 'all 0.2s',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between'
+                        }}
+                        onMouseOver={(e) => {
+                          e.currentTarget.style.borderColor = 'var(--primary)';
+                          e.currentTarget.style.backgroundColor = 'var(--primary-glow)';
+                        }}
+                        onMouseOut={(e) => {
+                          e.currentTarget.style.borderColor = 'var(--border-color)';
+                          e.currentTarget.style.backgroundColor = 'var(--bg-main)';
+                        }}
+                      >
+                        <span>• {label}</span>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                          <polyline points="15 3 21 3 21 9"></polyline>
+                          <line x1="10" y1="14" x2="21" y2="3"></line>
+                        </svg>
+                      </a>
+                    ))}
                   </div>
                 </div>
 
@@ -1291,142 +1150,53 @@ function App() {
                     <span>관련 법령</span>
                   </h4>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <a
-                      href="https://www.law.go.kr/법령/교육환경보호에관한법률"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        padding: '10px 14px',
-                        background: 'var(--bg-main)',
-                        border: '1px solid var(--border-color)',
-                        borderRadius: '8px',
-                        color: 'var(--text-main)',
-                        textDecoration: 'none',
-                        fontSize: '0.85rem',
-                        fontWeight: '500',
-                        transition: 'all 0.2s',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between'
-                      }}
-                      onMouseOver={(e) => {
-                        e.currentTarget.style.borderColor = 'var(--primary)';
-                        e.currentTarget.style.backgroundColor = 'var(--primary-glow)';
-                      }}
-                      onMouseOut={(e) => {
-                        e.currentTarget.style.borderColor = 'var(--border-color)';
-                        e.currentTarget.style.backgroundColor = 'var(--bg-main)';
-                      }}
-                    >
-                      <span>• 교육환경 보호에 관한 법률</span>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                        <polyline points="15 3 21 3 21 9"></polyline>
-                        <line x1="10" y1="14" x2="21" y2="3"></line>
-                      </svg>
-                    </a>
-                    <a
-                      href="https://www.law.go.kr/법령/아동복지법"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        padding: '10px 14px',
-                        background: 'var(--bg-main)',
-                        border: '1px solid var(--border-color)',
-                        borderRadius: '8px',
-                        color: 'var(--text-main)',
-                        textDecoration: 'none',
-                        fontSize: '0.85rem',
-                        fontWeight: '500',
-                        transition: 'all 0.2s',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between'
-                      }}
-                      onMouseOver={(e) => {
-                        e.currentTarget.style.borderColor = 'var(--primary)';
-                        e.currentTarget.style.backgroundColor = 'var(--primary-glow)';
-                      }}
-                      onMouseOut={(e) => {
-                        e.currentTarget.style.borderColor = 'var(--border-color)';
-                        e.currentTarget.style.backgroundColor = 'var(--bg-main)';
-                      }}
-                    >
-                      <span>• 아동복지법</span>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                        <polyline points="15 3 21 3 21 9"></polyline>
-                        <line x1="10" y1="14" x2="21" y2="3"></line>
-                      </svg>
-                    </a>
-                    <a
-                      href="https://www.law.go.kr/법령/질서위반행위규제법"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        padding: '10px 14px',
-                        background: 'var(--bg-main)',
-                        border: '1px solid var(--border-color)',
-                        borderRadius: '8px',
-                        color: 'var(--text-main)',
-                        textDecoration: 'none',
-                        fontSize: '0.85rem',
-                        fontWeight: '500',
-                        transition: 'all 0.2s',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between'
-                      }}
-                      onMouseOver={(e) => {
-                        e.currentTarget.style.borderColor = 'var(--primary)';
-                        e.currentTarget.style.backgroundColor = 'var(--primary-glow)';
-                      }}
-                      onMouseOut={(e) => {
-                        e.currentTarget.style.borderColor = 'var(--border-color)';
-                        e.currentTarget.style.backgroundColor = 'var(--bg-main)';
-                      }}
-                    >
-                      <span>• 질서위반행위규제법</span>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                        <polyline points="15 3 21 3 21 9"></polyline>
-                        <line x1="10" y1="14" x2="21" y2="3"></line>
-                      </svg>
-                    </a>
-                    <a
-                      href="https://www.law.go.kr/법령/민원처리에관한법률"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        padding: '10px 14px',
-                        background: 'var(--bg-main)',
-                        border: '1px solid var(--border-color)',
-                        borderRadius: '8px',
-                        color: 'var(--text-main)',
-                        textDecoration: 'none',
-                        fontSize: '0.85rem',
-                        fontWeight: '500',
-                        transition: 'all 0.2s',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between'
-                      }}
-                      onMouseOver={(e) => {
-                        e.currentTarget.style.borderColor = 'var(--primary)';
-                        e.currentTarget.style.backgroundColor = 'var(--primary-glow)';
-                      }}
-                      onMouseOut={(e) => {
-                        e.currentTarget.style.borderColor = 'var(--border-color)';
-                        e.currentTarget.style.backgroundColor = 'var(--bg-main)';
-                      }}
-                    >
-                      <span>• 민원처리에 관한 법률</span>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                        <polyline points="15 3 21 3 21 9"></polyline>
-                        <line x1="10" y1="14" x2="21" y2="3"></line>
-                      </svg>
-                    </a>
+                    {[
+                      { label: '고등교육법', href: 'https://www.law.go.kr/법령/고등교육법' },
+                      { label: '교육환경 보호에 관한 법률', href: 'https://www.law.go.kr/법령/교육환경보호에관한법률' },
+                      { label: '아동복지법', href: 'https://www.law.go.kr/법령/아동복지법' },
+                      { label: '청소년성보호법', href: 'https://www.law.go.kr/법령/아동·청소년의성보호에관한법률' },
+                      { label: '질서위반행위규제법', href: 'https://www.law.go.kr/법령/질서위반행위규제법' },
+                      { label: '민원 처리에 관한 법률', href: 'https://www.law.go.kr/법령/민원처리에관한법률' },
+                      { label: '출입국관리법', href: 'https://www.law.go.kr/법령/출입국관리법' },
+                      { label: '행정절차법', href: 'https://www.law.go.kr/법령/행정절차법' },
+                      { label: '어린이안전관리에 관한 법률', href: 'https://www.law.go.kr/법령/어린이안전관리에관한법률' },
+                    ].map(({ label, href }) => (
+                      <a
+                        key={label}
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          padding: '10px 14px',
+                          background: 'var(--bg-main)',
+                          border: '1px solid var(--border-color)',
+                          borderRadius: '8px',
+                          color: 'var(--text-main)',
+                          textDecoration: 'none',
+                          fontSize: '0.85rem',
+                          fontWeight: '500',
+                          transition: 'all 0.2s',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between'
+                        }}
+                        onMouseOver={(e) => {
+                          e.currentTarget.style.borderColor = 'var(--primary)';
+                          e.currentTarget.style.backgroundColor = 'var(--primary-glow)';
+                        }}
+                        onMouseOut={(e) => {
+                          e.currentTarget.style.borderColor = 'var(--border-color)';
+                          e.currentTarget.style.backgroundColor = 'var(--bg-main)';
+                        }}
+                      >
+                        <span>• {label}</span>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                          <polyline points="15 3 21 3 21 9"></polyline>
+                          <line x1="10" y1="14" x2="21" y2="3"></line>
+                        </svg>
+                      </a>
+                    ))}
                   </div>
                 </div>
               </div>

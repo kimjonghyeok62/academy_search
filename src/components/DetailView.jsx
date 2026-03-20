@@ -35,6 +35,26 @@ const formatNumber = (num) => {
     return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 };
 
+// 미점검 기간 계산 (마지막 점검일 → 오늘, 점검 기록 없으면 등록일 기준)
+const getUninspectedPeriod = (inspections, regDate) => {
+    const lastDateStr = (inspections && inspections.length > 0)
+        ? inspections[0]?.date
+        : regDate;
+    if (!lastDateStr) return null;
+    const last = new Date(lastDateStr.replace(/\./g, '-'));
+    if (isNaN(last.getTime())) return null;
+    const now = new Date();
+    let years = now.getFullYear() - last.getFullYear();
+    let months = now.getMonth() - last.getMonth();
+    if (now.getDate() < last.getDate()) months--;
+    if (months < 0) { years--; months += 12; }
+    if (years < 0) return null;
+    if (years === 0 && months === 0) return null;
+    if (years > 0 && months > 0) return `미점검 ${years}년 ${months}월`;
+    if (years > 0) return `미점검 ${years}년`;
+    return `미점검 ${months}월`;
+};
+
 // 학력 약어 변환
 const eduShort = (edu) => {
     if (!edu) return '';
@@ -1036,10 +1056,10 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
                             <InfoRow label="등록일" value={academy.regDate} />
                             <InfoRow label="등록상태" value={academy.status} />
                             <InfoRow label="상태변경일" value={academy.statusDate} />
-                            <InfoRow label="다중이용업소" value={academy.isMultiUse} />
-                            <InfoRow label="기숙학원" value={academy.isBoarding} />
-                            <InfoRow label="수강료공개" value={academy.disclosure} />
-                            <InfoRow label="건물소유" value={academy.ownership} />
+                            {academy.isMultiUse && <InfoRow label="다중이용업소" value={academy.isMultiUse} />}
+                            {academy.isBoarding && <InfoRow label="기숙학원" value={academy.isBoarding} />}
+                            {academy.disclosure && <InfoRow label="수강료공개" value={academy.disclosure} />}
+                            {academy.ownership && <InfoRow label="건물소유" value={academy.ownership} />}
                         </Section>
                         {sameBuildingAcademies.length > 0 && (() => {
                             // Get building info from first academy
@@ -1189,6 +1209,16 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
                                                         <span>📅</span>
                                                         <span>{a.regDate}</span>
                                                     </span>
+                                                    {(() => {
+                                                        const period = getUninspectedPeriod(a.inspections, a.regDate);
+                                                        return period ? (
+                                                            <span style={{
+                                                                color: '#dc2626',
+                                                                fontWeight: '600',
+                                                                fontSize: '0.82rem'
+                                                            }}>{period}</span>
+                                                        ) : null;
+                                                    })()}
                                                 </div>
                                             </div>
                                         );
