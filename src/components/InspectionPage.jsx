@@ -613,16 +613,16 @@ function TabRecent({ region, academies, onSelectAcademy, initialPage = 0, initia
                                 <tr style={{ background: 'linear-gradient(180deg,#f8fafc 0%,#f1f5f9 100%)', borderBottom: '2px solid var(--border-color)' }}>
                                     <th style={{ padding: '9px 8px', width: '28px', color: '#64748b', fontWeight: '700', fontSize: '0.72rem', whiteSpace: 'nowrap', textAlign: 'center', background: 'transparent', position: 'sticky', left: 0, zIndex: 2, backgroundImage: 'linear-gradient(180deg,#f8fafc,#f1f5f9)' }}>#</th>
                                     <th style={{
-                                        padding: '9px 10px', width: '120px', color: '#64748b', fontWeight: '700', fontSize: '0.72rem',
-                                        whiteSpace: 'nowrap', position: 'sticky', left: '28px', zIndex: 2,
-                                        boxShadow: '2px 0 6px rgba(0,0,0,0.07)',
-                                        backgroundImage: 'linear-gradient(180deg,#f8fafc,#f1f5f9)'
-                                    }}>학원명</th>
-                                    <th style={{
                                         padding: '9px 10px', width: '90px', color: '#64748b', fontWeight: '700', fontSize: '0.72rem',
                                         whiteSpace: 'nowrap',
                                         backgroundImage: 'linear-gradient(180deg,#f8fafc,#f1f5f9)'
                                     }}>점검일</th>
+                                    <th style={{
+                                        padding: '9px 10px', width: '120px', color: '#64748b', fontWeight: '700', fontSize: '0.72rem',
+                                        whiteSpace: 'nowrap', position: 'sticky', left: '118px', zIndex: 2,
+                                        boxShadow: '2px 0 6px rgba(0,0,0,0.07)',
+                                        backgroundImage: 'linear-gradient(180deg,#f8fafc,#f1f5f9)'
+                                    }}>학원명</th>
                                     <th style={{ padding: '9px 12px', color: '#64748b', fontWeight: '700', fontSize: '0.72rem', whiteSpace: 'nowrap', background: 'transparent' }}>지도·위반 내용</th>
                                 </tr>
                             </thead>
@@ -654,10 +654,23 @@ function TabRecent({ region, academies, onSelectAcademy, initialPage = 0, initia
                                         >
                                             {/* 연번 */}
                                             <td style={{ padding: '8px 6px', textAlign: 'center', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: '600', verticalAlign: 'middle', position: 'sticky', left: 0, zIndex: 1, background: rowBg }}>{rowNum}</td>
+                                            {/* 점검일 */}
+                                            <td style={{
+                                                padding: '8px 10px',
+                                                background: rowBg,
+                                                width: '90px', minWidth: '90px',
+                                                verticalAlign: 'middle',
+                                                whiteSpace: 'nowrap',
+                                            }}>
+                                                <div style={{ fontSize: '0.72rem', color: isFuture ? '#94a3b8' : '#64748b', fontWeight: '600', letterSpacing: '0.01em' }}>
+                                                    {dateFmt}
+                                                </div>
+                                                {isFuture && <div style={{ fontSize: '0.62rem', color: '#94a3b8', marginTop: '2px' }}>예정</div>}
+                                            </td>
                                             {/* 학원명 sticky */}
                                             <td style={{
                                                 padding: '8px 10px',
-                                                position: 'sticky', left: '28px', zIndex: 1,
+                                                position: 'sticky', left: '118px', zIndex: 1,
                                                 background: rowBg,
                                                 boxShadow: '2px 0 6px rgba(0,0,0,0.06)',
                                                 width: '120px', minWidth: '120px',
@@ -683,19 +696,6 @@ function TabRecent({ region, academies, onSelectAcademy, initialPage = 0, initia
                                                         >{g.name || '-'}</span>
                                                     ) : <span style={nameStyle} title={g.name}>{g.name || '-'}</span>;
                                                 })()}
-                                            </td>
-                                            {/* 점검일 */}
-                                            <td style={{
-                                                padding: '8px 10px',
-                                                background: rowBg,
-                                                width: '90px', minWidth: '90px',
-                                                verticalAlign: 'middle',
-                                                whiteSpace: 'nowrap',
-                                            }}>
-                                                <div style={{ fontSize: '0.72rem', color: isFuture ? '#94a3b8' : '#64748b', fontWeight: '600', letterSpacing: '0.01em' }}>
-                                                    {dateFmt}
-                                                </div>
-                                                {isFuture && <div style={{ fontSize: '0.62rem', color: '#94a3b8', marginTop: '2px' }}>예정</div>}
                                             </td>
                                             {/* 지도·위반 내용 */}
                                             <td style={{ padding: '8px 12px' }}>
