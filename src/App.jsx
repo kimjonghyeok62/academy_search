@@ -53,6 +53,8 @@ function App() {
   const [showMap, setShowMap] = useState(false); // 맵 화면
   const [detailOrigin, setDetailOrigin] = useState('main'); // 상세화면 진입 출처 ('main' 또는 'inspection' 또는 'map')
   const [focusAcademy, setFocusAcademy] = useState(null); // 지도에서 포커스할 학원
+  const [mapReturnState, setMapReturnState] = useState(null); // 지도 진입 전 복귀 상태
+  const [routeAcademies, setRouteAcademies] = useState(null); // 점검 경로 학원 목록
 
   // Clean up any old auth data on mount
   useEffect(() => {
@@ -430,6 +432,12 @@ function App() {
           setShowInspection(false);
           setSelectedAcademy(academy);
         }}
+        onShowRouteMap={(academies) => {
+          setRouteAcademies(academies);
+          setMapReturnState({ fromInspection: true });
+          setShowInspection(false);
+          setShowMap(true);
+        }}
       />
     );
   }
@@ -441,11 +449,26 @@ function App() {
         academies={academies}
         privateTutors={privateTutors}
         focusAcademy={focusAcademy}
-        onBack={() => { setShowMap(false); setFocusAcademy(null); }}
+        routeAcademies={routeAcademies}
+        onBack={() => {
+          setShowMap(false);
+          setFocusAcademy(null);
+          setRouteAcademies(null);
+          if (mapReturnState) {
+            if (mapReturnState.fromInspection) {
+              setShowInspection(true);
+            } else {
+              setSelectedAcademy(mapReturnState.academy);
+              setDetailOrigin(mapReturnState.origin);
+            }
+            setMapReturnState(null);
+          }
+        }}
         onSelectAcademy={(item) => {
           setDetailOrigin('map');
           setShowMap(false);
           setFocusAcademy(null);
+          setRouteAcademies(null);
           setSelectedAcademy(item);
         }}
       />
@@ -481,9 +504,9 @@ function App() {
             }}
             onSelectAcademy={(academy) => setSelectedAcademy(academy)}
             onShowMap={(academy) => {
+              setMapReturnState({ academy: selectedAcademy, origin: detailOrigin });
               setFocusAcademy(academy);
               setSelectedAcademy(null);
-              setDetailOrigin('map');
               setShowMap(true);
             }}
           />

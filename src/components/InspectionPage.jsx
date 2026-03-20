@@ -481,7 +481,7 @@ function TabRecent({ region, academies, onSelectAcademy, initialPage = 0, initia
 
     // 페이지네이션
     const totalPages = Math.ceil(groupedRows.length / PAGE_SIZE);
-    const pagedRows = pastGroupedRows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+    const pagedRows = groupedRows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
     return (
         <div>
@@ -608,67 +608,83 @@ function TabRecent({ region, academies, onSelectAcademy, initialPage = 0, initia
                 <>
                     {/* 가로 스크롤 래퍼 */}
                     <div style={{ borderRadius: '16px', border: '1px solid var(--border-color)', overflowX: 'auto', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
-                        <table style={{ width: '100%', minWidth: '300px', borderCollapse: 'collapse', fontSize: '0.83rem' }}>
+                        <table style={{ width: '100%', minWidth: '580px', borderCollapse: 'collapse', fontSize: '0.83rem' }}>
                             <thead>
                                 <tr style={{ background: 'linear-gradient(180deg,#f8fafc 0%,#f1f5f9 100%)', borderBottom: '2px solid var(--border-color)' }}>
-                                    <th style={{ padding: '9px 8px', width: '28px', color: '#64748b', fontWeight: '700', fontSize: '0.72rem', whiteSpace: 'nowrap', textAlign: 'center', background: 'transparent' }}>#</th>
-                                    {/* 점검일+학원명 통합 sticky 헤더 */}
+                                    <th style={{ padding: '9px 8px', width: '28px', color: '#64748b', fontWeight: '700', fontSize: '0.72rem', whiteSpace: 'nowrap', textAlign: 'center', background: 'transparent', position: 'sticky', left: 0, zIndex: 2, backgroundImage: 'linear-gradient(180deg,#f8fafc,#f1f5f9)' }}>#</th>
                                     <th style={{
-                                        padding: '9px 12px', width: '58px', color: '#64748b', fontWeight: '700', fontSize: '0.72rem',
-                                        whiteSpace: 'nowrap', position: 'sticky', left: 0, zIndex: 2,
+                                        padding: '9px 10px', width: '90px', color: '#64748b', fontWeight: '700', fontSize: '0.72rem',
+                                        whiteSpace: 'nowrap', position: 'sticky', left: '28px', zIndex: 2,
+                                        backgroundImage: 'linear-gradient(180deg,#f8fafc,#f1f5f9)'
+                                    }}>점검일</th>
+                                    <th style={{
+                                        padding: '9px 10px', width: '120px', color: '#64748b', fontWeight: '700', fontSize: '0.72rem',
+                                        whiteSpace: 'nowrap', position: 'sticky', left: '118px', zIndex: 2,
                                         boxShadow: '2px 0 6px rgba(0,0,0,0.07)',
                                         backgroundImage: 'linear-gradient(180deg,#f8fafc,#f1f5f9)'
-                                    }}>점검일 · 학원명</th>
+                                    }}>학원명</th>
                                     <th style={{ padding: '9px 12px', color: '#64748b', fontWeight: '700', fontSize: '0.72rem', whiteSpace: 'nowrap', background: 'transparent' }}>지도·위반 내용</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {pagedRows.map((g, i) => {
                                     const bgTone = academyBgMap.get(g.name) === 0 ? '#ffffff' : '#f8faff';
-                                    const rowBg = g.hasViol ? '#fff5f5' : bgTone;
+                                    const isFuture = (() => { const d = parseInspDate(g.date); return d ? d > TODAY_DATE : false; })();
+                                    const rowBg = isFuture ? '#f8f9fa' : (g.hasViol ? '#fff5f5' : bgTone);
                                     const globalIdx = page * PAGE_SIZE + i;
                                     // 연번: 가장 오래된 항목이 1번 (내림차순 표시이므로 역산)
-                                    const rowNum = pastGroupedRows.length - globalIdx;
-                                    // 날짜 포맷: "2026. 1. 7" → "2026.1.7."
+                                    const rowNum = groupedRows.length - globalIdx;
+                                    // 날짜 포맷: "2026. 1. 7" → "2026.3.20.(금)"
                                     const dateFmt = (() => {
                                         const d = (g.date || '').trim();
                                         const m = d.match(/(\d{4})[.\-/\s]+(\d{1,2})[.\-/\s]+(\d{1,2})/);
-                                        return m ? `${m[1]}.${parseInt(m[2])}.${parseInt(m[3])}.` : d;
+                                        if (!m) return d;
+                                        const dt = new Date(parseInt(m[1]), parseInt(m[2]) - 1, parseInt(m[3]));
+                                        const dayChar = '일월화수목금토'[dt.getDay()];
+                                        return `${m[1]}.${parseInt(m[2])}.${parseInt(m[3])}.(${dayChar})`;
                                     })();
-                                    const isFuture = false; // pastGroupedRows엔 미래/날짜없음 제외됨
-                                    const finalBg = isFuture ? '#f1f5f9' : rowBg;
 
                                     return (
                                         <tr
                                             key={i}
                                             onClick={isFuture ? undefined : () => { setSelectedRow(g.row); setSelectedIndex(globalIdx); }}
-                                            style={{ borderBottom: `1px solid ${g.hasViol && !isFuture ? '#fce4e4' : 'var(--border-color)'}`, background: finalBg, cursor: isFuture ? 'default' : 'pointer', transition: 'all 0.12s', opacity: isFuture ? 0.45 : 1 }}
+                                            style={{ borderBottom: `1px solid ${g.hasViol && !isFuture ? '#fce4e4' : 'var(--border-color)'}`, background: rowBg, cursor: isFuture ? 'default' : 'pointer', transition: 'all 0.12s', opacity: isFuture ? 0.55 : 1 }}
                                             onMouseEnter={isFuture ? undefined : (e => { e.currentTarget.style.background = '#eef2ff'; e.currentTarget.style.boxShadow = 'inset 0 0 0 1px #c7d2fe'; })}
-                                            onMouseLeave={isFuture ? undefined : (e => { e.currentTarget.style.background = finalBg; e.currentTarget.style.boxShadow = 'none'; })}
+                                            onMouseLeave={isFuture ? undefined : (e => { e.currentTarget.style.background = rowBg; e.currentTarget.style.boxShadow = 'none'; })}
                                         >
                                             {/* 연번 */}
-                                            <td style={{ padding: '8px 6px', textAlign: 'center', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: '600', verticalAlign: 'middle', background: finalBg }}>{rowNum}</td>
-                                            {/* 점검일 + 학원명 통합 sticky */}
+                                            <td style={{ padding: '8px 6px', textAlign: 'center', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: '600', verticalAlign: 'middle', position: 'sticky', left: 0, zIndex: 1, background: rowBg }}>{rowNum}</td>
+                                            {/* 점검일 sticky */}
                                             <td style={{
                                                 padding: '8px 10px',
-                                                position: 'sticky', left: 0, zIndex: 1,
-                                                background: finalBg,
-                                                boxShadow: '2px 0 6px rgba(0,0,0,0.06)',
-                                                width: '50px', maxWidth: '50px',
+                                                position: 'sticky', left: '28px', zIndex: 1,
+                                                background: rowBg,
+                                                width: '90px', minWidth: '90px',
                                                 verticalAlign: 'middle',
+                                                whiteSpace: 'nowrap',
                                             }}>
-                                                {/* 날짜 */}
-                                                <div style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: '600', marginBottom: '2px', letterSpacing: '0.01em' }}>
+                                                <div style={{ fontSize: '0.72rem', color: isFuture ? '#94a3b8' : '#64748b', fontWeight: '600', letterSpacing: '0.01em' }}>
                                                     {dateFmt}
                                                 </div>
-                                                {/* 학원명 */}
+                                                {isFuture && <div style={{ fontSize: '0.62rem', color: '#94a3b8', marginTop: '2px' }}>예정</div>}
+                                            </td>
+                                            {/* 학원명 sticky */}
+                                            <td style={{
+                                                padding: '8px 10px',
+                                                position: 'sticky', left: '118px', zIndex: 1,
+                                                background: rowBg,
+                                                boxShadow: '2px 0 6px rgba(0,0,0,0.06)',
+                                                width: '120px', minWidth: '120px',
+                                                verticalAlign: 'middle',
+                                            }}>
                                                 {(() => {
                                                     const nameStyle = {
                                                         display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
                                                         overflow: 'hidden', wordBreak: 'break-all',
-                                                        fontSize: '0.82rem', fontWeight: '800', color: 'var(--text-main)'
+                                                        fontSize: '0.82rem', fontWeight: '800',
+                                                        color: isFuture ? '#94a3b8' : 'var(--text-main)'
                                                     };
-                                                    if (!academies || !onSelectAcademy) {
+                                                    if (!academies || !onSelectAcademy || isFuture) {
                                                         return <span style={nameStyle} title={g.name}>{g.name || '-'}</span>;
                                                     }
                                                     const normTarget = (g.name || '').replace(/[^a-zA-Z0-9가-힣]/g, '').toLowerCase();
@@ -1839,7 +1855,7 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
 // ───────────────────────────────────────────────
 // 탭: 주의 (운영 위반 점검)
 // ───────────────────────────────────────────────
-function TabCaution({ region, academies, privateTutors, academyClosures, onSelectAcademy, addrDongCacheVer, initialOpenSections, onSubStateChange }) {
+function TabCaution({ region, academies, privateTutors, academyClosures, onSelectAcademy, addrDongCacheVer, initialOpenSections, onSubStateChange, onShowRouteMap }) {
     const city = region.endsWith('시') ? region : region + '시';
     const H_CLOSED_R = ['자진폐원', '직권폐원', '자진폐소', '직권폐소'];
     const aList = useMemo(() => (academies || []).filter(a => (a.address || '').includes(city) && a.category !== '교습소'), [academies, city]);
@@ -1864,6 +1880,11 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
     // overdue per-dong refresh state: Map<dong, Set<'ac'|'hg'>>
     const [overdueRefreshed, setOverdueRefreshed] = useState(new Map());
     const [overdueRefreshing, setOverdueRefreshing] = useState(false);
+    const [allRawRows, setAllRawRows] = useState([]);
+    const [routeDate, setRouteDate] = useState('');
+    const routeMapContainerRef = useRef(null);
+    const routeMapInstanceRef = useRef(null);
+    const inlineRouteMarkersRef = useRef([]);
 
     const normName = (n) => (n || '').replace(/[^a-zA-Z0-9가-힣]/g, '').toLowerCase();
     const isInsp2026 = useCallback((a) => inspectedNames.has(normName(a.name)), [inspectedNames]);
@@ -1871,6 +1892,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
     const loadInspectedNames = async () => {
         try {
             const { bodyRows } = await fetchRecentRawRows();
+            setAllRawRows(bodyRows);
             const names = new Set(bodyRows.map(r =>
                 normName(colVal(r, ['학원(교습소)명', '명칭', '학원명', '기관명']))
             ).filter(Boolean));
@@ -1880,6 +1902,159 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
     };
 
     useEffect(() => { loadInspectedNames(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // ── 점검 경로: 향후 30일 내 날짜별 그룹 ──
+    const planDateMap = useMemo(() => {
+        const today = new Date(); today.setHours(0,0,0,0);
+        const limit = new Date(today); limit.setDate(today.getDate() + 30);
+        const map = new Map();
+        allRawRows.forEach(row => {
+            const d = toDateRev(colVal(row, ['점검일','점검일자','지도점검일']));
+            if (!d) return;
+            const nd = new Date(d); nd.setHours(0,0,0,0);
+            if (nd < today || nd > limit) return;
+            const key = `${nd.getFullYear()}.${String(nd.getMonth()+1).padStart(2,'0')}.${String(nd.getDate()).padStart(2,'0')}`;
+            if (!map.has(key)) map.set(key, []);
+            map.get(key).push(row);
+        });
+        return map;
+    }, [allRawRows]);
+
+    const haversineKm = (lat1, lng1, lat2, lng2) => {
+        const R = 6371, toRad = x => x * Math.PI / 180;
+        const dLat = toRad(lat2 - lat1), dLng = toRad(lng2 - lng1);
+        const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLng/2)**2;
+        return R * 2 * Math.asin(Math.sqrt(a));
+    };
+
+    const routeAcademiesSorted = useMemo(() => {
+        if (!routeDate || !planDateMap.has(routeDate)) return [];
+        const rows = planDateMap.get(routeDate);
+        const allA = [...(academies || [])];
+        const matched = rows.map(row => {
+            const rawName = colVal(row, ['학원(교습소)명','명칭','학원명','기관명']);
+            return allA.find(a => normName(a.name) === normName(rawName)) || null;
+        }).filter(Boolean);
+        if (matched.length === 0) return [];
+
+        const cache = JSON.parse(localStorage.getItem('academyMapLocations') || '{}');
+        const withCoords = matched.map(a => ({
+            academy: a,
+            lat: cache[`${a.id}-${a.category}`]?.lat ?? null,
+            lng: cache[`${a.id}-${a.category}`]?.lng ?? null,
+        }));
+        const hasCo = withCoords.filter(x => x.lat != null);
+        const noCo = withCoords.filter(x => x.lat == null);
+
+        if (hasCo.length === 0) return matched.map((a, i) => ({ ...a, _order: i+1, _dist: null }));
+
+        const ordered = [hasCo[0]];
+        const remaining = [...hasCo.slice(1)];
+        while (remaining.length) {
+            const last = ordered[ordered.length - 1];
+            let minD = Infinity, minI = 0;
+            remaining.forEach((x, i) => {
+                const d = haversineKm(last.lat, last.lng, x.lat, x.lng);
+                if (d < minD) { minD = d; minI = i; }
+            });
+            ordered.push(remaining.splice(minI, 1)[0]);
+        }
+
+        const result = [...ordered, ...noCo];
+        return result.map((x, i) => {
+            let dist = null;
+            if (i > 0 && x.lat != null) {
+                const prev = result[i - 1];
+                if (prev && prev.lat != null) dist = haversineKm(prev.lat, prev.lng, x.lat, x.lng);
+            }
+            return { ...x.academy, _order: i + 1, _dist: dist, _lat: x.lat, _lng: x.lng };
+        });
+    }, [routeDate, planDateMap, academies]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // ── 인라인 경로 지도 ──
+    const getUnitLabel = (address) => {
+        if (!address) return '';
+        const m = address.match(/(\d{1,4})동\s*(\d{3,4})호/) || address.match(/(\d{1,4})호/);
+        return m ? `(${m[0]})` : '';
+    };
+
+    useEffect(() => {
+        inlineRouteMarkersRef.current.forEach(o => o.setMap(null));
+        inlineRouteMarkersRef.current = [];
+
+        if (!routeDate || routeAcademiesSorted.length === 0 || !routeMapContainerRef.current) return;
+
+        const initInlineMap = () => {
+            const kakao = window.kakao;
+            if (!kakao?.maps || !routeMapContainerRef.current) return;
+
+            if (!routeMapInstanceRef.current) {
+                routeMapInstanceRef.current = new kakao.maps.Map(routeMapContainerRef.current, {
+                    center: new kakao.maps.LatLng(37.54, 127.21),
+                    level: 5,
+                });
+            }
+            const map = routeMapInstanceRef.current;
+
+            inlineRouteMarkersRef.current.forEach(o => o.setMap(null));
+            inlineRouteMarkersRef.current = [];
+
+            const locationGroups = new Map();
+            routeAcademiesSorted.forEach(a => {
+                if (a._lat == null) return;
+                const key = `${a._lat.toFixed(6)},${a._lng.toFixed(6)}`;
+                if (!locationGroups.has(key)) locationGroups.set(key, { lat: a._lat, lng: a._lng, items: [] });
+                locationGroups.get(key).items.push(a);
+            });
+
+            const positions = [];
+            locationGroups.forEach(({ lat, lng, items }) => {
+                const position = new kakao.maps.LatLng(lat, lng);
+                positions.push(position);
+
+                const el = document.createElement('div');
+                el.style.cssText = 'display:flex;flex-direction:column;align-items:flex-start;gap:3px;';
+                items.forEach(a => {
+                    const unitStr = getUnitLabel(a.address);
+                    const row = document.createElement('div');
+                    row.style.cssText = 'display:flex;align-items:center;gap:4px;cursor:pointer;';
+                    row.innerHTML = `
+                        <div style="width:22px;height:22px;border-radius:50%;background:#f97316;color:white;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:10px;border:2px solid white;box-shadow:0 2px 5px rgba(249,115,22,0.5);flex-shrink:0;">${a._order}</div>
+                        <div style="background:rgba(255,255,255,0.95);padding:2px 7px;border-radius:9px;border:1.5px solid #f97316;font-size:10px;font-weight:700;color:#1e1b4b;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,0.15);">${a.name}${unitStr ? ' ' + unitStr : ''}</div>
+                    `;
+                    row.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        if (onSelectAcademy) onSelectAcademy(a);
+                    });
+                    el.appendChild(row);
+                });
+
+                const overlay = new kakao.maps.CustomOverlay({
+                    position, content: el, zIndex: 50, xAnchor: 0.5, yAnchor: 1.0,
+                });
+                overlay.setMap(map);
+                inlineRouteMarkersRef.current.push(overlay);
+            });
+
+            if (positions.length >= 2) {
+                const bounds = new kakao.maps.LatLngBounds();
+                positions.forEach(p => bounds.extend(p));
+                map.setBounds(bounds, 50);
+            } else if (positions.length === 1) {
+                map.setCenter(positions[0]);
+                map.setLevel(3);
+            }
+        };
+
+        if (window.kakao?.maps) {
+            initInlineMap();
+        } else {
+            const interval = setInterval(() => {
+                if (window.kakao?.maps) { clearInterval(interval); initInlineMap(); }
+            }, 300);
+            return () => clearInterval(interval);
+        }
+    }, [routeAcademiesSorted, routeDate]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleRiskRefresh = async (type) => {
         setRiskRefreshing(true);
@@ -2269,6 +2444,79 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                 </div>
             </div>
 
+            {/* 점검 경로 */}
+            <div style={{ background: 'var(--bg-card)', borderRadius: '14px', padding: '14px 16px', border: '1px solid var(--border-color)', marginBottom: '12px', boxShadow: 'var(--shadow-sm)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '0.88rem', fontWeight: '800', color: 'var(--text-main)' }}>🗺️ 점검 경로</span>
+                    {allRawRows.length > 0 && planDateMap.size === 0 && (
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: 'auto' }}>향후 30일 내 계획 없음</span>
+                    )}
+                    {planDateMap.size > 0 && (
+                        <select
+                            value={routeDate}
+                            onChange={e => setRouteDate(e.target.value)}
+                            style={{ marginLeft: 'auto', fontSize: '0.78rem', padding: '4px 8px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-main)', color: 'var(--text-main)', cursor: 'pointer' }}
+                        >
+                            <option value="">날짜 선택...</option>
+                            {[...planDateMap.entries()].sort(([a],[b]) => a.localeCompare(b)).map(([date, rows]) => (
+                                <option key={date} value={date}>{date} ({rows.length}건)</option>
+                            ))}
+                        </select>
+                    )}
+                </div>
+                {routeDate && routeAcademiesSorted.length === 0 && (
+                    <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: '8px' }}>매칭된 학원이 없습니다. 학원명을 확인해주세요.</div>
+                )}
+                {routeDate && routeAcademiesSorted.length > 0 && (
+                    <div style={{ marginTop: '12px' }}>
+                        <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid var(--border-color)', marginBottom: '10px' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                                <thead>
+                                    <tr>
+                                        <Th style={{ width: '32px', textAlign: 'center' }}>#</Th>
+                                        <Th>학원명</Th>
+                                        <Th>주소</Th>
+                                        <Th style={{ textAlign: 'right' }}>이동</Th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {routeAcademiesSorted.map((a, i) => (
+                                        <tr key={`${a.id}-${i}`} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
+                                            <Td style={{ textAlign: 'center', fontWeight: '800', color: '#f97316' }}>{a._order}</Td>
+                                            <Td>
+                                                {onSelectAcademy
+                                                    ? <span onClick={() => onSelectAcademy(a)} style={{ fontWeight: '700', color: 'var(--primary)', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '2px' }}>{a.name}</span>
+                                                    : <span style={{ fontWeight: '600' }}>{a.name}</span>
+                                                }
+                                            </Td>
+                                            <Td style={{ color: 'var(--text-muted)', maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.address || '-'}</Td>
+                                            <Td style={{ textAlign: 'right', color: a._dist != null ? '#0ea5e9' : 'var(--text-muted)' }}>
+                                                {i === 0
+                                                    ? <span style={{ color: '#10b981', fontWeight: '700' }}>출발</span>
+                                                    : a._dist != null ? `${a._dist.toFixed(1)}km` : '-'}
+                                            </Td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
+            </div>
+            {/* 인라인 경로 지도 — 항상 DOM에 있고, 경로 선택 시 표시 */}
+            <div
+                ref={routeMapContainerRef}
+                style={{
+                    width: '100%',
+                    height: '380px',
+                    borderRadius: '12px',
+                    overflow: 'hidden',
+                    border: '1px solid var(--border-color)',
+                    marginBottom: '12px',
+                    display: (routeDate && routeAcademiesSorted.length > 0) ? 'block' : 'none',
+                }}
+            />
+
             {/* G. 주간 점검 일정 추천 — 맨 위로 이동 */}
             <CautionSection id="weeklyPlan" title="📋 점검 일정 추천 (이번 주 + 4주)" badge={weeklyPlan.length} badgeColor="#14b8a6">
                 {weeklyPlan.length === 0
@@ -2308,7 +2556,8 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                                         </tr>
                                     );
                                     return (
-                                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                        <div style={{ overflowX: 'auto' }}>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '360px' }}>
                                             <thead><tr>
                                                 <Th style={{ width: '22px' }}>#</Th>
                                                 <Th>학원명</Th><Th>연락처</Th><Th>동</Th><Th>보험</Th><Th>위반</Th><Th>점수</Th>
@@ -2320,6 +2569,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                                                 {hgItems.map((a, ai) => renderRow(a, ai))}
                                             </tbody>
                                         </table>
+                                        </div>
                                     );
                                 })()}
                                 {/* 심야 점검 목록 */}
@@ -2345,7 +2595,8 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                                     return (
                                         <div style={{ borderTop: '1px dashed var(--border-color)', background: 'rgba(30,41,59,0.04)' }}>
                                             <div style={{ padding: '5px 12px', fontSize: '0.76rem', fontWeight: '700', color: '#64748b' }}>🌙 심야점검 대상 ({wk.midnightList.length}개)</div>
-                                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                            <div style={{ overflowX: 'auto' }}>
+                                            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '360px' }}>
                                                 <thead><tr>
                                                     <Th style={{ width: '22px' }}>#</Th>
                                                     <Th>학원명</Th><Th>연락처</Th><Th>동</Th><Th>보험</Th><Th>위반</Th><Th>점수</Th>
@@ -2357,6 +2608,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                                                     {hgM.map((a, ai) => renderRow(a, ai))}
                                                 </tbody>
                                             </table>
+                                            </div>
                                         </div>
                                     );
                                 })()}
@@ -2547,7 +2799,7 @@ function TabPlaceholder({ label }) {
 // ───────────────────────────────────────────────
 const INSP_STATE_KEY = 'inspectionPageState';
 
-export default function InspectionPage({ onBack, academies, privateTutors, onSelectAcademy }) {
+export default function InspectionPage({ onBack, academies, privateTutors, onSelectAcademy, onShowRouteMap }) {
     const [region, setRegion] = useState(() => {
         try { return JSON.parse(sessionStorage.getItem(INSP_STATE_KEY))?.region || '하남'; } catch { return '하남'; }
     });
@@ -2785,7 +3037,7 @@ export default function InspectionPage({ onBack, academies, privateTutors, onSel
                 ) : (
                     <div>
                         {activeTab === 0 && <TabRecent region={region} academies={academies} onSelectAcademy={handleSelectAcademy} initialPage={recentInitPage} initialScrollY={recentInitScrollY} onPageChange={p => handleSubStateChange({ page: p })} />}
-                        {activeTab === 1 && <TabCaution region={region} academies={academies} privateTutors={privateTutors} academyClosures={academyClosures} onSelectAcademy={handleSelectAcademy} addrDongCacheVer={addrDongCacheVer} initialOpenSections={savedSubState.cautionOpenSections} onSubStateChange={s => handleSubStateChange({ cautionOpenSections: s })} />}
+                        {activeTab === 1 && <TabCaution region={region} academies={academies} privateTutors={privateTutors} academyClosures={academyClosures} onSelectAcademy={handleSelectAcademy} addrDongCacheVer={addrDongCacheVer} initialOpenSections={savedSubState.cautionOpenSections} onSubStateChange={s => handleSubStateChange({ cautionOpenSections: s })} onShowRouteMap={onShowRouteMap} />}
                         {activeTab === 2 && <TabStats region={region} statRows={statRows} academies={academies} privateTutors={privateTutors} academyClosures={academyClosures} addrDongCacheVer={addrDongCacheVer} />}
                         {activeTab === 3 && <TabReview region={region} academies={academies} privateTutors={privateTutors} academyClosures={academyClosures} onSelectAcademy={handleSelectAcademy} addrDongCacheVer={addrDongCacheVer} initialOpenSections={savedSubState.reviewOpenSections} onSubStateChange={s => handleSubStateChange({ reviewOpenSections: s })} />}
                     </div>
