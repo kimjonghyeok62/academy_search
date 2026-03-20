@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 
-function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy, focusAcademy }) {
+function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy, focusAcademy, routeAcademies }) {
     // 환경 변수(.env)에서 먼저 키를 찾고, 없으면 localStorage 확인
     const [apiKey, setApiKey] = useState(
         import.meta.env.VITE_KAKAO_MAP_API_KEY || localStorage.getItem('kakao_api_key') || ''
@@ -21,12 +21,13 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy, focus
     const kakaoRef = useRef(null); // kakao 객체 참조 (focusAcademy용)
     const groupsArrayRef = useRef([]); // 마커 그룹 배열 (focusAcademy용)
     const focusMarkerRef = useRef(null); // 포커스 학원 보라색 마커
+    const routeMarkersRef = useRef([]); // 경로 번호 마커
     const [locating, setLocating] = useState(false); // 위치 탐색 중 상태
     const [filterAcademy, setFilterAcademy] = useState(true);
     const [filterTutoring, setFilterTutoring] = useState(true);
     const [filterGwangju, setFilterGwangju] = useState(false);
     const [filterHanam, setFilterHanam] = useState(true);
-    const [filterPrivateTutor, setFilterPrivateTutor] = useState(true);
+    const [filterPrivateTutor, setFilterPrivateTutor] = useState(false);
     const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
     const [failCount, setFailCount] = useState(0); // 좌표 변환 실패 건수
 
@@ -687,7 +688,11 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy, focus
         if (loading || !focusAcademy || !mapInstanceRef.current || !kakaoRef.current) return;
         const kakao = kakaoRef.current;
         const map = mapInstanceRef.current;
-        const group = groupsArrayRef.current.find(g => g.list.some(a => a.id === focusAcademy.id));
+        const group = groupsArrayRef.current.find(g => g.list.some(a =>
+            a.id === focusAcademy.id &&
+            a.name === focusAcademy.name &&
+            a.address === focusAcademy.address
+        ));
         if (!group) return;
         const position = new kakao.maps.LatLng(group.lat, group.lng);
 
@@ -707,10 +712,6 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy, focus
                 <circle cx="18" cy="18" r="5" fill="#7c3aed"/>
             </svg>
         `;
-        pinEl.onclick = (e) => {
-            e.stopPropagation();
-            showOverlay(kakao, map, position, group.list);
-        };
         const focusOverlay = new kakao.maps.CustomOverlay({
             position,
             content: pinEl,
@@ -722,9 +723,99 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy, focus
         focusMarkerRef.current = focusOverlay;
 
         map.setCenter(position);
-        map.setLevel(3);
-        showOverlay(kakao, map, position, group.list);
+        map.setLevel(2);
     }, [loading, focusAcademy]);
+
+    // routeAcademies: 경로 번호 마커 표시 (일반 마커 숨김 포함)
+    useEffect(() => {
+        if (loading || !mapInstanceRef.current || !kakaoRef.current || !clustererRef.current) return;
+        const kakao = kakaoRef.current;
+        const map = mapInstanceRef.current;
+        const clusterer = clustererRef.current;
+
+        // 기존 경로 마커 제거
+        routeMarkersRef.current.forEach(o => o.setMap(null));
+        routeMarkersRef.current = [];
+
+        if (!routeAcademies?.length) {
+            // 일반 마커 및 텍스트 오버레이 복원
+            if (markersRef.current.length > 0) {
+                clusterer.addMarkers(markersRef.current);
+            }
+            const level = map.getLevel();
+            textOverlaysRef.current.forEach((overlay, idx) => {
+                const group = groupsArrayRef.current[idx];
+                if (!group || !overlay) return;
+                if (level <= 4) {
+                    if (level <= 1) {
+                        overlay.getContent().innerHTML = group.list.map(a => `<div style="line-height:1.2;padding:1px 0;">${a.name}</div>`).join('');
+                    } else {
+                        overlay.getContent().innerHTML = group.list.length > 1
+                            ? `${group.list[0].name} <span style="color:#4f46e5;font-size:10px;">외 ${group.list.length - 1}</span>`
+                            : group.list[0].name;
+                    }
+                    overlay.setMap(map);
+                }
+            });
+            return;
+        }
+
+        // 일반 마커 및 텍스트 오버레이 숨김
+        clusterer.removeMarkers(markersRef.current);
+        textOverlaysRef.current.forEach(o => o.setMap(null));
+
+        // 경로 학원을 좌표별로 그룹핑 (같은 건물 처리)
+        const locationGroups = new Map();
+        routeAcademies.forEach((academy, idx) => {
+            const group = groupsArrayRef.current.find(g =>
+                g.list.some(a => a.id === academy.id && a.name === academy.name && a.address === academy.address)
+            );
+            if (!group) return;
+            const coordKey = `${group.lat.toFixed(6)},${group.lng.toFixed(6)}`;
+            if (!locationGroups.has(coordKey)) locationGroups.set(coordKey, { group, items: [] });
+            locationGroups.get(coordKey).items.push({ academy, order: idx + 1 });
+        });
+
+        const positions = [];
+        locationGroups.forEach(({ group, items }) => {
+            const position = new kakao.maps.LatLng(group.lat, group.lng);
+            positions.push(position);
+
+            const el = document.createElement('div');
+            el.style.cssText = 'display:flex;flex-direction:column;align-items:flex-start;gap:3px;';
+
+            items.forEach(({ academy, order }) => {
+                const unit = extractUnitInfo(academy.address);
+                const unitStr = unit.label ? ` ${unit.label}` : '';
+                const row = document.createElement('div');
+                row.style.cssText = 'display:flex;align-items:center;gap:5px;cursor:pointer;';
+                row.innerHTML = `
+                    <div style="width:24px;height:24px;border-radius:50%;background:#f97316;color:white;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;border:2px solid white;box-shadow:0 2px 6px rgba(249,115,22,0.5);flex-shrink:0;">${order}</div>
+                    <div style="background:rgba(255,255,255,0.95);padding:2px 8px;border-radius:10px;border:1.5px solid #f97316;font-size:11px;font-weight:700;color:#1e1b4b;white-space:nowrap;box-shadow:0 2px 4px rgba(0,0,0,0.15);">${academy.name}${unitStr}</div>
+                `;
+                row.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (onSelectAcademy) onSelectAcademy(academy);
+                });
+                el.appendChild(row);
+            });
+
+            const overlay = new kakao.maps.CustomOverlay({
+                position, content: el, zIndex: 150, xAnchor: 0.5, yAnchor: 1.0,
+            });
+            overlay.setMap(map);
+            routeMarkersRef.current.push(overlay);
+        });
+
+        if (positions.length >= 2) {
+            const bounds = new kakao.maps.LatLngBounds();
+            positions.forEach(p => bounds.extend(p));
+            map.setBounds(bounds, 60);
+        } else if (positions.length === 1) {
+            map.setCenter(positions[0]);
+            map.setLevel(3);
+        }
+    }, [loading, routeAcademies]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // 현재 위치 표시
     const handleMyLocation = () => {
