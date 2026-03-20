@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 
-function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy, focusAcademy, routeAcademies }) {
+function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy, focusAcademy, routeAcademies, initialMapState }) {
     // 환경 변수(.env)에서 먼저 키를 찾고, 없으면 localStorage 확인
     const [apiKey, setApiKey] = useState(
         import.meta.env.VITE_KAKAO_MAP_API_KEY || localStorage.getItem('kakao_api_key') || ''
@@ -219,13 +219,16 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy, focus
                     throw new Error("지도 컨테이너를 찾을 수 없습니다.");
                 }
 
-                // 지도 중심: 광주만 선택 시 → 경기도광주하남교육지원청, 그 외 → 미사역(하남 기준)
-                const centerPosition = (filterGwangju && !filterHanam)
+                // 지도 중심: 저장된 위치 > 광주만 선택 시 교육지원청, 그 외 미사역
+                const defaultCenter = (filterGwangju && !filterHanam)
                     ? new kakao.maps.LatLng(37.4249, 127.2553) // 경기도광주하남교육지원청 (경기도 광주시 광주대로 178)
                     : new kakao.maps.LatLng(37.5670, 127.1962); // 미사역 (하남 기준)
+                const centerPosition = initialMapState
+                    ? new kakao.maps.LatLng(initialMapState.lat, initialMapState.lng)
+                    : defaultCenter;
                 const mapOptions = {
                     center: centerPosition,
-                    level: 4
+                    level: initialMapState ? initialMapState.level : 4
                 };
 
                 const map = new kakao.maps.Map(mapContainerRef.current, mapOptions);
@@ -466,6 +469,26 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy, focus
         };
     }, [apiKey, filteredAcademies, filteredPrivateTutors]);
 
+    // 미점검 기간 계산 (점검 기록 없으면 등록일 기준)
+    const getUninspectedPeriod = (inspections, regDate) => {
+        const lastDateStr = (inspections && inspections.length > 0)
+            ? inspections[0]?.date
+            : regDate;
+        if (!lastDateStr) return null;
+        const last = new Date(lastDateStr.replace(/\./g, '-'));
+        if (isNaN(last.getTime())) return null;
+        const now = new Date();
+        let years = now.getFullYear() - last.getFullYear();
+        let months = now.getMonth() - last.getMonth();
+        if (now.getDate() < last.getDate()) months--;
+        if (months < 0) { years--; months += 12; }
+        if (years < 0) return null;
+        if (years === 0 && months === 0) return null;
+        if (years > 0 && months > 0) return `미점검 ${years}년 ${months}월`;
+        if (years > 0) return `미점검 ${years}년`;
+        return `미점검 ${months}월`;
+    };
+
     // 주소에서 호수 정보 추출 (팝업 표시 및 정렬용)
     const extractUnitInfo = (address) => {
         if (!address) return { label: '', sortKey: 999999 };
@@ -618,13 +641,13 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy, focus
             const showBadge = cat && cat !== '학교교과교습학원' && cat !== '교습소';
             const badgeLabel = cat === '평생직업교육학원' ? '평생직업교육' : cat;
             const unitInfo = extractUnitInfo(academy.address);
+            const uninspected = getUninspectedPeriod(academy.inspections, academy.regDate);
 
             html += `
-                <div style="padding: ${idx === sortedList.length - 1 ? '5px 0 0' : '5px 0'}; border-bottom: ${idx === sortedList.length - 1 ? 'none' : '1px solid rgba(0,0,0,0.07)'}; display: flex; align-items: center; justify-content: space-between; gap: 6px;">
-                    <div class="academy-name-link" data-idx="${idx}" style="font-size: 0.93rem; font-weight: 800; color: #1e1b4b; word-break: keep-all; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; line-height: 1.3; flex: 1;">
-                        ${academy.name}${unitInfo.label ? ` <span style="font-size: 0.72rem; color: #6b7280; font-weight: 600; text-decoration: none;">${unitInfo.label}</span>` : ''}
-                    </div>
-                    ${showBadge ? `<div style="font-size: 0.6rem; color: #4f46e5; font-weight: 800; padding: 1px 5px; background: rgba(79,70,229,0.1); border-radius: 5px; white-space: nowrap; flex-shrink: 0;">${badgeLabel}</div>` : ''}
+                <div style="padding: ${idx === sortedList.length - 1 ? '5px 0 0' : '5px 0'}; border-bottom: ${idx === sortedList.length - 1 ? 'none' : '1px solid rgba(0,0,0,0.07)'}; display: flex; align-items: center; gap: 4px; min-width: 0;">
+                    <span class="academy-name-link" data-idx="${idx}" style="font-size: 0.93rem; font-weight: 800; color: #1e1b4b; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex-shrink: 1;">${academy.name}</span>
+                    <span style="font-size: 0.72rem; color: #6b7280; font-weight: 600; white-space: nowrap; flex-shrink: 0;">${unitInfo.label ? unitInfo.label : ''}${uninspected ? ` <span style="color: #dc2626; font-weight: 700;">${uninspected}</span>` : ''}</span>
+                    ${showBadge ? `<span style="font-size: 0.6rem; color: #4f46e5; font-weight: 800; padding: 1px 5px; background: rgba(79,70,229,0.1); border-radius: 5px; white-space: nowrap; flex-shrink: 0;">${badgeLabel}</span>` : ''}
                 </div>
             `;
         });
@@ -649,7 +672,13 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy, focus
             link.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const idx = parseInt(e.currentTarget.getAttribute('data-idx'));
-                onSelectAcademy(sortedList[idx]);
+                const currentMap = mapInstanceRef.current;
+                const mapState = currentMap ? {
+                    lat: currentMap.getCenter().getLat(),
+                    lng: currentMap.getCenter().getLng(),
+                    level: currentMap.getLevel()
+                } : null;
+                onSelectAcademy(sortedList[idx], mapState);
             });
         });
 
