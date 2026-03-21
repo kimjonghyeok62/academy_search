@@ -288,6 +288,564 @@ function classifyPurpose(row) {
     return '지도점검';
 }
 
+// ───────────────────────────────────────────────
+// 통계 카드: 학원 행정처분 및 적발 현황
+// ───────────────────────────────────────────────
+
+// 공문상 코드별 세부 항목 정의 (코드, 축약 레이블, 상위 카테고리)
+const STAT_VIOL_ITEMS = [
+    { code: '1-1', label: '1-1 시설미등록', cat: '시설' },
+    { code: '2-1', label: '2-1 교습비 초과징수', cat: '교습비등' },
+    { code: '2-2', label: '2-2 교습비 변경미등록', cat: '교습비등' },
+    { code: '2-3', label: '2-3 교습비 게시위반', cat: '교습비등' },
+    { code: '3-1', label: '3-1 강사 채용·해임', cat: '강사등' },
+    { code: '3-2', label: '3-2 성범죄 미조회', cat: '강사등' },
+    { code: '3-3', label: '3-3 아동학대 미조회', cat: '강사등' },
+    { code: '3-4', label: '3-4 강사 미게시', cat: '강사등' },
+    { code: '3-5', label: '3-5 교습소강사', cat: '강사등' },
+    { code: '4-1', label: '4-1 미등록운영', cat: '운영' },
+    { code: '4-2', label: '4-2 교습과정', cat: '운영' },
+    { code: '4-3', label: '4-3 광고표시', cat: '운영' },
+    { code: '4-4', label: '4-4 장부미비치', cat: '운영' },
+    { code: '4-5', label: '4-5 등록증미게시', cat: '운영' },
+    { code: '4-6', label: '4-6 명칭위반', cat: '운영' },
+    { code: '4-7', label: '4-7 선행학습', cat: '운영' },
+    { code: '4-8', label: '4-8 교습시간', cat: '운영' },
+    { code: '4-9', label: '4-9 과대광고', cat: '운영' },
+    { code: '4-10', label: '4-10 연수불참', cat: '운영' },
+    { code: '4-11', label: '4-11 휴·폐원', cat: '운영' },
+    { code: '4-12', label: '4-12 안전보험', cat: '운영' },
+    { code: '5-1', label: '5-1 기타', cat: '기타' },
+];
+const STAT_VIOL_CATS_ORDER = ['시설', '교습비등', '강사등', '운영', '기타'];
+const STAT_VIOL_CODES = STAT_VIOL_ITEMS.map(i => i.code);
+const STAT_ADMIN_TYPES = ['등록말소/폐지', '교습정지', '벌점부과/시정명령/경고', '행정지도', '과태료', '고발(수사의뢰)'];
+const STAT_PURPOSES = ['국민신문고', '불법사교육', '특별점검', '지도점검'];
+
+// 위반 텍스트 → 공문 코드 매핑 (코드 접두어 우선, 키워드 fallback)
+function classifyViolCode(text) {
+    if (!text) return '5-1';
+    const m = text.match(/^(\d+)-(\d+)/);
+    if (m) {
+        const code = `${m[1]}-${m[2]}`;
+        if (STAT_VIOL_CODES.includes(code)) return code;
+    }
+    if (/시설.{0,10}설비|숙박시설|위치.{0,5}무단/.test(text)) return '1-1';
+    if (/초과징수/.test(text)) return '2-1';
+    if (/교습비.{0,5}변경.{0,5}미등록|교습비.{0,3}미반환|조정명령|영수증.{0,5}미교부/.test(text)) return '2-2';
+    if (/교습비.{0,10}(게시|표시|고지)|(미게시|미표시).{0,5}교습비/.test(text)) return '2-3';
+    if (/채용.{0,5}해임|무자격.{0,5}강사/.test(text)) return '3-1';
+    if (/성범죄/.test(text)) return '3-2';
+    if (/아동학대/.test(text)) return '3-3';
+    if (/강사.{0,5}인적사항/.test(text)) return '3-4';
+    if (/교습소.{0,5}(강사|임시교습자)|보조요원/.test(text)) return '3-5';
+    if (/미등록.{0,5}(신고)?.{0,5}(학원|교습소)|거짓.{0,10}(등록|신고)|부정한.{0,5}방법/.test(text)) return '4-1';
+    if (/교습과정/.test(text)) return '4-2';
+    if (/광고.{0,10}(교습비|등록.{0,3}증명|표시)/.test(text)) return '4-3';
+    if (/제장부|장부.{0,5}미비치|부실기재/.test(text)) return '4-4';
+    if (/등록.{0,5}증명서.{0,5}미게시/.test(text)) return '4-5';
+    if (/명칭.{0,5}(사용|위반)/.test(text)) return '4-6';
+    if (/선행학습/.test(text)) return '4-7';
+    if (/교습.{0,2}시간/.test(text)) return '4-8';
+    if (/거짓.{0,3}광고|과대광고/.test(text)) return '4-9';
+    if (/정기.{0,3}연수/.test(text)) return '4-10';
+    if (/휴원|폐원|휴소|폐소/.test(text)) return '4-11';
+    if (/안전보험/.test(text)) return '4-12';
+    return '5-1';
+}
+
+function classifyAdminActionType(text) {
+    if (!text || text === '-') return null;
+    const t = text.trim();
+    if (/말소|폐지/.test(t)) return '등록말소/폐지';
+    if (/교습정지|수업정지/.test(t)) return '교습정지';
+    if (/벌점|시정명령|경고/.test(t)) return '벌점부과/시정명령/경고';
+    if (/행정지도/.test(t)) return '행정지도';
+    if (/과태료/.test(t)) return '과태료';
+    if (/고발|수사의뢰/.test(t)) return '고발(수사의뢰)';
+    return null;
+}
+
+function classifyPurposeStat(row) {
+    const p = colVal(row, ['점검목적', '점검구분', '방문목적', '민원구분']);
+    const d = colVal(row, ['구분', '유형']);
+    const c = p + ' ' + d;
+    if (c.includes('신문고') || c.includes('민원')) return '국민신문고';
+    if (c.includes('불법사교육') || (c.includes('불법') && c.includes('사교육'))) return '불법사교육';
+    if (c.includes('특별')) return '특별점검';
+    return '지도점검';
+}
+
+function statWeekNum(day) { return Math.ceil(day / 7); }
+
+// ── 제네릭 통계 헬퍼 팩토리 (학원·교습소 / 개인과외 공용) ──
+function makeStatHelpers(violItemsCfg, violCatsOrderCfg) {
+    const codes = violItemsCfg.map(i => i.code);
+
+    const newEntry = () => ({
+        inspectorCount: 0,
+        institutions: new Set(),
+        violInstitutions: new Set(),
+        violItems: Object.fromEntries(codes.map(c => [c, 0])),
+        adminTypes: Object.fromEntries(STAT_ADMIN_TYPES.map(t => [t, 0])),
+        fine: 0,
+    });
+
+    const merge = (acc, src) => {
+        acc.inspectorCount += src.inspectorCount;
+        src.institutions.forEach(i => acc.institutions.add(i));
+        src.violInstitutions.forEach(i => acc.violInstitutions.add(i));
+        codes.forEach(c => { acc.violItems[c] += src.violItems[c]; });
+        STAT_ADMIN_TYPES.forEach(t => { acc.adminTypes[t] += src.adminTypes[t]; });
+        acc.fine += src.fine;
+    };
+
+    const toDisplay = (s) => {
+        const violCats = Object.fromEntries(violCatsOrderCfg.map(cat => {
+            const sum = violItemsCfg.filter(i => i.cat === cat).reduce((a, i) => a + s.violItems[i.code], 0);
+            return [cat, sum];
+        }));
+        return {
+            inspector: s.inspectorCount,
+            institution: s.institutions.size,
+            violation: s.violInstitutions.size,
+            violTotal: codes.reduce((sum, c) => sum + s.violItems[c], 0),
+            violItems: { ...s.violItems },
+            violCats,
+            adminTotal: STAT_ADMIN_TYPES.reduce((sum, t) => sum + s.adminTypes[t], 0),
+            adminTypes: { ...s.adminTypes },
+            fine: s.fine,
+        };
+    };
+
+    return { newEntry, merge, toDisplay };
+}
+
+// ── 개인과외교습자 위반 항목 정의 ──
+const STAT_PT_VIOL_ITEMS = [
+    { code: '1-1', label: '1-1 교습비 초과징수',    cat: '교습비등' },
+    { code: '1-2', label: '1-2 교습비 변경미신고',   cat: '교습비등' },
+    { code: '1-3', label: '1-3 교습비 게시위반',     cat: '교습비등' },
+    { code: '2-1', label: '2-1 채용미신고·거짓신고', cat: '강사' },
+    { code: '3-1', label: '3-1 위치 무단변경',       cat: '운영' },
+    { code: '3-2', label: '3-2 신고외 교습과목',     cat: '운영' },
+    { code: '3-3', label: '3-3 선행학습 광고',       cat: '운영' },
+    { code: '3-4', label: '3-4 교습시간 위반',       cat: '운영' },
+    { code: '3-5', label: '3-5 신고증명서 미게시',   cat: '운영' },
+    { code: '3-6', label: '3-6 광고 표시위반',       cat: '운영' },
+    { code: '3-7', label: '3-7 장소표지 미부착',     cat: '운영' },
+    { code: '3-8', label: '3-8 장부 미비치',         cat: '운영' },
+    { code: '3-9', label: '3-9 기타운영',            cat: '운영' },
+    { code: '4-1', label: '4-1 기타',               cat: '기타' },
+];
+const STAT_PT_VIOL_CATS_ORDER = ['교습비등', '강사', '운영', '기타'];
+const STAT_PT_VIOL_CODES = STAT_PT_VIOL_ITEMS.map(i => i.code);
+
+function classifyPtViolCode(text) {
+    if (!text) return '4-1';
+    const m = text.match(/^(\d+)-(\d+)/);
+    if (m) { const c = `${m[1]}-${m[2]}`; if (STAT_PT_VIOL_CODES.includes(c)) return c; }
+    if (/초과징수/.test(text)) return '1-1';
+    if (/교습비.{0,5}변경.{0,5}미신고|교습비.{0,3}미반환|조정명령|영수증.{0,5}미교부/.test(text)) return '1-2';
+    if (/교습비.{0,10}(게시|표시|고지)|(미게시|미표시).{0,5}교습비/.test(text)) return '1-3';
+    if (/채용.{0,5}미신고|거짓.{0,10}(신고|방법)/.test(text)) return '2-1';
+    if (/위치.{0,5}무단/.test(text)) return '3-1';
+    if (/신고.{0,3}외.{0,5}교습과목|교습과목.{0,3}외/.test(text)) return '3-2';
+    if (/선행학습/.test(text)) return '3-3';
+    if (/교습.{0,2}시간/.test(text)) return '3-4';
+    if (/신고.{0,5}증명서.{0,5}미게시|증명서.{0,5}미게시|제시.{0,3}불응/.test(text)) return '3-5';
+    if (/광고.{0,10}(교습비|신고.{0,3}증명|미표시|거짓)/.test(text)) return '3-6';
+    if (/장소.{0,3}표지/.test(text)) return '3-7';
+    if (/제장부|장부.{0,5}미비치|부실기재/.test(text)) return '3-8';
+    return '4-1';
+}
+
+// ────────────────────────────────────────────────────────
+// 공통 통계 테이블 카드 (학원·교습소 / 개인과외 모두 사용)
+// ────────────────────────────────────────────────────────
+function StatsTableCard({ pastGroupedRows, title, subtitle, typeFilter, violItemsCfg, violCatsOrderCfg, classifyViol }) {
+    const [expandedMonths, setExpandedMonths] = useState(new Set());
+    const [showDetail, setShowDetail] = useState(false);
+
+    // 헬퍼는 설정이 바뀔 때만 재생성
+    const helpers = useMemo(() => makeStatHelpers(violItemsCfg, violCatsOrderCfg), [violItemsCfg, violCatsOrderCfg]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const parseStatDate = (dateStr) => {
+        const m = (dateStr || '').match(/(\d{4})[.\-/\s]+(\d{1,2})[.\-/\s]+(\d{1,2})/);
+        return m ? { year: m[1], month: +m[2], day: +m[3] } : null;
+    };
+
+    const filteredGroups = useMemo(() =>
+        (pastGroupedRows || []).filter(g => {
+            const d = parseStatDate(g.date);
+            if (!d || d.year !== CURRENT_YEAR) return false;
+            return typeFilter(g.row);
+        })
+    , [pastGroupedRows]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const statMap = useMemo(() => {
+        const map = {};
+        filteredGroups.forEach(g => {
+            const d = parseStatDate(g.date);
+            if (!d) return;
+            const mo = d.month, wk = statWeekNum(d.day);
+            const purpose = classifyPurposeStat(g.row);
+            if (!map[mo]) map[mo] = {};
+            if (!map[mo][wk]) map[mo][wk] = {};
+            if (!map[mo][wk][purpose]) map[mo][wk][purpose] = helpers.newEntry();
+            const s = map[mo][wk][purpose];
+
+            const insp = colVal(g.row, ['점검자', '담당자']);
+            const inspNames = insp ? insp.split(/[,/·]+/).map(n => n.trim()).filter(n => n.length > 1) : [];
+            s.inspectorCount += inspNames.length || 0;
+
+            s.institutions.add(g.name);
+
+            const violItems = g.items.filter(i => i.isViol);
+            if (violItems.length > 0) {
+                s.violInstitutions.add(g.name);
+                violItems.forEach(item => { s.violItems[classifyViol(item.content)]++; });
+            }
+
+            const adminStr = colVal(g.row, ['행정처분', '처분종류', '처분결과', '행정처분종류']);
+            if (adminStr && adminStr !== '-') {
+                adminStr.split(/[,\n·]+/).forEach(a => {
+                    const t = classifyAdminActionType(a.trim());
+                    if (t) s.adminTypes[t]++;
+                });
+            }
+
+            const fineStr = colVal(g.row, ['과태료', '과태료금액', '부과금액', '과태료부과금액']);
+            if (fineStr && fineStr !== '-') {
+                const raw = parseFloat((fineStr).replace(/[^0-9.]/g, ''));
+                if (!isNaN(raw) && raw > 0) s.fine += raw;
+            }
+        });
+        return map;
+    }, [filteredGroups, helpers, classifyViol]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // ── 월별 계층 구조로 데이터 빌드 ──
+    const { monthData, usedViolItems, usedViolCats, catGroups, usedAdminTypes, anyInspector, anyFine, grandD } = useMemo(() => {
+        const months = Object.keys(statMap).map(Number).sort((a, b) => a - b);
+        const grand = helpers.newEntry();
+
+        const monthData = months.map(mo => {
+            const monthAcc = helpers.newEntry();
+            const weeks = Object.keys(statMap[mo]).map(Number).sort((a, b) => a - b);
+
+            const weekData = weeks.map(wk => {
+                const weekAcc = helpers.newEntry();
+                const activePurposes = STAT_PURPOSES.filter(p => statMap[mo][wk][p]);
+                const purposeRows = activePurposes.map(p => {
+                    const s = statMap[mo][wk][p];
+                    helpers.merge(weekAcc, s);
+                    return { purpose: p, d: helpers.toDisplay(s) };
+                });
+                helpers.merge(monthAcc, weekAcc);
+                return { wk, purposes: purposeRows, weekTotal: purposeRows.length > 1 ? helpers.toDisplay(weekAcc) : null };
+            });
+
+            helpers.merge(grand, monthAcc);
+            return { mo, monthTotal: helpers.toDisplay(monthAcc), weeks: weekData };
+        });
+
+        // 사용 중인 컬럼 계산
+        const allD = [];
+        monthData.forEach(m => {
+            allD.push(m.monthTotal);
+            m.weeks.forEach(w => { w.purposes.forEach(p => allD.push(p.d)); if (w.weekTotal) allD.push(w.weekTotal); });
+        });
+        const usedViolItems = violItemsCfg.filter(item => allD.some(d => d.violItems[item.code] > 0));
+        const catGroups = violCatsOrderCfg
+            .map(cat => ({ cat, items: usedViolItems.filter(i => i.cat === cat) }))
+            .filter(g => g.items.length > 0);
+        const usedViolCats = catGroups.map(g => g.cat);
+        const usedAdminTypes = STAT_ADMIN_TYPES.filter(t => allD.some(d => d.adminTypes[t] > 0));
+        const anyInspector = allD.some(d => d.inspector > 0);
+        const anyFine = allD.some(d => d.fine > 0);
+
+        return { monthData, usedViolItems, usedViolCats, catGroups, usedAdminTypes, anyInspector, anyFine, grandD: helpers.toDisplay(grand) };
+    }, [statMap, helpers, violItemsCfg, violCatsOrderCfg]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    if (monthData.length === 0) return (
+        <div style={{ marginTop: '24px', background: 'var(--bg-card)', borderRadius: '16px', padding: '24px 16px', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)', textAlign: 'center' }}>
+            <div style={{ fontSize: '0.85rem', fontWeight: '800', color: 'var(--text-main)', marginBottom: '10px' }}>{title}</div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>({CURRENT_YEAR}년 등록된 데이터가 없습니다)</div>
+        </div>
+    );
+
+    const toggleMonth = (mo) => setExpandedMonths(prev => {
+        const next = new Set(prev); next.has(mo) ? next.delete(mo) : next.add(mo); return next;
+    });
+    const expandAll = () => setExpandedMonths(new Set(monthData.map(m => m.mo)));
+    const collapseAll = () => setExpandedMonths(new Set());
+
+    // ── CSV 다운로드 ──
+    const downloadCSV = () => {
+        const BOM = '\uFEFF';
+        const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+        const dToArr = (d) => {
+            const cols = [];
+            if (anyInspector) cols.push(d.inspector || '');
+            cols.push(d.institution || '', d.violation || '', d.violTotal || '');
+            usedViolItems.forEach(item => cols.push(d.violItems[item.code] || ''));
+            cols.push(d.adminTotal || '');
+            usedAdminTypes.forEach(t => cols.push(d.adminTypes[t] || ''));
+            if (anyFine) cols.push(d.fine || '');
+            return cols;
+        };
+        const header = ['월', '주차', '점검유형'];
+        if (anyInspector) header.push('지도점검 인원(명)');
+        header.push('점검 학원수', '적발 학원수', '적발건수 계');
+        usedViolItems.forEach(item => header.push(item.label));
+        header.push('행정처분 계');
+        usedAdminTypes.forEach(t => header.push(t));
+        if (anyFine) header.push('과태료 금액(천원)');
+
+        const lines = [header.map(esc).join(',')];
+        monthData.forEach(mData => {
+            lines.push([esc(`${mData.mo}월`), esc('소계'), esc('합계'), ...dToArr(mData.monthTotal).map(esc)].join(','));
+            mData.weeks.forEach(wData => {
+                wData.purposes.forEach(p => {
+                    lines.push([esc(`${mData.mo}월`), esc(`${wData.wk}주`), esc(p.purpose), ...dToArr(p.d).map(esc)].join(','));
+                });
+                if (wData.weekTotal) lines.push([esc(''), esc(`${wData.wk}주 소계`), esc(''), ...dToArr(wData.weekTotal).map(esc)].join(','));
+            });
+        });
+        lines.push([esc('합계'), esc(''), esc(''), ...dToArr(grandD).map(esc)].join(','));
+
+        const blob = new Blob([BOM + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = `지도점검_통계_${CURRENT_YEAR}.csv`;
+        document.body.appendChild(a); a.click();
+        document.body.removeChild(a); URL.revokeObjectURL(url);
+    };
+
+    // ── 스타일 상수 ──
+    const HEADER_H = 30; // 헤더 행 높이(px) - sticky top 계산용
+    const W_MO = 40, W_WK = 40, W_TYPE = 80;
+
+    const BASE_TH = { padding: '5px 7px', border: '1px solid #cbd5e1', textAlign: 'center', fontSize: '0.68rem', fontWeight: '700', lineHeight: 1.4 };
+    const BASE_TD = { padding: '4px 7px', border: '1px solid #e2e8f0', textAlign: 'center', fontSize: '0.7rem', whiteSpace: 'nowrap' };
+    const nv = (v) => (v > 0 ? v : '');
+
+    // sticky 헤더 (top 위치는 행 번호 × 행높이)
+    const sTH = (row, extra = {}) => ({ ...BASE_TH, position: 'sticky', top: row * HEADER_H, zIndex: 12, ...extra });
+    // sticky 왼쪽 열 (데이터 행용)
+    const sTD_L = (left, extra = {}) => ({ ...BASE_TD, position: 'sticky', left, zIndex: 4, background: 'inherit', ...extra });
+    // sticky 헤더 + 왼쪽 모서리 (헤더의 고정 열)
+    const sTH_L = (row, left, extra = {}) => ({ ...sTH(row, extra), left, zIndex: 20 });
+
+    const CAT_BG = { '시설': '#fef9f9', '교습비등': '#fff7f0', '강사등': '#f0fdf4', '운영': '#f5f3ff', '기타': '#f8fafc' };
+    const CAT_COLOR = { '시설': '#b91c1c', '교습비등': '#c2410c', '강사등': '#15803d', '운영': '#6d28d9', '기타': '#475569' };
+    const PURPOSE_STYLE = {
+        '국민신문고': { background: '#fff7ed', color: '#c2410c' },
+        '불법사교육': { background: '#fdf4ff', color: '#7c3aed' },
+        '특별점검':  { background: '#fef2f2', color: '#b91c1c' },
+        '지도점검':  { background: '#eef2ff', color: '#3730a3' },
+    };
+
+    const headerRows = showDetail ? 3 : 2;
+    const violColCount = showDetail ? usedViolItems.length : usedViolCats.length;
+
+    // 위반 데이터 셀 (요약/상세 모드)
+    const violCells = (d, key) => showDetail
+        ? usedViolItems.map(item => <td key={`${key}-vi-${item.code}`} style={BASE_TD}>{nv(d.violItems[item.code])}</td>)
+        : usedViolCats.map(cat => <td key={`${key}-vc-${cat}`} style={BASE_TD}>{nv(d.violCats[cat])}</td>);
+
+    const dataCells = (d, key) => [
+        anyInspector ? <td key={`${key}-i`} style={BASE_TD}>{nv(d.inspector)}</td> : null,
+        <td key={`${key}-s`} style={BASE_TD}>{nv(d.institution)}</td>,
+        <td key={`${key}-v`} style={{ ...BASE_TD, color: d.violation > 0 ? '#dc2626' : undefined }}>{nv(d.violation)}</td>,
+        <td key={`${key}-vt`} style={{ ...BASE_TD, fontWeight: '700', color: d.violTotal > 0 ? '#dc2626' : undefined }}>{nv(d.violTotal)}</td>,
+        ...violCells(d, key),
+        <td key={`${key}-at`} style={{ ...BASE_TD, fontWeight: '700', color: d.adminTotal > 0 ? '#1d4ed8' : undefined }}>{nv(d.adminTotal)}</td>,
+        ...usedAdminTypes.map(t => <td key={`${key}-ad-${t}`} style={BASE_TD}>{nv(d.adminTypes[t])}</td>),
+        anyFine ? <td key={`${key}-f`} style={BASE_TD}>{nv(d.fine)}</td> : null,
+    ].filter(Boolean);
+
+    // 버튼 공통 스타일
+    const btnBase = { padding: '4px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.72rem', cursor: 'pointer', fontWeight: '600', transition: 'all 0.15s' };
+    const btnActive = { ...btnBase, background: '#3b82f6', color: '#fff', borderColor: '#3b82f6' };
+    const btnGhost = { ...btnBase, background: '#f8fafc', color: '#64748b' };
+
+    return (
+        <div style={{ marginTop: '24px', background: 'var(--bg-card)', borderRadius: '16px', padding: '18px 16px', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)' }}>
+
+            {/* ── 카드 헤더 ── */}
+            <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '0.85rem', fontWeight: '800', color: 'var(--text-main)' }}>{title}</span>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: '400' }}>{subtitle}</span>
+                </div>
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+                    {/* 요약/상세 토글 */}
+                    <div style={{ display: 'flex', border: '1px solid #cbd5e1', borderRadius: '7px', overflow: 'hidden' }}>
+                        <button style={!showDetail ? btnActive : { ...btnGhost, borderRadius: 0, border: 'none' }} onClick={() => setShowDetail(false)}>요약</button>
+                        <button style={showDetail  ? btnActive : { ...btnGhost, borderRadius: 0, border: 'none', borderLeft: '1px solid #cbd5e1' }} onClick={() => setShowDetail(true)}>상세코드</button>
+                    </div>
+                    {/* 펼치기/접기 */}
+                    <button style={btnGhost} onClick={expandAll}>▼ 전체 펼치기</button>
+                    <button style={btnGhost} onClick={collapseAll}>▶ 전체 접기</button>
+                    {/* CSV 다운로드 */}
+                    <button style={{ ...btnGhost, color: '#15803d', borderColor: '#86efac' }} onClick={downloadCSV}>⬇ CSV 다운로드</button>
+                </div>
+            </div>
+
+            {/* ── 테이블 (가로+세로 스크롤, 헤더/열 고정) ── */}
+            <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: '72vh', border: '1px solid #cbd5e1', borderRadius: '8px' }}>
+                <table style={{ borderCollapse: 'collapse', fontSize: '0.7rem' }}>
+                    <thead>
+                        {/* 행1: 최상위 헤더 */}
+                        <tr style={{ background: '#dde4ef' }}>
+                            <th style={sTH_L(0, 0,              { background: '#dde4ef', minWidth: `${W_MO}px` })}>월</th>
+                            <th style={sTH_L(0, W_MO,           { background: '#dde4ef', minWidth: `${W_WK}px` })}>주차</th>
+                            <th style={sTH_L(0, W_MO + W_WK,    { background: '#dde4ef', minWidth: `${W_TYPE}px` })}>점검유형</th>
+                            {anyInspector && <th rowSpan={headerRows} style={sTH(0, { background: '#dde4ef', minWidth: '52px', whiteSpace: 'normal' })}>지도점검<br/>인원(명)</th>}
+                            <th rowSpan={headerRows} style={sTH(0, { background: '#dde4ef', minWidth: '50px', whiteSpace: 'normal' })}>점검<br/>학원수</th>
+                            <th rowSpan={headerRows} style={sTH(0, { background: '#dde4ef', minWidth: '50px', whiteSpace: 'normal' })}>적발<br/>학원수</th>
+                            <th colSpan={1 + violColCount} style={sTH(0, { background: '#fef2f2', color: '#dc2626' })}>적발건수</th>
+                            <th colSpan={1 + usedAdminTypes.length} style={sTH(0, { background: '#dbeafe', color: '#1d4ed8' })}>행정처분 현황(건수)</th>
+                            {anyFine && <th rowSpan={headerRows} style={sTH(0, { background: '#dde4ef', minWidth: '60px', whiteSpace: 'normal' })}>과태료<br/>금액(천원)</th>}
+                        </tr>
+
+                        {/* 행2: 카테고리/요약열 헤더 */}
+                        <tr style={{ background: '#f8fafc' }}>
+                            {/* 월/주차/유형 sticky 헤더 2행 */}
+                            <th style={sTH_L(1, 0,           { background: '#dde4ef', minWidth: `${W_MO}px` })}></th>
+                            <th style={sTH_L(1, W_MO,        { background: '#dde4ef', minWidth: `${W_WK}px` })}></th>
+                            <th style={sTH_L(1, W_MO + W_WK,{ background: '#dde4ef', minWidth: `${W_TYPE}px` })}></th>
+
+                            <th rowSpan={showDetail ? 2 : 1} style={sTH(1, { background: '#fef2f2', minWidth: '34px' })}>계</th>
+                            {showDetail
+                                ? catGroups.map(g => (
+                                    <th key={g.cat} colSpan={g.items.length} style={sTH(1, { background: CAT_BG[g.cat] || '#f8fafc', color: CAT_COLOR[g.cat] || '#475569', fontSize: '0.65rem' })}>{g.cat}</th>
+                                ))
+                                : usedViolCats.map(cat => (
+                                    <th key={cat} style={sTH(1, { background: CAT_BG[cat] || '#f8fafc', color: CAT_COLOR[cat] || '#475569', fontSize: '0.65rem', minWidth: '48px' })}>{cat}</th>
+                                ))
+                            }
+                            <th rowSpan={showDetail ? 2 : 1} style={sTH(1, { background: '#eff6ff', minWidth: '34px' })}>계</th>
+                            {usedAdminTypes.map(t => (
+                                <th key={t} rowSpan={showDetail ? 2 : 1} style={sTH(1, { background: '#f0f6ff', color: '#374151', fontSize: '0.62rem', minWidth: '54px', whiteSpace: 'normal' })}>{t}</th>
+                            ))}
+                        </tr>
+
+                        {/* 행3: 세부 코드 헤더 (상세 모드만) */}
+                        {showDetail && (
+                            <tr style={{ background: '#fafafa' }}>
+                                {/* 3행에도 sticky 고정열 placeholder */}
+                                <th style={sTH_L(2, 0,           { background: '#dde4ef', minWidth: `${W_MO}px` })}></th>
+                                <th style={sTH_L(2, W_MO,        { background: '#dde4ef', minWidth: `${W_WK}px` })}></th>
+                                <th style={sTH_L(2, W_MO + W_WK,{ background: '#dde4ef', minWidth: `${W_TYPE}px` })}></th>
+
+                                {usedViolItems.map(item => (
+                                    <th key={item.code} style={sTH(2, { background: CAT_BG[item.cat] || '#f8fafc', color: CAT_COLOR[item.cat] || '#475569', fontSize: '0.62rem', minWidth: '64px', whiteSpace: 'normal', fontWeight: '600' })}>{item.label}</th>
+                                ))}
+                            </tr>
+                        )}
+                    </thead>
+
+                    <tbody>
+                        {monthData.map(mData => {
+                            const isExpanded = expandedMonths.has(mData.mo);
+                            return (
+                                <React.Fragment key={mData.mo}>
+                                    {/* ── 월 소계 행 (항상 표시, 클릭으로 펼치기) ── */}
+                                    <tr style={{ background: '#eef2ff', borderTop: '2px solid #c7d2fe', cursor: 'pointer' }}
+                                        onClick={() => toggleMonth(mData.mo)}>
+                                        <td style={sTD_L(0, { background: '#dde4ef', fontWeight: '800', color: '#1e3a8a', textAlign: 'center', minWidth: `${W_MO}px` })}>
+                                            {mData.mo}월
+                                        </td>
+                                        <td style={sTD_L(W_MO, { background: '#dde4ef', textAlign: 'center', fontSize: '1rem', minWidth: `${W_WK}px` })}>
+                                            {isExpanded ? '▼' : '▶'}
+                                        </td>
+                                        <td style={sTD_L(W_MO + W_WK, { background: '#eef2ff', fontWeight: '700', color: '#3730a3', textAlign: 'center', fontSize: '0.68rem', minWidth: `${W_TYPE}px` })}>
+                                            월 소계
+                                        </td>
+                                        {dataCells(mData.monthTotal, `m${mData.mo}`)}
+                                    </tr>
+
+                                    {/* ── 펼쳐진 경우: 주차 + 점검유형 행 ── */}
+                                    {isExpanded && mData.weeks.map(wData => (
+                                        <React.Fragment key={`${mData.mo}-${wData.wk}`}>
+                                            {wData.purposes.map(p => {
+                                                const ps = PURPOSE_STYLE[p.purpose] || { background: '#f8fafc', color: '#64748b' };
+                                                return (
+                                                    <tr key={p.purpose} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                                        <td style={sTD_L(0, { background: '#f8fafc', minWidth: `${W_MO}px` })}></td>
+                                                        <td style={sTD_L(W_MO, { background: '#f8fafc', color: '#94a3b8', fontSize: '0.67rem', minWidth: `${W_WK}px` })}>{wData.wk}주</td>
+                                                        <td style={sTD_L(W_MO + W_WK, { ...ps, fontWeight: '700', fontSize: '0.68rem', minWidth: `${W_TYPE}px` })}>{p.purpose}</td>
+                                                        {dataCells(p.d, `${mData.mo}-${wData.wk}-${p.purpose}`)}
+                                                    </tr>
+                                                );
+                                            })}
+                                            {/* 주차 소계 (2개 이상 유형이 있을 때) */}
+                                            {wData.weekTotal && (
+                                                <tr style={{ background: '#f1f5f9', borderTop: '1px dashed #cbd5e1' }}>
+                                                    <td style={sTD_L(0, { background: '#f1f5f9', minWidth: `${W_MO}px` })}></td>
+                                                    <td style={sTD_L(W_MO, { background: '#f1f5f9', color: '#475569', fontSize: '0.67rem', fontWeight: '600', minWidth: `${W_WK}px` })}>{wData.wk}주</td>
+                                                    <td style={sTD_L(W_MO + W_WK, { background: '#f1f5f9', color: '#475569', fontWeight: '600', fontSize: '0.67rem', minWidth: `${W_TYPE}px` })}>소계</td>
+                                                    {dataCells(wData.weekTotal, `wt-${mData.mo}-${wData.wk}`)}
+                                                </tr>
+                                            )}
+                                        </React.Fragment>
+                                    ))}
+                                </React.Fragment>
+                            );
+                        })}
+
+                        {/* ── 합계 행 ── */}
+                        <tr style={{ background: '#dde4ef', borderTop: '2px solid #94a3b8' }}>
+                            <td style={sTD_L(0, { background: '#c7d2e8', fontWeight: '800', textAlign: 'center', minWidth: `${W_MO}px` })}></td>
+                            <td style={sTD_L(W_MO, { background: '#c7d2e8', minWidth: `${W_WK}px` })}></td>
+                            <td style={sTD_L(W_MO + W_WK, { background: '#c7d2e8', fontWeight: '800', textAlign: 'center', minWidth: `${W_TYPE}px` })}>합 계</td>
+                            {dataCells(grandD, 'grand')}
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+}
+
+// ── 래퍼: 학원·교습소 통계 카드 ──
+function InspectionStatsTableCard({ pastGroupedRows }) {
+    return (
+        <StatsTableCard
+            title="📊 학원 행정처분 및 적발 현황"
+            subtitle={`(${CURRENT_YEAR}년 1월~12월 / 학원·교습소 합계)`}
+            pastGroupedRows={pastGroupedRows}
+            typeFilter={(row) => {
+                const t = colVal(row, ['구분', '유형', '대상']);
+                return !t.includes('개인과외') && !t.includes('과외교습자');
+            }}
+            violItemsCfg={STAT_VIOL_ITEMS}
+            violCatsOrderCfg={STAT_VIOL_CATS_ORDER}
+            classifyViol={classifyViolCode}
+        />
+    );
+}
+
+// ── 래퍼: 개인과외교습자 통계 카드 ──
+function PrivateTutorStatsTableCard({ pastGroupedRows }) {
+    return (
+        <StatsTableCard
+            title="📊 개인과외교습자 행정처분 및 적발 현황"
+            subtitle={`(${CURRENT_YEAR}년 1월~12월)`}
+            pastGroupedRows={pastGroupedRows}
+            typeFilter={(row) => {
+                const t = colVal(row, ['구분', '유형', '대상']);
+                return t.includes('개인과외') || t.includes('과외교습자');
+            }}
+            violItemsCfg={STAT_PT_VIOL_ITEMS}
+            violCatsOrderCfg={STAT_PT_VIOL_CATS_ORDER}
+            classifyViol={classifyPtViolCode}
+        />
+    );
+}
+
 function TabRecent({ region, academies, onSelectAcademy, initialPage = 0, initialScrollY = null, onPageChange }) {
     const [rows, setRows] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -613,16 +1171,16 @@ function TabRecent({ region, academies, onSelectAcademy, initialPage = 0, initia
                                 <tr style={{ background: 'linear-gradient(180deg,#f8fafc 0%,#f1f5f9 100%)', borderBottom: '2px solid var(--border-color)' }}>
                                     <th style={{ padding: '9px 8px', width: '28px', color: '#64748b', fontWeight: '700', fontSize: '0.72rem', whiteSpace: 'nowrap', textAlign: 'center', background: 'transparent', position: 'sticky', left: 0, zIndex: 2, backgroundImage: 'linear-gradient(180deg,#f8fafc,#f1f5f9)' }}>#</th>
                                     <th style={{
+                                        padding: '9px 10px', width: '90px', color: '#64748b', fontWeight: '700', fontSize: '0.72rem',
+                                        whiteSpace: 'nowrap',
+                                        backgroundImage: 'linear-gradient(180deg,#f8fafc,#f1f5f9)'
+                                    }}>점검일</th>
+                                    <th style={{
                                         padding: '9px 10px', width: '120px', color: '#64748b', fontWeight: '700', fontSize: '0.72rem',
                                         whiteSpace: 'nowrap', position: 'sticky', left: '28px', zIndex: 2,
                                         boxShadow: '2px 0 6px rgba(0,0,0,0.07)',
                                         backgroundImage: 'linear-gradient(180deg,#f8fafc,#f1f5f9)'
                                     }}>학원명</th>
-                                    <th style={{
-                                        padding: '9px 10px', width: '90px', color: '#64748b', fontWeight: '700', fontSize: '0.72rem',
-                                        whiteSpace: 'nowrap',
-                                        backgroundImage: 'linear-gradient(180deg,#f8fafc,#f1f5f9)'
-                                    }}>점검일</th>
                                     <th style={{ padding: '9px 12px', color: '#64748b', fontWeight: '700', fontSize: '0.72rem', whiteSpace: 'nowrap', background: 'transparent' }}>지도·위반 내용</th>
                                 </tr>
                             </thead>
@@ -654,6 +1212,19 @@ function TabRecent({ region, academies, onSelectAcademy, initialPage = 0, initia
                                         >
                                             {/* 연번 */}
                                             <td style={{ padding: '8px 6px', textAlign: 'center', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: '600', verticalAlign: 'middle', position: 'sticky', left: 0, zIndex: 1, background: rowBg }}>{rowNum}</td>
+                                            {/* 점검일 */}
+                                            <td style={{
+                                                padding: '8px 10px',
+                                                background: rowBg,
+                                                width: '90px', minWidth: '90px',
+                                                verticalAlign: 'middle',
+                                                whiteSpace: 'nowrap',
+                                            }}>
+                                                <div style={{ fontSize: '0.72rem', color: isFuture ? '#94a3b8' : '#64748b', fontWeight: '600', letterSpacing: '0.01em' }}>
+                                                    {dateFmt}
+                                                </div>
+                                                {isFuture && <div style={{ fontSize: '0.62rem', color: '#94a3b8', marginTop: '2px' }}>예정</div>}
+                                            </td>
                                             {/* 학원명 sticky */}
                                             <td style={{
                                                 padding: '8px 10px',
@@ -683,19 +1254,6 @@ function TabRecent({ region, academies, onSelectAcademy, initialPage = 0, initia
                                                         >{g.name || '-'}</span>
                                                     ) : <span style={nameStyle} title={g.name}>{g.name || '-'}</span>;
                                                 })()}
-                                            </td>
-                                            {/* 점검일 */}
-                                            <td style={{
-                                                padding: '8px 10px',
-                                                background: rowBg,
-                                                width: '90px', minWidth: '90px',
-                                                verticalAlign: 'middle',
-                                                whiteSpace: 'nowrap',
-                                            }}>
-                                                <div style={{ fontSize: '0.72rem', color: isFuture ? '#94a3b8' : '#64748b', fontWeight: '600', letterSpacing: '0.01em' }}>
-                                                    {dateFmt}
-                                                </div>
-                                                {isFuture && <div style={{ fontSize: '0.62rem', color: '#94a3b8', marginTop: '2px' }}>예정</div>}
                                             </td>
                                             {/* 지도·위반 내용 */}
                                             <td style={{ padding: '8px 12px' }}>
@@ -750,6 +1308,10 @@ function TabRecent({ region, academies, onSelectAcademy, initialPage = 0, initia
                     )}
                 </>
             )}
+
+            {/* ── 통계 카드 ── */}
+            {!loading && <InspectionStatsTableCard pastGroupedRows={pastGroupedRows} />}
+            {!loading && <PrivateTutorStatsTableCard pastGroupedRows={pastGroupedRows} />}
 
             {/* 상세 모달 */}
             {selectedRow && (
@@ -1604,7 +2166,7 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
                     <div style={{ marginTop: '10px' }}>
                         {badge === 0
                             ? <div style={{ fontSize: '0.82rem', color: '#10b981', fontWeight: '600', padding: '4px 0' }}>✓ 이상 없음</div>
-                            : <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid var(--border-color)', cursor: 'pointer' }} onClick={() => toggleSection(id)}>{children}</div>
+                            : <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid var(--border-color)' }}>{children}</div>
                         }
                     </div>
                 )}
@@ -1888,6 +2450,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
     // overdue per-dong refresh state: Map<dong, Set<'ac'|'hg'>>
     const [overdueRefreshed, setOverdueRefreshed] = useState(new Map());
     const [overdueRefreshing, setOverdueRefreshing] = useState(false);
+    const [expandedDongs, setExpandedDongs] = useState(new Set());
     const [allRawRows, setAllRawRows] = useState([]);
     const [routeDate, setRouteDate] = useState('');
     const routeMapContainerRef = useRef(null);
@@ -1992,7 +2555,20 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
 
         if (!routeDate || routeAcademiesSorted.length === 0 || !routeMapContainerRef.current) return;
 
-        const initInlineMap = () => {
+        let cancelled = false;
+
+        const geocodeOne = (kakao, address) => new Promise(resolve => {
+            const geocoder = new kakao.maps.services.Geocoder();
+            geocoder.addressSearch(address, (result, status) => {
+                if (status === kakao.maps.services.Status.OK && result[0]) {
+                    resolve({ lat: parseFloat(result[0].y), lng: parseFloat(result[0].x) });
+                } else {
+                    resolve(null);
+                }
+            });
+        });
+
+        const initInlineMap = async () => {
             const kakao = window.kakao;
             if (!kakao?.maps || !routeMapContainerRef.current) return;
 
@@ -2007,11 +2583,42 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
             inlineRouteMarkersRef.current.forEach(o => o.setMap(null));
             inlineRouteMarkersRef.current = [];
 
+            // 캐시에 좌표가 없는 학원은 직접 지오코딩
+            const coordsMap = new Map(); // id-category → {lat, lng}
+            routeAcademiesSorted.forEach(a => {
+                if (a._lat != null) coordsMap.set(`${a.id}-${a.category}`, { lat: a._lat, lng: a._lng });
+            });
+            const missing = routeAcademiesSorted.filter(a => a._lat == null && a.address);
+            if (missing.length > 0) {
+                const cache = JSON.parse(localStorage.getItem('academyMapLocations') || '{}');
+                let cacheUpdated = false;
+                for (const a of missing) {
+                    if (cancelled) return;
+                    const cacheKey = `${a.id}-${a.category}`;
+                    if (cache[cacheKey] != null) {
+                        coordsMap.set(cacheKey, cache[cacheKey]);
+                        continue;
+                    }
+                    const coords = await geocodeOne(kakao, a.address);
+                    if (coords) {
+                        cache[cacheKey] = coords;
+                        coordsMap.set(cacheKey, coords);
+                        cacheUpdated = true;
+                    } else {
+                        cache[cacheKey] = null;
+                        cacheUpdated = true;
+                    }
+                }
+                if (cacheUpdated) localStorage.setItem('academyMapLocations', JSON.stringify(cache));
+            }
+            if (cancelled) return;
+
             const locationGroups = new Map();
             routeAcademiesSorted.forEach(a => {
-                if (a._lat == null) return;
-                const key = `${a._lat.toFixed(6)},${a._lng.toFixed(6)}`;
-                if (!locationGroups.has(key)) locationGroups.set(key, { lat: a._lat, lng: a._lng, items: [] });
+                const coords = a._lat != null ? { lat: a._lat, lng: a._lng } : coordsMap.get(`${a.id}-${a.category}`);
+                if (!coords) return;
+                const key = `${coords.lat.toFixed(6)},${coords.lng.toFixed(6)}`;
+                if (!locationGroups.has(key)) locationGroups.set(key, { lat: coords.lat, lng: coords.lng, items: [] });
                 locationGroups.get(key).items.push(a);
             });
 
@@ -2060,8 +2667,9 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
             const interval = setInterval(() => {
                 if (window.kakao?.maps) { clearInterval(interval); initInlineMap(); }
             }, 300);
-            return () => clearInterval(interval);
+            return () => { cancelled = true; clearInterval(interval); };
         }
+        return () => { cancelled = true; };
     }, [routeAcademiesSorted, routeDate]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleRiskRefresh = async (type) => {
@@ -2084,6 +2692,21 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
         });
         setOverdueRefreshing(false);
     };
+    const handleOverdueDongRefresh = async (dong) => {
+        setOverdueRefreshing(true);
+        await loadInspectedNames();
+        setOverdueRefreshed(prev => {
+            const next = new Map(prev);
+            next.set(dong, new Set(['ac', 'hg']));
+            return next;
+        });
+        setOverdueRefreshing(false);
+    };
+    const toggleDong = (dong) => setExpandedDongs(prev => {
+        const next = new Set(prev);
+        next.has(dong) ? next.delete(dong) : next.add(dong);
+        return next;
+    });
 
     const typeColor = (t) => t === '학원' ? '#3b82f6' : t === '교습소' ? '#8b5cf6' : '#10b981';
 
@@ -2120,7 +2743,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                     <div style={{ marginTop: '10px' }}>
                         {badge === 0
                             ? <div style={{ fontSize: '0.82rem', color: '#10b981', fontWeight: '600', padding: '4px 0' }}>✓ 이상 없음</div>
-                            : <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid var(--border-color)', cursor: 'pointer' }} onClick={() => toggleSection(id)}>{children}</div>
+                            : <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid var(--border-color)' }}>{children}</div>
                         }
                     </div>
                 )}
@@ -2644,8 +3267,112 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                 }
             </CautionSection>
 
+            {/* D. 2년 이상 미점검 (동별 아코디언) */}
+            <CautionSection id="overdue" title="📅 2년 이상 미점검 학원·교습소 (동별)" badge={overdueList.length} badgeColor="#f59e0b">
+                {(() => {
+                    // 동별 학원 색상 팔레트 (초록 제외 — 교습소와 구분)
+                    const DONG_AC_PALETTES = [
+                        { bg: '#dbeafe', border: '#2563eb' },  // 파랑
+                        { bg: '#e0e7ff', border: '#6366f1' },  // 인디고
+                        { bg: '#ede9fe', border: '#7c3aed' },  // 보라
+                        { bg: '#fce7f3', border: '#db2777' },  // 핑크
+                        { bg: '#fff7ed', border: '#ea580c' },  // 오렌지
+                        { bg: '#fef9c3', border: '#b45309' },  // 노랑
+                        { bg: '#e0f2fe', border: '#0284c7' },  // 하늘
+                        { bg: '#f1f5f9', border: '#475569' },  // 슬레이트
+                    ];
+                    const HG_COLOR = { bg: '#f0fdf4', border: '#10b981' };  // 교습소 고정 초록
+
+                    const renderRow = (a, rowNum, rowBg, rowBorder) => {
+                        const lastD = lastRegularDate(a);
+                        const done = isInsp2026(a);
+                        return (
+                            <tr key={`${a.id}_${rowNum}`} style={{ opacity: done ? 0.5 : 1, background: rowBg, borderLeft: `3px solid ${rowBorder}` }}>
+                                <Td style={{ color: 'var(--text-muted)', fontWeight: '700', fontSize: '0.76rem', textAlign: 'center', paddingLeft: '4px' }}>{rowNum}</Td>
+                                <Td style={{ position: 'sticky', left: 0, zIndex: 1, background: rowBg, maxWidth: '130px', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0 }}>
+                                        <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, flexShrink: 1 }}>
+                                            <NameLink id={a.id} type={a.category === '교습소' ? '교습소' : '학원'} name={a.name} />
+                                        </span>
+                                        {done && <span style={{ fontSize: '0.67rem', color: '#6366f1', fontWeight: '700', flexShrink: 0 }}>(완료)</span>}
+                                    </div>
+                                </Td>
+                                <Td style={{ whiteSpace: 'nowrap' }}>
+                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-main)', fontWeight: '600' }}>{a.founder?.name || '-'}</div>
+                                    {(a.founder?.mobile || a.founder?.phone) && <a href={`tel:${a.founder?.mobile || a.founder?.phone}`} onClick={e => e.stopPropagation()} style={{ color: '#3b82f6', fontWeight: '600', fontSize: '0.75rem', textDecoration: 'none' }}>{a.founder?.mobile || a.founder?.phone}</a>}
+                                </Td>
+                                <Td style={{ color: a.months >= 36 ? '#ef4444' : '#f59e0b', fontWeight: '800', whiteSpace: 'nowrap' }}>
+                                    {a.neverInspected ? '미점검' : `${Math.floor(a.months/12)>0?Math.floor(a.months/12)+'년 ':''}${a.months%12>0?a.months%12+'개월':''}`}
+                                </Td>
+                                <Td>{a.hasIns ? <span style={{ fontSize: '0.71rem', padding: '1px 5px', borderRadius: '4px', background: '#fef3c7', color: '#d97706', fontWeight: '700' }}>⚠️보험</span> : <span style={{ color: '#10b981', fontSize: '0.78rem' }}>✓</span>}</Td>
+                                <Td>{a.viol > 0 ? <span style={{ fontSize: '0.71rem', padding: '1px 5px', borderRadius: '4px', background: '#fee2e2', color: '#dc2626', fontWeight: '700' }}>{a.viol}건</span> : <span style={{ color: 'var(--text-muted)', fontSize: '0.76rem' }}>-</span>}</Td>
+                                <Td style={{ color: 'var(--text-muted)', fontSize: '0.76rem', whiteSpace: 'nowrap' }}>
+                                    {a.neverInspected ? `등록: ${a.regDate || '-'}` : (lastD ? `${lastD.getFullYear()}.${String(lastD.getMonth()+1).padStart(2,'0')}.${String(lastD.getDate()).padStart(2,'0')}` : '-')}
+                                </Td>
+                            </tr>
+                        );
+                    };
+
+                    return (
+                        <div style={{ padding: '4px 0' }}>
+                        {overdueByDong.map(({ dong, items }, dongIdx) => {
+                            const refreshedCats = overdueRefreshed.get(dong) || new Set();
+                            const allAcItems = items.filter(a => a.category !== '교습소');
+                            const allHgItems = items.filter(a => a.category === '교습소');
+                            const acItems = refreshedCats.has('ac') ? allAcItems.filter(a => !isInsp2026(a)) : allAcItems;
+                            const hgItems = refreshedCats.has('hg') ? allHgItems.filter(a => !isInsp2026(a)) : allHgItems;
+                            const acColor = DONG_AC_PALETTES[dongIdx % DONG_AC_PALETTES.length];
+                            const isExpanded = expandedDongs.has(dong);
+
+                            return (
+                                <div key={dong} style={{ border: '1px solid var(--border-color)', borderRadius: '8px', marginBottom: '8px', overflow: 'hidden' }}>
+                                    {/* 동 헤더 — 클릭으로 접기/펼치기 */}
+                                    <div
+                                        onClick={() => toggleDong(dong)}
+                                        style={{ fontWeight: '700', padding: '7px 12px', fontSize: '0.8rem', color: 'var(--text-main)', background: 'var(--bg-main)', borderBottom: isExpanded ? '1px solid var(--border-color)' : 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', userSelect: 'none' }}
+                                    >
+                                        <span>
+                                            📍 {dong}
+                                            {acItems.length > 0 && <span style={{ marginLeft: '6px', fontSize: '0.73rem', color: acColor.border, fontWeight: '700' }}>학원 {acItems.length}</span>}
+                                            {hgItems.length > 0 && <span style={{ marginLeft: '4px', fontSize: '0.73rem', color: HG_COLOR.border, fontWeight: '700' }}>교습소 {hgItems.length}</span>}
+                                        </span>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <button
+                                                onClick={e => { e.stopPropagation(); handleOverdueDongRefresh(dong); }}
+                                                disabled={overdueRefreshing}
+                                                style={{ fontSize: '0.69rem', padding: '1px 6px', borderRadius: '5px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', cursor: 'pointer', color: 'var(--text-muted)', fontWeight: '600' }}
+                                            >{overdueRefreshing ? '⟳' : '↺ 새로고침'}</button>
+                                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{isExpanded ? '▲' : '▼'}</span>
+                                        </div>
+                                    </div>
+                                    {/* 펼쳐진 경우만 테이블 표시 */}
+                                    {isExpanded && (
+                                        <div style={{ overflowX: 'auto' }}>
+                                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                                <thead><tr>
+                                                    <Th style={{ width: '28px' }}>#</Th>
+                                                    <Th style={{ position: 'sticky', left: 0, zIndex: 2, background: 'var(--bg-main)' }}>학원명</Th>
+                                                    <Th>연락처</Th><Th>미점검</Th><Th>보험</Th><Th>위반</Th><Th>마지막점검일</Th>
+                                                </tr></thead>
+                                                <tbody>
+                                                    {/* 학원 — 동별 색상, 연번 1부터 */}
+                                                    {acItems.map((a, i) => renderRow(a, i + 1, acColor.bg, acColor.border))}
+                                                    {/* 교습소 — 고정 초록, 연번 1부터 */}
+                                                    {hgItems.map((a, i) => renderRow(a, i + 1, HG_COLOR.bg, HG_COLOR.border))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                        </div>
+                    );
+                })()}
+            </CautionSection>
+
             {/* C. 점검 우선순위 (신설미점검 포함) */}
-            <CautionSection id="risk" title={`🎯 점검 우선순위 (전체 ${riskList.length}개 중 상위 50개씩)`} badge={Math.min(riskList.filter(a=>a.category!=='교습소').length,50)+Math.min(riskList.filter(a=>a.category==='교습소').length,50)} badgeColor="#6366f1">
+            <CautionSection id="risk" title="🎯 점검 우선순위 (상위 50개씩)" badge={Math.min(riskList.filter(a=>a.category!=='교습소').length,50)+Math.min(riskList.filter(a=>a.category==='교습소').length,50)} badgeColor="#6366f1">
                 {(() => {
                     const allAcItems = riskList.filter(a => a.category !== '교습소');
                     const allHgItems = riskList.filter(a => a.category === '교습소');
@@ -2715,94 +3442,6 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                         <div style={{ padding: '4px 0' }}>
                             <SubAccordion label="🏫 학원" color="#3b82f6" items={acDisplayItems} isOpen={riskAcOpen} setOpen={setRiskAcOpen} onRefresh={() => handleRiskRefresh('ac')} colCount={8} />
                             <SubAccordion label="🏠 교습소" color="#8b5cf6" items={hgDisplayItems} isOpen={riskHgOpen} setOpen={setRiskHgOpen} onRefresh={() => handleRiskRefresh('hg')} colCount={8} />
-                        </div>
-                    );
-                })()}
-            </CautionSection>
-
-            {/* D. 2년 이상 미점검 (동별) */}
-            <CautionSection id="overdue" title="📅 2년 이상 미점검 학원·교습소 (동별)" badge={overdueList.length} badgeColor="#f59e0b">
-                {(() => {
-                    let globalRowNum = 0;
-                    return (
-                        <div style={{ padding: '4px 0' }}>
-                        {overdueByDong.map(({ dong, items }) => {
-                            const refreshedCats = overdueRefreshed.get(dong) || new Set();
-                            const allAcItems = items.filter(a => a.category !== '교습소');
-                            const allHgItems = items.filter(a => a.category === '교습소');
-                            const acItems = refreshedCats.has('ac') ? allAcItems.filter(a => !isInsp2026(a)) : allAcItems;
-                            const hgItems = refreshedCats.has('hg') ? allHgItems.filter(a => !isInsp2026(a)) : allHgItems;
-                            const renderRow = (a, i) => {
-                                const rowNum = ++globalRowNum;
-                                const lastD = lastRegularDate(a);
-                                const done = isInsp2026(a);
-                                return (
-                                    <tr key={`${a.id}_${i}`} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)', opacity: done ? 0.5 : 1 }}>
-                                        <Td style={{ color: 'var(--text-muted)', fontWeight: '700', fontSize: '0.76rem', textAlign: 'center' }}>{rowNum}</Td>
-                                        <Td style={{ position: 'sticky', left: 0, zIndex: 1, background: 'var(--bg-card)', maxWidth: '130px', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0 }}>
-                                                <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, flexShrink: 1 }}>
-                                                    <NameLink id={a.id} type={a.category === '교습소' ? '교습소' : '학원'} name={a.name} />
-                                                </span>
-                                                {done && <span style={{ fontSize: '0.67rem', color: '#6366f1', fontWeight: '700', flexShrink: 0 }}>(완료)</span>}
-                                            </div>
-                                        </Td>
-                                        <Td style={{ whiteSpace: 'nowrap' }}>
-                                            <div style={{ fontSize: '0.75rem', color: 'var(--text-main)', fontWeight: '600' }}>{a.founder?.name || '-'}</div>
-                                            {(a.founder?.mobile || a.founder?.phone) && <a href={`tel:${a.founder?.mobile || a.founder?.phone}`} onClick={e => e.stopPropagation()} style={{ color: '#3b82f6', fontWeight: '600', fontSize: '0.75rem', textDecoration: 'none' }}>{a.founder?.mobile || a.founder?.phone}</a>}
-                                        </Td>
-                                        <Td style={{ color: a.months >= 36 ? '#ef4444' : '#f59e0b', fontWeight: '800', whiteSpace: 'nowrap' }}>
-                                            {a.neverInspected ? '미점검' : `${Math.floor(a.months/12)>0?Math.floor(a.months/12)+'년 ':''}${a.months%12>0?a.months%12+'개월':''}`}
-                                        </Td>
-                                        <Td>{a.hasIns ? <span style={{ fontSize: '0.71rem', padding: '1px 5px', borderRadius: '4px', background: '#fef3c7', color: '#d97706', fontWeight: '700' }}>⚠️보험</span> : <span style={{ color: '#10b981', fontSize: '0.78rem' }}>✓</span>}</Td>
-                                        <Td>{a.viol > 0 ? <span style={{ fontSize: '0.71rem', padding: '1px 5px', borderRadius: '4px', background: '#fee2e2', color: '#dc2626', fontWeight: '700' }}>{a.viol}건</span> : <span style={{ color: 'var(--text-muted)', fontSize: '0.76rem' }}>-</span>}</Td>
-                                        <Td style={{ color: 'var(--text-muted)', fontSize: '0.76rem', whiteSpace: 'nowrap' }}>
-                                            {a.neverInspected ? `등록: ${a.regDate || '-'}` : (lastD ? `${lastD.getFullYear()}.${String(lastD.getMonth()+1).padStart(2,'0')}.${String(lastD.getDate()).padStart(2,'0')}` : '-')}
-                                        </Td>
-                                    </tr>
-                                );
-                            };
-                            const RefreshBtn = ({ catKey }) => (
-                                <button
-                                    onClick={() => handleOverdueRefresh(dong, catKey)}
-                                    disabled={overdueRefreshing}
-                                    style={{ fontSize: '0.69rem', padding: '1px 6px', borderRadius: '5px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', cursor: 'pointer', color: 'var(--text-muted)', fontWeight: '600', marginLeft: '6px' }}
-                                >{overdueRefreshing ? '⟳' : '새로고침'}</button>
-                            );
-                            return (
-                                <div key={dong} style={{ border: '1px solid var(--border-color)', borderRadius: '8px', marginBottom: '8px', overflow: 'hidden' }}>
-                                    <div style={{ fontWeight: '700', padding: '7px 12px', fontSize: '0.8rem', color: 'var(--text-main)', background: 'var(--bg-main)', borderBottom: '1px solid var(--border-color)' }}>
-                                        📍 {dong} <span style={{ fontWeight: '400', color: 'var(--text-muted)' }}>({items.length}개)</span>
-                                    </div>
-                                    <div style={{ overflowX: 'auto' }}>
-                                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                                            <thead><tr>
-                                                <Th style={{ width: '28px' }}>#</Th>
-                                                <Th style={{ position: 'sticky', left: 0, zIndex: 2, background: 'var(--bg-main)' }}>학원명</Th><Th>연락처</Th><Th>미점검</Th><Th>보험</Th><Th>위반</Th><Th>마지막점검일</Th>
-                                            </tr></thead>
-                                            <tbody>
-                                                {acItems.length > 0 && (
-                                                    <tr style={{ background: 'var(--bg-main)' }}>
-                                                        <td colSpan={7} style={{ padding: '4px 10px', fontSize: '0.76rem', fontWeight: '700', color: '#3b82f6', borderBottom: '1px solid var(--border-color)' }}>
-                                                            🏫 학원 ({acItems.length}개)<RefreshBtn catKey="ac" />
-                                                        </td>
-                                                    </tr>
-                                                )}
-                                                {acItems.map((a, i) => renderRow(a, i))}
-                                                {hgItems.length > 0 && (
-                                                    <tr style={{ background: 'var(--bg-main)' }}>
-                                                        <td colSpan={7} style={{ padding: '4px 10px', fontSize: '0.76rem', fontWeight: '700', color: '#8b5cf6', borderBottom: '1px solid var(--border-color)' }}>
-                                                            🏠 교습소 ({hgItems.length}개)<RefreshBtn catKey="hg" />
-                                                        </td>
-                                                    </tr>
-                                                )}
-                                                {hgItems.map((a, i) => renderRow(a, i))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            );
-                        })}
                         </div>
                     );
                 })()}
