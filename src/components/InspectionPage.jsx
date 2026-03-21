@@ -387,7 +387,9 @@ function makeStatHelpers(violItemsCfg, violCatsOrderCfg) {
         institutions: new Set(),
         violInstitutions: new Set(),
         violItems: Object.fromEntries(codes.map(c => [c, 0])),
+        violItemInst: Object.fromEntries(codes.map(c => [c, new Set()])),
         adminTypes: Object.fromEntries(STAT_ADMIN_TYPES.map(t => [t, 0])),
+        adminTypeInst: Object.fromEntries(STAT_ADMIN_TYPES.map(t => [t, new Set()])),
         fine: 0,
     });
 
@@ -395,8 +397,14 @@ function makeStatHelpers(violItemsCfg, violCatsOrderCfg) {
         acc.inspectorCount += src.inspectorCount;
         src.institutions.forEach(i => acc.institutions.add(i));
         src.violInstitutions.forEach(i => acc.violInstitutions.add(i));
-        codes.forEach(c => { acc.violItems[c] += src.violItems[c]; });
-        STAT_ADMIN_TYPES.forEach(t => { acc.adminTypes[t] += src.adminTypes[t]; });
+        codes.forEach(c => {
+            acc.violItems[c] += src.violItems[c];
+            src.violItemInst[c].forEach(n => acc.violItemInst[c].add(n));
+        });
+        STAT_ADMIN_TYPES.forEach(t => {
+            acc.adminTypes[t] += src.adminTypes[t];
+            src.adminTypeInst[t].forEach(n => acc.adminTypeInst[t].add(n));
+        });
         acc.fine += src.fine;
     };
 
@@ -405,15 +413,25 @@ function makeStatHelpers(violItemsCfg, violCatsOrderCfg) {
             const sum = violItemsCfg.filter(i => i.cat === cat).reduce((a, i) => a + s.violItems[i.code], 0);
             return [cat, sum];
         }));
+        const violCatInst = Object.fromEntries(violCatsOrderCfg.map(cat => {
+            const names = new Set();
+            violItemsCfg.filter(i => i.cat === cat).forEach(i => s.violItemInst[i.code].forEach(n => names.add(n)));
+            return [cat, [...names]];
+        }));
         return {
             inspector: s.inspectorCount,
+            instList: [...s.institutions],
             institution: s.institutions.size,
+            violInstList: [...s.violInstitutions],
             violation: s.violInstitutions.size,
             violTotal: codes.reduce((sum, c) => sum + s.violItems[c], 0),
             violItems: { ...s.violItems },
+            violItemInst: Object.fromEntries(codes.map(c => [c, [...s.violItemInst[c]]])),
             violCats,
+            violCatInst,
             adminTotal: STAT_ADMIN_TYPES.reduce((sum, t) => sum + s.adminTypes[t], 0),
             adminTypes: { ...s.adminTypes },
+            adminTypeInst: Object.fromEntries(STAT_ADMIN_TYPES.map(t => [t, [...s.adminTypeInst[t]]])),
             fine: s.fine,
         };
     };
@@ -466,6 +484,14 @@ function classifyPtViolCode(text) {
 function StatsTableCard({ pastGroupedRows, title, subtitle, typeFilter, violItemsCfg, violCatsOrderCfg, classifyViol }) {
     const [expandedMonths, setExpandedMonths] = useState(new Set());
     const [showDetail, setShowDetail] = useState(false);
+    const [popup, setPopup] = useState(null);
+    const showPopup = (e, title, names) => {
+        e.stopPropagation();
+        const rect = e.currentTarget.getBoundingClientRect();
+        const x = Math.min(rect.left, window.innerWidth - 280);
+        const y = Math.min(rect.bottom + 4, window.innerHeight - 320);
+        setPopup({ title, names: names.slice().sort(), x, y });
+    };
 
     // 헬퍼는 설정이 바뀔 때만 재생성
     const helpers = useMemo(() => makeStatHelpers(violItemsCfg, violCatsOrderCfg), [violItemsCfg, violCatsOrderCfg]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -504,14 +530,21 @@ function StatsTableCard({ pastGroupedRows, title, subtitle, typeFilter, violItem
             const violItems = g.items.filter(i => i.isViol);
             if (violItems.length > 0) {
                 s.violInstitutions.add(g.name);
-                violItems.forEach(item => { s.violItems[classifyViol(item.content)]++; });
+                violItems.forEach(item => {
+                    const code = classifyViol(item.content);
+                    s.violItems[code]++;
+                    s.violItemInst[code].add(g.name);
+                });
             }
 
             const adminStr = colVal(g.row, ['행정처분', '처분종류', '처분결과', '행정처분종류']);
             if (adminStr && adminStr !== '-') {
                 adminStr.split(/[,\n·]+/).forEach(a => {
                     const t = classifyAdminActionType(a.trim());
-                    if (t) s.adminTypes[t]++;
+                    if (t) {
+                        s.adminTypes[t]++;
+                        s.adminTypeInst[t].add(g.name);
+                    }
                 });
             }
 
@@ -649,19 +682,23 @@ function StatsTableCard({ pastGroupedRows, title, subtitle, typeFilter, violItem
     const headerRows = showDetail ? 3 : 2;
     const violColCount = showDetail ? usedViolItems.length : usedViolCats.length;
 
+    const clickable = (v, title, names, color) => v > 0
+        ? <span style={{ cursor: 'pointer', color: color || 'inherit', fontWeight: 'inherit', textDecoration: 'underline dotted', textUnderlineOffset: '2px' }} onClick={e => showPopup(e, title, names)}>{v}</span>
+        : '';
+
     // 위반 데이터 셀 (요약/상세 모드)
     const violCells = (d, key) => showDetail
-        ? usedViolItems.map(item => <td key={`${key}-vi-${item.code}`} style={BASE_TD}>{nv(d.violItems[item.code])}</td>)
-        : usedViolCats.map(cat => <td key={`${key}-vc-${cat}`} style={BASE_TD}>{nv(d.violCats[cat])}</td>);
+        ? usedViolItems.map(item => <td key={`${key}-vi-${item.code}`} style={BASE_TD}>{clickable(d.violItems[item.code], item.label, d.violItemInst?.[item.code] || [], '#dc2626')}</td>)
+        : usedViolCats.map(cat => <td key={`${key}-vc-${cat}`} style={BASE_TD}>{clickable(d.violCats[cat], cat + ' 위반', d.violCatInst?.[cat] || [], CAT_COLOR[cat])}</td>);
 
     const dataCells = (d, key) => [
         anyInspector ? <td key={`${key}-i`} style={BASE_TD}>{nv(d.inspector)}</td> : null,
-        <td key={`${key}-s`} style={BASE_TD}>{nv(d.institution)}</td>,
-        <td key={`${key}-v`} style={{ ...BASE_TD, color: d.violation > 0 ? '#dc2626' : undefined }}>{nv(d.violation)}</td>,
-        <td key={`${key}-vt`} style={{ ...BASE_TD, fontWeight: '700', color: d.violTotal > 0 ? '#dc2626' : undefined }}>{nv(d.violTotal)}</td>,
+        <td key={`${key}-s`} style={BASE_TD}>{clickable(d.institution, '점검 학원·교습소', d.instList || [], '#1d4ed8')}</td>,
+        <td key={`${key}-v`} style={{ ...BASE_TD, color: d.violation > 0 ? '#dc2626' : undefined }}>{clickable(d.violation, '적발 학원·교습소', d.violInstList || [], '#dc2626')}</td>,
+        <td key={`${key}-vt`} style={{ ...BASE_TD, fontWeight: '700', color: d.violTotal > 0 ? '#dc2626' : undefined }}>{clickable(d.violTotal, '적발 학원·교습소 (전체)', d.violInstList || [], '#dc2626')}</td>,
         ...violCells(d, key),
-        <td key={`${key}-at`} style={{ ...BASE_TD, fontWeight: '700', color: d.adminTotal > 0 ? '#1d4ed8' : undefined }}>{nv(d.adminTotal)}</td>,
-        ...usedAdminTypes.map(t => <td key={`${key}-ad-${t}`} style={BASE_TD}>{nv(d.adminTypes[t])}</td>),
+        <td key={`${key}-at`} style={{ ...BASE_TD, fontWeight: '700', color: d.adminTotal > 0 ? '#1d4ed8' : undefined }}>{clickable(d.adminTotal, '행정처분 전체', d.violInstList || [], '#1d4ed8')}</td>,
+        ...usedAdminTypes.map(t => <td key={`${key}-ad-${t}`} style={BASE_TD}>{clickable(d.adminTypes[t], t, d.adminTypeInst?.[t] || [], '#1d4ed8')}</td>),
         anyFine ? <td key={`${key}-f`} style={BASE_TD}>{nv(d.fine)}</td> : null,
     ].filter(Boolean);
 
@@ -806,6 +843,28 @@ function StatsTableCard({ pastGroupedRows, title, subtitle, typeFilter, violItem
                     </tbody>
                 </table>
             </div>
+
+            {/* ── 기관명 팝업 ── */}
+            {popup && (
+                <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: 999 }} onClick={() => setPopup(null)}>
+                    <div
+                        style={{ position: 'fixed', left: popup.x, top: popup.y, background: 'var(--bg-card)', borderRadius: '10px', boxShadow: '0 4px 24px rgba(0,0,0,0.18)', padding: '12px 14px', minWidth: '190px', maxWidth: '280px', maxHeight: '60vh', overflow: 'auto', zIndex: 1000, border: '1px solid var(--border-color)' }}
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                            <span style={{ fontWeight: '800', fontSize: '0.78rem', color: 'var(--text-main)' }}>{popup.title}</span>
+                            <button onClick={() => setPopup(null)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.85rem', lineHeight: 1, padding: '0 2px' }}>✕</button>
+                        </div>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '6px' }}>{popup.names.length}개 기관</div>
+                        {popup.names.length === 0
+                            ? <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>목록 없음</div>
+                            : popup.names.map((n, i) => (
+                                <div key={i} style={{ padding: '4px 0', borderBottom: i < popup.names.length - 1 ? '1px solid var(--border-color)' : 'none', fontSize: '0.74rem', color: 'var(--text-main)' }}>{n}</div>
+                            ))
+                        }
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
@@ -2422,6 +2481,18 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
 // 주소에서 "경기도 하남시" 제거
 const shortAddr = (addr) => addr ? addr.replace(/^경기도\s*하남시\s*/, '') : '-';
 
+// 주소에서 건물 단위 키 추출 (도로명+번호 or 번지 앞번호)
+function getBuilding(addr) {
+    if (!addr) return '주소미상';
+    let s = addr.replace(/^경기도\s*[가-힣]+시\s*/, '');
+    s = s.replace(/^[가-힣]+[동리읍면]\s*/, '').trim();
+    const roadM = s.match(/([가-힣]+(?:로|길)\s*\d+)/);
+    if (roadM) return roadM[1].replace(/\s+/, '');
+    const jibeonM = s.match(/^(\d+)(?:-\d+)?/);
+    if (jibeonM) return jibeonM[1] + '번지';
+    return '주소미상';
+}
+
 // ───────────────────────────────────────────────
 // 탭: 주의 (운영 위반 점검)
 // ───────────────────────────────────────────────
@@ -2451,6 +2522,13 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
     const [overdueRefreshed, setOverdueRefreshed] = useState(new Map());
     const [overdueRefreshing, setOverdueRefreshing] = useState(false);
     const [expandedDongs, setExpandedDongs] = useState(new Set());
+    const [underdueRefreshed, setUnderdueRefreshed] = useState(new Map());
+    const [underdueRefreshing, setUnderdueRefreshing] = useState(false);
+    const [underdueExpandedDongs, setUnderdueExpandedDongs] = useState(new Set());
+    const [byBuildingRefreshed, setByBuildingRefreshed] = useState(new Map());
+    const [byBuildingRefreshing, setByBuildingRefreshing] = useState(false);
+    const [byBuildingExpandedDongs, setByBuildingExpandedDongs] = useState(new Set());
+    const [byBuildingExpandedBuildings, setByBuildingExpandedBuildings] = useState(new Set());
     const [allRawRows, setAllRawRows] = useState([]);
     const [routeDate, setRouteDate] = useState('');
     const routeMapContainerRef = useRef(null);
@@ -2707,6 +2785,41 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
         next.has(dong) ? next.delete(dong) : next.add(dong);
         return next;
     });
+    const handleUnderdueDongRefresh = async (dong) => {
+        setUnderdueRefreshing(true);
+        await loadInspectedNames();
+        setUnderdueRefreshed(prev => {
+            const next = new Map(prev);
+            next.set(dong, new Set(['ac', 'hg']));
+            return next;
+        });
+        setUnderdueRefreshing(false);
+    };
+    const toggleUnderdueDong = (dong) => setUnderdueExpandedDongs(prev => {
+        const next = new Set(prev);
+        next.has(dong) ? next.delete(dong) : next.add(dong);
+        return next;
+    });
+    const handleByBuildingDongRefresh = async (dong) => {
+        setByBuildingRefreshing(true);
+        await loadInspectedNames();
+        setByBuildingRefreshed(prev => {
+            const next = new Map(prev);
+            next.set(dong, true);
+            return next;
+        });
+        setByBuildingRefreshing(false);
+    };
+    const toggleByBuildingDong = (dong) => setByBuildingExpandedDongs(prev => {
+        const next = new Set(prev);
+        next.has(dong) ? next.delete(dong) : next.add(dong);
+        return next;
+    });
+    const toggleByBuildingBuilding = (key) => setByBuildingExpandedBuildings(prev => {
+        const next = new Set(prev);
+        next.has(key) ? next.delete(key) : next.add(key);
+        return next;
+    });
 
     const typeColor = (t) => t === '학원' ? '#3b82f6' : t === '교습소' ? '#8b5cf6' : '#10b981';
 
@@ -2949,6 +3062,87 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
             .map(([dong, items]) => ({ dong, items, maxMonths: items[0].months }))
             .sort((a, b) => b.maxMonths - a.maxMonths);
     }, [overdueList]);
+
+    // ── D-3. 2년 미만 미점검 ──
+    const underdueList = useMemo(() => {
+        const today = new Date();
+        const feeSet = new Set(feeExceed.map(f => f.id));
+        const insSet = new Set(insuranceIssues.map(i => i.id));
+        return [...aList, ...hActiveList]
+            .filter(a => !isClosed(a))
+            .map(a => {
+                const months = uninspMonths(a, today);
+                const neverInspected = (a.inspections || []).filter(i => !isMidnightInsp(i)).length === 0;
+                const regD = toDateRev(a.regDate);
+                const regMonths = regD ? Math.floor((today - regD) / 2629800000) : 0;
+                const viol = (a.inspections || []).filter(i => i.isViolation && !isMidnightInsp(i)).length;
+                const hasFee = feeSet.has(a.id);
+                const hasIns = insSet.has(a.id);
+                const reasons = buildReasons(months, viol, hasFee, hasIns, neverInspected, regMonths);
+                const dong = getDong(a);
+                return { ...a, months, viol, hasFee, hasIns, neverInspected, regMonths, reasons, dong };
+            })
+            .filter(a => a.months >= 1 && a.months < 24)
+            .sort((a, b) => b.months - a.months);
+    }, [aList, hActiveList, feeExceed, insuranceIssues]);
+
+    // ── D-4. 2년 미만 미점검 동별 그룹핑 ──
+    const underdueByDong = useMemo(() => {
+        const map = new Map();
+        underdueList.forEach(a => {
+            const d = a.dong || '미분류';
+            if (!map.has(d)) map.set(d, []);
+            map.get(d).push(a);
+        });
+        return [...map.entries()]
+            .map(([dong, items]) => ({ dong, items, maxMonths: items[0].months }))
+            .sort((a, b) => b.maxMonths - a.maxMonths);
+    }, [underdueList]);
+
+    // ── D-5. 1~2년 미점검 동별+건물별 그룹핑 ──
+    const byBuildingList = useMemo(() => {
+        const today = new Date();
+        const feeSet = new Set(feeExceed.map(f => f.id));
+        const insSet = new Set(insuranceIssues.map(i => i.id));
+        return [...aList, ...hActiveList]
+            .filter(a => !isClosed(a))
+            .map(a => {
+                const months = uninspMonths(a, today);
+                const neverInspected = (a.inspections || []).filter(i => !isMidnightInsp(i)).length === 0;
+                const regD = toDateRev(a.regDate);
+                const regMonths = regD ? Math.floor((today - regD) / 2629800000) : 0;
+                const viol = (a.inspections || []).filter(i => i.isViolation && !isMidnightInsp(i)).length;
+                const hasFee = feeSet.has(a.id);
+                const hasIns = insSet.has(a.id);
+                const reasons = buildReasons(months, viol, hasFee, hasIns, neverInspected, regMonths);
+                const dong = getDong(a);
+                const building = getBuilding(a.address);
+                return { ...a, months, viol, hasFee, hasIns, neverInspected, regMonths, reasons, dong, building };
+            })
+            .filter(a => a.months >= 12 && a.months < 24)
+            .sort((a, b) => b.months - a.months);
+    }, [aList, hActiveList, feeExceed, insuranceIssues]);
+
+    const byBuildingByDong = useMemo(() => {
+        const dongMap = new Map();
+        byBuildingList.forEach(a => {
+            const d = a.dong || '미분류';
+            if (!dongMap.has(d)) dongMap.set(d, new Map());
+            const bldgMap = dongMap.get(d);
+            const b = a.building || '주소미상';
+            if (!bldgMap.has(b)) bldgMap.set(b, []);
+            bldgMap.get(b).push(a);
+        });
+        return [...dongMap.entries()]
+            .map(([dong, bldgMap]) => {
+                const buildings = [...bldgMap.entries()]
+                    .map(([building, items]) => ({ building, items, maxMonths: items[0].months }))
+                    .sort((a, b) => b.maxMonths - a.maxMonths);
+                const total = buildings.reduce((s, b) => s + b.items.length, 0);
+                return { dong, buildings, total, maxMonths: buildings[0].maxMonths };
+            })
+            .sort((a, b) => b.maxMonths - a.maxMonths);
+    }, [byBuildingList]);
 
     // ── G. 주간 점검 일정 (이번 주 + 4주) — 전체 풀 사용 ──
     const weeklyPlan = useMemo(() => {
@@ -3361,6 +3555,231 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                                                     {hgItems.map((a, i) => renderRow(a, i + 1, HG_COLOR.bg, HG_COLOR.border))}
                                                 </tbody>
                                             </table>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                        </div>
+                    );
+                })()}
+            </CautionSection>
+
+            {/* D-2. 2년 미만 미점검 (동별 아코디언) */}
+            <CautionSection id="underdue" title="🕐 2년 미만 미점검 학원·교습소 (동별)" badge={underdueList.length} badgeColor="#3b82f6">
+                {(() => {
+                    const DONG_AC_PALETTES = [
+                        { bg: '#dbeafe', border: '#2563eb' },
+                        { bg: '#e0e7ff', border: '#6366f1' },
+                        { bg: '#ede9fe', border: '#7c3aed' },
+                        { bg: '#fce7f3', border: '#db2777' },
+                        { bg: '#fff7ed', border: '#ea580c' },
+                        { bg: '#fef9c3', border: '#b45309' },
+                        { bg: '#e0f2fe', border: '#0284c7' },
+                        { bg: '#f1f5f9', border: '#475569' },
+                    ];
+                    const HG_COLOR = { bg: '#f0fdf4', border: '#10b981' };
+
+                    const renderRow = (a, rowNum, rowBg, rowBorder) => {
+                        const lastD = lastRegularDate(a);
+                        const done = isInsp2026(a);
+                        return (
+                            <tr key={`${a.id}_${rowNum}`} style={{ opacity: done ? 0.5 : 1, background: rowBg, borderLeft: `3px solid ${rowBorder}` }}>
+                                <Td style={{ color: 'var(--text-muted)', fontWeight: '700', fontSize: '0.76rem', textAlign: 'center', paddingLeft: '4px' }}>{rowNum}</Td>
+                                <Td style={{ position: 'sticky', left: 0, zIndex: 1, background: rowBg, maxWidth: '130px', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0 }}>
+                                        <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, flexShrink: 1 }}>
+                                            <NameLink id={a.id} type={a.category === '교습소' ? '교습소' : '학원'} name={a.name} />
+                                        </span>
+                                        {done && <span style={{ fontSize: '0.67rem', color: '#6366f1', fontWeight: '700', flexShrink: 0 }}>(완료)</span>}
+                                    </div>
+                                </Td>
+                                <Td style={{ whiteSpace: 'nowrap' }}>
+                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-main)', fontWeight: '600' }}>{a.founder?.name || '-'}</div>
+                                    {(a.founder?.mobile || a.founder?.phone) && <a href={`tel:${a.founder?.mobile || a.founder?.phone}`} onClick={e => e.stopPropagation()} style={{ color: '#3b82f6', fontWeight: '600', fontSize: '0.75rem', textDecoration: 'none' }}>{a.founder?.mobile || a.founder?.phone}</a>}
+                                </Td>
+                                <Td style={{ color: a.months >= 12 ? '#f59e0b' : '#3b82f6', fontWeight: '800', whiteSpace: 'nowrap' }}>
+                                    {a.neverInspected ? '미점검' : `${Math.floor(a.months/12)>0?Math.floor(a.months/12)+'년 ':''}${a.months%12>0?a.months%12+'개월':''}`}
+                                </Td>
+                                <Td>{a.hasIns ? <span style={{ fontSize: '0.71rem', padding: '1px 5px', borderRadius: '4px', background: '#fef3c7', color: '#d97706', fontWeight: '700' }}>⚠️보험</span> : <span style={{ color: '#10b981', fontSize: '0.78rem' }}>✓</span>}</Td>
+                                <Td>{a.viol > 0 ? <span style={{ fontSize: '0.71rem', padding: '1px 5px', borderRadius: '4px', background: '#fee2e2', color: '#dc2626', fontWeight: '700' }}>{a.viol}건</span> : <span style={{ color: 'var(--text-muted)', fontSize: '0.76rem' }}>-</span>}</Td>
+                                <Td style={{ color: 'var(--text-muted)', fontSize: '0.76rem', whiteSpace: 'nowrap' }}>
+                                    {a.neverInspected ? `등록: ${a.regDate || '-'}` : (lastD ? `${lastD.getFullYear()}.${String(lastD.getMonth()+1).padStart(2,'0')}.${String(lastD.getDate()).padStart(2,'0')}` : '-')}
+                                </Td>
+                            </tr>
+                        );
+                    };
+
+                    return (
+                        <div style={{ padding: '4px 0' }}>
+                        {underdueByDong.map(({ dong, items }, dongIdx) => {
+                            const refreshedCats = underdueRefreshed.get(dong) || new Set();
+                            const allAcItems = items.filter(a => a.category !== '교습소');
+                            const allHgItems = items.filter(a => a.category === '교습소');
+                            const acItems = refreshedCats.has('ac') ? allAcItems.filter(a => !isInsp2026(a)) : allAcItems;
+                            const hgItems = refreshedCats.has('hg') ? allHgItems.filter(a => !isInsp2026(a)) : allHgItems;
+                            const acColor = DONG_AC_PALETTES[dongIdx % DONG_AC_PALETTES.length];
+                            const isExpanded = underdueExpandedDongs.has(dong);
+
+                            return (
+                                <div key={dong} style={{ border: '1px solid var(--border-color)', borderRadius: '8px', marginBottom: '8px', overflow: 'hidden' }}>
+                                    <div
+                                        onClick={() => toggleUnderdueDong(dong)}
+                                        style={{ fontWeight: '700', padding: '7px 12px', fontSize: '0.8rem', color: 'var(--text-main)', background: 'var(--bg-main)', borderBottom: isExpanded ? '1px solid var(--border-color)' : 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', userSelect: 'none' }}
+                                    >
+                                        <span>
+                                            📍 {dong}
+                                            {acItems.length > 0 && <span style={{ marginLeft: '6px', fontSize: '0.73rem', color: acColor.border, fontWeight: '700' }}>학원 {acItems.length}</span>}
+                                            {hgItems.length > 0 && <span style={{ marginLeft: '4px', fontSize: '0.73rem', color: HG_COLOR.border, fontWeight: '700' }}>교습소 {hgItems.length}</span>}
+                                        </span>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <button
+                                                onClick={e => { e.stopPropagation(); handleUnderdueDongRefresh(dong); }}
+                                                disabled={underdueRefreshing}
+                                                style={{ fontSize: '0.69rem', padding: '1px 6px', borderRadius: '5px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', cursor: 'pointer', color: 'var(--text-muted)', fontWeight: '600' }}
+                                            >{underdueRefreshing ? '⟳' : '↺ 새로고침'}</button>
+                                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{isExpanded ? '▲' : '▼'}</span>
+                                        </div>
+                                    </div>
+                                    {isExpanded && (
+                                        <div style={{ overflowX: 'auto' }}>
+                                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                                <thead><tr>
+                                                    <Th style={{ width: '28px' }}>#</Th>
+                                                    <Th style={{ position: 'sticky', left: 0, zIndex: 2, background: 'var(--bg-main)' }}>학원명</Th>
+                                                    <Th>연락처</Th><Th>미점검</Th><Th>보험</Th><Th>위반</Th><Th>마지막점검일</Th>
+                                                </tr></thead>
+                                                <tbody>
+                                                    {acItems.map((a, i) => renderRow(a, i + 1, acColor.bg, acColor.border))}
+                                                    {hgItems.map((a, i) => renderRow(a, i + 1, HG_COLOR.bg, HG_COLOR.border))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                        </div>
+                    );
+                })()}
+            </CautionSection>
+
+            {/* D-3. 1~2년 미점검 (동별+건물별 아코디언) */}
+            <CautionSection id="bybuilding" title="🏢 1~2년 미점검 학원·교습소 (동별, 건물별)" badge={byBuildingList.length} badgeColor="#8b5cf6">
+                {(() => {
+                    const DONG_AC_PALETTES = [
+                        { bg: '#dbeafe', border: '#2563eb' },
+                        { bg: '#e0e7ff', border: '#6366f1' },
+                        { bg: '#ede9fe', border: '#7c3aed' },
+                        { bg: '#fce7f3', border: '#db2777' },
+                        { bg: '#fff7ed', border: '#ea580c' },
+                        { bg: '#fef9c3', border: '#b45309' },
+                        { bg: '#e0f2fe', border: '#0284c7' },
+                        { bg: '#f1f5f9', border: '#475569' },
+                    ];
+                    const HG_COLOR = { bg: '#f0fdf4', border: '#10b981' };
+
+                    const renderRow = (a, rowNum, rowBg, rowBorder) => {
+                        const lastD = lastRegularDate(a);
+                        const done = isInsp2026(a);
+                        return (
+                            <tr key={`${a.id}_${rowNum}`} style={{ opacity: done ? 0.5 : 1, background: rowBg, borderLeft: `3px solid ${rowBorder}` }}>
+                                <Td style={{ color: 'var(--text-muted)', fontWeight: '700', fontSize: '0.76rem', textAlign: 'center', paddingLeft: '4px' }}>{rowNum}</Td>
+                                <Td style={{ position: 'sticky', left: 0, zIndex: 1, background: rowBg, maxWidth: '130px', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0 }}>
+                                        <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, flexShrink: 1 }}>
+                                            <NameLink id={a.id} type={a.category === '교습소' ? '교습소' : '학원'} name={a.name} />
+                                        </span>
+                                        {done && <span style={{ fontSize: '0.67rem', color: '#6366f1', fontWeight: '700', flexShrink: 0 }}>(완료)</span>}
+                                    </div>
+                                </Td>
+                                <Td style={{ whiteSpace: 'nowrap' }}>
+                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-main)', fontWeight: '600' }}>{a.founder?.name || '-'}</div>
+                                    {(a.founder?.mobile || a.founder?.phone) && <a href={`tel:${a.founder?.mobile || a.founder?.phone}`} onClick={e => e.stopPropagation()} style={{ color: '#3b82f6', fontWeight: '600', fontSize: '0.75rem', textDecoration: 'none' }}>{a.founder?.mobile || a.founder?.phone}</a>}
+                                </Td>
+                                <Td style={{ color: '#f59e0b', fontWeight: '800', whiteSpace: 'nowrap' }}>
+                                    {a.neverInspected ? '미점검' : `${Math.floor(a.months/12)>0?Math.floor(a.months/12)+'년 ':''}${a.months%12>0?a.months%12+'개월':''}`}
+                                </Td>
+                                <Td>{a.hasIns ? <span style={{ fontSize: '0.71rem', padding: '1px 5px', borderRadius: '4px', background: '#fef3c7', color: '#d97706', fontWeight: '700' }}>⚠️보험</span> : <span style={{ color: '#10b981', fontSize: '0.78rem' }}>✓</span>}</Td>
+                                <Td>{a.viol > 0 ? <span style={{ fontSize: '0.71rem', padding: '1px 5px', borderRadius: '4px', background: '#fee2e2', color: '#dc2626', fontWeight: '700' }}>{a.viol}건</span> : <span style={{ color: 'var(--text-muted)', fontSize: '0.76rem' }}>-</span>}</Td>
+                                <Td style={{ color: 'var(--text-muted)', fontSize: '0.76rem', whiteSpace: 'nowrap' }}>
+                                    {a.neverInspected ? `등록: ${a.regDate || '-'}` : (lastD ? `${lastD.getFullYear()}.${String(lastD.getMonth()+1).padStart(2,'0')}.${String(lastD.getDate()).padStart(2,'0')}` : '-')}
+                                </Td>
+                            </tr>
+                        );
+                    };
+
+                    return (
+                        <div style={{ padding: '4px 0' }}>
+                        {byBuildingByDong.map(({ dong, buildings, total }, dongIdx) => {
+                            const isDongExpanded = byBuildingExpandedDongs.has(dong);
+                            const refreshed = byBuildingRefreshed.get(dong);
+                            const acColor = DONG_AC_PALETTES[dongIdx % DONG_AC_PALETTES.length];
+                            const acCount = byBuildingList.filter(a => a.dong === dong && a.category !== '교습소').length;
+                            const hgCount = byBuildingList.filter(a => a.dong === dong && a.category === '교습소').length;
+
+                            return (
+                                <div key={dong} style={{ border: '1px solid var(--border-color)', borderRadius: '8px', marginBottom: '8px', overflow: 'hidden' }}>
+                                    {/* 동 헤더 */}
+                                    <div
+                                        onClick={() => toggleByBuildingDong(dong)}
+                                        style={{ fontWeight: '700', padding: '7px 12px', fontSize: '0.8rem', color: 'var(--text-main)', background: 'var(--bg-main)', borderBottom: isDongExpanded ? '1px solid var(--border-color)' : 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', userSelect: 'none' }}
+                                    >
+                                        <span>
+                                            📍 {dong}
+                                            {acCount > 0 && <span style={{ marginLeft: '6px', fontSize: '0.73rem', color: acColor.border, fontWeight: '700' }}>학원 {acCount}</span>}
+                                            {hgCount > 0 && <span style={{ marginLeft: '4px', fontSize: '0.73rem', color: HG_COLOR.border, fontWeight: '700' }}>교습소 {hgCount}</span>}
+                                            <span style={{ marginLeft: '6px', fontSize: '0.71rem', color: 'var(--text-muted)', fontWeight: '500' }}>({buildings.length}개 건물)</span>
+                                        </span>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <button
+                                                onClick={e => { e.stopPropagation(); handleByBuildingDongRefresh(dong); }}
+                                                disabled={byBuildingRefreshing}
+                                                style={{ fontSize: '0.69rem', padding: '1px 6px', borderRadius: '5px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', cursor: 'pointer', color: 'var(--text-muted)', fontWeight: '600' }}
+                                            >{byBuildingRefreshing ? '⟳' : '↺ 새로고침'}</button>
+                                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{isDongExpanded ? '▲' : '▼'}</span>
+                                        </div>
+                                    </div>
+                                    {/* 건물별 중첩 아코디언 */}
+                                    {isDongExpanded && (
+                                        <div style={{ padding: '6px 8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                            {buildings.map(({ building, items }) => {
+                                                const bldgKey = `${dong}__${building}`;
+                                                const isBldgExpanded = byBuildingExpandedBuildings.has(bldgKey);
+                                                const displayItems = refreshed ? items.filter(a => !isInsp2026(a)) : items;
+                                                const bldgAcCount = displayItems.filter(a => a.category !== '교습소').length;
+                                                const bldgHgCount = displayItems.filter(a => a.category === '교습소').length;
+                                                return (
+                                                    <div key={bldgKey} style={{ border: '1px solid var(--border-color)', borderRadius: '6px', overflow: 'hidden' }}>
+                                                        <div
+                                                            onClick={() => toggleByBuildingBuilding(bldgKey)}
+                                                            style={{ padding: '5px 10px', fontSize: '0.77rem', fontWeight: '600', color: 'var(--text-main)', background: 'var(--bg-card)', borderBottom: isBldgExpanded ? '1px solid var(--border-color)' : 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', userSelect: 'none' }}
+                                                        >
+                                                            <span>
+                                                                🏢 {building}
+                                                                {bldgAcCount > 0 && <span style={{ marginLeft: '6px', fontSize: '0.71rem', color: acColor.border, fontWeight: '700' }}>학원 {bldgAcCount}</span>}
+                                                                {bldgHgCount > 0 && <span style={{ marginLeft: '4px', fontSize: '0.71rem', color: HG_COLOR.border, fontWeight: '700' }}>교습소 {bldgHgCount}</span>}
+                                                            </span>
+                                                            <span style={{ fontSize: '0.73rem', color: 'var(--text-muted)' }}>{isBldgExpanded ? '▲' : '▼'}</span>
+                                                        </div>
+                                                        {isBldgExpanded && (
+                                                            <div style={{ overflowX: 'auto' }}>
+                                                                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                                                    <thead><tr>
+                                                                        <Th style={{ width: '28px' }}>#</Th>
+                                                                        <Th style={{ position: 'sticky', left: 0, zIndex: 2, background: 'var(--bg-main)' }}>학원명</Th>
+                                                                        <Th>연락처</Th><Th>미점검</Th><Th>보험</Th><Th>위반</Th><Th>마지막점검일</Th>
+                                                                    </tr></thead>
+                                                                    <tbody>
+                                                                        {displayItems.filter(a => a.category !== '교습소').map((a, i) => renderRow(a, i + 1, acColor.bg, acColor.border))}
+                                                                        {displayItems.filter(a => a.category === '교습소').map((a, i) => renderRow(a, i + 1, HG_COLOR.bg, HG_COLOR.border))}
+                                                                    </tbody>
+                                                                </table>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
                                     )}
                                 </div>
