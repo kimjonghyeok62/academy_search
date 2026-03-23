@@ -6,6 +6,9 @@ export const STAT_GID = '1438819657';
 export const RECENT_SHEET_ID = '1zSGd9TBcJRculSJzUoZ2N8bB2iENuCI0x9KBpyfXMUo';
 export const RECENT_GID = '1946422008';
 
+// 점검유보 시트 (추천 목록 제외 대상)
+export const DEFER_GID = '1967173055';
+
 // 하남 학원 전체 목록 시트 (전체 학원 개수)
 export const HANAM_ACADEMY_SHEET_ID = '158ZNBb88raJ1kzBL3eFcgPZS9CGs5in0YtPtiPWfdic';
 export const HANAM_ACADEMY_GID = '1863320151';
@@ -201,6 +204,12 @@ export async function fetchNiceHagwonRawRows() {
 // 나이스 개인과외교습자조회 전체 rows
 export async function fetchNicePrivateRawRows() {
     const text = await fetchCSV(NICE_SHEET_ID, NICE_PRIVATE_GID);
+    return parseCSVText(text);
+}
+
+// 점검유보 시트 rows (추천 목록 제외용)
+export async function fetchInspectionDeferRawRows() {
+    const text = await fetchCSV(RECENT_SHEET_ID, DEFER_GID);
     return parseCSVText(text);
 }
 
