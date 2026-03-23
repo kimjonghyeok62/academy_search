@@ -62,7 +62,7 @@ function parseCSVText(text) {
 
 async function fetchCSV(sheetId, gid) {
     const url = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
-    const response = await fetch(url);
+    const response = await fetch(url, { cache: 'no-store' });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return await response.text();
 }
@@ -211,5 +211,27 @@ export async function fetchNicePrivateRawRows() {
 export async function fetchInspectionDeferRawRows() {
     const text = await fetchCSV(RECENT_SHEET_ID, DEFER_GID);
     return parseCSVText(text);
+}
+
+// 점검경로 수동 순서를 Apps Script를 통해 구글 시트에 저장
+export async function saveRouteOrder(date, orderIds) {
+    try {
+        await fetch(
+            `${APPS_SCRIPT_URL}?action=saveRouteOrder&date=${encodeURIComponent(date)}&order=${encodeURIComponent(JSON.stringify(orderIds))}`,
+            { mode: 'no-cors' }
+        );
+    } catch { /* ignore */ }
+}
+
+// 점검경로 수동 순서를 Apps Script에서 불러오기
+export async function loadRouteOrder(date) {
+    try {
+        const res = await fetch(
+            `${APPS_SCRIPT_URL}?action=getRouteOrder&date=${encodeURIComponent(date)}`
+        );
+        if (!res.ok) return null;
+        const json = await res.json();
+        return Array.isArray(json.order) ? json.order : null;
+    } catch { return null; }
 }
 

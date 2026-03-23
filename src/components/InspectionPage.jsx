@@ -5,7 +5,7 @@ import {
 } from 'chart.js';
 import { Doughnut, Bar, Line } from 'react-chartjs-2';
 import {
-    fetchStatRawRows, fetchRecentRawRows, APPS_SCRIPT_URL,
+    fetchStatRawRows, fetchRecentRawRows,
     fetchHanamAcademyRawRows, fetchHanamHagwonRawRows,
     fetchNiceAcademyRawRows, fetchNiceHagwonRawRows, fetchNicePrivateRawRows,
     fetchInspectionDeferRawRows,
@@ -2611,47 +2611,114 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
         return R * 2 * Math.asin(Math.sqrt(a));
     };
 
+    // 예약일정 문자열에서 시간 중간값(시 단위 소수) 추출
+    // 날짜 prefix가 있고 routeDate와 다른 날짜이면 null(미분류) 반환
+    const parseScheduleMidpoint = (schedule, rdDate) => {
+        if (!schedule) return null;
+        // 날짜 prefix 불일치 체크: "3.25. 10시"처럼 다른 날짜면 null
+        const datePfx = schedule.match(/^(\d{1,2})\.(\d{1,2})\./);
+        if (datePfx && rdDate) {
+            const rdm = rdDate.match(/(\d{4})\.(\d{2})\.(\d{2})/);
+            if (rdm) {
+                const rMonth = parseInt(rdm[2]), rDay = parseInt(rdm[3]);
+                const sMonth = parseInt(datePfx[1]), sDay = parseInt(datePfx[2]);
+                if (sMonth !== rMonth || sDay !== rDay) return null;
+            }
+        }
+        const cleaned = schedule.replace(/\([^)]*\)/g, '').trim(); // 괄호 내용 제거
+        const rangeMatch = cleaned.match(/(\d+)(?::(\d+))?\s*[~\-]\s*(\d+)(?::(\d+))?\s*시/);
+        if (rangeMatch) {
+            const start = parseInt(rangeMatch[1]) + (parseInt(rangeMatch[2] || '0') / 60);
+            const end   = parseInt(rangeMatch[3]) + (parseInt(rangeMatch[4] || '0') / 60);
+            return (start + end) / 2;
+        }
+        const singleMatch = cleaned.match(/(\d+)(?::(\d+))?\s*시/);
+        if (singleMatch) return parseInt(singleMatch[1]) + (parseInt(singleMatch[2] || '0') / 60);
+        return null;
+    };
+
     const routeAcademiesSorted = useMemo(() => {
         if (!routeDate || !planDateMap.has(routeDate)) return [];
         const rows = planDateMap.get(routeDate);
         const allA = [...(academies || [])];
         const matched = rows.map(row => {
             const rawName = colVal(row, ['학원(교습소)명','명칭','학원명','기관명']);
-            return allA.find(a => normName(a.name) === normName(rawName)) || null;
+            const academy = allA.find(a => normName(a.name) === normName(rawName)) || null;
+            if (!academy) return null;
+            const schedule = colVal(row, ['예약일정','점검시간','예약시간','시간','일정']);
+            return { ...academy, _schedule: schedule };
         }).filter(Boolean);
         if (matched.length === 0) return [];
 
         const cache = JSON.parse(localStorage.getItem('academyMapLocations') || '{}');
-        const withCoords = matched.map(a => ({
-            academy: a,
-            lat: cache[`${a.id}-${a.category}`]?.lat ?? null,
-            lng: cache[`${a.id}-${a.category}`]?.lng ?? null,
+        const items = matched.map(a => ({
+            ...a,
+            _lat: cache[`${a.id}-${a.category}`]?.lat ?? null,
+            _lng: cache[`${a.id}-${a.category}`]?.lng ?? null,
+            _midpoint: parseScheduleMidpoint(a._schedule, routeDate),
         }));
-        const hasCo = withCoords.filter(x => x.lat != null);
-        const noCo = withCoords.filter(x => x.lat == null);
 
-        if (hasCo.length === 0) return matched.map((a, i) => ({ ...a, _order: i+1, _dist: null }));
+        // 예약일정이 있는 항목: 중간값 오름차순 정렬, 동점이면 이전 학원과의 거리 기준
+        const scheduled = items.filter(a => a._midpoint !== null);
+        const unscheduled = items.filter(a => a._midpoint === null);
 
-        const ordered = [hasCo[0]];
-        const remaining = [...hasCo.slice(1)];
-        while (remaining.length) {
-            const last = ordered[ordered.length - 1];
-            let minD = Infinity, minI = 0;
-            remaining.forEach((x, i) => {
-                const d = haversineKm(last.lat, last.lng, x.lat, x.lng);
-                if (d < minD) { minD = d; minI = i; }
-            });
-            ordered.push(remaining.splice(minI, 1)[0]);
+        // 중간값별 그룹화
+        const groups = new Map();
+        scheduled.forEach(a => {
+            if (!groups.has(a._midpoint)) groups.set(a._midpoint, []);
+            groups.get(a._midpoint).push(a);
+        });
+        const sortedKeys = Array.from(groups.keys()).sort((a, b) => a - b);
+
+        const result = [];
+        let lastLat = null, lastLng = null;
+
+        // 예약일정 항목: 시간 오름차순, 동점은 거리 최근접 우선
+        for (const key of sortedKeys) {
+            const group = groups.get(key);
+            const rem = [...group];
+            while (rem.length > 0) {
+                let minI = 0;
+                if (lastLat !== null) {
+                    let minD = Infinity;
+                    rem.forEach((a, i) => {
+                        if (a._lat != null) {
+                            const d = haversineKm(lastLat, lastLng, a._lat, a._lng);
+                            if (d < minD) { minD = d; minI = i; }
+                        }
+                    });
+                }
+                const [chosen] = rem.splice(minI, 1);
+                result.push(chosen);
+                lastLat = chosen._lat; lastLng = chosen._lng;
+            }
         }
 
-        const result = [...ordered, ...noCo];
-        return result.map((x, i) => {
-            let dist = null;
-            if (i > 0 && x.lat != null) {
-                const prev = result[i - 1];
-                if (prev && prev.lat != null) dist = haversineKm(prev.lat, prev.lng, x.lat, x.lng);
+        // 예약일정 없는 항목: 마지막 위치 기준 최근접 순
+        const remUnsched = unscheduled.filter(a => a._lat != null);
+        const noCoordUnsched = unscheduled.filter(a => a._lat == null);
+        while (remUnsched.length > 0) {
+            let minI = 0;
+            if (lastLat !== null) {
+                let minD = Infinity;
+                remUnsched.forEach((a, i) => {
+                    const d = haversineKm(lastLat, lastLng, a._lat, a._lng);
+                    if (d < minD) { minD = d; minI = i; }
+                });
             }
-            return { ...x.academy, _order: i + 1, _dist: dist, _lat: x.lat, _lng: x.lng };
+            const [chosen] = remUnsched.splice(minI, 1);
+            result.push(chosen);
+            lastLat = chosen._lat; lastLng = chosen._lng;
+        }
+        result.push(...noCoordUnsched);
+
+        return result.map((a, i) => {
+            let dist = null;
+            if (i > 0 && a._lat != null) {
+                const prev = result[i - 1];
+                if (prev?._lat != null) dist = haversineKm(prev._lat, prev._lng, a._lat, a._lng);
+            }
+            return { ...a, _order: i + 1, _dist: dist };
         });
     }, [routeDate, planDateMap, academies]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -2736,6 +2803,8 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
             });
 
             const positions = [];
+            const overlayItems = []; // track for collision avoidance
+
             locationGroups.forEach(({ lat, lng, items }) => {
                 const position = new kakao.maps.LatLng(lat, lng);
                 positions.push(position);
@@ -2762,6 +2831,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                 });
                 overlay.setMap(map);
                 inlineRouteMarkersRef.current.push(overlay);
+                overlayItems.push({ overlay, el, lat, lng });
             });
 
             if (positions.length >= 2) {
@@ -2772,6 +2842,45 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                 map.setCenter(positions[0]);
                 map.setLevel(3);
             }
+
+            // Collision avoidance: after map settles, shift overlapping labels downward
+            const mapContainerEl = routeMapContainerRef.current;
+            const resolveCollisions = () => {
+                if (cancelled || !mapContainerEl) return;
+                const rects = overlayItems.map(item => {
+                    const r = item.el.getBoundingClientRect();
+                    return { item, top: r.top, bottom: r.bottom, left: r.left, right: r.right };
+                });
+                // Process top-to-bottom so higher labels are fixed first
+                rects.sort((a, b) => a.top - b.top);
+                const mapBnds = map.getBounds();
+                const mapRect = mapContainerEl.getBoundingClientRect();
+                const latRange = mapBnds.getNorthEast().getLat() - mapBnds.getSouthWest().getLat();
+                const degPerPx = latRange / mapRect.height;
+                for (let i = 0; i < rects.length; i++) {
+                    for (let j = i + 1; j < rects.length; j++) {
+                        const a = rects[i];
+                        const b = rects[j];
+                        const hOverlap = a.left < b.right + 2 && a.right > b.left - 2;
+                        const vOverlap = a.top < b.bottom + 2 && a.bottom > b.top - 2;
+                        if (hOverlap && vOverlap) {
+                            const shift = a.bottom - b.top + 6;
+                            if (shift > 0) {
+                                b.item.lat -= shift * degPerPx;
+                                b.item.overlay.setPosition(new kakao.maps.LatLng(b.item.lat, b.item.lng));
+                                b.top += shift;
+                                b.bottom += shift;
+                            }
+                        }
+                    }
+                }
+            };
+            // Wait for map to finish animating to its bounds before measuring
+            const idleHandler = () => {
+                kakao.maps.event.removeListener(map, 'idle', idleHandler);
+                if (!cancelled) resolveCollisions();
+            };
+            kakao.maps.event.addListener(map, 'idle', idleHandler);
         };
 
         if (window.kakao?.maps) {
@@ -3331,6 +3440,11 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                             ))}
                         </select>
                     )}
+                    <button
+                        onClick={e => { e.stopPropagation(); loadInspectedNames(); }}
+                        title="구글시트에서 최신 일정 다시 불러오기"
+                        style={{ fontSize: '0.8rem', padding: '3px 8px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-light)', color: 'var(--text-muted)', cursor: 'pointer' }}
+                    >↺</button>
                 </div>
                 {routeDate && routeAcademiesSorted.length === 0 && (
                     <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: '8px' }}>매칭된 학원이 없습니다. 학원명을 확인해주세요.</div>
@@ -3343,29 +3457,33 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                                     <tr>
                                         <Th style={{ width: '32px', textAlign: 'center' }}>#</Th>
                                         <Th style={{ position: 'sticky', left: 0, zIndex: 2, background: 'var(--bg-main)' }}>학원명</Th>
+                                        <Th>주소</Th>
                                         <Th>성명</Th>
                                         <Th>전화번호</Th>
-                                        <Th>주소</Th>
                                         <Th style={{ textAlign: 'right' }}>이동</Th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {routeAcademiesSorted.map((a, i) => (
-                                        <tr key={`${a.id}-${i}`} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
+                                        <tr
+                                            key={`${a.id}-${i}`}
+                                            style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}
+                                        >
                                             <Td style={{ textAlign: 'center', fontWeight: '800', color: '#f97316' }}>{a._order}</Td>
                                             <Td style={{ position: 'sticky', left: 0, zIndex: 1, background: 'var(--bg-card)', maxWidth: '130px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                 {onSelectAcademy
                                                     ? <span onClick={() => onSelectAcademy(a)} style={{ fontWeight: '700', color: 'var(--primary)', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '2px' }}>{a.name}</span>
                                                     : <span style={{ fontWeight: '600' }}>{a.name}</span>
                                                 }
+                                                {a._schedule && <div style={{ fontSize: '0.68rem', color: '#0ea5e9', fontWeight: '600', marginTop: '1px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a._schedule}</div>}
                                             </Td>
+                                            <Td style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>{shortAddr(a.address)}</Td>
                                             <Td style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{a.founder?.name || '-'}</Td>
                                             <Td style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>
                                                 {(a.founder?.mobile || a.founder?.phone)
                                                     ? <a href={`tel:${a.founder?.mobile || a.founder?.phone}`} onClick={e => e.stopPropagation()} style={{ color: '#3b82f6', fontWeight: '600', textDecoration: 'none' }}>{a.founder?.mobile || a.founder?.phone}</a>
                                                     : '-'}
                                             </Td>
-                                            <Td style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>{shortAddr(a.address)}</Td>
                                             <Td style={{ textAlign: 'right', color: a._dist != null ? '#0ea5e9' : 'var(--text-muted)' }}>
                                                 {i === 0
                                                     ? <span style={{ color: '#10b981', fontWeight: '700' }}>출발</span>
@@ -3385,7 +3503,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                 ref={routeMapContainerRef}
                 style={{
                     width: '100%',
-                    height: '380px',
+                    height: '480px',
                     borderRadius: '12px',
                     overflow: 'hidden',
                     border: '1px solid var(--border-color)',
