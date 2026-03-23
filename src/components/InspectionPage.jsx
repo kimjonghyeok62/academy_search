@@ -8,6 +8,7 @@ import {
     fetchStatRawRows, fetchRecentRawRows, APPS_SCRIPT_URL,
     fetchHanamAcademyRawRows, fetchHanamHagwonRawRows,
     fetchNiceAcademyRawRows, fetchNiceHagwonRawRows, fetchNicePrivateRawRows,
+    fetchInspectionDeferRawRows,
 } from '../utils/inspectionSheets';
 import { fetchAcademyClosureData } from '../utils/googleSheets';
 
@@ -2511,6 +2512,40 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
         return next;
     });
 
+    // ── 점검유보 목록 (추천에서 제외) ──
+    const [deferNames, setDeferNames] = useState(new Set());
+
+    const loadDeferNames = async () => {
+        try {
+            const rawRows = await fetchInspectionDeferRawRows();
+            console.log('[점검유보] rawRows 수:', rawRows?.length, '1행:', rawRows?.[0]);
+            if (!rawRows || rawRows.length < 2) return;
+            let hIdx = 0, maxF = 0;
+            for (let i = 0; i < Math.min(5, rawRows.length); i++) {
+                const f = rawRows[i].filter(c => c && c.trim()).length;
+                if (f > maxF) { maxF = f; hIdx = i; }
+            }
+            const headers = rawRows[hIdx].map(h => h.trim());
+            console.log('[점검유보] headers:', headers);
+            const bodyRows = rawRows.slice(hIdx + 1)
+                .filter(row => row.some(c => c && c.trim()))
+                .map(row => { const obj = {}; headers.forEach((h, i) => { obj[h] = (row[i] || '').trim(); }); return obj; });
+            const names = new Set(bodyRows.map(r => {
+                const byCol = colVal(r, ['학원(교습소)명', '명칭', '학원명', '기관명', '교습소명', '과외자명', '기관명칭', '명']);
+                if (byCol) return normName(byCol);
+                // 컬럼명 매칭 실패 시 첫 번째 비어있지 않은 값 사용
+                const firstVal = Object.values(r).find(v => v && v.trim());
+                return firstVal ? normName(firstVal) : '';
+            }).filter(Boolean));
+            console.log('[점검유보] 로드된 점검유보 기관 수:', names.size, [...names].slice(0, 5));
+            setDeferNames(names);
+        } catch (e) {
+            console.error('[점검유보] 로드 실패:', e);
+        }
+    };
+
+    useEffect(() => { loadDeferNames(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
     // ── 점검완료 추적 ──
     const [inspectedNames, setInspectedNames] = useState(new Set());
     const [riskAcOpen, setRiskAcOpen] = useState(false);
@@ -2752,7 +2787,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
 
     const handleRiskRefresh = async (type) => {
         setRiskRefreshing(true);
-        await loadInspectedNames();
+        await Promise.all([loadInspectedNames(), loadDeferNames()]);
         if (type === 'ac') { setAcRefreshed(true); }
         else { setHgRefreshed(true); }
         setRiskRefreshing(false);
@@ -2760,7 +2795,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
 
     const handleOverdueRefresh = async (dong, catKey) => {
         setOverdueRefreshing(true);
-        await loadInspectedNames();
+        await Promise.all([loadInspectedNames(), loadDeferNames()]);
         setOverdueRefreshed(prev => {
             const next = new Map(prev);
             const cur = new Set(next.get(dong) || []);
@@ -2772,7 +2807,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
     };
     const handleOverdueDongRefresh = async (dong) => {
         setOverdueRefreshing(true);
-        await loadInspectedNames();
+        await Promise.all([loadInspectedNames(), loadDeferNames()]);
         setOverdueRefreshed(prev => {
             const next = new Map(prev);
             next.set(dong, new Set(['ac', 'hg']));
@@ -2787,7 +2822,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
     });
     const handleUnderdueDongRefresh = async (dong) => {
         setUnderdueRefreshing(true);
-        await loadInspectedNames();
+        await Promise.all([loadInspectedNames(), loadDeferNames()]);
         setUnderdueRefreshed(prev => {
             const next = new Map(prev);
             next.set(dong, new Set(['ac', 'hg']));
@@ -2802,7 +2837,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
     });
     const handleByBuildingDongRefresh = async (dong) => {
         setByBuildingRefreshing(true);
-        await loadInspectedNames();
+        await Promise.all([loadInspectedNames(), loadDeferNames()]);
         setByBuildingRefreshed(prev => {
             const next = new Map(prev);
             next.set(dong, true);
@@ -3006,7 +3041,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
         const feeSet = new Set(feeExceed.map(f => f.id));
         const insSet = new Set(insuranceIssues.map(i => i.id));
         return [...aList, ...hActiveList]
-            .filter(a => !isClosed(a))
+            .filter(a => !isClosed(a) && !deferNames.has(normName(a.name)))
             .map(a => {
                 const months = uninspMonths(a, today);
                 const neverInspected = (a.inspections || []).filter(i => !isMidnightInsp(i)).length === 0;
@@ -3025,7 +3060,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
             })
             .filter(a => a.neverInspected || a.months >= 12)
             .sort((a, b) => b.score - a.score);
-    }, [aList, hActiveList, feeExceed, insuranceIssues]);
+    }, [aList, hActiveList, feeExceed, insuranceIssues, deferNames]);
 
     // ── D. 2년 이상 미점검 ──
     const overdueList = useMemo(() => {
@@ -3033,7 +3068,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
         const feeSet = new Set(feeExceed.map(f => f.id));
         const insSet = new Set(insuranceIssues.map(i => i.id));
         return [...aList, ...hActiveList]
-            .filter(a => !isClosed(a))
+            .filter(a => !isClosed(a) && !deferNames.has(normName(a.name)))
             .map(a => {
                 const months = uninspMonths(a, today);
                 const neverInspected = (a.inspections || []).filter(i => !isMidnightInsp(i)).length === 0;
@@ -3048,7 +3083,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
             })
             .filter(a => a.months >= 24)
             .sort((a, b) => b.months - a.months);
-    }, [aList, hActiveList, feeExceed, insuranceIssues]);
+    }, [aList, hActiveList, feeExceed, insuranceIssues, deferNames]);
 
     // ── D-2. 2년이상 미점검 동별 그룹핑 ──
     const overdueByDong = useMemo(() => {
@@ -3069,7 +3104,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
         const feeSet = new Set(feeExceed.map(f => f.id));
         const insSet = new Set(insuranceIssues.map(i => i.id));
         return [...aList, ...hActiveList]
-            .filter(a => !isClosed(a))
+            .filter(a => !isClosed(a) && !deferNames.has(normName(a.name)))
             .map(a => {
                 const months = uninspMonths(a, today);
                 const neverInspected = (a.inspections || []).filter(i => !isMidnightInsp(i)).length === 0;
@@ -3084,7 +3119,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
             })
             .filter(a => a.months >= 1 && a.months < 24)
             .sort((a, b) => b.months - a.months);
-    }, [aList, hActiveList, feeExceed, insuranceIssues]);
+    }, [aList, hActiveList, feeExceed, insuranceIssues, deferNames]);
 
     // ── D-4. 2년 미만 미점검 동별 그룹핑 ──
     const underdueByDong = useMemo(() => {
@@ -3105,7 +3140,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
         const feeSet = new Set(feeExceed.map(f => f.id));
         const insSet = new Set(insuranceIssues.map(i => i.id));
         return [...aList, ...hActiveList]
-            .filter(a => !isClosed(a))
+            .filter(a => !isClosed(a) && !deferNames.has(normName(a.name)))
             .map(a => {
                 const months = uninspMonths(a, today);
                 const neverInspected = (a.inspections || []).filter(i => !isMidnightInsp(i)).length === 0;
@@ -3121,7 +3156,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
             })
             .filter(a => a.months >= 12 && a.months < 24)
             .sort((a, b) => b.months - a.months);
-    }, [aList, hActiveList, feeExceed, insuranceIssues]);
+    }, [aList, hActiveList, feeExceed, insuranceIssues, deferNames]);
 
     const byBuildingByDong = useMemo(() => {
         const dongMap = new Map();
@@ -3151,7 +3186,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
         const insSet = new Set(insuranceIssues.map(i => i.id));
         // 전체 활성 기관을 위험지수 순으로 정렬한 풀 (riskList와 달리 상위 30 제한 없음)
         const fullPool = [...aList, ...hActiveList]
-            .filter(a => !isClosed(a))
+            .filter(a => !isClosed(a) && !deferNames.has(normName(a.name)))
             .map(a => {
                 const months = uninspMonths(a, today);
                 const neverInspected = (a.inspections || []).filter(i => !isMidnightInsp(i)).length === 0;
@@ -3257,7 +3292,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
             });
         }
         return weeks;
-    }, [aList, hActiveList, feeExceed, insuranceIssues]);
+    }, [aList, hActiveList, feeExceed, insuranceIssues, deferNames]);
 
     return (
         <div>
