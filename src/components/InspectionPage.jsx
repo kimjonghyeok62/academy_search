@@ -2497,7 +2497,7 @@ function getBuilding(addr) {
 // ───────────────────────────────────────────────
 // 탭: 주의 (운영 위반 점검)
 // ───────────────────────────────────────────────
-function TabCaution({ region, academies, privateTutors, academyClosures, onSelectAcademy, addrDongCacheVer, initialOpenSections, onSubStateChange, onShowRouteMap }) {
+function TabCaution({ region, academies, privateTutors, academyClosures, onSelectAcademy, addrDongCacheVer, initialOpenSections, onSubStateChange, onShowRouteMap, initialRouteDate, onRouteDateChange }) {
     const city = region.endsWith('시') ? region : region + '시';
     const H_CLOSED_R = ['자진폐원', '직권폐원', '자진폐소', '직권폐소'];
     const aList = useMemo(() => (academies || []).filter(a => (a.address || '').includes(city) && a.category !== '교습소'), [academies, city]);
@@ -2565,7 +2565,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
     const [byBuildingExpandedDongs, setByBuildingExpandedDongs] = useState(new Set());
     const [byBuildingExpandedBuildings, setByBuildingExpandedBuildings] = useState(new Set());
     const [allRawRows, setAllRawRows] = useState([]);
-    const [routeDate, setRouteDate] = useState('');
+    const [routeDate, setRouteDate] = useState(initialRouteDate || '');
     const routeMapContainerRef = useRef(null);
     const routeMapInstanceRef = useRef(null);
     const inlineRouteMarkersRef = useRef([]);
@@ -2833,7 +2833,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                 });
                 overlay.setMap(map);
                 inlineRouteMarkersRef.current.push(overlay);
-                overlayItems.push({ overlay, el, lat, lng });
+                overlayItems.push({ overlay, el, lat, lng, cssShiftY: 0 });
             });
 
             if (positions.length >= 2) {
@@ -2897,8 +2897,9 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                         if (hOverlap && vOverlap) {
                             const shift = Math.min(a.bottom - b.top + 2, MAX_SHIFT_PX);
                             if (shift > 0) {
-                                b.item.lat -= shift * degPerPx;
-                                b.item.overlay.setPosition(new kakao.maps.LatLng(b.item.lat, b.item.lng));
+                                b.item.cssShiftY = (b.item.cssShiftY || 0) + shift;
+                                // -11px 수직 오프셋(base) 유지하면서 shift 적용
+                                b.item.el.style.transform = `translate(-11px, ${-11 + b.item.cssShiftY}px)`;
                                 b.top += shift;
                                 b.bottom += shift;
                             }
@@ -3470,7 +3471,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                         <select
                             value={routeDate}
                             onClick={e => e.stopPropagation()}
-                            onChange={e => setRouteDate(e.target.value)}
+                            onChange={e => { setRouteDate(e.target.value); onRouteDateChange?.(e.target.value); }}
                             style={{ fontSize: '0.78rem', padding: '4px 8px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-light)', color: 'var(--text-main)', cursor: 'pointer' }}
                         >
                             <option value="">날짜 선택...</option>
@@ -4315,7 +4316,7 @@ export default function InspectionPage({ onBack, academies, privateTutors, onSel
                     <div style={{ textAlign: 'center', padding: '40px', color: '#ef4444' }}>{errorStat}</div>
                 ) : (
                     <div>
-                        {activeTab === 0 && <TabCaution region={region} academies={academies} privateTutors={privateTutors} academyClosures={academyClosures} onSelectAcademy={handleSelectAcademy} addrDongCacheVer={addrDongCacheVer} initialOpenSections={savedSubState.cautionOpenSections} onSubStateChange={s => handleSubStateChange({ cautionOpenSections: s })} onShowRouteMap={onShowRouteMap} />}
+                        {activeTab === 0 && <TabCaution region={region} academies={academies} privateTutors={privateTutors} academyClosures={academyClosures} onSelectAcademy={handleSelectAcademy} addrDongCacheVer={addrDongCacheVer} initialOpenSections={savedSubState.cautionOpenSections} onSubStateChange={s => handleSubStateChange({ cautionOpenSections: s })} onShowRouteMap={onShowRouteMap} initialRouteDate={savedSubState.routeDate || ''} onRouteDateChange={date => handleSubStateChange({ routeDate: date })} />}
                         {activeTab === 1 && <TabRecent region={region} academies={academies} onSelectAcademy={handleSelectAcademy} initialPage={recentInitPage} initialScrollY={recentInitScrollY} onPageChange={p => handleSubStateChange({ page: p })} />}
                         {activeTab === 2 && <TabStats region={region} statRows={statRows} academies={academies} privateTutors={privateTutors} academyClosures={academyClosures} addrDongCacheVer={addrDongCacheVer} />}
                         {activeTab === 3 && <TabReview region={region} academies={academies} privateTutors={privateTutors} academyClosures={academyClosures} onSelectAcademy={handleSelectAcademy} addrDongCacheVer={addrDongCacheVer} initialOpenSections={savedSubState.reviewOpenSections} onSubStateChange={s => handleSubStateChange({ reviewOpenSections: s })} />}
