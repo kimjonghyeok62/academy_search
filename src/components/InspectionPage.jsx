@@ -2794,9 +2794,10 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
             if (cancelled) return;
 
             const locationGroups = new Map();
+            const noCoordItems = [];
             routeAcademiesSorted.forEach(a => {
                 const coords = a._lat != null ? { lat: a._lat, lng: a._lng } : coordsMap.get(`${a.id}-${a.category}`);
-                if (!coords) return;
+                if (!coords) { noCoordItems.push(a); return; }
                 const key = `${coords.lat.toFixed(6)},${coords.lng.toFixed(6)}`;
                 if (!locationGroups.has(key)) locationGroups.set(key, { lat: coords.lat, lng: coords.lng, items: [] });
                 locationGroups.get(key).items.push(a);
@@ -2810,7 +2811,8 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                 positions.push(position);
 
                 const el = document.createElement('div');
-                el.style.cssText = 'display:flex;flex-direction:column;align-items:flex-start;gap:3px;';
+                // translate(-11px,-11px): 배지 중심(22px 원의 중앙=11px)이 정확히 좌표에 오도록
+                el.style.cssText = 'display:flex;flex-direction:column;align-items:flex-start;gap:3px;transform:translate(-11px,-11px);';
                 items.forEach(a => {
                     const unitStr = getUnitLabel(a.address);
                     const row = document.createElement('div');
@@ -2827,7 +2829,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                 });
 
                 const overlay = new kakao.maps.CustomOverlay({
-                    position, content: el, zIndex: 50, xAnchor: 0.5, yAnchor: 1.0,
+                    position, content: el, zIndex: 50, xAnchor: 0, yAnchor: 0,
                 });
                 overlay.setMap(map);
                 inlineRouteMarkersRef.current.push(overlay);
@@ -2843,28 +2845,57 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                 map.setLevel(3);
             }
 
-            // Collision avoidance: after map settles, shift overlapping labels downward
+            // 좌표 없는 항목 표시 (지도 우상단 고정 박스)
+            const existingNoCoordBox = routeMapContainerRef.current.querySelector('.no-coord-box');
+            if (existingNoCoordBox) existingNoCoordBox.remove();
+            if (noCoordItems.length > 0) {
+                const box = document.createElement('div');
+                box.className = 'no-coord-box';
+                box.style.cssText = 'position:absolute;top:8px;right:8px;z-index:100;background:rgba(255,255,255,0.95);border:1.5px solid #e2e8f0;border-radius:8px;padding:6px 10px;font-size:10px;color:#64748b;box-shadow:0 2px 6px rgba(0,0,0,0.12);max-width:180px;';
+                box.innerHTML = `<div style="font-weight:700;color:#94a3b8;margin-bottom:3px;">📍 위치 미확인</div>` +
+                    noCoordItems.map(a => `<div style="display:flex;align-items:center;gap:4px;margin-top:2px;"><span style="width:18px;height:18px;border-radius:50%;background:#94a3b8;color:white;display:inline-flex;align-items:center;justify-content:center;font-weight:800;font-size:9px;flex-shrink:0;">${a._order}</span><span style="font-weight:600;color:#475569;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${a.name}</span></div>`).join('');
+                routeMapContainerRef.current.style.position = 'relative';
+                routeMapContainerRef.current.appendChild(box);
+            }
+
+            // Collision avoidance: map 좌표 기반으로 겹침 감지 후 최소 이동
             const mapContainerEl = routeMapContainerRef.current;
             const resolveCollisions = () => {
                 if (cancelled || !mapContainerEl) return;
-                const rects = overlayItems.map(item => {
-                    const r = item.el.getBoundingClientRect();
-                    return { item, top: r.top, bottom: r.bottom, left: r.left, right: r.right };
+                const proj = map.getProjection();
+                const ROW_H = 27;   // 행 1개당 픽셀 높이 (배지 22px + gap)
+                const LABEL_W = 195; // 라벨 최대 폭 (xAnchor=0.5 기준 좌우)
+                const MAX_SHIFT_PX = 28;
+
+                const items = overlayItems.map(item => {
+                    const px = proj.pointFromCoords(item.overlay.getPosition());
+                    const rowCount = item.el.children.length || 1;
+                    const h = rowCount * ROW_H;
+                    // xAnchor=0, yAnchor=0 + translate(-11,-11) → 배지 중심이 px
+                    return {
+                        item,
+                        top: px.y - 11,
+                        bottom: px.y - 11 + h,
+                        left: px.x - 11,
+                        right: px.x - 11 + LABEL_W,
+                    };
                 });
-                // Process top-to-bottom so higher labels are fixed first
-                rects.sort((a, b) => a.top - b.top);
+
+                items.sort((a, b) => a.top - b.top);
+
                 const mapBnds = map.getBounds();
                 const mapRect = mapContainerEl.getBoundingClientRect();
                 const latRange = mapBnds.getNorthEast().getLat() - mapBnds.getSouthWest().getLat();
                 const degPerPx = latRange / mapRect.height;
-                for (let i = 0; i < rects.length; i++) {
-                    for (let j = i + 1; j < rects.length; j++) {
-                        const a = rects[i];
-                        const b = rects[j];
-                        const hOverlap = a.left < b.right + 2 && a.right > b.left - 2;
-                        const vOverlap = a.top < b.bottom + 2 && a.bottom > b.top - 2;
+
+                for (let i = 0; i < items.length; i++) {
+                    for (let j = i + 1; j < items.length; j++) {
+                        const a = items[i];
+                        const b = items[j];
+                        const hOverlap = a.left < b.right && a.right > b.left;
+                        const vOverlap = a.top < b.bottom && a.bottom > b.top;
                         if (hOverlap && vOverlap) {
-                            const shift = a.bottom - b.top + 6;
+                            const shift = Math.min(a.bottom - b.top + 2, MAX_SHIFT_PX);
                             if (shift > 0) {
                                 b.item.lat -= shift * degPerPx;
                                 b.item.overlay.setPosition(new kakao.maps.LatLng(b.item.lat, b.item.lng));
@@ -2875,12 +2906,20 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                     }
                 }
             };
-            // Wait for map to finish animating to its bounds before measuring
+            // 지도 이동 완료 후 충돌 감지 실행
+            // setBounds가 이미 완료됐을 수 있으므로 idle 이벤트와 타임아웃 두 가지로 보장
+            let collisionDone = false;
+            const runOnce = () => {
+                if (collisionDone || cancelled) return;
+                collisionDone = true;
+                resolveCollisions();
+            };
             const idleHandler = () => {
                 kakao.maps.event.removeListener(map, 'idle', idleHandler);
-                if (!cancelled) resolveCollisions();
+                runOnce();
             };
             kakao.maps.event.addListener(map, 'idle', idleHandler);
+            setTimeout(runOnce, 600); // idle이 이미 지났을 경우 fallback
         };
 
         if (window.kakao?.maps) {

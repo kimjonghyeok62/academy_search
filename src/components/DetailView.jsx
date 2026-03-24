@@ -1668,7 +1668,8 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
 
                         {/* 교습비 분당단가 기준표 */}
                         {(() => {
-                            const academyStdPrices = new Set(academy.courses.map(c => Number(String(c.standardUnitPrice || '0').replace(/[^0-9]/g, ''))).filter(p => p > 0));
+                            // 소수점 포함 파싱 후 반올림 → TUITION_STANDARDS 정수 price와 일치시킴
+                            const academyStdPrices = new Set(academy.courses.map(c => Math.round(parseFloat(String(c.standardUnitPrice || '0').replace(/[^0-9.]/g, '')))).filter(p => p > 0));
 
                             return (
                                 <div style={{ marginTop: '24px', backgroundColor: 'var(--bg-card)', borderRadius: '12px', padding: '16px', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)' }}>
