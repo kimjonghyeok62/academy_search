@@ -724,7 +724,7 @@ function Section({ title, children, rightButton }) {
 
 export default function DetailView({ academy, allAcademies = [], onBack, onSelectAcademy, onShowMap }) {
     const [activeTab, setActiveTab] = useState('status');
-    const [showSensitiveInfo, setShowSensitiveInfo] = useState(false);
+    const [showSensitiveInfo, setShowSensitiveInfo] = useState(true);
     const [expandedCourses, setExpandedCourses] = useState([]); // 모두 접힌 상태로 시작
     const [allCoursesExpanded, setAllCoursesExpanded] = useState(false);
 
@@ -990,6 +990,7 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
                         >
                             <InfoRow label="등록번호" value={academy.id} />
                             <InfoRow label="학원명" value={academy.name} />
+                            {academy.founder?.name && <InfoRow label="설립자" value={academy.founder.name} />}
                             <InfoRow label="학원종류" value={academy.category} />
                             <InfoRow label="분야구분" value={academy.field} />
                             <div className="info-row">
@@ -1492,7 +1493,7 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
                                                 return (
                                                     <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                                         <div>
-                                                            {course.track} | 정원: {course.quota}명 | {feeLabel}: {feeDisplay}원 {course.totalTime ? `| 총교습시간: ${course.totalTime}분` : ''}
+                                                            {course.track} | 정원: {course.quota}명 | {feeLabel}: <span style={{ color: '#0f172a', fontWeight: '800', fontSize: '0.92rem' }}>{feeDisplay}원</span> {course.totalTime ? `| 총교습시간: ${course.totalTime}분` : ''}
                                                         </div>
 
                                                         {(course.unitPrice || course.standardUnitPrice) && (
@@ -1668,7 +1669,7 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
 
                         {/* 교습비 분당단가 기준표 */}
                         {(() => {
-                            const academyStdPrices = new Set(academy.courses.map(c => Number(String(c.standardUnitPrice || '0').replace(/[^0-9]/g, ''))).filter(p => p > 0));
+                            const academyStdPrices = new Set(academy.courses.map(c => Math.round(parseFloat(String(c.standardUnitPrice || '0').replace(/[^0-9.]/g, '')))).filter(p => p > 0));
 
                             return (
                                 <div style={{ marginTop: '24px', backgroundColor: 'var(--bg-card)', borderRadius: '12px', padding: '16px', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)' }}>
@@ -1689,25 +1690,28 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
                                                     const isHighlighted = academyStdPrices.has(std.price);
                                                     return (
                                                         <tr key={idx} style={{
-                                                            backgroundColor: isHighlighted ? '#eff6ff' : (idx % 2 === 0 ? 'transparent' : '#f8fafc'),
-                                                            borderBottom: idx === TUITION_STANDARDS.length - 1 ? 'none' : '1px solid var(--border-color)',
+                                                            backgroundColor: isHighlighted ? '#bfdbfe' : (idx % 2 === 0 ? 'transparent' : '#f8fafc'),
+                                                            borderBottom: idx === TUITION_STANDARDS.length - 1 ? 'none' : `1px solid ${isHighlighted ? '#93c5fd' : 'var(--border-color)'}`,
+                                                            outline: isHighlighted ? '2px solid #3b82f6' : 'none',
+                                                            outlineOffset: '-1px',
                                                             transition: 'all 0.2s',
                                                         }}>
                                                             <td style={{
                                                                 padding: '10px',
-                                                                fontWeight: isHighlighted ? '700' : '400',
-                                                                color: isHighlighted ? '#1d4ed8' : 'var(--text-main)',
-                                                                borderLeft: isHighlighted ? '4px solid #3b82f6' : '4px solid transparent'
+                                                                fontWeight: isHighlighted ? '800' : '400',
+                                                                color: isHighlighted ? '#1e40af' : 'var(--text-main)',
+                                                                borderLeft: isHighlighted ? '4px solid #1d4ed8' : '4px solid transparent'
                                                             }}>{std.process}</td>
                                                             <td style={{
                                                                 padding: '10px',
-                                                                fontWeight: isHighlighted ? '700' : '400',
-                                                                color: isHighlighted ? '#1d4ed8' : 'var(--text-main)'
+                                                                fontWeight: isHighlighted ? '800' : '400',
+                                                                color: isHighlighted ? '#1e40af' : 'var(--text-main)'
                                                             }}>{std.target}</td>
                                                             <td style={{
                                                                 padding: '10px',
-                                                                fontWeight: isHighlighted ? '800' : '500',
-                                                                color: isHighlighted ? '#2563eb' : 'var(--text-muted)'
+                                                                fontWeight: isHighlighted ? '900' : '500',
+                                                                color: isHighlighted ? '#1e40af' : 'var(--text-muted)',
+                                                                fontSize: isHighlighted ? '0.95rem' : undefined,
                                                             }}>{std.price}</td>
                                                         </tr>
                                                     );

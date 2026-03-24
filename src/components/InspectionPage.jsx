@@ -2497,7 +2497,7 @@ function getBuilding(addr) {
 // ───────────────────────────────────────────────
 // 탭: 주의 (운영 위반 점검)
 // ───────────────────────────────────────────────
-function TabCaution({ region, academies, privateTutors, academyClosures, onSelectAcademy, addrDongCacheVer, initialOpenSections, onSubStateChange, onShowRouteMap }) {
+function TabCaution({ region, academies, privateTutors, academyClosures, onSelectAcademy, addrDongCacheVer, initialOpenSections, onSubStateChange, onShowRouteMap, initialRouteDate, onRouteDateChange }) {
     const city = region.endsWith('시') ? region : region + '시';
     const H_CLOSED_R = ['자진폐원', '직권폐원', '자진폐소', '직권폐소'];
     const aList = useMemo(() => (academies || []).filter(a => (a.address || '').includes(city) && a.category !== '교습소'), [academies, city]);
@@ -2565,7 +2565,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
     const [byBuildingExpandedDongs, setByBuildingExpandedDongs] = useState(new Set());
     const [byBuildingExpandedBuildings, setByBuildingExpandedBuildings] = useState(new Set());
     const [allRawRows, setAllRawRows] = useState([]);
-    const [routeDate, setRouteDate] = useState('');
+    const [routeDate, setRouteDate] = useState(initialRouteDate || '');
     const routeMapContainerRef = useRef(null);
     const routeMapInstanceRef = useRef(null);
     const inlineRouteMarkersRef = useRef([]);
@@ -2810,7 +2810,8 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                 positions.push(position);
 
                 const el = document.createElement('div');
-                el.style.cssText = 'display:flex;flex-direction:column;align-items:flex-start;gap:3px;';
+                // translateX(-11px): 원형 마커(22px) 중심이 지도 좌표 위치와 정확히 일치하도록 오프셋
+                el.style.cssText = 'display:flex;flex-direction:column;align-items:flex-start;gap:3px;transform:translateX(-11px);';
                 items.forEach(a => {
                     const unitStr = getUnitLabel(a.address);
                     const row = document.createElement('div');
@@ -2827,11 +2828,13 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                 });
 
                 const overlay = new kakao.maps.CustomOverlay({
-                    position, content: el, zIndex: 50, xAnchor: 0.5, yAnchor: 1.0,
+                    // xAnchor:0 → el 왼쪽 끝을 좌표에 배치, translateX(-11px)로 원형 마커 중심이 정확한 위치에 오도록
+                    // yAnchor:0.5 → el 세로 중앙을 좌표에 배치
+                    position, content: el, zIndex: 50, xAnchor: 0, yAnchor: 0.5,
                 });
                 overlay.setMap(map);
                 inlineRouteMarkersRef.current.push(overlay);
-                overlayItems.push({ overlay, el, lat, lng });
+                overlayItems.push({ overlay, el, lat, lng, cssShiftY: 0 });
             });
 
             if (positions.length >= 2) {
@@ -2843,20 +2846,22 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                 map.setLevel(3);
             }
 
-            // Collision avoidance: after map settles, shift overlapping labels downward
+            // 명칭 겹침 해소: 지점 정확도 우선 유지, CSS transform으로만 약간 이격 (최대 20px)
+            // setPosition은 사용하지 않음 → 마커 좌표 변경 없음
             const mapContainerEl = routeMapContainerRef.current;
             const resolveCollisions = () => {
                 if (cancelled || !mapContainerEl) return;
+                // 이전 CSS 시프트 초기화 (기본 translateX(-11px) 유지)
+                overlayItems.forEach(item => {
+                    item.cssShiftY = 0;
+                    item.el.style.transform = 'translateX(-11px)';
+                });
                 const rects = overlayItems.map(item => {
                     const r = item.el.getBoundingClientRect();
                     return { item, top: r.top, bottom: r.bottom, left: r.left, right: r.right };
                 });
-                // Process top-to-bottom so higher labels are fixed first
+                // 위쪽 항목부터 처리
                 rects.sort((a, b) => a.top - b.top);
-                const mapBnds = map.getBounds();
-                const mapRect = mapContainerEl.getBoundingClientRect();
-                const latRange = mapBnds.getNorthEast().getLat() - mapBnds.getSouthWest().getLat();
-                const degPerPx = latRange / mapRect.height;
                 for (let i = 0; i < rects.length; i++) {
                     for (let j = i + 1; j < rects.length; j++) {
                         const a = rects[i];
@@ -2864,10 +2869,11 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                         const hOverlap = a.left < b.right + 2 && a.right > b.left - 2;
                         const vOverlap = a.top < b.bottom + 2 && a.bottom > b.top - 2;
                         if (hOverlap && vOverlap) {
-                            const shift = a.bottom - b.top + 6;
+                            // 최대 20px까지만 CSS로 밀어냄 (좌표 이동 없음)
+                            const shift = Math.min(a.bottom - b.top + 4, 20);
                             if (shift > 0) {
-                                b.item.lat -= shift * degPerPx;
-                                b.item.overlay.setPosition(new kakao.maps.LatLng(b.item.lat, b.item.lng));
+                                b.item.cssShiftY = (b.item.cssShiftY || 0) + shift;
+                                b.item.el.style.transform = `translateX(-11px) translateY(${b.item.cssShiftY}px)`;
                                 b.top += shift;
                                 b.bottom += shift;
                             }
@@ -3431,7 +3437,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                         <select
                             value={routeDate}
                             onClick={e => e.stopPropagation()}
-                            onChange={e => setRouteDate(e.target.value)}
+                            onChange={e => { setRouteDate(e.target.value); onRouteDateChange?.(e.target.value); }}
                             style={{ fontSize: '0.78rem', padding: '4px 8px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-light)', color: 'var(--text-main)', cursor: 'pointer' }}
                         >
                             <option value="">날짜 선택...</option>
@@ -4276,7 +4282,7 @@ export default function InspectionPage({ onBack, academies, privateTutors, onSel
                     <div style={{ textAlign: 'center', padding: '40px', color: '#ef4444' }}>{errorStat}</div>
                 ) : (
                     <div>
-                        {activeTab === 0 && <TabCaution region={region} academies={academies} privateTutors={privateTutors} academyClosures={academyClosures} onSelectAcademy={handleSelectAcademy} addrDongCacheVer={addrDongCacheVer} initialOpenSections={savedSubState.cautionOpenSections} onSubStateChange={s => handleSubStateChange({ cautionOpenSections: s })} onShowRouteMap={onShowRouteMap} />}
+                        {activeTab === 0 && <TabCaution region={region} academies={academies} privateTutors={privateTutors} academyClosures={academyClosures} onSelectAcademy={handleSelectAcademy} addrDongCacheVer={addrDongCacheVer} initialOpenSections={savedSubState.cautionOpenSections} onSubStateChange={s => handleSubStateChange({ cautionOpenSections: s })} onShowRouteMap={onShowRouteMap} initialRouteDate={savedSubState.routeDate || ''} onRouteDateChange={date => handleSubStateChange({ routeDate: date })} />}
                         {activeTab === 1 && <TabRecent region={region} academies={academies} onSelectAcademy={handleSelectAcademy} initialPage={recentInitPage} initialScrollY={recentInitScrollY} onPageChange={p => handleSubStateChange({ page: p })} />}
                         {activeTab === 2 && <TabStats region={region} statRows={statRows} academies={academies} privateTutors={privateTutors} academyClosures={academyClosures} addrDongCacheVer={addrDongCacheVer} />}
                         {activeTab === 3 && <TabReview region={region} academies={academies} privateTutors={privateTutors} academyClosures={academyClosures} onSelectAcademy={handleSelectAcademy} addrDongCacheVer={addrDongCacheVer} initialOpenSections={savedSubState.reviewOpenSections} onSubStateChange={s => handleSubStateChange({ reviewOpenSections: s })} />}
