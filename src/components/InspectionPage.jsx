@@ -3447,7 +3447,10 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
         <div>
             {/* 요약 헤더 */}
             <div style={{ background: 'var(--bg-card)', borderRadius: '14px', padding: '14px 16px', border: '1px solid var(--border-color)', marginBottom: '14px', boxShadow: 'var(--shadow-sm)' }}>
-                <div style={{ fontSize: '0.88rem', fontWeight: '800', color: 'var(--text-main)', marginBottom: '8px' }}>⚠️ 운영 위반 점검</div>
+                <div style={{ fontSize: '0.88rem', fontWeight: '800', color: 'var(--text-main)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    ⚠️ 운영 위반 점검
+                    <a href="https://docs.google.com/spreadsheets/d/1zSGd9TBcJRculSJzUoZ2N8bB2iENuCI0x9KBpyfXMUo/edit?gid=1946422008#gid=1946422008" target="_blank" rel="noreferrer" style={{ fontSize: '0.75rem', fontWeight: '700', color: '#2563eb', textDecoration: 'underline', cursor: 'pointer' }}>시트</a>
+                </div>
                 <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: '1.6' }}>
                     학원 {aList.length}개 · 교습소 {hActiveList.length}개 대상 점검 중.
                 </div>

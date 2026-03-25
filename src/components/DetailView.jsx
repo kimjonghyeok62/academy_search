@@ -894,16 +894,12 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
         return '';
     };
 
-    // Clean address for place search (name + base address)
-    const cleanAddress = (address) => {
+    // 주소에서 시/군/구 추출
+    const getCityDistrict = (address) => {
         if (!address) return '';
-        const commaIndex = address.indexOf(',');
-        let baseAddress = commaIndex !== -1 ? address.substring(0, commaIndex).trim() : address.trim();
-        const match = baseAddress.match(/^(.+?[로길]\s+\d+(?:-\d+)?)/);
-        if (match) {
-            return match[1].trim();
-        }
-        return baseAddress;
+        const parts = address.split(' ');
+        const city = parts.find(p => /[가-힣]+(시|군|구)$/.test(p));
+        return city || '';
     };
 
     // Find academies in the same building (including current academy)
@@ -935,7 +931,7 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
     };
 
     const sameBuildingAcademies = allAcademies
-        .filter(a => getBaseAddress(a.address) === baseAddress)
+        .filter(a => getBaseAddress(a.address) === baseAddress && ['개원', '신고'].includes(a.status))
         .sort((a, b) => unitSortKey(a.address) - unitSortKey(b.address));
 
     const renderContent = () => {
@@ -949,8 +945,9 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
                                 <button
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        const searchQuery = `${academy.name} ${cleanAddress(academy.address)}`;
-                                        window.open(`https://map.naver.com/v5/search/${encodeURIComponent(searchQuery)}`, '_blank');
+                                        const cityDistrict = getCityDistrict(academy.address);
+                                        const searchQuery = cityDistrict ? `${academy.name} ${cityDistrict}` : academy.name;
+                                        window.open(`https://map.naver.com/p/search/${encodeURIComponent(searchQuery)}`, '_blank');
                                     }}
                                     style={{
                                         display: 'inline-flex',
@@ -1055,7 +1052,7 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
                         </Section>
                         <Section title="상태 정보">
                             <InfoRow label="등록일" value={academy.regDate} />
-                            <InfoRow label="등록상태" value={academy.status} />
+                            <InfoRow label="등록상태" value={academy.status} isExpired={academy.status && !['개원', '신고'].includes(academy.status)} />
                             <InfoRow label="상태변경일" value={academy.statusDate} />
                             {academy.isMultiUse && <InfoRow label="다중이용업소" value={academy.isMultiUse} />}
                             {academy.isBoarding && <InfoRow label="기숙학원" value={academy.isBoarding} />}
@@ -1432,7 +1429,9 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
                                                 const rawUnitPriceStr = String(course.unitPrice || '0').replace(/[^0-9.]/g, '');
                                                 const unitPriceNum = parseFloat(rawUnitPriceStr);
                                                 const rawStdPriceStr = String(course.standardUnitPrice || '0').replace(/[^0-9.]/g, '');
-                                                const stdPriceNum = parseFloat(rawStdPriceStr);
+                                                const HIGH_SCHOOL_SCIENCE_SUBJ = ['통합과학', '물리', '화학', '생명과학', '지구과학', '생물'];
+                                                let stdPriceNum = parseFloat(rawStdPriceStr);
+                                                if (stdPriceNum === 222 && HIGH_SCHOOL_SCIENCE_SUBJ.some(s => (course.subject || '').includes(s))) stdPriceNum = 234;
 
                                                 // AL열 교습비 우선, 없으면 AO열 총교습비 사용
                                                 const feeRaw = course.tuitionFee || course.totalFee || '';
@@ -1497,16 +1496,21 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
                                                         </div>
 
                                                         {(course.unitPrice || course.standardUnitPrice) && (
-                                                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap', marginTop: '2px' }}>
+                                                            <div style={{ display: 'flex', gap: '4px', alignItems: 'center', flexWrap: 'wrap', marginTop: '2px' }}>
                                                                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', backgroundColor: 'var(--bg-light)', padding: '2px 6px', borderRadius: '4px', color: 'var(--text-muted)', border: '1px solid var(--border-color)', fontSize: '0.75rem' }}>
                                                                     {unitPriceLabel}: <span style={{ color: '#2563eb', fontWeight: '800' }}>{course.unitPrice ? `${course.unitPrice}원` : '-'}</span>
                                                                 </span>
+                                                                {hasValidCompare && (
+                                                                    <span style={{ fontWeight: '900', fontSize: '0.85rem', color: unitPriceNum > stdPriceNum ? '#dc2626' : unitPriceNum < stdPriceNum ? '#059669' : '#64748b' }}>
+                                                                        {unitPriceNum > stdPriceNum ? '>' : unitPriceNum < stdPriceNum ? '<' : '='}
+                                                                    </span>
+                                                                )}
                                                                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', backgroundColor: 'var(--bg-light)', padding: '2px 6px', borderRadius: '4px', color: 'var(--text-muted)', border: '1px solid var(--border-color)', fontSize: '0.75rem', fontWeight: '500' }}>
-                                                                    기준단가: {course.standardUnitPrice ? `${course.standardUnitPrice}원` : '-'}
+                                                                    기준단가: {stdPriceNum > 0 ? `${stdPriceNum}원` : '-'}
                                                                 </span>
                                                                 {hasValidCompare && (
-                                                                    <span style={{ color: isExcess ? '#dc2626' : '#2563eb', fontWeight: '800', fontSize: '0.75rem' }}>
-                                                                        [{isExcess ? '단가 초과' : '단가 적합'}]
+                                                                    <span style={{ color: unitPriceNum > stdPriceNum ? '#dc2626' : '#2563eb', fontWeight: '800', fontSize: '0.75rem' }}>
+                                                                        [{unitPriceNum > stdPriceNum ? '단가 초과' : '단가 적합'}]
                                                                     </span>
                                                                 )}
                                                             </div>
@@ -1669,8 +1673,17 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
 
                         {/* 교습비 분당단가 기준표 */}
                         {(() => {
-                            // 소수점 포함 파싱 후 반올림 → TUITION_STANDARDS 정수 price와 일치시킴
-                            const academyStdPrices = new Set(academy.courses.map(c => Math.round(parseFloat(String(c.standardUnitPrice || '0').replace(/[^0-9.]/g, '')))).filter(p => p > 0));
+                            // 고등 과학 과목 키워드 (시트에 중등 단가로 잘못 등록된 경우 보정)
+                            const HIGH_SCHOOL_SCIENCE = ['통합과학', '물리', '화학', '생명과학', '지구과학', '생물'];
+                            // 과정명+가격 조합으로 매칭 (미술/무용 같은 가격 혼동 방지)
+                            const academyStdPriceKeys = new Set(academy.courses.map(c => {
+                                let price = Math.round(parseFloat(String(c.standardUnitPrice || '0').replace(/[^0-9.]/g, '')));
+                                if (!price) return null;
+                                // 고등과학 과목이 중등 단가(222)로 잘못 설정된 경우 고등 단가(234)로 보정
+                                if (price === 222 && HIGH_SCHOOL_SCIENCE.some(s => (c.subject || '').includes(s))) price = 234;
+                                const proc = (c.process || '').trim();
+                                return proc ? `${proc}:${price}` : null;
+                            }).filter(Boolean));
 
                             return (
                                 <div style={{ marginTop: '24px', backgroundColor: 'var(--bg-card)', borderRadius: '12px', padding: '16px', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)' }}>
@@ -1688,13 +1701,11 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
                                             </thead>
                                             <tbody>
                                                 {TUITION_STANDARDS.map((std, idx) => {
-                                                    const isHighlighted = academyStdPrices.has(std.price);
+                                                    const isHighlighted = academyStdPriceKeys.has(`${std.process}:${std.price}`);
                                                     return (
                                                         <tr key={idx} style={{
                                                             backgroundColor: isHighlighted ? '#bfdbfe' : (idx % 2 === 0 ? 'transparent' : '#f8fafc'),
                                                             borderBottom: idx === TUITION_STANDARDS.length - 1 ? 'none' : `1px solid ${isHighlighted ? '#93c5fd' : 'var(--border-color)'}`,
-                                                            outline: isHighlighted ? '2px solid #3b82f6' : 'none',
-                                                            outlineOffset: '-1px',
                                                             transition: 'all 0.2s',
                                                         }}>
                                                             <td style={{
