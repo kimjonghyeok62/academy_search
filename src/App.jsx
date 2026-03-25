@@ -184,8 +184,9 @@ function App() {
 
     if (!target) return [];
 
-    // 학원·교습소 검색
+    // 학원·교습소 검색 (개원/신고 상태만)
     const academyResults = academies.filter(academy => {
+      if (!['개원', '신고'].includes(academy.status)) return false;
       const name = normalize(academy.name || '');
       const founder = normalize(academy.founder?.name || '');
       const address = normalize(academy.address || '');
@@ -193,8 +194,9 @@ function App() {
       return name.includes(target) || founder.includes(target) || address.includes(target) || id.includes(target);
     });
 
-    // 개인과외교습자 검색
+    // 개인과외교습자 검색 (신고 상태만)
     const tutorResults = privateTutors.filter(t => {
+      if (!['개원', '신고'].includes(t.status)) return false;
       const name = normalize(t.name || '');
       const address = normalize(t.address || '');
       const id = normalize(t.id || '');
@@ -262,8 +264,9 @@ function App() {
 
     const normalizedValue = value.toLowerCase().replace(/\s+/g, '');
 
-    // 학원·교습소 검색
+    // 학원·교습소 검색 (개원/신고 상태만)
     const matchedAcademies = academies.filter(academy => {
+      if (!['개원', '신고'].includes(academy.status)) return false;
       const name = (academy.name || '').toLowerCase().replace(/\s+/g, '');
       const founder = (academy.founder?.name || '').toLowerCase().replace(/\s+/g, '');
       const address = (academy.address || '').toLowerCase().replace(/\s+/g, '');
@@ -271,8 +274,9 @@ function App() {
       return name.includes(normalizedValue) || founder.includes(normalizedValue) || address.includes(normalizedValue) || id.includes(normalizedValue);
     });
 
-    // 개인과외교습자 검색
+    // 개인과외교습자 검색 (신고 상태만)
     const matchedTutors = privateTutors.filter(t => {
+      if (!['개원', '신고'].includes(t.status)) return false;
       const name = (t.name || '').toLowerCase().replace(/\s+/g, '');
       const address = (t.address || '').toLowerCase().replace(/\s+/g, '');
       const id = (t.id || '').toLowerCase().replace(/\s+/g, '');
