@@ -219,6 +219,41 @@
     font-weight: 500;
 }
 
+/* 모바일 플로팅 뒤로가기 버튼 — 데스크톱에서는 숨김 */
+.floating-back-btn {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    .floating-back-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: fixed;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 200;
+        background: var(--primary, #6366f1);
+        color: #fff;
+        border: none;
+        border-radius: 999px;
+        padding: 12px 28px;
+        font-size: 0.95rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.22);
+        cursor: pointer;
+        gap: 6px;
+        white-space: nowrap;
+    }
+
+    .floating-back-btn:active {
+        opacity: 0.85;
+        transform: translateX(-50%) scale(0.97);
+    }
+}
+
 @keyframes fadeIn {
     from {
         opacity: 0;

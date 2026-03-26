@@ -2604,6 +2604,15 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
         return map;
     }, [allRawRows]);
 
+    // planDateMap 로드 후 routeDate 미설정 시 가장 가까운 날짜(오늘~미래 순)로 자동 선택
+    useEffect(() => {
+        if (planDateMap.size === 0) return;
+        setRouteDate(prev => {
+            if (prev && planDateMap.has(prev)) return prev;
+            return [...planDateMap.keys()].sort((a, b) => a.localeCompare(b))[0] || prev;
+        });
+    }, [planDateMap]);
+
     const haversineKm = (lat1, lng1, lat2, lng2) => {
         const R = 6371, toRad = x => x * Math.PI / 180;
         const dLat = toRad(lat2 - lat1), dLng = toRad(lng2 - lng1);
@@ -2611,29 +2620,44 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
         return R * 2 * Math.asin(Math.sqrt(a));
     };
 
-    // 예약일정 문자열에서 시간 중간값(시 단위 소수) 추출
+    // 예약일정 문자열에서 시작 시간(시 단위 소수) 추출 — 오름차순 정렬 기준
     // 날짜 prefix가 있고 routeDate와 다른 날짜이면 null(미분류) 반환
     const parseScheduleMidpoint = (schedule, rdDate) => {
         if (!schedule) return null;
-        // 날짜 prefix 불일치 체크: "3.25. 10시"처럼 다른 날짜면 null
-        const datePfx = schedule.match(/^(\d{1,2})\.(\d{1,2})\./);
-        if (datePfx && rdDate) {
-            const rdm = rdDate.match(/(\d{4})\.(\d{2})\.(\d{2})/);
-            if (rdm) {
-                const rMonth = parseInt(rdm[2]), rDay = parseInt(rdm[3]);
-                const sMonth = parseInt(datePfx[1]), sDay = parseInt(datePfx[2]);
-                if (sMonth !== rMonth || sDay !== rDay) return null;
-            }
-        }
-        const cleaned = schedule.replace(/\([^)]*\)/g, '').trim(); // 괄호 내용 제거
-        const rangeMatch = cleaned.match(/(\d+)(?::(\d+))?\s*[~\-]\s*(\d+)(?::(\d+))?\s*시/);
-        if (rangeMatch) {
-            const start = parseInt(rangeMatch[1]) + (parseInt(rangeMatch[2] || '0') / 60);
-            const end   = parseInt(rangeMatch[3]) + (parseInt(rangeMatch[4] || '0') / 60);
-            return (start + end) / 2;
-        }
-        const singleMatch = cleaned.match(/(\d+)(?::(\d+))?\s*시/);
-        if (singleMatch) return parseInt(singleMatch[1]) + (parseInt(singleMatch[2] || '0') / 60);
+        // 날짜 prefix는 무시하고 시간만 추출 (날짜가 달라도 시간 정보는 정렬에 사용)
+        const cleaned = schedule.replace(/\([^)]*\)/g, '').trim();
+
+        // 오전/오후 보정
+        const isPM = /오후/.test(cleaned);
+        const isAM = /오전/.test(cleaned);
+        const toH = (h, m = 0) => {
+            let hour = parseInt(h), min = parseInt(m) / 60;
+            if (isPM && hour < 12) hour += 12;
+            if (isAM && hour === 12) hour = 0;
+            return hour + min;
+        };
+
+        let m;
+        // 패턴 1: HH:MM~HH:MM 또는 HH:MM-HH:MM (콜론 포함 범위)
+        m = cleaned.match(/(\d{1,2}):(\d{2})\s*[~\-]\s*\d/);
+        if (m) return toH(m[1], m[2]);
+
+        // 패턴 2: HH시 MM분 ~ / HH시 ~ (한국어 범위)
+        m = cleaned.match(/(\d{1,2})\s*시\s*(?:(\d{1,2})\s*분)?\s*(?:부터|~|-)\s*\d/);
+        if (m) return toH(m[1], m[2] || 0);
+
+        // 패턴 3: HH:MM 단독 ("부터", "가능", "이후", "~" 뒤에 숫자 없는 경우 포함)
+        m = cleaned.match(/(\d{1,2}):(\d{2})/);
+        if (m) return toH(m[1], m[2]);
+
+        // 패턴 4: HH시 MM분 단독
+        m = cleaned.match(/(\d{1,2})\s*시\s*(\d{1,2})\s*분/);
+        if (m) return toH(m[1], m[2]);
+
+        // 패턴 5: HH시 단독 ("가능", "부터", "이후", "~" 등 자연어 포함)
+        m = cleaned.match(/(\d{1,2})\s*시/);
+        if (m) return toH(m[1], 0);
+
         return null;
     };
 
@@ -2658,9 +2682,11 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
             _midpoint: parseScheduleMidpoint(a._schedule, routeDate),
         }));
 
-        // 예약일정이 있는 항목: 중간값 오름차순 정렬, 동점이면 이전 학원과의 거리 기준
-        const scheduled = items.filter(a => a._midpoint !== null);
-        const unscheduled = items.filter(a => a._midpoint === null);
+        // 폐원 여부: _schedule에 "폐원"/"폐소" 포함 → 최하단
+        const isClosed = (a) => /폐원|폐소/.test(a._schedule || '');
+        const scheduled = items.filter(a => a._midpoint !== null && !isClosed(a));
+        const unscheduled = items.filter(a => a._midpoint === null && !isClosed(a));
+        const closedItems = items.filter(a => isClosed(a));
 
         // 중간값별 그룹화
         const groups = new Map();
@@ -2711,6 +2737,9 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
             lastLat = chosen._lat; lastLng = chosen._lng;
         }
         result.push(...noCoordUnsched);
+
+        // 폐원/폐소 항목: 무조건 최하단
+        result.push(...closedItems);
 
         return result.map((a, i) => {
             let dist = null;
@@ -3546,7 +3575,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                 ref={routeMapContainerRef}
                 style={{
                     width: '100%',
-                    height: '480px',
+                    height: '320px',
                     borderRadius: '12px',
                     overflow: 'hidden',
                     border: '1px solid var(--border-color)',
