@@ -538,7 +538,7 @@ function App() {
           style={{ cursor: 'pointer' }}
           title="초기 화면으로 이동"
         >
-          학원 등 관리
+          학원 관리
         </h1>
 
         {/* 시트연결, 기준일, 로그아웃 버튼을 한 줄에 배치 */}
@@ -600,7 +600,7 @@ function App() {
           </button>
         </div>
 
-        <p className="subtitle">검색할 학원(교습소, 과외)명, 주소, 운영자를 입력하세요</p>
+        <p className="subtitle">검색할 학원명, 운영자, 주소를 입력하세요</p>
 
         <form className="search-bar" onSubmit={handleSearchSubmit}>
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="search-icon">
@@ -609,7 +609,7 @@ function App() {
           </svg>
           <input
             type="text"
-            placeholder="학원(교습소,과외)명, 주소, 운영자..."
+            placeholder="학원명, 운영자, 주소..."
             value={searchQuery}
             onChange={handleInputChange}
             onFocus={() => searchQuery && setShowSuggestions(true)}

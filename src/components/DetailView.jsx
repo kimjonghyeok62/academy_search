@@ -1821,6 +1821,15 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
             >
                 {renderContent()}
             </div>
+
+            {/* 모바일 플로팅 뒤로가기 버튼 */}
+            <button
+                onClick={onBack}
+                className="floating-back-btn"
+                aria-label="뒤로가기"
+            >
+                ← BACK
+            </button>
         </div>
     );
 }
