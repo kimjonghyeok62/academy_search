@@ -59,6 +59,9 @@ export function printTuitionForm(academy) {
 
     const courses = academy.courses || [];
     const { prefix: signPrefix, signerName } = getSignLabel(academy);
+    const signerNameHtml = signerName
+        ? `<span class="sign-person">${signerName}</span>`
+        : `<span style="display:inline-block;width:60mm;border-bottom:1.5px solid #000;vertical-align:bottom;margin:0 4px;"></span>`;
 
     const courseRows = courses.map(c => {
         const label = [c.process, c.subject].filter(Boolean).join(' / ');
@@ -107,12 +110,12 @@ export function printTuitionForm(academy) {
 
     // 비고(교습과정) 중복 제거 후 합치기
     const notes = [...new Set(courses.map(c => (c.note || '').trim()).filter(Boolean))];
-    const noteRow = notes.length > 0 ? `
+    const noteRow = `
         <tr class="note-row">
-            <td colspan="11" style="text-align:left; padding: 2.5mm 3mm;">
+            <td colspan="11" style="text-align:left; padding: 2.5mm 3mm; background:#fafafa; font-size:10pt;">
                 <span style="font-weight:bold; margin-right:6px;">비고</span>${notes.join('  /  ')}
             </td>
-        </tr>` : '';
+        </tr>`;
 
     const html = `<!DOCTYPE html>
 <html lang="ko">
@@ -361,7 +364,7 @@ export function printTuitionForm(academy) {
     </div>
     <div class="sign-name-row">
       <span class="sign-prefix">${signPrefix}</span>
-      <span class="sign-person">${signerName}</span>
+      ${signerNameHtml}
       <span class="sign-suffix">(서명 또는 인)</span>
       <div class="sign-box"></div>
     </div>
@@ -431,9 +434,9 @@ function getSignLabelExternal(academy) {
     if (cat === '과외') {
         return { label: `개인과외교습자`, signerName: founderName };
     } else if (cat.includes('교습소')) {
-        return { label: `${name} 교습소 교습자`, signerName: founderName };
+        return { label: `${name} 교습자`, signerName: founderName };
     } else {
-        return { label: `${name} 학원설립·운영자`, signerName: founderName };
+        return { label: `${name} 설립운영자`, signerName: founderName };
     }
 }
 
@@ -442,6 +445,9 @@ export function printTuitionFormExternal(academy) {
     const baseDate = formatChangeDateKo(baseDateStr);
     const courses = academy.courses || [];
     const { label: signLabel, signerName } = getSignLabelExternal(academy);
+    const signerNameHtml = signerName
+        ? `<span class="sign-person">${signerName}</span>`
+        : `<span style="display:inline-block;width:60mm;border-bottom:1.5px solid #000;vertical-align:bottom;margin:0 4px;"></span>`;
 
     // 기타경비 항목 정의 (이름 + 필드키)
     const otherFeeItems = [
@@ -677,7 +683,7 @@ export function printTuitionFormExternal(academy) {
   <div class="sign-area">
     <div class="sign-row">
       <span class="sign-label">${signLabel}</span>
-      <span class="sign-person">${signerName}</span>
+      ${signerNameHtml}
       <span class="sign-suffix">: (서명 또는 인)</span>
       <div class="sign-box"></div>
     </div>
@@ -728,7 +734,7 @@ export function printTuitionFormExternal(academy) {
   <div class="sign-area">
     <div class="sign-row">
       <span class="sign-label">${signLabel}</span>
-      <span class="sign-person">${signerName}</span>
+      ${signerNameHtml}
       <span class="sign-suffix">: (서명 또는 인)</span>
       <div class="sign-box"></div>
     </div>
