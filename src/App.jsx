@@ -7,6 +7,7 @@ import './App.css';
 import InspectionStandardAccordion from './components/InspectionStandardAccordion';
 import InspectionPage from './components/InspectionPage';
 import KakaoMapPage from './components/KakaoMapPage';
+import TuitionPrintPage from './components/TuitionPrintPage';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -56,6 +57,7 @@ function App() {
   const [mapReturnState, setMapReturnState] = useState(null); // 지도 진입 전 복귀 상태
   const [savedMapState, setSavedMapState] = useState(null); // 지도 위치/줌 복원용
   const [routeAcademies, setRouteAcademies] = useState(null); // 점검 경로 학원 목록
+  const [showTuitionPrint, setShowTuitionPrint] = useState(false); // 교습비출력 화면
 
   // Clean up any old auth data on mount
   useEffect(() => {
@@ -483,6 +485,16 @@ function App() {
     );
   }
 
+  // 교습비출력 화면
+  if (showTuitionPrint) {
+    return (
+      <TuitionPrintPage
+        academies={academies}
+        onBack={() => setShowTuitionPrint(false)}
+      />
+    );
+  }
+
   return (
     <div className="container">
       {selectedAcademy && selectedAcademy.type === 'privateTutor' && (
@@ -836,9 +848,9 @@ function App() {
       {/* 하단 섹션: AI 상담 및 법령 자료 */}
       {!hasSearched && !searchQuery && (
         <div style={{ marginTop: '0px', paddingBottom: '32px' }}>
-          {/* NotebookLM AI 상담 링크 */}
+          {/* 교습비등 게시표 출력 */}
           <div
-            onClick={() => window.open('https://notebooklm.google.com/notebook/bc3a0bc5-bad0-4450-bf8b-96573e39fdce', '_blank')}
+            onClick={() => setShowTuitionPrint(true)}
             style={{
               padding: '12px 16px',
               background: 'var(--bg-card)',
@@ -868,20 +880,20 @@ function App() {
                 width: '36px',
                 height: '36px',
                 borderRadius: '10px',
-                background: '#fef3c7',
+                background: '#e0f2fe',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 fontSize: '1.2rem'
               }}>
-                💡
+                🖨️
               </div>
               <span style={{
                 fontSize: '1rem',
                 fontWeight: '700',
                 color: 'var(--text-main)'
               }}>
-                학원 업무 AI 상담 (노트북LM)
+                교습비등 게시표 출력
               </span>
             </div>
             <div style={{
@@ -894,9 +906,7 @@ function App() {
               justifyContent: 'center'
             }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                <polyline points="15 3 21 3 21 9"></polyline>
-                <line x1="10" y1="14" x2="21" y2="3"></line>
+                <polyline points="9 18 15 12 9 6"></polyline>
               </svg>
             </div>
           </div>
