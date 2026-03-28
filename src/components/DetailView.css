@@ -265,3 +265,47 @@
         transform: translateY(0);
     }
 }
+
+/* ── 교습비 게시표 출력 버튼 2열 ── */
+.tuition-print-btns {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.tuition-print-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 10px 8px;
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    white-space: nowrap;
+}
+
+.tuition-print-btn--inner { background-color: #1e40af; }
+.tuition-print-btn--inner:hover { background-color: #1d3a9e; }
+
+.tuition-print-btn--outer { background-color: #065f46; }
+.tuition-print-btn--outer:hover { background-color: #047857; }
+
+/* 데스크탑: 전체 텍스트 표시, 짧은 텍스트 숨김 */
+.btn-label-short { display: none; }
+.btn-label-full  { display: inline; }
+
+/* 모바일(480px 이하): 짧은 텍스트만 표시 */
+@media (max-width: 480px) {
+    .tuition-print-btn {
+        font-size: 0.92rem;
+        padding: 10px 4px;
+    }
+    .btn-label-full  { display: none; }
+    .btn-label-short { display: inline; }
+}
