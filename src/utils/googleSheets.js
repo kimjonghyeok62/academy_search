@@ -473,6 +473,7 @@ export function transformAcademyData(rawRows, inspectionMap = new Map()) {
                 regDate: row['등록일'] || '',
                 status: row['등록상태'] || '',
                 statusDate: row['개원/휴원/폐원일'] || row['개소/휴소/폐소일'] || '',
+                changeDate: row['변경일'] || '',
                 founder: {
                     name: row['설립자-성명'] || row['교습자-성명'] || '',
                     phone: row['전화번호'] || '',
@@ -509,7 +510,15 @@ export function transformAcademyData(rawRows, inspectionMap = new Map()) {
             feePerHour: row['총교습비(시간당)'] || '',
             totalTime: row['총교습시간(분)'] || row['총교습기간(분)'] || '',
             unitPrice: row['해당학원 분당단가'] || row['해당교습소 분당단가'] || '',
-            standardUnitPrice: row['교습비 분당단가'] || ''
+            standardUnitPrice: row['교습비 분당단가'] || '',
+            mockExamFee: row['모의고사비'] || '',
+            materialFee: row['재료비'] || '',
+            clothingFee: row['피복비'] || '',
+            mealFee: row['급식비'] || '',
+            dormitoryFee: row['기숙사비'] || '',
+            vehicleFee: row['차량비'] || '',
+            otherFeeTotal: row['기타경비합계'] || '',
+            note: row['비고(교습과정)'] || ''
         };
         if (course.subject && !academy.courses.some(c => c.subject === course.subject && c.process === course.process)) {
             academy.courses.push(course);

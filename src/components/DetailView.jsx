@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import './DetailView.css';
 import AdminSanctionAccordion from './AdminSanctionAccordion';
 import FineGuideAccordion from './FineGuideAccordion';
+import { printTuitionForm, printTuitionFormExternal } from '../utils/generateTuitionPDF';
 
 const TUITION_STANDARDS = [
     { process: '보습', target: '단과(초등)', price: 210 },
@@ -1343,6 +1344,24 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
             case 'tuition':
                 return (
                     <div className="tab-content animate-enter">
+                        {/* 게시표 출력 버튼 (내부용 / 외부용) */}
+                        <div className="tuition-print-btns">
+                            <button
+                                className="tuition-print-btn tuition-print-btn--inner"
+                                onClick={() => printTuitionForm(academy)}
+                            >
+                                🖨️ <span className="btn-label-full">교습비등 게시표(내부용) 출력</span>
+                                   <span className="btn-label-short">내부용</span>
+                            </button>
+                            <button
+                                className="tuition-print-btn tuition-print-btn--outer"
+                                onClick={() => printTuitionFormExternal(academy)}
+                            >
+                                🖨️ <span className="btn-label-full">교습비등 게시표(외부용) 출력</span>
+                                   <span className="btn-label-short">외부용</span>
+                            </button>
+                        </div>
+
                         {/* 헤더: 총 개수 + 전체 펼침 버튼 */}
                         <div style={{
                             display: 'flex',
