@@ -366,7 +366,6 @@ export function printTuitionForm(academy) {
       <span class="sign-prefix">${signPrefix}</span>
       ${signerNameHtml}
       <span class="sign-suffix">(서명 또는 인)</span>
-      <div class="sign-box"></div>
     </div>
   </div>
 
@@ -463,7 +462,7 @@ export function printTuitionFormExternal(academy) {
     // showWeekly: true → 교습시간 데이터 표시 / false → 빈 칸 (수기 작성용)
     const buildCourseRows = (showWeekly) => courses.map(c => {
         const subject = [c.process, c.subject].filter(Boolean).join(' / ');
-        const weekly = showWeekly ? getWeeklySchedule(c.totalTime) : '';
+        const weekly = showWeekly ? (c.weeklyScheduleStr || getWeeklySchedule(c.totalTime)) : '';
         const tuition = fmtNum(c.tuitionFee || c.totalFee);
         const tuitionNum = parseNum(c.tuitionFee || c.totalFee);
 
@@ -685,7 +684,6 @@ export function printTuitionFormExternal(academy) {
       <span class="sign-label">${signLabel}</span>
       ${signerNameHtml}
       <span class="sign-suffix">: (서명 또는 인)</span>
-      <div class="sign-box"></div>
     </div>
   </div>
 </div>
@@ -736,7 +734,6 @@ export function printTuitionFormExternal(academy) {
       <span class="sign-label">${signLabel}</span>
       ${signerNameHtml}
       <span class="sign-suffix">: (서명 또는 인)</span>
-      <div class="sign-box"></div>
     </div>
   </div>
 </div>

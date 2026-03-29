@@ -1,9 +1,10 @@
 import React, { useState, useRef } from 'react';
 import { printTuitionForm, printTuitionFormExternal } from '../utils/generateTuitionPDF';
 import { parseExcelTuition } from '../utils/parseExcelTuition';
+import TuitionReviewTab from './TuitionReviewTab';
 
 export default function TuitionPrintPage({ academies, onBack }) {
-  const [tab, setTab] = useState('search'); // 'search' | 'excel'
+  const [tab, setTab] = useState('search'); // 'search' | 'excel' | 'review'
 
   // 학원 검색 탭
   const [query, setQuery] = useState('');
@@ -92,7 +93,8 @@ export default function TuitionPrintPage({ academies, onBack }) {
       {/* 탭 */}
       <div style={{ display: 'flex', borderBottom: '1px solid var(--border-color)', marginBottom: '20px' }}>
         <button style={tabStyle(tab === 'search')} onClick={() => setTab('search')}>학원 검색</button>
-        <button style={tabStyle(tab === 'excel')} onClick={() => setTab('excel')}>엑셀 파일 업로드</button>
+        <button style={tabStyle(tab === 'excel')} onClick={() => setTab('excel')}>업로드</button>
+        <button style={tabStyle(tab === 'review')} onClick={() => setTab('review')}>교습비 검토</button>
       </div>
 
       {/* ── 탭 1: 학원 검색 ── */}
@@ -250,6 +252,9 @@ export default function TuitionPrintPage({ academies, onBack }) {
           )}
         </>
       )}
+
+      {/* ── 탭 3: 교습비 검토 ── */}
+      {tab === 'review' && <TuitionReviewTab />}
     </div>
   );
 }
