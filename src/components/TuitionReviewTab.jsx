@@ -19,6 +19,13 @@ const PROMPT = `이 이미지는 학원(교습소) 교습비등 등록신청서�
 
 이미지에서 교습비 테이블의 각 행을 추출하고 분당단가 기준 초과 여부를 분석해주세요.
 
+각 항목 추출 방법:
+- subject: 이미지의 "교습과목(반)" 열에 기재된 내용을 그대로 읽으세요 (예: 초등A, 초등B, 중등, 수학(초등) 등). 반드시 각 행마다 개별 과목명을 읽어야 합니다.
+- dailyMinutes: 총교습시간 항목에서 "일 N분" 또는 "N분×" 형태의 숫자 N
+- weeklyCount: 총교습시간 항목에서 "주N회" 또는 "×N회" 형태의 숫자 N
+- ocrTotalMinutes: 이미지에 "=N분" 형태로 기재된 총 분수를 그대로 읽으세요. 없으면 null.
+- weeks: 총교습시간 항목에서 "×N주" 형태의 숫자 N을 읽으세요. 중요: 손으로 수정된 경우(예: 4.3 위에 4를 덮어쓴 경우) 수정된 최종 값을 사용하세요. weeks 값이 불확실하고 ocrTotalMinutes를 읽었다면, weeks = ocrTotalMinutes ÷ (dailyMinutes × weeklyCount) 로 역산하세요. 역산 결과가 4에 가까우면 4, 4.3에 가까우면 4.3을 사용하세요. 모두 불확실하면 4.3을 사용하세요.
+
 분당단가 계산: 교습비(원) ÷ 총교습시간(분) = 실제 분당단가
 기준 초과 여부: 실제 분당단가 > 기준단가이면 isCompliant: false
 
@@ -29,12 +36,12 @@ const PROMPT = `이 이미지는 학원(교습소) 교습비등 등록신청서�
   "courses": [
     {
       "process": "교습과정 (예: 보습)",
-      "subject": "교습과목(반) (예: 수학(초등))",
+      "subject": "이미지에서 읽은 교습과목(반) 그대로 (예: 수학(초등))",
       "period": "교습기간 (예: 1개월)",
       "dailyMinutes": 90,
       "weeklyCount": 3,
       "weeks": 4.3,
-      "totalMinutes": 1161,
+      "ocrTotalMinutes": 1161,
       "tuitionFee": 170000,
       "reportedRate": 146,
       "standardRate": 210,
@@ -93,7 +100,7 @@ export default function TuitionReviewTab() {
           'anthropic-dangerous-direct-browser-access': 'true',
         },
         body: JSON.stringify({
-          model: 'claude-haiku-4-5-20251001',
+          model: 'claude-sonnet-4-6',
           max_tokens: 2048,
           messages: [{ role: 'user', content: [
             { type: 'image', source: { type: 'base64', media_type: image.mediaType, data: image.base64 } },
@@ -178,7 +185,16 @@ export default function TuitionReviewTab() {
         </button>
       )}
 
-      {!courses && <QuickCalcCard />}
+      {!courses && (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '8px 0 16px' }}>
+            <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-color)' }} />
+            <span style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>간이 검토</span>
+            <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-color)' }} />
+          </div>
+          <QuickCalcCard />
+        </>
+      )}
 
       {error && (
         <div style={{ color: '#dc2626', fontSize: '0.85rem', marginBottom: '16px', padding: '10px 14px', backgroundColor: '#fef2f2', borderRadius: '8px', border: '1px solid #fecaca' }}>{error}</div>
@@ -280,13 +296,6 @@ function ReviewResults({ courses, onUpdate, academyInfo }) {
           <span className="btn-label-short">외부용</span>
         </button>
       </div>
-      <style>{`
-        .btn-label-short { display: none; }
-        @media (max-width: 400px) {
-          .btn-label-full { display: none; }
-          .btn-label-short { display: inline; }
-        }
-      `}</style>
     </div>
   );
 }
@@ -331,18 +340,22 @@ function CourseResult({ course, index, onUpdate }) {
     />
   );
 
-  // 교습비 입력 (쉼표 없는 숫자)
+  // 교습비 입력 (천원단위 콤마)
   const feeInput = (
     <input
-      type="number"
-      value={course.tuitionFee}
-      onChange={e => onUpdate('tuitionFee', e.target.value)}
+      type="text"
+      inputMode="numeric"
+      value={course.tuitionFee === '' || course.tuitionFee == null ? '' : Number(course.tuitionFee).toLocaleString()}
+      onChange={e => {
+        const raw = e.target.value.replace(/,/g, '');
+        if (raw === '' || /^\d+$/.test(raw)) onUpdate('tuitionFee', raw);
+      }}
       style={{
-        width: '100px', textAlign: 'right', padding: '1px 4px',
+        width: '110px', textAlign: 'right', padding: '1px 4px',
         border: 'none', borderBottom: '2px solid var(--primary)',
         borderRadius: 0, background: 'transparent',
         fontSize: '0.9rem', fontWeight: '700', color: 'var(--primary)',
-        outline: 'none', fontFamily: 'inherit', MozAppearance: 'textfield'
+        outline: 'none', fontFamily: 'inherit'
       }}
     />
   );
@@ -384,16 +397,34 @@ function CourseResult({ course, index, onUpdate }) {
               <span>주 =</span>
               <strong style={{ color: '#1e40af', marginLeft: '4px' }}>{totalMinutes.toLocaleString()}분</strong>
               <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '4px' }}>(자동계산)</span>
+              {course.ocrTotalMinutes != null && (() => {
+                const ocr = Math.round(parseFloat(course.ocrTotalMinutes));
+                const diff = Math.abs(ocr - totalMinutes) > 1;
+                return (
+                  <span style={{ marginLeft: '8px', fontSize: '0.78rem', padding: '1px 7px', borderRadius: '10px', backgroundColor: diff ? '#fef9c3' : '#dcfce7', color: diff ? '#854d0e' : '#166534', border: `1px solid ${diff ? '#fde68a' : '#bbf7d0'}`, fontWeight: '600' }}>
+                    OCR기재: {ocr.toLocaleString()}분{diff ? ' ⚠' : ' ✓'}
+                  </span>
+                );
+              })()}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
               <span>교습비(B):</span>
               {feeInput}
               <span>원</span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
               <span>분당단가(B÷A):</span>
               <strong style={{ color: isCompliant ? '#16a34a' : '#dc2626' }}>{rateRounded}원</strong>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)'}}>(자동계산)</span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>(자동계산)</span>
+              {course.reportedRate != null && (() => {
+                const ocr = Math.round(parseFloat(course.reportedRate) * 10) / 10;
+                const diff = Math.abs(ocr - rateRounded) >= 1;
+                return (
+                  <span style={{ marginLeft: '8px', fontSize: '0.78rem', padding: '1px 7px', borderRadius: '10px', backgroundColor: diff ? '#fef9c3' : '#dcfce7', color: diff ? '#854d0e' : '#166534', border: `1px solid ${diff ? '#fde68a' : '#bbf7d0'}`, fontWeight: '600' }}>
+                    OCR기재: {ocr}원{diff ? ' ⚠' : ' ✓'}
+                  </span>
+                );
+              })()}
             </div>
           </div>
         </div>
@@ -465,10 +496,10 @@ const STANDARD_RATE_OPTIONS = [
 ];
 
 function QuickCalcCard() {
-  const [dm, setDm] = useState(90);       // 일 N분
-  const [wc, setWc] = useState(3);        // 주 N회
-  const [wk, setWk] = useState(4.3);      // 월 N주
-  const [fee, setFee] = useState(300000); // 교습비
+  const [dm, setDm] = useState('');        // 일 N분
+  const [wc, setWc] = useState('');        // 주 N회
+  const [wk, setWk] = useState(4.3);       // 월 N주
+  const [fee, setFee] = useState('');      // 교습비
   const [rateIdx, setRateIdx] = useState(0); // 기준단가 선택
 
   const totalMinutes = Math.round((parseFloat(dm)||0) * (parseFloat(wc)||0) * (parseFloat(wk)||0));
@@ -527,15 +558,24 @@ function QuickCalcCard() {
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
               <span>교습비</span>
-              <input type="number" value={fee} onChange={e => setFee(e.target.value)}
-                style={{ width: '110px', textAlign: 'right', padding: '2px 4px', border: 'none', borderBottom: '2px solid var(--primary)', borderRadius: 0, background: 'transparent', fontSize: '0.95rem', fontWeight: '700', color: 'var(--primary)', outline: 'none', fontFamily: 'inherit', MozAppearance: 'textfield' }}
+              <input type="text" inputMode="numeric"
+                value={fee === '' ? '' : Number(fee).toLocaleString()}
+                onChange={e => {
+                  const raw = e.target.value.replace(/,/g, '');
+                  if (raw === '' || /^\d+$/.test(raw)) setFee(raw);
+                }}
+                style={{ width: '110px', textAlign: 'right', padding: '2px 4px', border: 'none', borderBottom: '2px solid var(--primary)', borderRadius: 0, background: 'transparent', fontSize: '0.95rem', fontWeight: '700', color: 'var(--primary)', outline: 'none', fontFamily: 'inherit' }}
               />
               <span>원</span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
               <span>분당단가(B÷A):</span>
               <strong style={{ color: isCompliant ? '#16a34a' : '#dc2626' }}>{calcRateRounded}원</strong>
               <span style={{ fontSize: '0.73rem', color: 'var(--text-muted)' }}>(자동계산)</span>
+              <button onClick={() => { setDm(''); setWc(''); setWk(4.3); setFee(''); setRateIdx(0); }}
+                style={{ marginLeft: 'auto', padding: '3px 11px', fontSize: '0.75rem', fontWeight: '700', color: 'var(--primary)', background: 'transparent', border: '1.5px solid var(--primary)', borderRadius: '20px', cursor: 'pointer', lineHeight: '1.6', letterSpacing: '0.02em', opacity: 0.75 }}>
+                초기화
+              </button>
             </div>
           </div>
         </div>
