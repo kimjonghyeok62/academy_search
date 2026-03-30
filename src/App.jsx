@@ -886,14 +886,14 @@ function App() {
                 justifyContent: 'center',
                 fontSize: '1.2rem'
               }}>
-                🖨️
+                🔍
               </div>
               <span style={{
                 fontSize: '1rem',
                 fontWeight: '700',
                 color: 'var(--text-main)'
               }}>
-                교습비등 게시표 출력
+                교습비 검토
               </span>
             </div>
             <div style={{
