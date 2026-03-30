@@ -187,11 +187,7 @@ export default function TuitionReviewTab() {
 
       {!courses && (
         <>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '8px 0 16px' }}>
-            <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-color)' }} />
-            <span style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>간이 검토</span>
-            <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-color)' }} />
-          </div>
+          <div style={{ height: '1px', backgroundColor: 'var(--border-color)', margin: '20px 0 24px' }} />
           <QuickCalcCard />
         </>
       )}
@@ -507,10 +503,11 @@ function QuickCalcCard() {
   const calcRateRounded = Math.round(calcRate * 10) / 10;
   const standardRate = STANDARD_RATE_OPTIONS[rateIdx].rate;
   const standardLabel = STANDARD_RATE_OPTIONS[rateIdx].label;
+  const canJudge = totalMinutes > 0 && (parseFloat(fee) || 0) > 0;
   const isCompliant = calcRate <= standardRate;
 
   let recDailyMin = null, recTotalMin = null, recMaxFee = null;
-  if (!isCompliant && fee && standardRate && totalMinutes && wc && wk) {
+  if (canJudge && !isCompliant && fee && standardRate && totalMinutes && wc && wk) {
     recTotalMin = Math.ceil((parseFloat(fee)||0) / standardRate);
     recDailyMin = Math.ceil(recTotalMin / ((parseFloat(wc)||1) * (parseFloat(wk)||1)));
     recMaxFee = Math.floor(standardRate * totalMinutes);
@@ -524,12 +521,12 @@ function QuickCalcCard() {
   );
 
   return (
-    <div style={{ marginTop: '16px', borderRadius: '14px', overflow: 'hidden', border: `2px solid ${isCompliant ? '#bbf7d0' : '#fca5a5'}`, boxShadow: 'var(--shadow-sm)' }}>
+    <div style={{ marginTop: '16px', borderRadius: '14px', overflow: 'hidden', border: `2px solid ${!canJudge ? 'var(--border-color)' : isCompliant ? '#bbf7d0' : '#fca5a5'}`, boxShadow: 'var(--shadow-sm)' }}>
       {/* 헤더 */}
-      <div style={{ padding: '11px 16px', backgroundColor: isCompliant ? '#f0fdf4' : '#fff1f2', borderBottom: `1px solid ${isCompliant ? '#bbf7d0' : '#fca5a5'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--text-main)' }}>간이 교습비 검토</span>
-        <span style={{ fontWeight: '700', fontSize: '0.82rem', padding: '3px 10px', borderRadius: '20px', backgroundColor: isCompliant ? '#16a34a' : '#dc2626', color: '#fff' }}>
-          {isCompliant ? '✅ 적합' : '❌ 부적합'}
+      <div style={{ padding: '11px 16px', backgroundColor: !canJudge ? 'var(--bg-card)' : isCompliant ? '#f0fdf4' : '#fff1f2', borderBottom: `1px solid ${!canJudge ? 'var(--border-color)' : isCompliant ? '#bbf7d0' : '#fca5a5'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--text-main)' }}>분야별 교습비 검토</span>
+        <span style={{ fontWeight: '700', fontSize: '0.82rem', padding: '3px 10px', borderRadius: '20px', backgroundColor: !canJudge ? '#94a3b8' : isCompliant ? '#16a34a' : '#dc2626', color: '#fff' }}>
+          {!canJudge ? '입력중' : isCompliant ? '✅ 적합' : '❌ 부적합'}
         </span>
       </div>
 
@@ -538,7 +535,7 @@ function QuickCalcCard() {
         <div>
           <div style={{ fontSize: '0.73rem', fontWeight: '700', color: 'var(--text-muted)', letterSpacing: '0.06em', marginBottom: '6px' }}>교습 분야</div>
           <select value={rateIdx} onChange={e => setRateIdx(Number(e.target.value))}
-            style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border-color)', borderRadius: '8px', fontSize: '0.88rem', background: 'var(--bg-card)', color: 'var(--text-main)', outline: 'none', fontFamily: 'inherit' }}>
+            style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border-color)', borderRadius: '8px', fontSize: '0.88rem', fontWeight: '700', background: 'var(--bg-card)', color: 'var(--text-main)', outline: 'none', fontFamily: 'inherit' }}>
             {STANDARD_RATE_OPTIONS.map((o, i) => (
               <option key={i} value={i}>{o.label} ({o.rate}원/분)</option>
             ))}
