@@ -390,6 +390,15 @@ export function printTuitionForm(academy) {
 // 외부용 (옥외가격표시용) 전용 헬퍼
 // ─────────────────────────────────────────────
 
+// 주기준 문자열에서 주당 총 분수 추출 (예: "주5회, 회당100분" → 500)
+function getWeeklyTotalMinutes(weeklyStr) {
+    if (!weeklyStr) return null;
+    const sessionsMatch = weeklyStr.match(/주(\d+)회/);
+    const minsMatch = weeklyStr.match(/회당(\d+)분/);
+    if (!sessionsMatch || !minsMatch) return null;
+    return parseInt(sessionsMatch[1], 10) * parseInt(minsMatch[1], 10);
+}
+
 // 분/월 → 주 기준 스케줄 문자열 (예: "주2회, 회당90분")
 function getWeeklySchedule(totalTimeVal) {
     const total = parseInt(String(totalTimeVal || '').replace(/,/g, ''), 10);
@@ -459,12 +468,14 @@ export function printTuitionFormExternal(academy) {
     ];
 
     // rowspan 방식: 기타경비 항목수만큼 행을 분리해 테두리가 정확히 맞도록 함
-    // showWeekly: true → 교습시간 데이터 표시 / false → 빈 칸 (수기 작성용)
-    const buildCourseRows = (showWeekly) => courses.map(c => {
+    const buildCourseRows = () => courses.map(c => {
         const subject = [c.process, c.subject].filter(Boolean).join(' / ');
-        const weekly = showWeekly ? (c.weeklyScheduleStr || getWeeklySchedule(c.totalTime)) : '';
+        const weeklyStr = c.weeklyScheduleStr || getWeeklySchedule(c.totalTime);
+        const weeklyTotal = getWeeklyTotalMinutes(weeklyStr);
+        const weekly = `주&nbsp;&nbsp;&nbsp;회, 회당&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;분`;
         const tuition = fmtNum(c.tuitionFee || c.totalFee);
         const tuitionNum = parseNum(c.tuitionFee || c.totalFee);
+        const tuitionDisplay = tuition + (weeklyTotal ? `<br><span style="color:#c0c0c0;">(주 ${weeklyTotal}분)</span>` : '');
 
         const activeItems = otherFeeItems.filter(it => parseNum(c[it.key]) > 0);
         const otherSum = activeItems.reduce((s, it) => s + parseNum(c[it.key]), 0);
@@ -474,7 +485,7 @@ export function printTuitionFormExternal(academy) {
         const span = Math.max(1, activeItems.length);
         const tdSubject  = `<td rowspan="${span}" style="text-align:left; padding-left:2mm; vertical-align:middle;">${subject}</td>`;
         const tdWeekly   = `<td rowspan="${span}" style="vertical-align:middle;">${weekly}</td>`;
-        const tdTuition  = `<td rowspan="${span}" style="text-align:right; padding-right:2mm; vertical-align:middle;">${tuition}</td>`;
+        const tdTuition  = `<td rowspan="${span}" style="text-align:right; padding-right:2mm; vertical-align:middle;">${tuitionDisplay}</td>`;
         const tdTotal    = `<td rowspan="${span}" style="text-align:right; padding-right:2mm; vertical-align:middle;"><strong>${totalStr}</strong></td>`;
 
         if (activeItems.length === 0) {
@@ -491,8 +502,7 @@ export function printTuitionFormExternal(academy) {
         }).join('');
     }).join('');
 
-    const courseRows      = buildCourseRows(true);   // 교습시간 데이터 있음
-    const courseRowsBlank = buildCourseRows(false);  // 교습시간 빈 칸
+    const courseRows = buildCourseRows();
 
     // 빈 행 (최소 6행, 항목별 분리 행 수 고려)
     const usedRows = courses.reduce((sum, c) => {
@@ -688,55 +698,6 @@ export function printTuitionFormExternal(academy) {
   </div>
 </div>
 
-<!-- ══════ 2페이지: 교습시간 빈 칸 (수기 작성용) ══════ -->
-<div class="page page-break">
-  <div style="font-size:8.5pt; color:#555; margin-bottom:2mm;">■ 교육부「학원비 옥외가격표시제 가이드라인」[별첨1]&lt;신설 2017. 8.&gt; (옥외용)</div>
-  <div class="form-title">교습비등 게시표</div>
-  <div class="form-academy">${academy.name}</div>
-  <div style="font-size:9pt; text-align:right; color:#555; margin-bottom:3mm;">※ 교습시간(주기준)을 직접 기재하여 사용하세요</div>
-
-  <div class="form-date-row">
-    <div class="form-date">
-      <span><span class="date-val">${baseDate.year}</span> 년</span>
-      <span><span class="date-val">${baseDate.month}</span> 월</span>
-      <span><span class="date-val">${baseDate.day}</span> 일</span>
-    </div>
-  </div>
-
-  <table class="main-table">
-    <thead>
-      <tr>
-        <th rowspan="2" style="width:22%">교습과목</th>
-        <th rowspan="2" style="width:15%">교습시간<br>(주기준)</th>
-        <th rowspan="2" style="width:13%">교습비<br>(월기준, 원)</th>
-        <th colspan="2" style="width:30%">기타경비(월기준)</th>
-        <th rowspan="2" style="width:15%">합계<br>(최종납부금액)</th>
-      </tr>
-      <tr>
-        <th style="width:16%">항목</th>
-        <th style="width:14%">금액(원)</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${courseRowsBlank}
-      ${emptyRows}
-      ${extNoteRow}
-    </tbody>
-  </table>
-
-  <div class="notice-text">
-    「학원의 설립·운영 및 과외교습에 관한 법률」제15조제3항에 따라 교습비등을 위와 같이 게시합니다.
-    「최종납부금액」은 관할 교육지원청에 등록한 교습비와 일치하며, 실제 납부금액을 표기한 것입니다.
-  </div>
-
-  <div class="sign-area">
-    <div class="sign-row">
-      <span class="sign-label">${signLabel}</span>
-      ${signerNameHtml}
-      <span class="sign-suffix">: (서명 또는 인)</span>
-    </div>
-  </div>
-</div>
 </body>
 </html>`;
 

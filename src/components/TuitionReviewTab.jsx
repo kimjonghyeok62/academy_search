@@ -185,7 +185,7 @@ export default function TuitionReviewTab() {
         </button>
       )}
 
-      {!courses && (
+      {!courses && !image && (
         <>
           <div style={{ height: '1px', backgroundColor: 'var(--border-color)', margin: '20px 0 24px' }} />
           <QuickCalcCard />
