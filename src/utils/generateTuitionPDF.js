@@ -404,7 +404,7 @@ function getWeeklySchedule(totalTimeVal) {
     const total = parseInt(String(totalTimeVal || '').replace(/,/g, ''), 10);
     if (isNaN(total) || total === 0) return '';
 
-    const weeksOptions = [4.0, 4.3];
+    const weeksOptions = [4.0, 4.2, 4.3];
     const sessionsOptions = [1, 2, 3, 4, 5, 6, 7];
     const minsOptions = [30, 40, 45, 50, 60, 80, 90, 100, 120, 150, 180, 200, 240];
 
