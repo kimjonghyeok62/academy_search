@@ -475,12 +475,13 @@ export function printTuitionFormExternal(academy) {
         const weekly = `주&nbsp;&nbsp;&nbsp;회, 회당&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;분`;
         const tuition = fmtNum(c.tuitionFee || c.totalFee);
         const tuitionNum = parseNum(c.tuitionFee || c.totalFee);
-        const tuitionDisplay = tuition + (weeklyTotal ? `<br><span style="color:#c0c0c0;">(주 ${weeklyTotal}분)</span>` : '');
+        const tuitionFormatted = tuitionNum > 0 ? `월 ${tuitionNum.toLocaleString('ko-KR')}원` : tuition;
+        const tuitionDisplay = tuitionFormatted + (weeklyTotal ? `<br><span style="font-size:0.82em; color:#c0c0c0;">←(주당 ${weeklyTotal}분)</span>` : '');
 
         const activeItems = otherFeeItems.filter(it => parseNum(c[it.key]) > 0);
         const otherSum = activeItems.reduce((s, it) => s + parseNum(c[it.key]), 0);
         const total = tuitionNum + otherSum;
-        const totalStr = total > 0 ? total.toLocaleString('ko-KR') : tuition;
+        const totalStr = total > 0 ? `월 ${total.toLocaleString('ko-KR')}원` : tuitionFormatted;
 
         const span = Math.max(1, activeItems.length);
         const tdSubject  = `<td rowspan="${span}" style="text-align:left; padding-left:2mm; vertical-align:middle;">${subject}</td>`;
@@ -668,13 +669,13 @@ export function printTuitionFormExternal(academy) {
       <tr>
         <th rowspan="2" style="width:22%">교습과목</th>
         <th rowspan="2" style="width:15%">교습시간<br>(주기준)</th>
-        <th rowspan="2" style="width:13%">교습비<br>(월기준, 원)</th>
-        <th colspan="2" style="width:30%">기타경비(월기준)</th>
-        <th rowspan="2" style="width:15%">합계<br>(최종납부금액)</th>
+        <th rowspan="2" style="width:17%">교습비<br>(월기준, 원)</th>
+        <th colspan="2" style="width:26%">기타경비(월기준)</th>
+        <th rowspan="2" style="width:20%">합계<br>(최종납부금액)</th>
       </tr>
       <tr>
-        <th style="width:16%">항목</th>
-        <th style="width:14%">금액(원)</th>
+        <th style="width:11%">항목</th>
+        <th style="width:15%">금액(원)</th>
       </tr>
     </thead>
     <tbody>
