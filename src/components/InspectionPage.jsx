@@ -2100,8 +2100,8 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
     const Th = ({ children, style }) => (
         <th style={{ padding: '7px 10px', fontSize: '0.74rem', fontWeight: '700', color: 'var(--text-muted)', background: 'var(--bg-main)', borderBottom: '2px solid var(--border-color)', textAlign: 'left', whiteSpace: 'nowrap', ...style }}>{children}</th>
     );
-    const Td = ({ children, style }) => (
-        <td style={{ padding: '6px 10px', fontSize: '0.8rem', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap', ...style }}>{children}</td>
+    const Td = ({ children, style, onClick }) => (
+        <td style={{ padding: '6px 10px', fontSize: '0.8rem', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap', ...style }} onClick={onClick}>{children}</td>
     );
     const Badge = ({ count, color }) => (
         <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: '22px', height: '20px', borderRadius: '10px', padding: '0 6px', background: count > 0 ? (color || '#ef4444') : '#94a3b8', color: 'white', fontSize: '0.72rem', fontWeight: '800' }}>{count}</span>
@@ -2497,7 +2497,7 @@ function getBuilding(addr) {
 // ───────────────────────────────────────────────
 // 탭: 주의 (운영 위반 점검)
 // ───────────────────────────────────────────────
-function TabCaution({ region, academies, privateTutors, academyClosures, onSelectAcademy, addrDongCacheVer, initialOpenSections, onSubStateChange, onShowRouteMap, initialRouteDate, onRouteDateChange }) {
+function TabCaution({ region, academies, privateTutors, academyClosures, onSelectAcademy, addrDongCacheVer, initialOpenSections, onSubStateChange, onShowRouteMap, initialRouteDate, onRouteDateChange, initialExpandedDongs, initialUnderdueExpandedDongs, initialByBuildingExpandedDongs, initialByBuildingExpandedBuildings, onExpandedDongsChange }) {
     const city = region.endsWith('시') ? region : region + '시';
     const H_CLOSED_R = ['자진폐원', '직권폐원', '자진폐소', '직권폐소'];
     const aList = useMemo(() => (academies || []).filter(a => (a.address || '').includes(city) && a.category !== '교습소'), [academies, city]);
@@ -2548,24 +2548,28 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
 
     // ── 점검완료 추적 ──
     const [inspectedNames, setInspectedNames] = useState(new Set());
-    const [riskAcOpen, setRiskAcOpen] = useState(false);
-    const [riskHgOpen, setRiskHgOpen] = useState(false);
+    const riskAcOpen = openSections.riskAc ?? false;
+    const setRiskAcOpen = (val) => setOpenSections(prev => { const next = { ...prev, riskAc: typeof val === 'function' ? val(prev.riskAc ?? false) : val }; onSubStateChange?.(next); return next; });
+    const riskHgOpen = openSections.riskHg ?? false;
+    const setRiskHgOpen = (val) => setOpenSections(prev => { const next = { ...prev, riskHg: typeof val === 'function' ? val(prev.riskHg ?? false) : val }; onSubStateChange?.(next); return next; });
+    const [copyToast, setCopyToast] = useState(null);
     const [acRefreshed, setAcRefreshed] = useState(false);
     const [hgRefreshed, setHgRefreshed] = useState(false);
     const [riskRefreshing, setRiskRefreshing] = useState(false);
     // overdue per-dong refresh state: Map<dong, Set<'ac'|'hg'>>
     const [overdueRefreshed, setOverdueRefreshed] = useState(new Map());
     const [overdueRefreshing, setOverdueRefreshing] = useState(false);
-    const [expandedDongs, setExpandedDongs] = useState(new Set());
+    const [expandedDongs, setExpandedDongs] = useState(() => new Set(initialExpandedDongs || []));
     const [underdueRefreshed, setUnderdueRefreshed] = useState(new Map());
     const [underdueRefreshing, setUnderdueRefreshing] = useState(false);
-    const [underdueExpandedDongs, setUnderdueExpandedDongs] = useState(new Set());
+    const [underdueExpandedDongs, setUnderdueExpandedDongs] = useState(() => new Set(initialUnderdueExpandedDongs || []));
     const [byBuildingRefreshed, setByBuildingRefreshed] = useState(new Map());
     const [byBuildingRefreshing, setByBuildingRefreshing] = useState(false);
-    const [byBuildingExpandedDongs, setByBuildingExpandedDongs] = useState(new Set());
-    const [byBuildingExpandedBuildings, setByBuildingExpandedBuildings] = useState(new Set());
+    const [byBuildingExpandedDongs, setByBuildingExpandedDongs] = useState(() => new Set(initialByBuildingExpandedDongs || []));
+    const [byBuildingExpandedBuildings, setByBuildingExpandedBuildings] = useState(() => new Set(initialByBuildingExpandedBuildings || []));
     const [allRawRows, setAllRawRows] = useState([]);
     const [routeDate, setRouteDate] = useState(initialRouteDate || '');
+    const [routeCacheVer, setRouteCacheVer] = useState(0);
     const routeMapContainerRef = useRef(null);
     const routeMapInstanceRef = useRef(null);
     const inlineRouteMarkersRef = useRef([]);
@@ -2577,9 +2581,17 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
         try {
             const { bodyRows } = await fetchRecentRawRows();
             setAllRawRows(bodyRows);
-            const names = new Set(bodyRows.map(r =>
-                normName(colVal(r, ['학원(교습소)명', '명칭', '학원명', '기관명']))
-            ).filter(Boolean));
+            const today = new Date(); today.setHours(0, 0, 0, 0);
+            const names = new Set(bodyRows
+                .filter(r => {
+                    const dateStr = colVal(r, ['점검일', '점검일자', '지도점검일']);
+                    if (!dateStr || !dateStr.trim()) return false; // 점검일 없으면 제외
+                    const d = toDateRev(dateStr);
+                    if (!d) return false; // 파싱 실패 시 제외
+                    return d <= today; // 오늘 이전만 포함
+                })
+                .map(r => normName(colVal(r, ['학원(교습소)명', '명칭', '학원명', '기관명'])))
+                .filter(Boolean));
             setInspectedNames(names);
             return names;
         } catch { return new Set(); }
@@ -2749,7 +2761,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
             }
             return { ...a, _order: i + 1, _dist: dist };
         });
-    }, [routeDate, planDateMap, academies]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [routeDate, planDateMap, academies, routeCacheVer]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // ── 인라인 경로 지도 ──
     const getUnitLabel = (address) => {
@@ -2818,7 +2830,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                         cacheUpdated = true;
                     }
                 }
-                if (cacheUpdated) localStorage.setItem('academyMapLocations', JSON.stringify(cache));
+                if (cacheUpdated) { localStorage.setItem('academyMapLocations', JSON.stringify(cache)); setRouteCacheVer(v => v + 1); }
             }
             if (cancelled) return;
 
@@ -2996,6 +3008,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
     const toggleDong = (dong) => setExpandedDongs(prev => {
         const next = new Set(prev);
         next.has(dong) ? next.delete(dong) : next.add(dong);
+        onExpandedDongsChange?.({ expandedDongs: [...next] });
         return next;
     });
     const handleUnderdueDongRefresh = async (dong) => {
@@ -3011,6 +3024,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
     const toggleUnderdueDong = (dong) => setUnderdueExpandedDongs(prev => {
         const next = new Set(prev);
         next.has(dong) ? next.delete(dong) : next.add(dong);
+        onExpandedDongsChange?.({ underdueExpandedDongs: [...next] });
         return next;
     });
     const handleByBuildingDongRefresh = async (dong) => {
@@ -3026,11 +3040,13 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
     const toggleByBuildingDong = (dong) => setByBuildingExpandedDongs(prev => {
         const next = new Set(prev);
         next.has(dong) ? next.delete(dong) : next.add(dong);
+        onExpandedDongsChange?.({ byBuildingExpandedDongs: [...next] });
         return next;
     });
     const toggleByBuildingBuilding = (key) => setByBuildingExpandedBuildings(prev => {
         const next = new Set(prev);
         next.has(key) ? next.delete(key) : next.add(key);
+        onExpandedDongsChange?.({ byBuildingExpandedBuildings: [...next] });
         return next;
     });
 
@@ -3039,19 +3055,38 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
     const Th = ({ children, style }) => (
         <th style={{ padding: '7px 10px', fontSize: '0.74rem', fontWeight: '700', color: 'var(--text-muted)', background: 'var(--bg-main)', borderBottom: '2px solid var(--border-color)', textAlign: 'left', whiteSpace: 'nowrap', ...style }}>{children}</th>
     );
-    const Td = ({ children, style }) => (
-        <td style={{ padding: '6px 10px', fontSize: '0.8rem', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap', ...style }}>{children}</td>
+    const Td = ({ children, style, onClick }) => (
+        <td style={{ padding: '6px 10px', fontSize: '0.8rem', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap', ...style }} onClick={onClick}>{children}</td>
     );
     const Badge = ({ count, color }) => (
         <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: '22px', height: '20px', borderRadius: '10px', padding: '0 6px', background: count > 0 ? (color || '#ef4444') : '#94a3b8', color: 'white', fontSize: '0.72rem', fontWeight: '800' }}>{count}</span>
     );
+    const showCopyToast = (text) => {
+        setCopyToast(text);
+        setTimeout(() => setCopyToast(null), 2000);
+    };
     const NameLink = ({ id, type, name }) => {
-        if (!onSelectAcademy || !id) return <span style={{ fontWeight: '600' }}>{name || '-'}</span>;
+        const fullName = name || '-';
+        const handleCopy = (e) => {
+            e.stopPropagation();
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(fullName).catch(() => {});
+            }
+            showCopyToast(fullName);
+        };
+        if (!id) return <span style={{ fontWeight: '600', cursor: 'copy' }} onClick={handleCopy} title="클릭하여 복사">{fullName}</span>;
         const pool = type === '교습소' ? hList : aList;
         const item = pool.find(a => a.id === id);
-        if (!item) return <span style={{ fontWeight: '600' }}>{name || '-'}</span>;
         return (
-            <span onClick={() => onSelectAcademy(item)} style={{ fontWeight: '700', color: 'var(--primary)', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '2px' }}>{name || '-'}</span>
+            <span onClick={handleCopy} style={{ fontWeight: '700', color: 'var(--primary)', cursor: 'copy', textDecoration: 'underline', textUnderlineOffset: '2px' }} title="클릭하여 복사">{fullName}</span>
+        );
+    };
+    const NavCell = ({ id, type, children, style }) => {
+        if (!onSelectAcademy || !id) return <Td style={style}>{children}</Td>;
+        const pool = type === '교습소' ? hList : aList;
+        const item = pool.find(a => a.id === id);
+        return (
+            <Td style={{ ...style, cursor: item ? 'pointer' : undefined }} onClick={item ? () => onSelectAcademy(item) : undefined}>{children}</Td>
         );
     };
     const CautionSection = ({ id, title, badge, badgeColor, children }) => {
@@ -3473,7 +3508,13 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
     }, [aList, hActiveList, feeExceed, insuranceIssues, deferNames]);
 
     return (
-        <div>
+        <div style={{ position: 'relative' }}>
+            {/* 복사 토스트 */}
+            {copyToast && (
+                <div style={{ position: 'fixed', bottom: '80px', left: '50%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.75)', color: '#fff', padding: '8px 18px', borderRadius: '20px', fontSize: '0.82rem', fontWeight: '600', zIndex: 9999, whiteSpace: 'nowrap', pointerEvents: 'none' }}>
+                    복사되었습니다: {copyToast}
+                </div>
+            )}
             {/* 요약 헤더 */}
             <div style={{ background: 'var(--bg-card)', borderRadius: '14px', padding: '14px 16px', border: '1px solid var(--border-color)', marginBottom: '14px', boxShadow: 'var(--shadow-sm)' }}>
                 <div style={{ fontSize: '0.88rem', fontWeight: '800', color: 'var(--text-main)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -3536,33 +3577,65 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {routeAcademiesSorted.map((a, i) => (
-                                        <tr
-                                            key={`${a.id}-${i}`}
-                                            style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}
-                                        >
-                                            <Td style={{ textAlign: 'center', fontWeight: '800', color: '#f97316' }}>{a._order}</Td>
-                                            <Td style={{ position: 'sticky', left: 0, zIndex: 1, background: 'var(--bg-card)', maxWidth: '130px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                {onSelectAcademy
-                                                    ? <span onClick={() => onSelectAcademy(a)} style={{ fontWeight: '700', color: 'var(--primary)', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '2px' }}>{a.name}</span>
-                                                    : <span style={{ fontWeight: '600' }}>{a.name}</span>
+                                    {(() => {
+                                        // 하남종합운동장 본부석 — 첫 번째 학원의 기준점
+                                        const BASE_LAT = 37.5674619;
+                                        const BASE_LNG = 127.1961543;
+                                        const arrows8 = ['↑', '↗', '→', '↘', '↓', '↙', '←', '↖'];
+                                        const calcArrow = (fromLat, fromLng, toLat, toLng) => {
+                                            const dLat = toLat - fromLat;
+                                            const dLng = toLng - fromLng;
+                                            const angle = (Math.atan2(dLng, dLat) * 180 / Math.PI + 360) % 360;
+                                            return arrows8[Math.round(angle / 45) % 8];
+                                        };
+                                        const fmtDist = (km) => km < 1 ? `${Math.round(km * 1000)}m` : `${km.toFixed(1)}km`;
+                                        return routeAcademiesSorted.map((a, i) => {
+                                            const prev = i === 0 ? null : routeAcademiesSorted[i - 1];
+                                            const fromLat = i === 0 ? BASE_LAT : prev?._lat;
+                                            const fromLng = i === 0 ? BASE_LNG : prev?._lng;
+                                            const moveLabel = (() => {
+                                                if (a._lat == null || fromLat == null) return null;
+                                                let dist;
+                                                if (i === 0) {
+                                                    dist = haversineKm(BASE_LAT, BASE_LNG, a._lat, a._lng);
+                                                } else {
+                                                    dist = a._dist;
                                                 }
-                                                {a._schedule && <div style={{ fontSize: '0.68rem', color: '#0ea5e9', fontWeight: '600', marginTop: '1px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a._schedule}</div>}
-                                            </Td>
-                                            <Td style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>{shortAddr(a.address)}</Td>
-                                            <Td style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{a.founder?.name || '-'}</Td>
-                                            <Td style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>
-                                                {(a.founder?.mobile || a.founder?.phone)
-                                                    ? <a href={`tel:${a.founder?.mobile || a.founder?.phone}`} onClick={e => e.stopPropagation()} style={{ color: '#3b82f6', fontWeight: '600', textDecoration: 'none' }}>{a.founder?.mobile || a.founder?.phone}</a>
-                                                    : '-'}
-                                            </Td>
-                                            <Td style={{ textAlign: 'right', color: a._dist != null ? '#0ea5e9' : 'var(--text-muted)' }}>
-                                                {i === 0
-                                                    ? <span style={{ color: '#10b981', fontWeight: '700' }}>출발</span>
-                                                    : a._dist != null ? `${a._dist.toFixed(1)}km` : '-'}
-                                            </Td>
-                                        </tr>
-                                    ))}
+                                                if (dist == null) return null;
+                                                const arrow = calcArrow(fromLat, fromLng, a._lat, a._lng);
+                                                return `${arrow} ${fmtDist(dist)}`;
+                                            })();
+                                            return (
+                                            <tr
+                                                key={`${a.id}-${i}`}
+                                                style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}
+                                            >
+                                                <Td style={{ textAlign: 'center', fontWeight: '800', color: '#f97316' }}>{a._order}</Td>
+                                                <Td style={{ position: 'sticky', left: 0, zIndex: 1, background: 'var(--bg-card)', maxWidth: '130px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                    {onSelectAcademy
+                                                        ? <span onClick={() => onSelectAcademy(a)} style={{ fontWeight: '700', color: 'var(--primary)', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '2px' }}>{a.name}</span>
+                                                        : <span style={{ fontWeight: '600' }}>{a.name}</span>
+                                                    }
+                                                </Td>
+                                                <Td style={{ color: 'var(--text-muted)', fontSize: '0.68rem' }}>
+                                                    {a._schedule && <div style={{ fontSize: '0.78rem', color: '#3b82f6', fontWeight: '600', marginBottom: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a._schedule}</div>}
+                                                    {shortAddr(a.address)}
+                                                </Td>
+                                                <Td style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{a.founder?.name || '-'}</Td>
+                                                <Td style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>
+                                                    {(a.founder?.mobile || a.founder?.phone)
+                                                        ? <a href={`tel:${a.founder?.mobile || a.founder?.phone}`} onClick={e => e.stopPropagation()} style={{ color: '#3b82f6', fontWeight: '600', textDecoration: 'none' }}>{a.founder?.mobile || a.founder?.phone}</a>
+                                                        : '-'}
+                                                </Td>
+                                                <Td style={{ textAlign: 'right' }}>
+                                                    {moveLabel
+                                                        ? <span style={{ color: '#10b981', fontWeight: '700', whiteSpace: 'nowrap' }}>{moveLabel}</span>
+                                                        : <span style={{ color: 'var(--text-muted)' }}>-</span>}
+                                                </Td>
+                                            </tr>
+                                            );
+                                        });
+                                    })()}
                                 </tbody>
                             </table>
                         </div>
@@ -3606,20 +3679,21 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                                 {wk.academies.length > 0 && (() => {
                                     const acItems = wk.academies.filter(a => a.category !== '교습소');
                                     const hgItems = wk.academies.filter(a => a.category === '교습소');
+                                    const acType = (a) => a.category === '교습소' ? '교습소' : '학원';
                                     const renderRow = (a, ai) => (
                                         <tr key={`${a.id}_${ai}`} style={{ background: ai % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
-                                            <Td style={{ color: 'var(--text-muted)', fontSize: '0.76rem' }}>{ai + 1}</Td>
+                                            <NavCell id={a.id} type={acType(a)} style={{ color: 'var(--text-muted)', fontSize: '0.76rem' }}>{ai + 1}</NavCell>
                                             <Td style={{ position: 'sticky', left: 0, zIndex: 1, background: 'var(--bg-card)', maxWidth: '130px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                <NameLink id={a.id} type={a.category === '교습소' ? '교습소' : '학원'} name={a.name} />
+                                                <NameLink id={a.id} type={acType(a)} name={a.name} />
                                             </Td>
-                                            <Td style={{ whiteSpace: 'nowrap' }}>
+                                            <NavCell id={a.id} type={acType(a)} style={{ whiteSpace: 'nowrap' }}>
                                                 <div style={{ fontSize: '0.75rem', color: 'var(--text-main)', fontWeight: '600' }}>{a.founder?.name || '-'}</div>
-                                                {(a.founder?.mobile || a.founder?.phone) && <a href={`tel:${a.founder?.mobile || a.founder?.phone}`} onClick={e => e.stopPropagation()} style={{ color: '#3b82f6', fontWeight: '600', fontSize: '0.75rem', textDecoration: 'none' }}>{a.founder?.mobile || a.founder?.phone}</a>}
-                                            </Td>
-                                            <Td style={{ color: 'var(--text-muted)', fontSize: '0.76rem' }}>{shortAddr(a.address)}</Td>
-                                            <Td>{a.hasIns ? <span style={{ fontSize: '0.71rem', padding: '1px 5px', borderRadius: '4px', background: '#fef3c7', color: '#d97706', fontWeight: '700' }}>⚠️보험</span> : <span style={{ color: '#10b981', fontSize: '0.78rem' }}>✓</span>}</Td>
-                                            <Td>{a.viol > 0 ? <span style={{ fontSize: '0.71rem', padding: '1px 5px', borderRadius: '4px', background: '#fee2e2', color: '#dc2626', fontWeight: '700' }}>{a.viol}건</span> : <span style={{ color: 'var(--text-muted)', fontSize: '0.76rem' }}>-</span>}</Td>
-                                            <Td style={{ color: a.score >= 0.7 ? '#ef4444' : a.score >= 0.4 ? '#f97316' : 'var(--text-muted)', fontWeight: '700', fontSize: '0.78rem' }}>{Math.round(a.score * 100)}</Td>
+                                                {(a.founder?.mobile || a.founder?.phone) && <span style={{ color: '#3b82f6', fontWeight: '600', fontSize: '0.75rem' }}>{a.founder?.mobile || a.founder?.phone}</span>}
+                                            </NavCell>
+                                            <NavCell id={a.id} type={acType(a)} style={{ color: 'var(--text-muted)', fontSize: '0.76rem' }}>{shortAddr(a.address)}</NavCell>
+                                            <NavCell id={a.id} type={acType(a)}>{a.hasIns ? <span style={{ fontSize: '0.71rem', padding: '1px 5px', borderRadius: '4px', background: '#fef3c7', color: '#d97706', fontWeight: '700' }}>⚠️보험</span> : <span style={{ color: '#10b981', fontSize: '0.78rem' }}>✓</span>}</NavCell>
+                                            <NavCell id={a.id} type={acType(a)}>{a.viol > 0 ? <span style={{ fontSize: '0.71rem', padding: '1px 5px', borderRadius: '4px', background: '#fee2e2', color: '#dc2626', fontWeight: '700' }}>{a.viol}건</span> : <span style={{ color: 'var(--text-muted)', fontSize: '0.76rem' }}>-</span>}</NavCell>
+                                            <NavCell id={a.id} type={acType(a)} style={{ color: a.score >= 0.7 ? '#ef4444' : a.score >= 0.4 ? '#f97316' : 'var(--text-muted)', fontWeight: '700', fontSize: '0.78rem' }}>{Math.round(a.score * 100)}</NavCell>
                                         </tr>
                                     );
                                     return (
@@ -3643,20 +3717,21 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                                 {wk.hasMidnight && wk.midnightList.length > 0 && (() => {
                                     const acM = wk.midnightList.filter(a => a.category !== '교습소');
                                     const hgM = wk.midnightList.filter(a => a.category === '교습소');
+                                    const acTypeM = (a) => a.category === '교습소' ? '교습소' : '학원';
                                     const renderRow = (a, ai) => (
                                         <tr key={`${a.id}_${ai}`} style={{ background: ai % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
-                                            <Td style={{ color: 'var(--text-muted)', fontSize: '0.76rem', width: '22px' }}>{ai + 1}</Td>
+                                            <NavCell id={a.id} type={acTypeM(a)} style={{ color: 'var(--text-muted)', fontSize: '0.76rem', width: '22px' }}>{ai + 1}</NavCell>
                                             <Td style={{ position: 'sticky', left: 0, zIndex: 1, background: 'var(--bg-card)', maxWidth: '130px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                <NameLink id={a.id} type={a.category === '교습소' ? '교습소' : '학원'} name={a.name} />
+                                                <NameLink id={a.id} type={acTypeM(a)} name={a.name} />
                                             </Td>
-                                            <Td style={{ whiteSpace: 'nowrap' }}>
+                                            <NavCell id={a.id} type={acTypeM(a)} style={{ whiteSpace: 'nowrap' }}>
                                                 <div style={{ fontSize: '0.75rem', color: 'var(--text-main)', fontWeight: '600' }}>{a.founder?.name || '-'}</div>
-                                                {(a.founder?.mobile || a.founder?.phone) && <a href={`tel:${a.founder?.mobile || a.founder?.phone}`} onClick={e => e.stopPropagation()} style={{ color: '#3b82f6', fontWeight: '600', fontSize: '0.75rem', textDecoration: 'none' }}>{a.founder?.mobile || a.founder?.phone}</a>}
-                                            </Td>
-                                            <Td style={{ color: 'var(--text-muted)', fontSize: '0.76rem' }}>{shortAddr(a.address)}</Td>
-                                            <Td>{a.hasIns ? <span style={{ fontSize: '0.71rem', padding: '1px 5px', borderRadius: '4px', background: '#fef3c7', color: '#d97706', fontWeight: '700' }}>⚠️보험</span> : <span style={{ color: '#10b981', fontSize: '0.78rem' }}>✓</span>}</Td>
-                                            <Td>{a.viol > 0 ? <span style={{ fontSize: '0.71rem', padding: '1px 5px', borderRadius: '4px', background: '#fee2e2', color: '#dc2626', fontWeight: '700' }}>{a.viol}건</span> : <span style={{ color: 'var(--text-muted)', fontSize: '0.76rem' }}>-</span>}</Td>
-                                            <Td style={{ color: '#64748b', fontWeight: '700', fontSize: '0.78rem' }}>{Math.round(a.score * 100)}</Td>
+                                                {(a.founder?.mobile || a.founder?.phone) && <span style={{ color: '#3b82f6', fontWeight: '600', fontSize: '0.75rem' }}>{a.founder?.mobile || a.founder?.phone}</span>}
+                                            </NavCell>
+                                            <NavCell id={a.id} type={acTypeM(a)} style={{ color: 'var(--text-muted)', fontSize: '0.76rem' }}>{shortAddr(a.address)}</NavCell>
+                                            <NavCell id={a.id} type={acTypeM(a)}>{a.hasIns ? <span style={{ fontSize: '0.71rem', padding: '1px 5px', borderRadius: '4px', background: '#fef3c7', color: '#d97706', fontWeight: '700' }}>⚠️보험</span> : <span style={{ color: '#10b981', fontSize: '0.78rem' }}>✓</span>}</NavCell>
+                                            <NavCell id={a.id} type={acTypeM(a)}>{a.viol > 0 ? <span style={{ fontSize: '0.71rem', padding: '1px 5px', borderRadius: '4px', background: '#fee2e2', color: '#dc2626', fontWeight: '700' }}>{a.viol}건</span> : <span style={{ color: 'var(--text-muted)', fontSize: '0.76rem' }}>-</span>}</NavCell>
+                                            <NavCell id={a.id} type={acTypeM(a)} style={{ color: '#64748b', fontWeight: '700', fontSize: '0.78rem' }}>{Math.round(a.score * 100)}</NavCell>
                                         </tr>
                                     );
                                     return (
@@ -3705,21 +3780,22 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                     const renderRow = (a, rowNum, rowBg, rowBorder) => {
                         const lastD = lastRegularDate(a);
                         const done = isInsp2026(a);
+                        const aType = a.category === '교습소' ? '교습소' : '학원';
                         return (
                             <tr key={`${a.id}_${rowNum}`} style={{ opacity: done ? 0.5 : 1, background: rowBg, borderLeft: `3px solid ${rowBorder}` }}>
                                 <Td style={{ color: 'var(--text-muted)', fontWeight: '700', fontSize: '0.76rem', textAlign: 'center', paddingLeft: '4px' }}>{rowNum}</Td>
                                 <Td style={{ position: 'sticky', left: 0, zIndex: 1, background: rowBg, maxWidth: '130px', overflow: 'hidden', whiteSpace: 'nowrap' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0 }}>
                                         <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, flexShrink: 1 }}>
-                                            <NameLink id={a.id} type={a.category === '교습소' ? '교습소' : '학원'} name={a.name} />
+                                            <NameLink id={a.id} type={aType} name={a.name} />
                                         </span>
                                         {done && <span style={{ fontSize: '0.67rem', color: '#6366f1', fontWeight: '700', flexShrink: 0 }}>(완료)</span>}
                                     </div>
                                 </Td>
-                                <Td style={{ whiteSpace: 'nowrap' }}>
+                                <NavCell id={a.id} type={aType} style={{ whiteSpace: 'nowrap' }}>
                                     <div style={{ fontSize: '0.75rem', color: 'var(--text-main)', fontWeight: '600' }}>{a.founder?.name || '-'}</div>
-                                    {(a.founder?.mobile || a.founder?.phone) && <a href={`tel:${a.founder?.mobile || a.founder?.phone}`} onClick={e => e.stopPropagation()} style={{ color: '#3b82f6', fontWeight: '600', fontSize: '0.75rem', textDecoration: 'none' }}>{a.founder?.mobile || a.founder?.phone}</a>}
-                                </Td>
+                                    {(a.founder?.mobile || a.founder?.phone) && <span style={{ color: '#3b82f6', fontWeight: '600', fontSize: '0.75rem' }}>{a.founder?.mobile || a.founder?.phone}</span>}
+                                </NavCell>
                                 <Td style={{ color: a.months >= 36 ? '#ef4444' : '#f59e0b', fontWeight: '800', whiteSpace: 'nowrap' }}>
                                     {a.neverInspected ? '미점검' : `${Math.floor(a.months/12)>0?Math.floor(a.months/12)+'년 ':''}${a.months%12>0?a.months%12+'개월':''}`}
                                 </Td>
@@ -3808,21 +3884,22 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                     const renderRow = (a, rowNum, rowBg, rowBorder) => {
                         const lastD = lastRegularDate(a);
                         const done = isInsp2026(a);
+                        const aType = a.category === '교습소' ? '교습소' : '학원';
                         return (
                             <tr key={`${a.id}_${rowNum}`} style={{ opacity: done ? 0.5 : 1, background: rowBg, borderLeft: `3px solid ${rowBorder}` }}>
                                 <Td style={{ color: 'var(--text-muted)', fontWeight: '700', fontSize: '0.76rem', textAlign: 'center', paddingLeft: '4px' }}>{rowNum}</Td>
                                 <Td style={{ position: 'sticky', left: 0, zIndex: 1, background: rowBg, maxWidth: '130px', overflow: 'hidden', whiteSpace: 'nowrap' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0 }}>
                                         <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, flexShrink: 1 }}>
-                                            <NameLink id={a.id} type={a.category === '교습소' ? '교습소' : '학원'} name={a.name} />
+                                            <NameLink id={a.id} type={aType} name={a.name} />
                                         </span>
                                         {done && <span style={{ fontSize: '0.67rem', color: '#6366f1', fontWeight: '700', flexShrink: 0 }}>(완료)</span>}
                                     </div>
                                 </Td>
-                                <Td style={{ whiteSpace: 'nowrap' }}>
+                                <NavCell id={a.id} type={aType} style={{ whiteSpace: 'nowrap' }}>
                                     <div style={{ fontSize: '0.75rem', color: 'var(--text-main)', fontWeight: '600' }}>{a.founder?.name || '-'}</div>
-                                    {(a.founder?.mobile || a.founder?.phone) && <a href={`tel:${a.founder?.mobile || a.founder?.phone}`} onClick={e => e.stopPropagation()} style={{ color: '#3b82f6', fontWeight: '600', fontSize: '0.75rem', textDecoration: 'none' }}>{a.founder?.mobile || a.founder?.phone}</a>}
-                                </Td>
+                                    {(a.founder?.mobile || a.founder?.phone) && <span style={{ color: '#3b82f6', fontWeight: '600', fontSize: '0.75rem' }}>{a.founder?.mobile || a.founder?.phone}</span>}
+                                </NavCell>
                                 <Td style={{ color: a.months >= 12 ? '#f59e0b' : '#3b82f6', fontWeight: '800', whiteSpace: 'nowrap' }}>
                                     {a.neverInspected ? '미점검' : `${Math.floor(a.months/12)>0?Math.floor(a.months/12)+'년 ':''}${a.months%12>0?a.months%12+'개월':''}`}
                                 </Td>
@@ -3907,21 +3984,22 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                     const renderRow = (a, rowNum, rowBg, rowBorder) => {
                         const lastD = lastRegularDate(a);
                         const done = isInsp2026(a);
+                        const aType = a.category === '교습소' ? '교습소' : '학원';
                         return (
                             <tr key={`${a.id}_${rowNum}`} style={{ opacity: done ? 0.5 : 1, background: rowBg, borderLeft: `3px solid ${rowBorder}` }}>
                                 <Td style={{ color: 'var(--text-muted)', fontWeight: '700', fontSize: '0.76rem', textAlign: 'center', paddingLeft: '4px' }}>{rowNum}</Td>
                                 <Td style={{ position: 'sticky', left: 0, zIndex: 1, background: rowBg, maxWidth: '130px', overflow: 'hidden', whiteSpace: 'nowrap' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0 }}>
                                         <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, flexShrink: 1 }}>
-                                            <NameLink id={a.id} type={a.category === '교습소' ? '교습소' : '학원'} name={a.name} />
+                                            <NameLink id={a.id} type={aType} name={a.name} />
                                         </span>
                                         {done && <span style={{ fontSize: '0.67rem', color: '#6366f1', fontWeight: '700', flexShrink: 0 }}>(완료)</span>}
                                     </div>
                                 </Td>
-                                <Td style={{ whiteSpace: 'nowrap' }}>
+                                <NavCell id={a.id} type={aType} style={{ whiteSpace: 'nowrap' }}>
                                     <div style={{ fontSize: '0.75rem', color: 'var(--text-main)', fontWeight: '600' }}>{a.founder?.name || '-'}</div>
-                                    {(a.founder?.mobile || a.founder?.phone) && <a href={`tel:${a.founder?.mobile || a.founder?.phone}`} onClick={e => e.stopPropagation()} style={{ color: '#3b82f6', fontWeight: '600', fontSize: '0.75rem', textDecoration: 'none' }}>{a.founder?.mobile || a.founder?.phone}</a>}
-                                </Td>
+                                    {(a.founder?.mobile || a.founder?.phone) && <span style={{ color: '#3b82f6', fontWeight: '600', fontSize: '0.75rem' }}>{a.founder?.mobile || a.founder?.phone}</span>}
+                                </NavCell>
                                 <Td style={{ color: '#f59e0b', fontWeight: '800', whiteSpace: 'nowrap' }}>
                                     {a.neverInspected ? '미점검' : `${Math.floor(a.months/12)>0?Math.floor(a.months/12)+'년 ':''}${a.months%12>0?a.months%12+'개월':''}`}
                                 </Td>
@@ -4027,29 +4105,30 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                         ? allHgItems.filter(a => !isInsp2026(a)).slice(0, 50)
                         : allHgItems.slice(0, 50);
                     const fmtMonths = (a) => a.neverInspected ? '미점검' : a.months >= 12 ? `${Math.floor(a.months/12)}년${a.months%12>0?' '+a.months%12+'개월':''}` : `${a.months}개월`;
+                    const riskType = (a) => a.category === '교습소' ? '교습소' : '학원';
                     const renderRow = (a, i) => {
                         const done = isInsp2026(a);
                         return (
                             <tr key={`${a.id}_${i}`} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)', opacity: done ? 0.5 : 1 }}>
-                                <Td style={{ color: i < 3 ? '#ef4444' : 'var(--text-muted)', fontWeight: '800', fontSize: '0.78rem' }}>{i + 1}</Td>
+                                <NavCell id={a.id} type={riskType(a)} style={{ color: i < 3 ? '#ef4444' : 'var(--text-muted)', fontWeight: '800', fontSize: '0.78rem' }}>{i + 1}</NavCell>
                                 <Td style={{ position: 'sticky', left: 0, zIndex: 1, background: 'var(--bg-card)', maxWidth: '130px', overflow: 'hidden', whiteSpace: 'nowrap' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0 }}>
                                         <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, flexShrink: 1 }}>
-                                            <NameLink id={a.id} type={a.category === '교습소' ? '교습소' : '학원'} name={a.name} />
+                                            <NameLink id={a.id} type={riskType(a)} name={a.name} />
                                         </span>
                                         {a.neverInspected && <span style={{ fontSize: '0.67rem', color: '#10b981', fontWeight: '700', flexShrink: 0 }}>신설</span>}
                                         {done && <span style={{ fontSize: '0.67rem', color: '#6366f1', fontWeight: '700', flexShrink: 0 }}>(완료)</span>}
                                     </div>
                                 </Td>
-                                <Td style={{ whiteSpace: 'nowrap' }}>
+                                <NavCell id={a.id} type={riskType(a)} style={{ whiteSpace: 'nowrap' }}>
                                     <div style={{ fontSize: '0.75rem', color: 'var(--text-main)', fontWeight: '600' }}>{a.founder?.name || '-'}</div>
-                                    {(a.founder?.mobile || a.founder?.phone) && <a href={`tel:${a.founder?.mobile || a.founder?.phone}`} onClick={e => e.stopPropagation()} style={{ color: '#3b82f6', fontWeight: '600', fontSize: '0.75rem', textDecoration: 'none' }}>{a.founder?.mobile || a.founder?.phone}</a>}
-                                </Td>
-                                <Td style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>{a.dong || '-'}</Td>
-                                <Td style={{ fontWeight: '700', fontSize: '0.78rem', color: a.months >= 36 ? '#ef4444' : a.months >= 24 ? '#f59e0b' : 'var(--text-muted)' }}>{fmtMonths(a)}</Td>
-                                <Td>{a.hasIns ? <span style={{ fontSize: '0.71rem', padding: '1px 5px', borderRadius: '4px', background: '#fef3c7', color: '#d97706', fontWeight: '700' }}>⚠️보험</span> : <span style={{ color: '#10b981', fontSize: '0.78rem' }}>✓</span>}</Td>
-                                <Td>{a.viol > 0 ? <span style={{ fontSize: '0.71rem', padding: '1px 5px', borderRadius: '4px', background: '#fee2e2', color: '#dc2626', fontWeight: '700' }}>{a.viol}건</span> : <span style={{ color: 'var(--text-muted)', fontSize: '0.76rem' }}>-</span>}</Td>
-                                <Td style={{ fontWeight: '700', fontSize: '0.78rem', color: a.score >= 0.7 ? '#ef4444' : a.score >= 0.4 ? '#f97316' : 'var(--text-main)' }}>{Math.round(a.score * 100)}</Td>
+                                    {(a.founder?.mobile || a.founder?.phone) && <span style={{ color: '#3b82f6', fontWeight: '600', fontSize: '0.75rem' }}>{a.founder?.mobile || a.founder?.phone}</span>}
+                                </NavCell>
+                                <NavCell id={a.id} type={riskType(a)} style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>{a.dong || '-'}</NavCell>
+                                <NavCell id={a.id} type={riskType(a)} style={{ fontWeight: '700', fontSize: '0.78rem', color: a.months >= 36 ? '#ef4444' : a.months >= 24 ? '#f59e0b' : 'var(--text-muted)' }}>{fmtMonths(a)}</NavCell>
+                                <NavCell id={a.id} type={riskType(a)}>{a.hasIns ? <span style={{ fontSize: '0.71rem', padding: '1px 5px', borderRadius: '4px', background: '#fef3c7', color: '#d97706', fontWeight: '700' }}>⚠️보험</span> : <span style={{ color: '#10b981', fontSize: '0.78rem' }}>✓</span>}</NavCell>
+                                <NavCell id={a.id} type={riskType(a)}>{a.viol > 0 ? <span style={{ fontSize: '0.71rem', padding: '1px 5px', borderRadius: '4px', background: '#fee2e2', color: '#dc2626', fontWeight: '700' }}>{a.viol}건</span> : <span style={{ color: 'var(--text-muted)', fontSize: '0.76rem' }}>-</span>}</NavCell>
+                                <NavCell id={a.id} type={riskType(a)} style={{ fontWeight: '700', fontSize: '0.78rem', color: a.score >= 0.7 ? '#ef4444' : a.score >= 0.4 ? '#f97316' : 'var(--text-main)' }}>{Math.round(a.score * 100)}</NavCell>
                             </tr>
                         );
                     };
@@ -4348,7 +4427,7 @@ export default function InspectionPage({ onBack, academies, privateTutors, onSel
                     <div style={{ textAlign: 'center', padding: '40px', color: '#ef4444' }}>{errorStat}</div>
                 ) : (
                     <div>
-                        {activeTab === 0 && <TabCaution region={region} academies={academies} privateTutors={privateTutors} academyClosures={academyClosures} onSelectAcademy={handleSelectAcademy} addrDongCacheVer={addrDongCacheVer} initialOpenSections={savedSubState.cautionOpenSections} onSubStateChange={s => handleSubStateChange({ cautionOpenSections: s })} onShowRouteMap={onShowRouteMap} initialRouteDate={savedSubState.routeDate || ''} onRouteDateChange={date => handleSubStateChange({ routeDate: date })} />}
+                        {activeTab === 0 && <TabCaution region={region} academies={academies} privateTutors={privateTutors} academyClosures={academyClosures} onSelectAcademy={handleSelectAcademy} addrDongCacheVer={addrDongCacheVer} initialOpenSections={savedSubState.cautionOpenSections} onSubStateChange={s => handleSubStateChange({ cautionOpenSections: s })} onShowRouteMap={onShowRouteMap} initialRouteDate={savedSubState.routeDate || ''} onRouteDateChange={date => handleSubStateChange({ routeDate: date })} initialExpandedDongs={savedSubState.cautionExpandedDongs} initialUnderdueExpandedDongs={savedSubState.cautionUnderdueExpandedDongs} initialByBuildingExpandedDongs={savedSubState.cautionByBuildingExpandedDongs} initialByBuildingExpandedBuildings={savedSubState.cautionByBuildingExpandedBuildings} onExpandedDongsChange={s => handleSubStateChange({ cautionExpandedDongs: s.expandedDongs ?? subStateRef.current?.cautionExpandedDongs, cautionUnderdueExpandedDongs: s.underdueExpandedDongs ?? subStateRef.current?.cautionUnderdueExpandedDongs, cautionByBuildingExpandedDongs: s.byBuildingExpandedDongs ?? subStateRef.current?.cautionByBuildingExpandedDongs, cautionByBuildingExpandedBuildings: s.byBuildingExpandedBuildings ?? subStateRef.current?.cautionByBuildingExpandedBuildings })} />}
                         {activeTab === 1 && <TabRecent region={region} academies={academies} onSelectAcademy={handleSelectAcademy} initialPage={recentInitPage} initialScrollY={recentInitScrollY} onPageChange={p => handleSubStateChange({ page: p })} />}
                         {activeTab === 2 && <TabStats region={region} statRows={statRows} academies={academies} privateTutors={privateTutors} academyClosures={academyClosures} addrDongCacheVer={addrDongCacheVer} />}
                         {activeTab === 3 && <TabReview region={region} academies={academies} privateTutors={privateTutors} academyClosures={academyClosures} onSelectAcademy={handleSelectAcademy} addrDongCacheVer={addrDongCacheVer} initialOpenSections={savedSubState.reviewOpenSections} onSubStateChange={s => handleSubStateChange({ reviewOpenSections: s })} />}

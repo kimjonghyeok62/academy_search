@@ -236,7 +236,7 @@ export async function fetch2026InspectionData() {
  */
 export async function fetchInstructorData() {
     const INSTRUCTOR_SHEET_ID = '19loj6qHRNUMf72TN0GywJ4xf2eMaFPgK9Tzr9Ob4vR0';
-    const url = `https://docs.google.com/spreadsheets/d/${INSTRUCTOR_SHEET_ID}/export?format=csv&gid=0`;
+    const url = `https://docs.google.com/spreadsheets/d/${INSTRUCTOR_SHEET_ID}/export?format=csv&gid=288159772`;
     try {
         const response = await fetch(url);
         const txt = await response.text();
@@ -275,6 +275,53 @@ export async function fetchInstructorData() {
         return instructorMap;
     } catch (error) {
         console.error('Error fetching instructor data:', error);
+        return new Map();
+    }
+}
+
+/**
+ * 교습소 보조요원 시트에서 데이터 가져오기
+ * 반환: Map<신고번호, assistant[]>
+ */
+export async function fetchAssistantData() {
+    const ASSISTANT_SHEET_ID = '19loj6qHRNUMf72TN0GywJ4xf2eMaFPgK9Tzr9Ob4vR0';
+    const url = `https://docs.google.com/spreadsheets/d/${ASSISTANT_SHEET_ID}/export?format=csv&gid=1732095678`;
+    try {
+        const response = await fetch(url);
+        const txt = await response.text();
+        const rows = parseCSV(txt);
+
+        const assistantMap = new Map(); // key: 신고번호 or normalizeName(교습소명)
+
+        rows.forEach(row => {
+            const regNum = (row['신고번호'] || row['등록번호'] || '').trim();
+            const name = (row['교습소명'] || row['학원명'] || '').trim();
+            if (!regNum && !name) return;
+
+            const assistant = {
+                name: (row['보조요원명'] || row['강사명'] || '').trim(),
+                education: (row['학력'] || '').trim(),
+                major: (row['전공'] || '').trim(),
+                type: (row['보조요원구분'] || row['강사구분'] || '').trim(),
+                qualification: (row['자격구분'] || '').trim(),
+                certificate: (row['자격증'] || '').trim(),
+                note: (row['비고'] || '').trim(),
+                subject: (row['교습과목'] || '').trim(),
+                hireDate: (row['채용일'] || '').trim(),
+                dismissDate: (row['해임일'] || '').trim(),
+                changeReason: (row['변경사유'] || '').trim(),
+                academyName: name,
+                regNum: regNum,
+            };
+
+            const key = regNum || normalizeName(name);
+            if (!assistantMap.has(key)) assistantMap.set(key, []);
+            assistantMap.get(key).push(assistant);
+        });
+
+        return assistantMap;
+    } catch (error) {
+        console.error('Error fetching assistant data:', error);
         return new Map();
     }
 }

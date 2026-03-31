@@ -27,6 +27,7 @@ const TABS = [
     { id: 'tuition', label: '교습비' },
     { id: 'insurance', label: '보험' },
     { id: 'instructor', label: '강사' },
+    { id: 'assistant', label: '보조요원' },
     { id: 'inspection', label: '지도점검' },
 ];
 
@@ -189,6 +190,115 @@ function InstructorTab({ instructors = [] }) {
                                     {inst.certificate && (
                                         <span style={{ padding: '1px 6px', borderRadius: '6px', background: '#fefce8', color: '#a16207', fontSize: '0.72rem', border: '1px solid #fef08a' }}>
                                             📜 자격: {inst.certificate}
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+        </div>
+    );
+}
+
+// 보조요원 탭 컴포넌트 (교습소 전용)
+function AssistantTab({ assistants = [] }) {
+    const [filter, setFilter] = useState('현직'); // '전체' | '현직' | '전직'
+
+    const filtered = assistants.filter(ast => {
+        const isDismissed = !!ast.dismissDate;
+        return filter === '전체' || (filter === '현직' && !isDismissed) || (filter === '전직' && isDismissed);
+    });
+
+    const currentCount = assistants.filter(a => !a.dismissDate).length;
+    const formerCount = assistants.filter(a => !!a.dismissDate).length;
+
+    return (
+        <div className="tab-content animate-enter">
+            {/* 상단 통계 */}
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '16px', flexWrap: 'wrap' }}>
+                {[{ label: '현직 보조요원', val: currentCount, color: '#059669', bg: '#ecfdf5', border: '#a7f3d0' },
+                  { label: '전직 보조요원', val: formerCount, color: '#64748b', bg: '#f8fafc', border: '#e2e8f0' },
+                ].map(s => (
+                    <div key={s.label} style={{ flex: '1 1 80px', minWidth: '80px', padding: '12px 14px', background: s.bg, border: `1px solid ${s.border}`, borderRadius: '12px', textAlign: 'center' }}>
+                        <div style={{ fontSize: '1.4rem', fontWeight: '800', color: s.color }}>{s.val}</div>
+                        <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '2px' }}>{s.label}</div>
+                    </div>
+                ))}
+            </div>
+
+            {/* 필터 */}
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
+                <div style={{ display: 'flex', gap: '4px', background: 'var(--bg-main)', borderRadius: '10px', padding: '3px' }}>
+                    {['현직', '전직', '전체'].map(f => (
+                        <button key={f} onClick={() => setFilter(f)} style={{
+                            padding: '5px 12px', borderRadius: '8px', border: 'none', cursor: 'pointer',
+                            fontSize: '0.8rem', fontWeight: '700',
+                            background: filter === f ? 'var(--primary)' : 'transparent',
+                            color: filter === f ? 'white' : 'var(--text-muted)',
+                            transition: 'all 0.15s'
+                        }}>{f}</button>
+                    ))}
+                </div>
+            </div>
+
+            {/* 보조요원 목록 */}
+            {filtered.length === 0 ? (
+                <p className="empty-msg">해당 조건의 보조요원이 없습니다.</p>
+            ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {filtered.map((ast, idx) => {
+                        const isDismissed = !!ast.dismissDate;
+                        return (
+                            <div key={idx} style={{
+                                padding: '12px 16px',
+                                borderRadius: '12px',
+                                border: '1px solid var(--border-color)',
+                                borderLeft: `4px solid ${isDismissed ? '#94a3b8' : '#059669'}`,
+                                background: isDismissed ? 'var(--bg-main)' : 'var(--bg-card)',
+                                opacity: isDismissed ? 0.75 : 1,
+                            }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                                    <span style={{ fontSize: '1rem', fontWeight: '800', color: isDismissed ? '#64748b' : 'var(--text-main)' }}>
+                                        {idx + 1}. {ast.name || '-'}
+                                    </span>
+                                    {ast.subject && (
+                                        <span style={{ padding: '2px 8px', borderRadius: '8px', background: '#ecfdf5', color: '#065f46', fontSize: '0.75rem', fontWeight: '700', border: '1px solid #a7f3d0' }}>
+                                            {ast.subject}
+                                        </span>
+                                    )}
+                                    {ast.type && (
+                                        <span style={{ padding: '2px 8px', borderRadius: '8px', background: '#f0fdf4', color: '#166534', fontSize: '0.75rem', fontWeight: '600', border: '1px solid #bbf7d0' }}>
+                                            {ast.type}
+                                        </span>
+                                    )}
+                                    {isDismissed && (
+                                        <span style={{ padding: '2px 8px', borderRadius: '8px', background: '#f1f5f9', color: '#64748b', fontSize: '0.72rem', fontWeight: '600', border: '1px solid #e2e8f0' }}>
+                                            전직
+                                        </span>
+                                    )}
+                                    <span style={{ marginLeft: 'auto', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                        {eduShort(ast.education)}{ast.major ? ` · ${ast.major}` : ''}
+                                    </span>
+                                </div>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                                    {ast.hireDate && (
+                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                            <span style={{ color: '#10b981', fontWeight: '700' }}>채용</span> {ast.hireDate}
+                                        </span>
+                                    )}
+                                    {ast.dismissDate && (
+                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                            <span style={{ color: '#ef4444', fontWeight: '700' }}>해임</span> {ast.dismissDate}
+                                        </span>
+                                    )}
+                                    {ast.changeReason && (
+                                        <span style={{ color: '#94a3b8' }}>({ast.changeReason})</span>
+                                    )}
+                                    {ast.certificate && (
+                                        <span style={{ padding: '1px 6px', borderRadius: '6px', background: '#fefce8', color: '#a16207', fontSize: '0.72rem', border: '1px solid #fef08a' }}>
+                                            📜 자격: {ast.certificate}
                                         </span>
                                     )}
                                 </div>
@@ -749,7 +859,7 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
     // 탭 변경 시 해당 탭이 화면에 보이도록 스크롤
     useEffect(() => {
         if (tabsRef.current) {
-            const currentTabs = TABS.filter(tab => !(tab.id === 'instructor' && (academy.category || '').includes('교습소')));
+            const currentTabs = TABS.filter(tab => !((tab.id === 'instructor' && (academy.category || '').includes('교습소')) || (tab.id === 'assistant' && !(academy.category || '').includes('교습소'))));
             const activeTabIndex = currentTabs.findIndex(tab => tab.id === activeTab);
             const tabButtons = tabsRef.current.querySelectorAll('.tab-btn');
             const activeButton = tabButtons[activeTabIndex];
@@ -804,7 +914,7 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
         const isRightSwipe = distance < -minSwipeDistance;
 
         if (isLeftSwipe || isRightSwipe) {
-            const currentTabs = TABS.filter(tab => !(tab.id === 'instructor' && (academy.category || '').includes('교습소')));
+            const currentTabs = TABS.filter(tab => !((tab.id === 'instructor' && (academy.category || '').includes('교습소')) || (tab.id === 'assistant' && !(academy.category || '').includes('교습소'))));
             const currentIndex = currentTabs.findIndex(tab => tab.id === activeTab);
             if (isLeftSwipe && currentIndex < currentTabs.length - 1) {
                 setActiveTab(currentTabs[currentIndex + 1].id);
@@ -1787,6 +1897,11 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
                     <InstructorTab instructors={academy.instructors || []} />
                 );
             }
+            case 'assistant': {
+                return (
+                    <AssistantTab assistants={academy.assistants || []} />
+                );
+            }
             case 'inspection': {
                 const totalCount = academy.inspections.length;
                 const violationCount = academy.inspections.filter(i => i.isViolation).length;
@@ -1820,7 +1935,7 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
                 onTouchMove={onTouchMove}
                 onTouchEnd={onTouchEnd}
             >
-                {TABS.filter(tab => !(tab.id === 'instructor' && (academy.category || '').includes('교습소'))).map(tab => (
+                {TABS.filter(tab => !((tab.id === 'instructor' && (academy.category || '').includes('교습소')) || (tab.id === 'assistant' && !(academy.category || '').includes('교습소')))).map(tab => (
                     <button
                         key={tab.id}
                         className={`tab-btn ${activeTab === tab.id ? 'active' : ''}`}

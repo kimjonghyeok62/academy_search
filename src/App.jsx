@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import DetailView from './components/DetailView';
 import Login from './components/Login';
 import PrivateTutorDetailView from './components/PrivateTutorDetailView';
-import { fetchGoogleSheetData, transformAcademyData, fetchSheetName, fetchInspectionData, fetch2026InspectionData, fetchInstructorData, fetchPrivateTutorData, DATA_GID, GYOSEUPSO_GID } from './utils/googleSheets';
+import { fetchGoogleSheetData, transformAcademyData, fetchSheetName, fetchInspectionData, fetch2026InspectionData, fetchInstructorData, fetchAssistantData, fetchPrivateTutorData, DATA_GID, GYOSEUPSO_GID } from './utils/googleSheets';
 import './App.css';
 import InspectionStandardAccordion from './components/InspectionStandardAccordion';
 import InspectionPage from './components/InspectionPage';
@@ -76,7 +76,7 @@ function App() {
   const CACHE_KEY = 'academy_data_v5'; // v5: 2번 시트 헤더 자동감지 + 중복 복합키 적용
   const CACHE_TTL = 30 * 60 * 1000; // 30분
 
-  const mergeSupplementaryData = (rawData, inspectionMap, map2026, instructorMap) => {
+  const mergeSupplementaryData = (rawData, inspectionMap, map2026, instructorMap, assistantMap) => {
     const fullAcademies = transformAcademyData(rawData, inspectionMap);
     fullAcademies.forEach(academy => {
       const normName = academy.name.replace(/[^a-zA-Z0-9가-힣]/g, '').toLowerCase();
@@ -103,8 +103,14 @@ function App() {
         });
       }
 
-      // 강사 데이터 병합
-      academy.instructors = instructorMap.get(academy.id) || instructorMap.get(normName) || [];
+      const isGyoseupso = (academy.category || '').includes('교습소');
+      if (isGyoseupso) {
+        // 교습소: 보조요원 데이터 병합
+        academy.assistants = assistantMap.get(academy.id) || assistantMap.get(normName) || [];
+      } else {
+        // 학원: 강사 데이터 병합
+        academy.instructors = instructorMap.get(academy.id) || instructorMap.get(normName) || [];
+      }
     });
     return fullAcademies;
   };
@@ -140,14 +146,15 @@ function App() {
       setPrivateTutors(tutorData);
       setLoading(false);
 
-      // 3. Phase 2: 보조 데이터 백그라운드 로드 (점검·강사·시트명)
-      const [sheetName, inspectionMap, map2026, instructorMap] = await Promise.all([
+      // 3. Phase 2: 보조 데이터 백그라운드 로드 (점검·강사·보조요원·시트명)
+      const [sheetName, inspectionMap, map2026, instructorMap, assistantMap] = await Promise.all([
         fetchSheetName(),
         fetchInspectionData(),
         fetch2026InspectionData(),
         fetchInstructorData(),
+        fetchAssistantData(),
       ]);
-      const fullAcademies = mergeSupplementaryData(rawData, inspectionMap, map2026, instructorMap);
+      const fullAcademies = mergeSupplementaryData(rawData, inspectionMap, map2026, instructorMap, assistantMap);
       setAcademies(fullAcademies);
       setDataAsOf(sheetName);
 
