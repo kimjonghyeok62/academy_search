@@ -3,19 +3,19 @@ import { printTuitionForm, printTuitionFormExternal } from '../utils/generateTui
 
 const PROMPT = `이 이미지는 학원(교습소) 교습비등 등록신청서입니다.
 경기 광주하남 교육지원청의 분당기준단가(이 단가를 초과할 수 없음):
-- 보습 단과(초등): 210원
-- 보습 단과(중등): 222원
-- 보습 단과(고등): 234원
+- 보습 — 단과(초등): 210원
+- 보습 — 단과(중등): 222원
+- 보습 — 단과(고등): 234원
 - 진학상담, 지도: 234원
-- 어학(실용외국어 포함): 259원
-- 음악 유,초,중,고: 224원
-- 음악 입시: 336원
-- 미술 유,초,중,고: 212원
-- 미술 입시: 255원
-- 무용 유,초,중,고: 212원
-- 무용 입시: 255원
-- 정보 일반: 230원
-- 기타 일반: 230원
+- 어학 (실용외국어 포함): 259원
+- 음악 — 유,초,중,고: 224원
+- 음악 — 입시: 336원
+- 미술 — 유,초,중,고: 212원
+- 미술 — 입시: 255원
+- 무용 — 유,초,중,고: 212원
+- 무용 — 입시: 255원
+- 정보 — 일반: 230원
+- 기타 — 일반: 230원
 
 이미지에서 교습비 테이블의 각 행을 추출하고 분당단가 기준 초과 여부를 분석해주세요.
 
@@ -45,7 +45,7 @@ const PROMPT = `이 이미지는 학원(교습소) 교습비등 등록신청서�
       "tuitionFee": 170000,
       "reportedRate": 146,
       "standardRate": 210,
-      "standardLabel": "보습 단과(초등)",
+      "standardLabel": "보습 — 단과(초등)",
       "isCompliant": true,
       "calculatedRate": 146.4
     }
@@ -67,7 +67,11 @@ export default function TuitionReviewTab() {
   const cameraInputRef = useRef(null);
 
   function updateCourse(index, field, value) {
-    setCourses(prev => prev.map((c, i) => i === index ? { ...c, [field]: value } : c));
+    if (typeof field === 'object') {
+      setCourses(prev => prev.map((c, i) => i === index ? { ...c, ...field } : c));
+    } else {
+      setCourses(prev => prev.map((c, i) => i === index ? { ...c, [field]: value } : c));
+    }
   }
 
   async function handleImageFile(file) {
@@ -312,6 +316,10 @@ function calcCourse(c) {
 function CourseResult({ course, index, onUpdate }) {
   const { totalMinutes, fee, calculatedRate, isCompliant } = calcCourse(course);
   const rateRounded = Math.round(calculatedRate * 10) / 10;
+  const selectedOpt =
+    STANDARD_RATE_OPTIONS.find(o => o.label === course.standardLabel) ||
+    STANDARD_RATE_OPTIONS.find(o => o.rate === course.standardRate) ||
+    STANDARD_RATE_OPTIONS[0];
 
   let recDailyMinutes = null, recTotalMinutes = null, recMaxFee = null;
   if (!isCompliant && fee && course.standardRate && totalMinutes && course.weeklyCount && course.weeks) {
@@ -432,9 +440,24 @@ function CourseResult({ course, index, onUpdate }) {
             <div>
               실제 계산: {fee.toLocaleString()} ÷ {totalMinutes.toLocaleString()} = <strong>{rateRounded}원/분</strong>
             </div>
-            <div>
-              기준 단가: <strong>{course.standardRate}원/분</strong>
-              <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginLeft: '6px' }}>({course.standardLabel})</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+              <span>기준 단가: <strong>{selectedOpt.rate}원/분</strong></span>
+              <select
+                value={selectedOpt.label}
+                onChange={e => {
+                  const opt = STANDARD_RATE_OPTIONS.find(o => o.label === e.target.value);
+                  if (opt) onUpdate({ standardRate: opt.rate, standardLabel: opt.label });
+                }}
+                style={{
+                  fontSize: '0.82rem', padding: '2px 8px', borderRadius: '6px',
+                  border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-card)',
+                  color: 'var(--text-main)', cursor: 'pointer', fontFamily: 'inherit'
+                }}
+              >
+                {STANDARD_RATE_OPTIONS.map(o => (
+                  <option key={o.label} value={o.label}>{o.label} ({o.rate}원/분)</option>
+                ))}
+              </select>
             </div>
             <div style={{ fontWeight: '700', fontSize: '0.95rem', color: isCompliant ? '#16a34a' : '#dc2626', marginTop: '2px' }}>
               {rateRounded}원 {isCompliant ? '≤' : '>'} {course.standardRate}원 → {isCompliant ? '✅ 적합' : '❌ 기준 초과'}
@@ -474,7 +497,7 @@ function PrintIcon({ stroke = '#fff' }) {
   );
 }
 
-// ─── 간이 검토 카드 ──────────────────────────────────────────
+// ─── 기준단가 옵션 ───────────────────────────────────────────
 const STANDARD_RATE_OPTIONS = [
   { label: '보습 — 단과(초등)', rate: 210 },
   { label: '보습 — 단과(중등)', rate: 222 },
