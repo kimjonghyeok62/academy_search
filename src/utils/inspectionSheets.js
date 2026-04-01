@@ -11,11 +11,11 @@ export const DEFER_GID = '1967173055';
 
 // 하남 학원 전체 목록 시트 (전체 학원 개수)
 export const HANAM_ACADEMY_SHEET_ID = '158ZNBb88raJ1kzBL3eFcgPZS9CGs5in0YtPtiPWfdic';
-export const HANAM_ACADEMY_GID = '1863320151';
+export const HANAM_ACADEMY_SHEET = '학원조회';
 
 // 하남 교습소 전체 목록 시트 (전체 교습소 개수)
 export const HANAM_HAGWON_SHEET_ID = '1pHQNblzLHIE3Rfz9h622MXDLAAXtkyv4I06Zync2-Xk';
-export const HANAM_HAGWON_GID = '2090335200';
+export const HANAM_HAGWON_SHEET = '교습소조회';
 
 // Google Apps Script Web App URL (구글 시트 쓰기용)
 export const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwyW4hpzU4xdAfMPi9Rs50YHRN1lPhJQrpuj-9EggKfvtCefbQS3IMsC4WB5O5tF44/exec';
@@ -60,8 +60,11 @@ function parseCSVText(text) {
     return rows;
 }
 
-async function fetchCSV(sheetId, gid) {
-    const url = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
+async function fetchCSV(sheetId, gidOrSheet) {
+    const param = /^\d+$/.test(String(gidOrSheet))
+        ? `gid=${gidOrSheet}`
+        : `sheet=${encodeURIComponent(gidOrSheet)}`;
+    const url = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&${param}`;
     const response = await fetch(url, { cache: 'no-store' });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return await response.text();
@@ -111,7 +114,7 @@ export async function fetchRecentRawRows() {
 // 하남 전체 학원 개수 가져오기
 export async function fetchHanamAcademyCount() {
     try {
-        const text = await fetchCSV(HANAM_ACADEMY_SHEET_ID, HANAM_ACADEMY_GID);
+        const text = await fetchCSV(HANAM_ACADEMY_SHEET_ID, HANAM_ACADEMY_SHEET);
         const rows = parseCSVText(text);
         // 헤더 제외한 데이터 행 개수 (폐원 제외)
         if (!rows || rows.length < 2) return 0;
@@ -144,7 +147,7 @@ export async function fetchHanamAcademyCount() {
 // 하남 전체 교습소 개수 가져오기
 export async function fetchHanamHagwonCount() {
     try {
-        const text = await fetchCSV(HANAM_HAGWON_SHEET_ID, HANAM_HAGWON_GID);
+        const text = await fetchCSV(HANAM_HAGWON_SHEET_ID, HANAM_HAGWON_SHEET);
         const rows = parseCSVText(text);
         if (!rows || rows.length < 2) return 0;
         let headerIdx = 0;
@@ -173,37 +176,37 @@ export async function fetchHanamHagwonCount() {
 
 // 하남 전체 학원 상세 rows (연도별 개수 계산용)
 export async function fetchHanamAcademyRawRows() {
-    const text = await fetchCSV(HANAM_ACADEMY_SHEET_ID, HANAM_ACADEMY_GID);
+    const text = await fetchCSV(HANAM_ACADEMY_SHEET_ID, HANAM_ACADEMY_SHEET);
     return parseCSVText(text);
 }
 
 // 하남 전체 교습소 상세 rows (연도별 개수 계산용)
 export async function fetchHanamHagwonRawRows() {
-    const text = await fetchCSV(HANAM_HAGWON_SHEET_ID, HANAM_HAGWON_GID);
+    const text = await fetchCSV(HANAM_HAGWON_SHEET_ID, HANAM_HAGWON_SHEET);
     return parseCSVText(text);
 }
 
 // 나이스 통합 시트 (학원/교습소/과외 전체 조회용)
 export const NICE_SHEET_ID = '158ZNBb88raJ1kzBL3eFcgPZS9CGs5in0YtPtiPWfdic';
-export const NICE_ACADEMY_GID = '1863320151';
-export const NICE_HAGWON_GID  = '1929773080';
-export const NICE_PRIVATE_GID = '482385921';
+export const NICE_ACADEMY_SHEET = '학원조회';
+export const NICE_HAGWON_SHEET  = '교습소조회';
+export const NICE_PRIVATE_SHEET = '개인과외교습자조회';
 
 // 나이스 학원조회 전체 rows
 export async function fetchNiceAcademyRawRows() {
-    const text = await fetchCSV(NICE_SHEET_ID, NICE_ACADEMY_GID);
+    const text = await fetchCSV(NICE_SHEET_ID, NICE_ACADEMY_SHEET);
     return parseCSVText(text);
 }
 
 // 나이스 교습소조회 전체 rows
 export async function fetchNiceHagwonRawRows() {
-    const text = await fetchCSV(NICE_SHEET_ID, NICE_HAGWON_GID);
+    const text = await fetchCSV(NICE_SHEET_ID, NICE_HAGWON_SHEET);
     return parseCSVText(text);
 }
 
 // 나이스 개인과외교습자조회 전체 rows
 export async function fetchNicePrivateRawRows() {
-    const text = await fetchCSV(NICE_SHEET_ID, NICE_PRIVATE_GID);
+    const text = await fetchCSV(NICE_SHEET_ID, NICE_PRIVATE_SHEET);
     return parseCSVText(text);
 }
 

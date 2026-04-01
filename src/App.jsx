@@ -735,7 +735,7 @@ function App() {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    window.open(`https://map.naver.com/v5/search/${encodeURIComponent(academy.address)}`, '_blank');
+                    setShowMap(true);
                   }}
                   style={{
                     display: 'inline-flex',
@@ -761,7 +761,7 @@ function App() {
                     e.currentTarget.style.backgroundColor = 'var(--bg-card)';
                     e.currentTarget.style.borderColor = 'var(--border-color)';
                   }}
-                  title="네이버 지도에서 보기"
+                  title="분포지도에서 보기"
                 >
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>

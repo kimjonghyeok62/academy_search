@@ -1,10 +1,14 @@
 
 export const SHEET_ID = '158ZNBb88raJ1kzBL3eFcgPZS9CGs5in0YtPtiPWfdic';
-export const DATA_GID = '1863320151';
-export const GYOSEUPSO_GID = '1929773080';
-export const PASSWORD_GID = '59615156';
-export const PRIVATE_TUTOR_GID = '482385921';
-export const ACADEMY_CLOSED_GID = '1101934141'; // 폐원된 학원 데이터
+// GID 대신 시트명 사용 (GID는 시트 재생성 시 변경될 수 있음)
+export const DATA_SHEET = '학원조회';
+export const GYOSEUPSO_SHEET = '교습소조회';
+export const PRIVATE_TUTOR_SHEET = '개인과외교습자조회';
+export const ACADEMY_CLOSED_SHEET = '학원(폐원)';
+export const PASSWORD_GID = '59615156'; // 시트명 미확인 - GID 유지
+// 하위 호환용 (기존 코드 대응)
+export const DATA_GID = DATA_SHEET;
+export const GYOSEUPSO_GID = GYOSEUPSO_SHEET;
 
 // 지도점검 전용 시트 (2025년 이전 통계)
 export const INSPECTION_SHEET_ID = '1xxaBOZMuLqozEm10f4lXnme_ARLfRHzGcsk5QlqoYKI';
@@ -27,8 +31,8 @@ const getFlexibleVal = (row, keywords) => {
     return '';
 };
 
-export async function fetchGoogleSheetData(gid) {
-    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${gid}`;
+export async function fetchGoogleSheetData(sheetName) {
+    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&sheet=${encodeURIComponent(sheetName)}`;
     try {
         const response = await fetch(url);
         const txt = await response.text();
@@ -44,7 +48,7 @@ export async function fetchGoogleSheetData(gid) {
  * 반환: { regDate, closeDate, address, category }[]
  */
 export async function fetchAcademyClosureData() {
-    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${ACADEMY_CLOSED_GID}`;
+    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&sheet=${encodeURIComponent(ACADEMY_CLOSED_SHEET)}`;
     try {
         const response = await fetch(url);
         const txt = await response.text();
@@ -431,7 +435,7 @@ function normalizeTutorAddress(address) {
  * 반환: privateTutor[]
  */
 export async function fetchPrivateTutorData() {
-    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${PRIVATE_TUTOR_GID}`;
+    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&sheet=${encodeURIComponent(PRIVATE_TUTOR_SHEET)}`;
     try {
         const response = await fetch(url);
         const txt = await response.text();
