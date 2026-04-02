@@ -2587,27 +2587,43 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
     const normName = (n) => (n || '').replace(/[^a-zA-Z0-9가-힣]/g, '').toLowerCase();
     const isInsp2026 = useCallback((a) => inspectedNames.has(normName(a.name)), [inspectedNames]);
 
+    const RECENT_ROWS_CACHE_KEY = 'recentRawRows_cache';
+
+    const applyRows = (bodyRows) => {
+        setAllRawRows(bodyRows);
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        const names = new Set(bodyRows
+            .filter(r => {
+                const dateStr = colVal(r, ['점검일', '점검일자', '지도점검일']);
+                if (!dateStr || !dateStr.trim()) return false;
+                const d = toDateRev(dateStr);
+                if (!d) return false;
+                return d <= today;
+            })
+            .map(r => normName(colVal(r, ['학원(교습소)명', '명칭', '학원명', '기관명'])))
+            .filter(Boolean));
+        setInspectedNames(names);
+        return names;
+    };
+
     const loadInspectedNames = async () => {
         try {
             const { bodyRows } = await fetchRecentRawRows();
-            setAllRawRows(bodyRows);
-            const today = new Date(); today.setHours(0, 0, 0, 0);
-            const names = new Set(bodyRows
-                .filter(r => {
-                    const dateStr = colVal(r, ['점검일', '점검일자', '지도점검일']);
-                    if (!dateStr || !dateStr.trim()) return false; // 점검일 없으면 제외
-                    const d = toDateRev(dateStr);
-                    if (!d) return false; // 파싱 실패 시 제외
-                    return d <= today; // 오늘 이전만 포함
-                })
-                .map(r => normName(colVal(r, ['학원(교습소)명', '명칭', '학원명', '기관명'])))
-                .filter(Boolean));
-            setInspectedNames(names);
-            return names;
+            try { sessionStorage.setItem(RECENT_ROWS_CACHE_KEY, JSON.stringify(bodyRows)); } catch { /* 저장 실패 무시 */ }
+            applyRows(bodyRows);
+            return new Set();
         } catch { return new Set(); }
     };
 
-    useEffect(() => { loadInspectedNames(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    useEffect(() => {
+        // 캐시 즉시 렌더링
+        try {
+            const cached = sessionStorage.getItem(RECENT_ROWS_CACHE_KEY);
+            if (cached) applyRows(JSON.parse(cached));
+        } catch { /* 캐시 읽기 실패 무시 */ }
+        // 백그라운드에서 최신 데이터 fetch 후 갱신
+        loadInspectedNames();
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     // ── 점검 경로: 향후 30일 내 날짜별 그룹 ──
     const planDateMap = useMemo(() => {
@@ -2692,7 +2708,8 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
             const academy = allA.find(a => normName(a.name) === normName(rawName)) || null;
             if (!academy) return null;
             const schedule = colVal(row, ['예약일정','점검시간','예약시간','시간','일정']);
-            return { ...academy, _schedule: schedule };
+            const uninspectedPeriod = colVal(row, ['미점검기간', '미점검 기간', '미검기간', '미점검일수']);
+            return { ...academy, _schedule: schedule, _uninspectedPeriod: uninspectedPeriod };
         }).filter(Boolean);
         if (matched.length === 0) return [];
 
@@ -3584,6 +3601,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                                         <Th>주소</Th>
                                         <Th>성명</Th>
                                         <Th>전화번호</Th>
+                                        <Th style={{ textAlign: 'right' }}>미점검기간</Th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -3641,6 +3659,17 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                                                     {(a.founder?.mobile || a.founder?.phone)
                                                         ? <a href={`tel:${a.founder?.mobile || a.founder?.phone}`} onClick={e => e.stopPropagation()} style={{ color: '#3b82f6', fontWeight: '600', textDecoration: 'none' }}>{a.founder?.mobile || a.founder?.phone}</a>
                                                         : '-'}
+                                                </Td>
+                                                <Td style={{ fontSize: '0.78rem', whiteSpace: 'nowrap', textAlign: 'right' }}>
+                                                    {a._uninspectedPeriod
+                                                        ? <span style={{ fontWeight: '700', color: (() => {
+                                                            const s = a._uninspectedPeriod;
+                                                            const y = parseInt((s.match(/(\d+)년/) || [])[1] || '0');
+                                                            const mo = parseInt((s.match(/(\d+)개월/) || [])[1] || '0');
+                                                            const total = y * 12 + mo;
+                                                            return total >= 24 ? '#ef4444' : total >= 12 ? '#f97316' : '#10b981';
+                                                          })() }}>{a._uninspectedPeriod}</span>
+                                                        : <span style={{ color: 'var(--text-muted)' }}>-</span>}
                                                 </Td>
                                             </tr>
                                             );
