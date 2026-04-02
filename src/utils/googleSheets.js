@@ -6,9 +6,10 @@ export const PRIVATE_TUTOR_SHEET = '개인과외교습자조회';
 export const ACADEMY_CLOSED_SHEET = '학원(폐원)';
 export const PASSWORD_GID = '59615156';
 // GID 사용 (sheet= 파라미터는 첫 번째 시트를 반환하는 버그 있음)
-export const DATA_GID = '1863320151';      // 학원조회
-export const GYOSEUPSO_GID = '1929773080'; // 교습소조회
+export const DATA_GID = '1863320151';         // 학원조회
+export const GYOSEUPSO_GID = '1929773080';    // 교습소조회
 export const PRIVATE_TUTOR_GID = '482385921'; // 개인과외교습자조회
+export const ACADEMY_CLOSED_GID = '720382546'; // 학원(폐원)
 
 // 지도점검 전용 시트 (2025년 이전 통계)
 export const INSPECTION_SHEET_ID = '1xxaBOZMuLqozEm10f4lXnme_ARLfRHzGcsk5QlqoYKI';
@@ -53,7 +54,7 @@ export async function fetchGoogleSheetData(sheetNameOrGid) {
  * 반환: { regDate, closeDate, address, category }[]
  */
 export async function fetchAcademyClosureData() {
-    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&sheet=${encodeURIComponent(ACADEMY_CLOSED_SHEET)}`;
+    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${ACADEMY_CLOSED_GID}`;
     try {
         const response = await fetch(url);
         const txt = await response.text();
