@@ -73,7 +73,7 @@ function App() {
     }
   }, [isAuthenticated]);
 
-  const CACHE_KEY = 'academy_data_v5'; // v5: 2번 시트 헤더 자동감지 + 중복 복합키 적용
+  const CACHE_KEY = 'academy_data_v8'; // v8: 학원(폐원) 시트도 GID 방식으로 전환
   const CACHE_TTL = 30 * 60 * 1000; // 30분
 
   const mergeSupplementaryData = (rawData, inspectionMap, map2026, instructorMap, assistantMap) => {
@@ -117,7 +117,7 @@ function App() {
 
   const loadData = async () => {
     // 이전 버전 캐시 정리
-    ['academy_data_v1','academy_data_v2','academy_data_v3','academy_data_v4'].forEach(k => sessionStorage.removeItem(k));
+    ['academy_data_v1','academy_data_v2','academy_data_v3','academy_data_v4','academy_data_v5','academy_data_v6','academy_data_v7'].forEach(k => sessionStorage.removeItem(k));
 
     // 1. 캐시 확인 (30분 내 데이터면 즉시 사용)
     try {
