@@ -2580,6 +2580,16 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
     const [allRawRows, setAllRawRows] = useState([]);
     const [routeDate, setRouteDate] = useState(initialRouteDate || '');
     const [routeCacheVer, setRouteCacheVer] = useState(0);
+    const [manualOrderMap, setManualOrderMap] = useState(() => {
+        try {
+            const saved = localStorage.getItem('routeManualOrder');
+            return saved ? new Map(JSON.parse(saved)) : new Map();
+        } catch { return new Map(); }
+    });
+    const [dragState, setDragState] = useState({ dragging: null, over: null });
+    const dragRef = useRef({ idx: null, overIdx: null });
+    const touchDragRef = useRef({ active: false, startIdx: null, timer: null });
+    const routeTbodyRef = useRef(null);
     const routeMapContainerRef = useRef(null);
     const routeMapInstanceRef = useRef(null);
     const inlineRouteMarkersRef = useRef([]);
@@ -2790,6 +2800,132 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
         });
     }, [routeDate, planDateMap, academies, routeCacheVer]); // eslint-disable-line react-hooks/exhaustive-deps
 
+    // ── 수동 순서 적용 + 이동거리 재계산 ──
+    const routeAcademiesFinal = useMemo(() => {
+        if (routeAcademiesSorted.length === 0) return [];
+        const manualKeys = manualOrderMap.get(routeDate);
+        if (!manualKeys || manualKeys.length === 0) return routeAcademiesSorted;
+        const keyOf = (a) => `${a.id}-${a.category}`;
+        const byKey = new Map(routeAcademiesSorted.map(a => [keyOf(a), a]));
+        const keySet = new Set(manualKeys);
+        const reordered = [];
+        manualKeys.forEach(k => { if (byKey.has(k)) reordered.push(byKey.get(k)); });
+        routeAcademiesSorted.forEach(a => { if (!keySet.has(keyOf(a))) reordered.push(a); });
+        const BASE_LAT = 37.5674619;
+        const BASE_LNG = 127.1961543;
+        return reordered.map((a, i) => {
+            let dist = null;
+            if (i === 0) {
+                if (a._lat != null) dist = haversineKm(BASE_LAT, BASE_LNG, a._lat, a._lng);
+            } else {
+                const prev = reordered[i - 1];
+                if (a._lat != null && prev._lat != null) dist = haversineKm(prev._lat, prev._lng, a._lat, a._lng);
+            }
+            return { ...a, _order: i + 1, _dist: dist };
+        });
+    }, [routeAcademiesSorted, manualOrderMap, routeDate]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const applyRouteOrder = useCallback((newList) => {
+        const keys = newList.map(a => `${a.id}-${a.category}`);
+        setManualOrderMap(prev => {
+            const next = new Map(prev);
+            next.set(routeDate, keys);
+            try { localStorage.setItem('routeManualOrder', JSON.stringify([...next])); } catch {}
+            return next;
+        });
+    }, [routeDate]);
+
+    const resetRouteOrder = useCallback(() => {
+        setManualOrderMap(prev => {
+            const next = new Map(prev);
+            next.delete(routeDate);
+            try { localStorage.setItem('routeManualOrder', JSON.stringify([...next])); } catch {}
+            return next;
+        });
+    }, [routeDate]);
+
+    // ── 드래그 앤 드롭 핸들러 ──
+    const handleDragStart = useCallback((e, i) => {
+        dragRef.current.idx = i;
+        setDragState(s => ({ ...s, dragging: i }));
+        e.dataTransfer.effectAllowed = 'move';
+    }, []);
+    const handleDragOver = useCallback((e, i) => {
+        e.preventDefault();
+        if (dragRef.current.overIdx !== i) {
+            dragRef.current.overIdx = i;
+            setDragState(s => ({ ...s, over: i }));
+        }
+    }, []);
+    const handleDragEnd = useCallback(() => {
+        dragRef.current.idx = null;
+        dragRef.current.overIdx = null;
+        setDragState({ dragging: null, over: null });
+    }, []);
+    const handleDrop = useCallback((e, i, list) => {
+        e.preventDefault();
+        const from = dragRef.current.idx;
+        if (from === null || from === i) { handleDragEnd(); return; }
+        const newList = [...list];
+        const [removed] = newList.splice(from, 1);
+        newList.splice(i, 0, removed);
+        applyRouteOrder(newList);
+        handleDragEnd();
+    }, [applyRouteOrder, handleDragEnd]);
+
+    // ── 터치 드래그 핸들러 ──
+    const handleTouchStart = useCallback((e, i) => {
+        const timer = setTimeout(() => {
+            touchDragRef.current.active = true;
+            touchDragRef.current.startIdx = i;
+            dragRef.current.idx = i;
+            dragRef.current.overIdx = i;
+            setDragState({ dragging: i, over: i });
+            if (navigator.vibrate) navigator.vibrate(50);
+        }, 500);
+        touchDragRef.current.timer = timer;
+    }, []);
+    const handleTouchEnd = useCallback((list) => {
+        clearTimeout(touchDragRef.current.timer);
+        if (!touchDragRef.current.active) { touchDragRef.current.timer = null; return; }
+        const from = touchDragRef.current.startIdx;
+        const to = dragRef.current.overIdx;
+        touchDragRef.current.active = false;
+        touchDragRef.current.startIdx = null;
+        touchDragRef.current.timer = null;
+        if (from !== null && to !== null && from !== to) {
+            const newList = [...list];
+            const [removed] = newList.splice(from, 1);
+            newList.splice(to, 0, removed);
+            applyRouteOrder(newList);
+        }
+        dragRef.current.idx = null;
+        dragRef.current.overIdx = null;
+        setDragState({ dragging: null, over: null });
+    }, [applyRouteOrder]);
+
+    // touchmove passive:false (스크롤 방지)
+    useEffect(() => {
+        const el = routeTbodyRef.current;
+        if (!el) return;
+        const onMove = (e) => {
+            if (!touchDragRef.current.active) { clearTimeout(touchDragRef.current.timer); return; }
+            e.preventDefault();
+            const touch = e.touches[0];
+            const target = document.elementFromPoint(touch.clientX, touch.clientY);
+            const row = target?.closest('[data-drag-idx]');
+            if (row) {
+                const idx = parseInt(row.dataset.dragIdx);
+                if (!isNaN(idx) && dragRef.current.overIdx !== idx) {
+                    dragRef.current.overIdx = idx;
+                    setDragState(s => ({ ...s, over: idx }));
+                }
+            }
+        };
+        el.addEventListener('touchmove', onMove, { passive: false });
+        return () => el.removeEventListener('touchmove', onMove);
+    }, [routeDate]); // routeDate 바뀌면 tbody ref 재연결
+
     // ── 인라인 경로 지도 ──
     const getUnitLabel = (address) => {
         if (!address) return '';
@@ -2801,7 +2937,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
         inlineRouteMarkersRef.current.forEach(o => o.setMap(null));
         inlineRouteMarkersRef.current = [];
 
-        if (!routeDate || routeAcademiesSorted.length === 0 || !routeMapContainerRef.current) return;
+        if (!routeDate || routeAcademiesFinal.length === 0 || !routeMapContainerRef.current) return;
 
         let cancelled = false;
 
@@ -2833,10 +2969,10 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
 
             // 캐시에 좌표가 없는 학원은 직접 지오코딩
             const coordsMap = new Map(); // id-category → {lat, lng}
-            routeAcademiesSorted.forEach(a => {
+            routeAcademiesFinal.forEach(a => {
                 if (a._lat != null) coordsMap.set(`${a.id}-${a.category}`, { lat: a._lat, lng: a._lng });
             });
-            const missing = routeAcademiesSorted.filter(a => a._lat == null && a.address);
+            const missing = routeAcademiesFinal.filter(a => a._lat == null && a.address);
             if (missing.length > 0) {
                 const cache = JSON.parse(localStorage.getItem('academyMapLocations') || '{}');
                 let cacheUpdated = false;
@@ -2863,7 +2999,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
 
             const locationGroups = new Map();
             const noCoordItems = [];
-            routeAcademiesSorted.forEach(a => {
+            routeAcademiesFinal.forEach(a => {
                 const coords = a._lat != null ? { lat: a._lat, lng: a._lng } : coordsMap.get(`${a.id}-${a.category}`);
                 if (!coords) { noCoordItems.push(a); return; }
                 const key = `${coords.lat.toFixed(6)},${coords.lng.toFixed(6)}`;
@@ -3000,7 +3136,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
             return () => { cancelled = true; clearInterval(interval); };
         }
         return () => { cancelled = true; };
-    }, [routeAcademiesSorted, routeDate]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [routeAcademiesFinal, routeDate]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleRiskRefresh = async (type) => {
         setRiskRefreshing(true);
@@ -3585,6 +3721,13 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                         title="구글시트에서 최신 일정 다시 불러오기"
                         style={{ fontSize: '0.8rem', padding: '3px 8px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-light)', color: 'var(--text-muted)', cursor: 'pointer' }}
                     >↺</button>
+                    {manualOrderMap.has(routeDate) && (
+                        <button
+                            onClick={e => { e.stopPropagation(); resetRouteOrder(); }}
+                            title="수동 순서를 초기화하고 자동 정렬로 돌아가기"
+                            style={{ fontSize: '0.75rem', padding: '3px 8px', borderRadius: '6px', border: '1px solid #f97316', background: '#fff7ed', color: '#f97316', cursor: 'pointer', fontWeight: '700' }}
+                        >순서 초기화</button>
+                    )}
                 </div>
                 {routeDate && routeAcademiesSorted.length === 0 && (
                     <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: '8px' }}>매칭된 학원이 없습니다. 학원명을 확인해주세요.</div>
@@ -3604,7 +3747,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                                         <Th style={{ textAlign: 'right' }}>미점검기간</Th>
                                     </tr>
                                 </thead>
-                                <tbody>
+                                <tbody ref={routeTbodyRef}>
                                     {(() => {
                                         // 하남종합운동장 본부석 — 첫 번째 학원의 기준점
                                         const BASE_LAT = 37.5674619;
@@ -3617,28 +3760,43 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                                             return arrows8[Math.round(angle / 45) % 8];
                                         };
                                         const fmtDist = (km) => km < 1 ? `${Math.round(km * 1000)}m` : `${km.toFixed(1)}km`;
-                                        return routeAcademiesSorted.map((a, i) => {
-                                            const prev = i === 0 ? null : routeAcademiesSorted[i - 1];
+                                        return routeAcademiesFinal.map((a, i) => {
+                                            const prev = i === 0 ? null : routeAcademiesFinal[i - 1];
                                             const fromLat = i === 0 ? BASE_LAT : prev?._lat;
                                             const fromLng = i === 0 ? BASE_LNG : prev?._lng;
                                             const moveLabel = (() => {
                                                 if (a._lat == null || fromLat == null) return null;
-                                                let dist;
-                                                if (i === 0) {
-                                                    dist = haversineKm(BASE_LAT, BASE_LNG, a._lat, a._lng);
-                                                } else {
-                                                    dist = a._dist;
-                                                }
+                                                const dist = i === 0 ? haversineKm(BASE_LAT, BASE_LNG, a._lat, a._lng) : a._dist;
                                                 if (dist == null) return null;
                                                 const arrow = calcArrow(fromLat, fromLng, a._lat, a._lng);
                                                 return `${arrow} ${fmtDist(dist)}`;
                                             })();
+                                            const isDragging = dragState.dragging === i;
+                                            const isDragOver = dragState.over === i && dragState.dragging !== i;
                                             return (
                                             <tr
                                                 key={`${a.id}-${i}`}
-                                                style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}
+                                                data-drag-idx={i}
+                                                draggable
+                                                onDragStart={e => handleDragStart(e, i)}
+                                                onDragOver={e => handleDragOver(e, i)}
+                                                onDrop={e => handleDrop(e, i, routeAcademiesFinal)}
+                                                onDragEnd={handleDragEnd}
+                                                onTouchStart={e => handleTouchStart(e, i)}
+                                                onTouchEnd={() => handleTouchEnd(routeAcademiesFinal)}
+                                                style={{
+                                                    background: isDragOver ? 'rgba(99,102,241,0.1)' : i % 2 === 0 ? 'transparent' : 'var(--bg-main)',
+                                                    opacity: isDragging ? 0.4 : 1,
+                                                    borderTop: isDragOver ? '2px solid #6366f1' : undefined,
+                                                    cursor: 'grab',
+                                                }}
                                             >
-                                                <Td style={{ textAlign: 'center', fontWeight: '800', color: '#f97316' }}>{a._order}</Td>
+                                                <Td style={{ textAlign: 'center', fontWeight: '800', color: '#f97316', userSelect: 'none' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px' }}>
+                                                        <span style={{ color: '#cbd5e1', fontSize: '0.75rem', lineHeight: 1 }}>⠿</span>
+                                                        {a._order}
+                                                    </div>
+                                                </Td>
                                                 <Td style={{ position: 'sticky', left: 0, zIndex: 1, background: 'var(--bg-card)', maxWidth: '130px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                     {onSelectAcademy
                                                         ? <span onClick={() => onSelectAcademy(a)} style={{ fontWeight: '700', color: 'var(--primary)', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '2px' }}>{a.name}</span>
@@ -3692,7 +3850,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                     overflow: 'hidden',
                     border: '1px solid var(--border-color)',
                     marginBottom: '12px',
-                    display: (openSections.route && routeDate && routeAcademiesSorted.length > 0) ? 'block' : 'none',
+                    display: (openSections.route && routeDate && routeAcademiesFinal.length > 0) ? 'block' : 'none',
                 }}
             />
 
