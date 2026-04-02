@@ -1551,13 +1551,23 @@ function TabStats({ region, statRows, academies, privateTutors, academyClosures,
         // 하남: 현재연도는 recentRows가 정본 → statRows에서 제외
         // 광주: 통계 시트가 전체 정본 → 연도 제한 없이 사용
         const isHanam = region === '하남';
+        const todayMs = (() => { const d = new Date(); d.setHours(0,0,0,0); return d.getTime(); })();
+        const parseInspDateMs = (str) => {
+            const m = (str || '').trim().match(/(\d{4})[.\-/\s]+(\d{1,2})[.\-/\s]+(\d{1,2})/);
+            if (!m) return null;
+            return new Date(parseInt(m[1]), parseInt(m[2]) - 1, parseInt(m[3])).getTime();
+        };
         const allInsp = [
             ...statRows
                 .filter(r => !isHanam || getYear(colVal(r, ['점검일자', '점검일', '지도점검일'])) !== CURRENT_YEAR)
                 .map(r => ({ ...r, _fineUnit: 'won' })),
             ...(isHanam
                 ? recentRows
-                    .filter(r => colVal(r, ['주소', '소재지']).includes(region))
+                    .filter(r => {
+                        // recentRows는 하남 전용 시트 → 주소 필터 불필요
+                        const ms = parseInspDateMs(colVal(r, ['점검일자', '점검일', '지도점검일']));
+                        return ms === null || ms <= todayMs; // 완료 탭과 동일: 오늘 이하만
+                    })
                     .map(r => ({ ...r, _fineUnit: 'manwon' }))
                 : []),
         ];
@@ -1699,7 +1709,7 @@ function TabStats({ region, statRows, academies, privateTutors, academyClosures,
                                 <Th style={{ padding: '9px 3px 9px 14px', borderLeft: '2px solid var(--border-color)' }}>누적</Th>
                                 <Th style={{ padding: '9px 12px 9px 3px' }}>증감</Th>
                                 <Th style={{ padding: '9px 3px 9px 14px', borderLeft: '2px solid var(--border-color)' }}>누적</Th>
-                                <Th style={{ padding: '9px 12px 9px 3px' }}>신규</Th>
+                                <Th style={{ padding: '9px 12px 9px 3px' }}>증감</Th>
                             </tr>
                         </thead>
                         <tbody>
@@ -1729,7 +1739,7 @@ function TabStats({ region, statRows, academies, privateTutors, academyClosures,
                     </table>
                 </div>
                 <div style={{ marginTop: '6px', fontSize: '0.75rem', color: 'var(--text-muted)', paddingLeft: '2px' }}>
-                    ※ (교과)는 학교교과교습학원의 갯수를 말함. 증감 = 해당 연도 개원 − 폐원 순증감 (학원·교습소). 증감·신규 숫자를 누르면 목록을 볼 수 있습니다.
+                    ※ (교과)는 학교교과교습학원의 갯수를 말함. 증감 = 해당 연도 개원 − 폐원 순증감 (학원·교습소). 증감 숫자를 누르면 목록을 볼 수 있습니다.
                 </div>
                 {yearDrill && yearDrillData && (() => {
                     const kindLabel = { academy: '학원', hagwon: '교습소', priv: '과외' };
@@ -3570,10 +3580,10 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                                     <tr>
                                         <Th style={{ width: '32px', textAlign: 'center' }}>#</Th>
                                         <Th style={{ position: 'sticky', left: 0, zIndex: 2, background: 'var(--bg-main)' }}>학원명</Th>
+                                        <Th style={{ textAlign: 'right' }}>이동</Th>
                                         <Th>주소</Th>
                                         <Th>성명</Th>
                                         <Th>전화번호</Th>
-                                        <Th style={{ textAlign: 'right' }}>이동</Th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -3617,6 +3627,11 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                                                         : <span style={{ fontWeight: '600' }}>{a.name}</span>
                                                     }
                                                 </Td>
+                                                <Td style={{ textAlign: 'right' }}>
+                                                    {moveLabel
+                                                        ? <span style={{ color: '#10b981', fontWeight: '700', whiteSpace: 'nowrap' }}>{moveLabel}</span>
+                                                        : <span style={{ color: 'var(--text-muted)' }}>-</span>}
+                                                </Td>
                                                 <Td style={{ color: 'var(--text-muted)', fontSize: '0.68rem' }}>
                                                     {a._schedule && <div style={{ fontSize: '0.78rem', color: '#3b82f6', fontWeight: '600', marginBottom: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a._schedule}</div>}
                                                     {shortAddr(a.address)}
@@ -3626,11 +3641,6 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                                                     {(a.founder?.mobile || a.founder?.phone)
                                                         ? <a href={`tel:${a.founder?.mobile || a.founder?.phone}`} onClick={e => e.stopPropagation()} style={{ color: '#3b82f6', fontWeight: '600', textDecoration: 'none' }}>{a.founder?.mobile || a.founder?.phone}</a>
                                                         : '-'}
-                                                </Td>
-                                                <Td style={{ textAlign: 'right' }}>
-                                                    {moveLabel
-                                                        ? <span style={{ color: '#10b981', fontWeight: '700', whiteSpace: 'nowrap' }}>{moveLabel}</span>
-                                                        : <span style={{ color: 'var(--text-muted)' }}>-</span>}
                                                 </Td>
                                             </tr>
                                             );
