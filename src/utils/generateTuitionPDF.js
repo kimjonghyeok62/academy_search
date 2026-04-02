@@ -399,38 +399,33 @@ function getWeeklyTotalMinutes(weeklyStr) {
     return parseInt(sessionsMatch[1], 10) * parseInt(minsMatch[1], 10);
 }
 
-// 분/월 → 주 기준 스케줄 문자열 (예: "주2회, 회당90분")
-function getWeeklySchedule(totalTimeVal) {
+// 웹앱(DetailView)과 동일한 best-fit 알고리즘으로 총교습시간(분/월) → 주당 분수 계산
+function calcWeeklyMinutes(totalTimeVal) {
     const total = parseInt(String(totalTimeVal || '').replace(/,/g, ''), 10);
-    if (isNaN(total) || total === 0) return '';
+    if (isNaN(total) || total === 0) return null;
 
-    const weeksOptions = [4.0, 4.2, 4.3];
-    const sessionsOptions = [1, 2, 3, 4, 5, 6, 7];
-    const minsOptions = [30, 40, 45, 50, 60, 80, 90, 100, 120, 150, 180, 200, 240];
-
-    let best = null;
-    let bestDiff = Infinity;
-
-    for (const weeks of weeksOptions) {
-        for (const sessions of sessionsOptions) {
-            for (const mins of minsOptions) {
-                const calc = Math.round(weeks * sessions * mins);
-                const diff = Math.abs(calc - total);
-                if (diff < bestDiff || (diff === bestDiff && best && mins >= best.mins)) {
-                    bestDiff = diff;
-                    best = { weeks, sessions, mins };
-                }
-            }
+    const combinations = [];
+    for (const weeks of [4.3, 4.2, 4.1, 4.0]) {
+        for (let sessions = 1; sessions <= 7; sessions++) {
+            const minutes = Math.round((total / weeks) / sessions);
+            if (minutes < 30 || minutes > 300) continue;
+            const diffFromTotal = Math.abs(minutes * sessions * weeks - total);
+            if (diffFromTotal > 8) continue;
+            let roundScore = 0;
+            if (minutes % 60 === 0) roundScore += 30;
+            else if (minutes % 30 === 0) roundScore += 20;
+            else if (minutes % 10 === 0) roundScore += 10;
+            else if (minutes % 5 === 0) roundScore += 5;
+            if (sessions >= 3 && sessions <= 5) roundScore += 20;
+            combinations.push({ sessions, minutes, diffFromTotal, roundScore });
         }
     }
-
-    if (best && bestDiff <= Math.max(5, total * 0.03)) {
-        return `주${best.sessions}회, 회당${best.mins}분`;
-    }
-    // fallback: 월 총시간만 표기
-    const h = Math.floor(total / 60);
-    const m = total % 60;
-    return h > 0 ? `월 ${h}시간${m > 0 ? m + '분' : ''}` : `월 ${total}분`;
+    combinations.sort((a, b) =>
+        Math.abs(a.diffFromTotal - b.diffFromTotal) > 0.5
+            ? a.diffFromTotal - b.diffFromTotal
+            : b.roundScore - a.roundScore
+    );
+    return combinations.length > 0 ? combinations[0].minutes * combinations[0].sessions : null;
 }
 
 // 외부용 설립운영자 표기
@@ -470,8 +465,9 @@ export function printTuitionFormExternal(academy) {
     // rowspan 방식: 기타경비 항목수만큼 행을 분리해 테두리가 정확히 맞도록 함
     const buildCourseRows = () => courses.map(c => {
         const subject = [c.process, c.subject].filter(Boolean).join(' / ');
-        const weeklyStr = c.weeklyScheduleStr || getWeeklySchedule(c.totalTime);
-        const weeklyTotal = getWeeklyTotalMinutes(weeklyStr);
+        const weeklyTotal = c.weeklyScheduleStr
+            ? getWeeklyTotalMinutes(c.weeklyScheduleStr)
+            : calcWeeklyMinutes(c.totalTime);
         const weekly = `주&nbsp;&nbsp;&nbsp;회, 회당&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;분`;
         const tuition = fmtNum(c.tuitionFee || c.totalFee);
         const tuitionNum = parseNum(c.tuitionFee || c.totalFee);
