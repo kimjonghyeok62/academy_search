@@ -511,6 +511,43 @@ export async function fetchPrivateTutorData() {
     }
 }
 
+/**
+ * 교습계열/과정/과목 기반 표준 분당단가 계산 (원/분)
+ */
+function isIpsiCourse(gwajung, gwamok) {
+    const combined = (gwajung + gwamok).toLowerCase();
+    if (combined.includes('입시')) return true;
+    if (combined.includes('유') || combined.includes('초') ||
+        combined.includes('중') || combined.includes('고')) return false;
+    return true;
+}
+
+export function lookupStandardRate(gyeol, gwajung, gwamok) {
+    const g  = (gyeol  || '').toLowerCase();
+    const gj = (gwajung || '').toLowerCase();
+    const gm = (gwamok  || '').toLowerCase();
+
+    if (g.includes('외국어') || g.includes('어학') || gj.includes('어학')) return 259;
+    if (g.includes('진학')) return 234;
+
+    if (g.includes('음악') || gj.includes('음악')) return isIpsiCourse(gj, gm) ? 336 : 224;
+    if (g.includes('미술') || gj.includes('미술')) return isIpsiCourse(gj, gm) ? 255 : 212;
+    if (g.includes('무용') || gj.includes('무용')) return isIpsiCourse(gj, gm) ? 255 : 212;
+
+    if (g.includes('보통교과') || g.includes('보습') || gj.includes('보습')) {
+        const combined = gm + gj;
+        if (combined.includes('고등') || combined.includes('고')) return 234;
+        if (combined.includes('중등') || combined.includes('중')) return 222;
+        if (combined.includes('초등') || combined.includes('초')) return 210;
+        return 222;
+    }
+
+    if (g.includes('정보') || gj.includes('정보')) return 230;
+    if (g.includes('기타') || gj.includes('기타')) return 230;
+
+    return '';
+}
+
 export function transformAcademyData(rawRows, inspectionMap = new Map()) {
     const academyMap = new Map();
 
@@ -566,8 +603,18 @@ export function transformAcademyData(rawRows, inspectionMap = new Map()) {
             period: row['교습기간'] || row['교습기간(개월)'] || '',
             feePerHour: row['총교습비(시간당)'] || '',
             totalTime: row['총교습시간(분)'] || row['총교습기간(분)'] || '',
-            unitPrice: row['해당학원 분당단가'] || row['해당교습소 분당단가'] || '',
-            standardUnitPrice: row['교습비 분당단가'] || '',
+            unitPrice: (() => {
+                const fee = parseFloat((row['교습비'] || '').toString().replace(/,/g, ''));
+                const min = parseFloat((row['총교습시간(분)'] || row['총교습기간(분)'] || '').toString().replace(/,/g, ''));
+                return (!isNaN(fee) && fee > 0 && !isNaN(min) && min > 0)
+                    ? Math.round(fee / min * 10) / 10
+                    : '';
+            })(),
+            standardUnitPrice: lookupStandardRate(
+                row['교습계열'] || '',
+                row['교습과정'] || '',
+                row['교습과목(반)'] || ''
+            ),
             mockExamFee: row['모의고사비'] || '',
             materialFee: row['재료비'] || '',
             clothingFee: row['피복비'] || '',
