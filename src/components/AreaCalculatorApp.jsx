@@ -407,10 +407,10 @@ const S = {
     flexWrap: 'wrap',
   },
   zoneLeft: { display: 'flex', alignItems: 'center', gap: 6 },
-  prefix: { fontSize: 13, fontWeight: 700, lineHeight: 1 },
-  zoneNum: { fontSize: 12, color: '#888', fontWeight: 600, letterSpacing: '-0.02em', whiteSpace: 'nowrap', width: 44, display: 'inline-block' },
+  prefix: { fontSize: 15, fontWeight: 700, lineHeight: 1 },
+  zoneNum: { fontSize: 14, color: '#888', fontWeight: 600, letterSpacing: '-0.02em', whiteSpace: 'nowrap', width: 44, display: 'inline-block' },
   labelInput: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#666',
     fontWeight: 600,
     border: 'none',
@@ -454,9 +454,9 @@ const S = {
     flexWrap: 'wrap',
   },
   numInput: {
-    width: 46,
+    width: 50,
     padding: '0 2px',
-    fontSize: 14,
+    fontSize: 16,
     textAlign: 'center',
     border: '1px solid #e0e0e0',
     borderRadius: 7,
@@ -468,8 +468,8 @@ const S = {
     MozAppearance: 'textfield',
     boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.06)',
   },
-  op: { fontSize: 14, color: '#c0c4cc', fontWeight: 400 },
-  unit: { fontSize: 12, color: '#c0c4cc' },
+  op: { fontSize: 15, color: '#c0c4cc', fontWeight: 400 },
+  unit: { fontSize: 13, color: '#c0c4cc' },
   small: { fontSize: 14, color: '#c0c4cc' },
 
   calcInline: {
