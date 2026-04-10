@@ -374,7 +374,7 @@ const S = {
     borderRadius: '50%',
   },
 
-  tape: { display: 'flex', flexDirection: 'column', gap: 3, padding: '4px 6px' },
+  tape: { display: 'flex', flexDirection: 'column', gap: 6, padding: '8px 8px' },
   zone: {
     display: 'flex',
     position: 'relative',
@@ -402,7 +402,7 @@ const S = {
     flex: 1,
     display: 'flex',
     alignItems: 'center',
-    padding: '5px 8px 5px 6px',
+    padding: '9px 8px 9px 6px',
     gap: 5,
     flexWrap: 'wrap',
   },
