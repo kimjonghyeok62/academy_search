@@ -298,3 +298,50 @@ h3 {
   margin-top: 60px;
   font-size: 1.1rem;
 }
+
+/* ─── 분야별 교습비 검토 (QuickCalcCard) ─── */
+@media (max-width: 480px) {
+  .tuition-card {
+    border-radius: 0 !important;
+    border-left: none !important;
+    border-right: none !important;
+  }
+}
+
+/* 시간 입력 줄바꿈: 모바일에서 = N분 을 다음 줄로 */
+.time-break {
+  display: none;
+  flex-basis: 100%;
+  height: 0;
+}
+@media (max-width: 520px) {
+  .time-break { display: block; }
+}
+
+/* 기록 행 */
+.record-row-inner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.record-chip {
+  font-size: 0.9rem;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(255,255,255,0.7);
+  border: 1px solid rgba(0,0,0,0.06);
+  white-space: nowrap;
+}
+/* PC: 한 줄 */
+@media (min-width: 521px) {
+  .record-row-inner { flex-wrap: nowrap; }
+  .record-chip.field { flex: 0 0 auto; max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
+}
+/* 모바일: 두 줄 */
+@media (max-width: 520px) {
+  .record-chip.field { flex-basis: 100%; }
+  .record-chip.time  { flex-basis: 100%; }
+  .record-chip.fee   { flex: 1; }
+  .record-chip.rate  { flex: 1; }
+}
