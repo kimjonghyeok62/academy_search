@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 
 // 소수점 3자리에서 반올림 → 2자리
 function round2(val) {
@@ -59,12 +59,17 @@ function newRoom() {
 
 export default function AreaCalculatorApp({ embedded = false }) {
   const [rooms, setRooms] = useState([newRoom()])
+  const focusZoneIdRef = useRef(null)
 
   const updateRoom = useCallback((roomId, updater) => {
     setRooms(prev => prev.map(r => r.id === roomId ? updater(r) : r))
   }, [])
 
-  const addRoom = () => setRooms(prev => [...prev, newRoom()])
+  const addRoom = () => {
+    const room = newRoom()
+    setRooms(prev => [...prev, room])
+    focusZoneIdRef.current = room.zones[0].id
+  }
   const removeRoom = (id) => setRooms(prev => prev.filter(r => r.id !== id))
 
   const addZone = (roomId, type) =>
@@ -78,6 +83,23 @@ export default function AreaCalculatorApp({ embedded = false }) {
       ...r,
       zones: r.zones.map(z => z.id === zoneId ? { ...z, [field]: value } : z)
     }))
+
+  // 탭 진입 시 첫 가로 포커스
+  useEffect(() => {
+    focusZoneIdRef.current = rooms[0].zones[0].id
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 렌더 후 포커스 실행
+  useEffect(() => {
+    if (!focusZoneIdRef.current) return
+    const id = focusZoneIdRef.current
+    const el = document.querySelector(`[data-zone-id="${id}"][data-field="width"]`)
+    if (el) {
+      el.focus()
+      el.select()
+      focusZoneIdRef.current = null
+    }
+  })
 
   const grandTotal = round2(rooms.reduce((sum, room) => sum + calcRoomTotal(room), 0))
 
@@ -100,7 +122,11 @@ export default function AreaCalculatorApp({ embedded = false }) {
             idx={idx}
             color={ROOM_COLORS[idx % ROOM_COLORS.length]}
             onNameChange={v => updateRoom(room.id, r => ({ ...r, name: v }))}
-            onAddZone={type => addZone(room.id, type)}
+            onAddZone={type => {
+              const zone = newZone(type)
+              updateRoom(room.id, r => ({ ...r, zones: [...r.zones, zone] }))
+              focusZoneIdRef.current = zone.id
+            }}
             onRemoveZone={zoneId => removeZone(room.id, zoneId)}
             onUpdateZone={(zoneId, field, val) => updateZone(room.id, zoneId, field, val)}
             onRemove={() => removeRoom(room.id)}
@@ -202,7 +228,12 @@ function RoomCard({ room, idx, color, onNameChange, onAddZone, onRemoveZone, onU
         <div style={S.formulaBar}>
           <span style={{ ...S.formulaLabel, background: `linear-gradient(135deg, ${color.from}, ${color.to})`, boxShadow: `0 1px 3px ${color.to}55` }}>소계</span>
           <span style={S.formulaText}>
-            {formulaParts.map((p, i) => (
+            {formulaParts.slice(0, -2).map((p, i) => (
+              <span key={i} style={{ color: p.color }}>{p.text}</span>
+            ))}
+          </span>
+          <span style={{ ...S.formulaText, marginLeft: 'auto' }}>
+            {formulaParts.slice(-2).map((p, i) => (
               <span key={i} style={{ color: p.color }}>{p.text}</span>
             ))}
           </span>
@@ -233,12 +264,14 @@ function ZoneRow({ zone, zIdx, onUpdate, onRemove, canRemove }) {
         ) : (
           <span style={S.zoneNum}>구역</span>
         )}
-        <NumInput value={zone.width} onChange={v => onUpdate('width', v)} placeholder="가로" />
+        <NumInput zoneId={zone.id} field="width" value={zone.width} onChange={v => onUpdate('width', v)} placeholder="가로" />
         <span style={S.op}>×</span>
-        <NumInput value={zone.height} onChange={v => onUpdate('height', v)} placeholder="세로" />
+        <NumInput zoneId={zone.id} field="height" value={zone.height} onChange={v => onUpdate('height', v)} placeholder="세로" />
         <span style={S.unit}>m</span>
-        {result && <CalcInline result={result} isSub={isSub} />}
-        {canRemove && <button style={{ ...S.removeSmall, marginLeft: 'auto' }} onClick={onRemove}>✕</button>}
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginLeft: 'auto', flexShrink: 0 }}>
+          {result && <CalcInline result={result} isSub={isSub} />}
+          {canRemove && <button style={S.removeSmall} onClick={onRemove}>✕</button>}
+        </div>
       </div>
     </div>
   )
@@ -259,22 +292,34 @@ function CalcInline({ result, isSub }) {
   )
 }
 
-function NumInput({ value, onChange, placeholder }) {
+function NumInput({ value, onChange, placeholder, zoneId, field, onComplete }) {
   const handleChange = (e) => {
     const val = e.target.value
     onChange(val)
     if (/^\d+\.\d{2}$/.test(val)) {
-      const inputs = Array.from(document.querySelectorAll('input[type="number"]'))
-      const idx = inputs.indexOf(e.target)
-      if (idx >= 0 && idx < inputs.length - 1) {
-        inputs[idx + 1].focus()
-        inputs[idx + 1].select()
+      if (onComplete) {
+        onComplete()
+      } else {
+        const inputs = Array.from(document.querySelectorAll('input[type="number"]'))
+        const idx = inputs.indexOf(e.target)
+        if (idx >= 0 && idx < inputs.length - 1) {
+          inputs[idx + 1].focus()
+          inputs[idx + 1].select()
+        }
       }
     }
   }
 
+  const handleFocus = (e) => {
+    e.target.style.borderColor = '#4a90d9'
+    e.target.style.boxShadow = '0 0 0 3px rgba(74,144,217,0.15)'
+    e.target.select()
+  }
+
   return (
     <input
+      data-zone-id={zoneId}
+      data-field={field}
       style={S.numInput}
       type="number"
       inputMode="decimal"
@@ -283,7 +328,7 @@ function NumInput({ value, onChange, placeholder }) {
       placeholder={placeholder}
       value={value}
       onChange={handleChange}
-      onFocus={e => { e.target.style.borderColor = '#4a90d9'; e.target.style.boxShadow = '0 0 0 3px rgba(74,144,217,0.15)' }}
+      onFocus={handleFocus}
       onBlur={e => { e.target.style.borderColor = '#e0e0e0'; e.target.style.boxShadow = 'none' }}
     />
   )
@@ -313,7 +358,7 @@ const S = {
   },
   headerIcon: { fontSize: 20 },
   headerTitle: { color: '#fff', fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em' },
-  body: { padding: '14px 12px 0', display: 'flex', flexDirection: 'column', gap: 10 },
+  body: { padding: '14px 4px 0', display: 'flex', flexDirection: 'column', gap: 10 },
 
   card: {
     background: 'white',
@@ -374,7 +419,7 @@ const S = {
     borderRadius: '50%',
   },
 
-  tape: { display: 'flex', flexDirection: 'column', gap: 6, padding: '8px 8px' },
+  tape: { display: 'flex', flexDirection: 'column', gap: 6, padding: '8px 4px' },
   zone: {
     display: 'flex',
     position: 'relative',
@@ -402,8 +447,8 @@ const S = {
     flex: 1,
     display: 'flex',
     alignItems: 'center',
-    padding: '9px 8px 9px 6px',
-    gap: 5,
+    padding: '9px 4px 9px 4px',
+    gap: 4,
     flexWrap: 'wrap',
   },
   zoneLeft: { display: 'flex', alignItems: 'center', gap: 6 },
@@ -475,8 +520,7 @@ const S = {
   calcInline: {
     display: 'inline-flex',
     alignItems: 'center',
-    gap: 4,
-    marginLeft: 4,
+    gap: 3,
   },
   calcEq: { fontSize: 13, color: '#bbb' },
   calcRawTxt: { fontSize: 12, color: '#bbb', fontFamily: 'monospace' },
@@ -487,10 +531,11 @@ const S = {
   formulaBar: {
     background: 'linear-gradient(to right, #f5f7fa, #f0f2f6)',
     borderTop: '1px solid #e8eaee',
-    padding: '6px 14px',
+    padding: '6px 8px',
     display: 'flex',
     alignItems: 'baseline',
-    gap: 8,
+    flexWrap: 'wrap',
+    gap: 5,
   },
   formulaLabel: {
     fontSize: 11,
@@ -506,7 +551,7 @@ const S = {
   formulaText: {
     fontSize: 15,
     fontFamily: 'monospace',
-    letterSpacing: '-0.01em',
+    letterSpacing: '-0.04em',
     fontWeight: 700,
   },
 

@@ -4388,11 +4388,12 @@ function TabPlaceholder({ label }) {
 // ───────────────────────────────────────────────
 const INSP_STATE_KEY = 'inspectionPageState';
 
-export default function InspectionPage({ onBack, academies, privateTutors, onSelectAcademy, onShowRouteMap }) {
+export default function InspectionPage({ onBack, academies, privateTutors, onSelectAcademy, onShowRouteMap, initialTab }) {
     const [region, setRegion] = useState(() => {
         try { return JSON.parse(sessionStorage.getItem(INSP_STATE_KEY))?.region || '하남'; } catch { return '하남'; }
     });
     const [activeTab, setActiveTab] = useState(() => {
+        if (initialTab !== undefined) return initialTab;
         try { return JSON.parse(sessionStorage.getItem(INSP_STATE_KEY))?.activeTab ?? 0; } catch { return 0; }
     });
     // 탭별 하위 상태 (페이지, 아코디언 open/close)를 sessionStorage에 저장/복원
