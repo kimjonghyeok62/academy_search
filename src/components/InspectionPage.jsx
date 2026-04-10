@@ -4388,11 +4388,12 @@ function TabPlaceholder({ label }) {
 // ───────────────────────────────────────────────
 const INSP_STATE_KEY = 'inspectionPageState';
 
-export default function InspectionPage({ onBack, academies, privateTutors, onSelectAcademy, onShowRouteMap }) {
+export default function InspectionPage({ onBack, academies, privateTutors, onSelectAcademy, onShowRouteMap, initialTab }) {
     const [region, setRegion] = useState(() => {
         try { return JSON.parse(sessionStorage.getItem(INSP_STATE_KEY))?.region || '하남'; } catch { return '하남'; }
     });
     const [activeTab, setActiveTab] = useState(() => {
+        if (initialTab !== undefined) return initialTab;
         try { return JSON.parse(sessionStorage.getItem(INSP_STATE_KEY))?.activeTab ?? 0; } catch { return 0; }
     });
     // 탭별 하위 상태 (페이지, 아코디언 open/close)를 sessionStorage에 저장/복원
@@ -4610,9 +4611,9 @@ export default function InspectionPage({ onBack, academies, privateTutors, onSel
                     </div>
                 </div>
                 {/* 탭 */}
-                <div style={{ display: 'flex', gap: '4px', overflowX: 'auto', paddingBottom: '2px' }}>
+                <div style={{ display: 'flex', gap: '2px', overflowX: 'auto', paddingBottom: '2px' }}>
                     {TABS.map((tab, i) => (
-                        <button key={tab} onClick={() => setActiveTab(i)} style={{ padding: '8px 14px', borderRadius: '8px 8px 0 0', border: '1px solid', borderBottom: 'none', borderColor: activeTab === i ? 'var(--primary)' : 'var(--border-color)', background: activeTab === i ? 'var(--primary)' : 'transparent', color: activeTab === i ? 'white' : 'var(--text-muted)', fontWeight: activeTab === i ? '700' : '500', fontSize: '0.82rem', cursor: 'pointer', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                        <button key={tab} onClick={() => setActiveTab(i)} style={{ padding: '7px 8px', borderRadius: '8px 8px 0 0', border: '1px solid', borderBottom: 'none', borderColor: activeTab === i ? 'var(--primary)' : 'var(--border-color)', background: activeTab === i ? 'var(--primary)' : 'transparent', color: activeTab === i ? 'white' : 'var(--text-muted)', fontWeight: activeTab === i ? '700' : '500', fontSize: '0.8rem', cursor: 'pointer', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' }}>
                             <span>{TAB_ICONS[i]}</span><span>{tab}</span>
                         </button>
                     ))}

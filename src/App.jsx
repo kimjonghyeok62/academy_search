@@ -51,6 +51,7 @@ function App() {
   const [dataAsOf, setDataAsOf] = useState(''); // 데이터 기준일
   const [showLegalResources, setShowLegalResources] = useState(false); // 법령 자료 표시 여부
   const [showInspection, setShowInspection] = useState(false); // 지도점검 화면
+  const [inspectionInitialTab, setInspectionInitialTab] = useState(undefined); // 지도점검 초기 탭
   const [showMap, setShowMap] = useState(false); // 맵 화면
   const [detailOrigin, setDetailOrigin] = useState('main'); // 상세화면 진입 출처 ('main' 또는 'inspection' 또는 'map')
   const [focusAcademy, setFocusAcademy] = useState(null); // 지도에서 포커스할 학원
@@ -438,9 +439,10 @@ function App() {
   if (showInspection) {
     return (
       <InspectionPage
-        onBack={() => setShowInspection(false)}
+        onBack={() => { setShowInspection(false); setInspectionInitialTab(undefined); }}
         academies={academies}
         privateTutors={privateTutors}
+        initialTab={inspectionInitialTab}
         onSelectAcademy={(academy) => {
           setDetailOrigin('inspection');
           setShowInspection(false);
@@ -594,6 +596,29 @@ function App() {
               <span>{dataAsOf}</span>
             </div>
           )}
+
+          {/* 면적 버튼 (왼쪽) */}
+          <button
+            onClick={() => { setInspectionInitialTab(4); setShowInspection(true); }}
+            style={{
+              position: 'absolute',
+              left: '0',
+              background: 'none',
+              border: 'none',
+              color: '#7c3aed',
+              fontSize: '0.85rem',
+              fontWeight: '700',
+              cursor: 'pointer',
+              textDecoration: 'underline',
+              textDecorationColor: '#c4b5fd',
+              padding: '0',
+              transition: 'color 0.2s'
+            }}
+            onMouseOver={(e) => e.target.style.color = '#5b21b6'}
+            onMouseOut={(e) => e.target.style.color = '#7c3aed'}
+          >
+            면적계산
+          </button>
 
           {/* 로그아웃 버튼 (오른쪽) */}
           <button
