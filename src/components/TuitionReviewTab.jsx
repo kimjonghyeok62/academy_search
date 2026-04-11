@@ -653,13 +653,13 @@ function QuickCalcCard() {
               <span style={{ whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
                 <strong style={{ color: 'var(--primary)' }}>A(분)</strong>
                 <span> : 일</span>
-                <PresetPicker key={`dm-${resetKey}`} value={dm} onChange={setDm} presets={[50, 60, 80, 90, 120]} width="46px" />
+                <PresetPicker key={`dm-${resetKey}`} value={dm} onChange={setDm} presets={[50, 60, 80, 90, 120]} width="46px" max={999} />
                 <span>분</span>
               </span>
               <span style={{ whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
                 <span>×</span>
                 <span>주</span>
-                <PresetPicker key={`wc-${resetKey}`} value={wc} onChange={setWc} presets={[1, 2, 3, 4, 5]} width="34px" />
+                <PresetPicker key={`wc-${resetKey}`} value={wc} onChange={setWc} presets={[1, 2, 3, 4, 5]} width="34px" max={7} />
                 <span>회</span>
               </span>
               <span style={{ whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
@@ -773,11 +773,14 @@ function RecordRow({ record: r, onDelete }) {
 
   return (
     <div style={{ borderRadius: '10px', border: `1.5px solid ${border}`, backgroundColor: bg, padding: '10px 12px', position: 'relative' }}>
+      {/* 번호 + 삭제 */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
         <span style={{ fontWeight: '800', fontSize: '0.88rem', color: '#64748b' }}>#{r.no}</span>
         <button onClick={() => onDelete(r.no)}
           style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: '1rem', padding: '0 2px', lineHeight: 1 }}>✕</button>
       </div>
+
+      {/* PC: 한 줄 / 모바일: 두 줄 */}
       <div className="record-row-inner">
         <span className="record-chip field">{r.label}</span>
         <span className="record-chip time">{r.dm}분 × 주{r.wc}회 × {r.wk}주 = <strong>{r.totalMinutes.toLocaleString()}분</strong></span>

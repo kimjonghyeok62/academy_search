@@ -57,8 +57,19 @@ function newRoom() {
   return { id: genId(), name: '', zones: [newZone('add')] }
 }
 
+function makeRoomsFromSetup(roomCount, zonesPerRoom, pillarsPerRoom) {
+  return Array.from({ length: roomCount }, () => ({
+    id: genId(),
+    name: '',
+    zones: [
+      ...Array.from({ length: zonesPerRoom }, () => newZone('add')),
+      ...Array.from({ length: pillarsPerRoom }, () => newZone('subtract')),
+    ],
+  }))
+}
+
 export default function AreaCalculatorApp({ embedded = false }) {
-  const [rooms, setRooms] = useState([newRoom()])
+  const [rooms, setRooms] = useState(() => makeRoomsFromSetup(4, 2, 2))
   const focusZoneIdRef = useRef(null)
 
   const updateRoom = useCallback((roomId, updater) => {
@@ -66,7 +77,7 @@ export default function AreaCalculatorApp({ embedded = false }) {
   }, [])
 
   const addRoom = () => {
-    const room = newRoom()
+    const [room] = makeRoomsFromSetup(1, 2, 2)
     setRooms(prev => [...prev, room])
     focusZoneIdRef.current = room.zones[0].id
   }
@@ -163,6 +174,7 @@ export default function AreaCalculatorApp({ embedded = false }) {
   )
 }
 
+
 function RoomCard({ room, idx, color, onNameChange, onAddZone, onRemoveZone, onUpdateZone, onRemove, canRemove }) {
   const total = calcRoomTotal(room)
   const zoneResults = room.zones.map(z => ({ zone: z, result: calcZone(z) }))
@@ -204,9 +216,9 @@ function RoomCard({ room, idx, color, onNameChange, onAddZone, onRemoveZone, onU
             onChange={e => onNameChange(e.target.value)}
           />
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-          <button style={S.addZoneBtnSm} onClick={() => onAddZone('add')}>＋</button>
-          <button style={{ ...S.addZoneBtnSm, ...S.subZoneBtnSm }} onClick={() => onAddZone('subtract')}>－</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+          <button style={S.addZoneBtnSm} onClick={() => onAddZone('add')}>＋ 구역</button>
+          <button style={{ ...S.addZoneBtnSm, ...S.subZoneBtnSm }} onClick={() => onAddZone('subtract')}>－ 기둥</button>
           {canRemove && <button style={S.removeBtn} onClick={onRemove}>✕</button>}
         </div>
       </div>
@@ -314,6 +326,9 @@ function NumInput({ value, onChange, placeholder, zoneId, field, onComplete }) {
     e.target.style.borderColor = '#4a90d9'
     e.target.style.boxShadow = '0 0 0 3px rgba(74,144,217,0.15)'
     e.target.select()
+    setTimeout(() => {
+      e.target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 300)
   }
 
   return (
@@ -333,6 +348,7 @@ function NumInput({ value, onChange, placeholder, zoneId, field, onComplete }) {
     />
   )
 }
+
 
 const S = {
   wrap: {
@@ -363,22 +379,24 @@ const S = {
   card: {
     background: 'white',
     borderRadius: 12,
-    overflow: 'hidden',
+    overflow: 'visible',
     boxShadow: '0 2px 12px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.05)',
   },
   cardHead: {
     background: 'linear-gradient(to right, #f8f9fb, #f3f5f8)',
     borderBottom: '1px solid #e8eaee',
-    padding: '7px 12px',
+    padding: '7px 8px 7px 12px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
+    overflow: 'visible',
   },
   cardHeadLeft: {
     display: 'flex',
     alignItems: 'center',
     gap: 10,
     flex: 1,
+    minWidth: 0,
   },
   cardIdx: {
     width: 22,
@@ -500,7 +518,7 @@ const S = {
   },
   numInput: {
     width: 50,
-    padding: '0 2px',
+    padding: '3px 2px',
     fontSize: 16,
     textAlign: 'center',
     border: '1px solid #e0e0e0',
@@ -559,20 +577,21 @@ const S = {
     borderTop: '1px solid #edf0f4',
   },
   addZoneBtnSm: {
-    padding: '2px 7px',
-    border: '1px solid #d0d8e8',
-    background: '#f4f6fa',
-    color: '#4a90d9',
-    borderRadius: 5,
-    fontSize: 13,
+    padding: '5px 10px',
+    border: 'none',
+    background: 'linear-gradient(135deg, #4a90d9, #357abd)',
+    color: 'white',
+    borderRadius: 7,
+    fontSize: 12,
     fontWeight: 700,
     cursor: 'pointer',
     lineHeight: 1.4,
+    boxShadow: '0 3px 8px rgba(74,144,217,0.45), 0 1px 2px rgba(74,144,217,0.3)',
+    letterSpacing: '-0.01em',
   },
   subZoneBtnSm: {
-    color: '#c06040',
-    borderColor: '#f0ddd6',
-    background: '#fdf8f6',
+    background: 'linear-gradient(135deg, #e07050, #c85a38)',
+    boxShadow: '0 3px 8px rgba(200,90,56,0.4), 0 1px 2px rgba(200,90,56,0.25)',
   },
 
   roomTotal: {
