@@ -471,9 +471,8 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy, focus
 
     // 미점검 기간 계산 (점검 기록 없으면 등록일 기준)
     const getUninspectedPeriod = (inspections, regDate) => {
-        const lastDateStr = (inspections && inspections.length > 0)
-            ? inspections[0]?.date
-            : regDate;
+        const hasInspection = inspections && inspections.length > 0;
+        const lastDateStr = hasInspection ? inspections[0]?.date : regDate;
         if (!lastDateStr) return null;
         const last = new Date(lastDateStr.replace(/\./g, '-'));
         if (isNaN(last.getTime())) return null;
@@ -484,9 +483,10 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy, focus
         if (months < 0) { years--; months += 12; }
         if (years < 0) return null;
         if (years === 0 && months === 0) return null;
-        if (years > 0 && months > 0) return `미점검 ${years}년 ${months}월`;
-        if (years > 0) return `미점검 ${years}년`;
-        return `미점검 ${months}월`;
+        const prefix = hasInspection ? '미점검' : '최초미점검';
+        if (years > 0 && months > 0) return `${prefix} ${years}년 ${months}월`;
+        if (years > 0) return `${prefix} ${years}년`;
+        return `${prefix} ${months}월`;
     };
 
     // 주소에서 호수 정보 추출 (팝업 표시 및 정렬용)
@@ -638,10 +638,10 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy, focus
             // 학교교과교습학원: 배지 불필요
             // 평생직업교육학원: '평생직업교육'으로 축약하여 이름 오른쪽에 표시
             const cat = academy.category;
-            const showBadge = cat && cat !== '학교교과교습학원' && cat !== '교습소';
+            const showBadge = cat && cat !== '학교교과교습학원' && cat !== '교습소' && cat !== '과외';
             const badgeLabel = cat === '평생직업교육학원' ? '평생직업교육' : cat;
             const unitInfo = extractUnitInfo(academy.address);
-            const uninspected = getUninspectedPeriod(academy.inspections, academy.regDate);
+            const uninspected = getUninspectedPeriod(academy.inspections, academy.regDate || academy.reportDate);
 
             html += `
                 <div style="padding: ${idx === sortedList.length - 1 ? '5px 0 0' : '5px 0'}; border-bottom: ${idx === sortedList.length - 1 ? 'none' : '1px solid rgba(0,0,0,0.07)'}; display: flex; align-items: center; gap: 4px; min-width: 0;">
