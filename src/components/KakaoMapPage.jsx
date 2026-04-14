@@ -21,6 +21,8 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy, focus
     const kakaoRef = useRef(null); // kakao 객체 참조 (focusAcademy용)
     const groupsArrayRef = useRef([]); // 마커 그룹 배열 (focusAcademy용)
     const focusMarkerRef = useRef(null); // 포커스 학원 보라색 마커
+    const focusAcademyRef = useRef(null); // 현재 포커스된 학원 (updateTextVisibility에서 참조)
+    const updateTextVisibilityRef = useRef(null); // updateTextVisibility 함수 참조
     const routeMarkersRef = useRef([]); // 경로 번호 마커
     const [locating, setLocating] = useState(false); // 위치 탐색 중 상태
     const [filterAcademy, setFilterAcademy] = useState(true);
@@ -407,6 +409,13 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy, focus
                 textOverlaysRef.current = textOverlays;
 
                 // 줌 레벨에 따라 텍스트 오버레이 가시성 및 내용 조절
+                const isFocused = (a) => {
+                    const fa = focusAcademyRef.current;
+                    return fa && String(a.id) === String(fa.id) && a.address === fa.address;
+                };
+                const makeName = (a) => isFocused(a)
+                    ? `<span style="color:#7c3aed;font-weight:800;">${a.name}</span>`
+                    : a.name;
                 const updateTextVisibility = () => {
                     if (!isMounted) return;
                     const level = map.getLevel();
@@ -417,12 +426,16 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy, focus
                         if (level <= 4) {
                             // 최대로 확대되었을 때는 전수 노출
                             if (level <= 1) {
-                                overlay.getContent().innerHTML = group.list.map(a => `<div style="line-height: 1.2; padding: 1px 0;">${a.name}</div>`).join('');
+                                overlay.getContent().innerHTML = group.list.map(a =>
+                                    `<div style="line-height: 1.2; padding: 1px 0;">${makeName(a)}</div>`
+                                ).join('');
                             } else {
-                                // 중간 확대는 요약형
+                                // 중간 확대는 요약형: 포커스 학원이 있으면 그것을 앞에
+                                const focusedInGroup = group.list.find(isFocused);
+                                const first = focusedInGroup || group.list[0];
                                 overlay.getContent().innerHTML = group.list.length > 1
-                                    ? `${group.list[0].name} <span style="color: #4f46e5; font-size: 10px;">외 ${group.list.length - 1}</span>`
-                                    : group.list[0].name;
+                                    ? `${makeName(first)} <span style="color: #4f46e5; font-size: 10px;">외 ${group.list.length - 1}</span>`
+                                    : makeName(first);
                             }
                             overlay.setMap(map);
                         } else {
@@ -430,6 +443,7 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy, focus
                         }
                     });
                 };
+                updateTextVisibilityRef.current = updateTextVisibility;
                 kakao.maps.event.addListener(map, 'zoom_changed', updateTextVisibility);
                 updateTextVisibility(); // 초기화 시 한 번 실행
 
@@ -712,47 +726,62 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy, focus
         if (overlayRef.current) overlayRef.current.setMap(null);
     };
 
-    // focusAcademy: 지도 로딩 완료 후 해당 학원 위치로 이동 및 팝업 표시
+    // focusAcademy: 지도 로딩 완료 후 해당 학원 위치로 이동 및 이름 강조 표시
     useEffect(() => {
         if (loading || !focusAcademy || !mapInstanceRef.current || !kakaoRef.current) return;
+        focusAcademyRef.current = focusAcademy;
         const kakao = kakaoRef.current;
         const map = mapInstanceRef.current;
+
+        const placeMarkerAndCenter = (position) => {
+            // 기존 포커스 마커 제거
+            if (focusMarkerRef.current) {
+                focusMarkerRef.current.setMap(null);
+                focusMarkerRef.current = null;
+            }
+
+            // 보라색 핀 마커 생성
+            const pinEl = document.createElement('div');
+            pinEl.style.cssText = 'cursor:pointer;';
+            pinEl.innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" width="36" height="48" viewBox="0 0 36 48" style="display:block;filter:drop-shadow(0 3px 6px rgba(109,40,217,0.5));">
+                    <path d="M18 0C8.059 0 0 8.059 0 18c0 12 18 30 18 30S36 30 36 18C36 8.059 27.941 0 18 0z" fill="#7c3aed"/>
+                    <circle cx="18" cy="18" r="9" fill="white"/>
+                    <circle cx="18" cy="18" r="5" fill="#7c3aed"/>
+                </svg>
+            `;
+            const focusOverlay = new kakao.maps.CustomOverlay({
+                position,
+                content: pinEl,
+                zIndex: 200,
+                xAnchor: 0.5,
+                yAnchor: 1.0,
+            });
+            focusOverlay.setMap(map);
+            focusMarkerRef.current = focusOverlay;
+
+            map.setCenter(position);
+            map.setLevel(2);
+            // 텍스트 오버레이에서 포커스 학원 이름을 굵은 보라색으로 갱신
+            updateTextVisibilityRef.current?.();
+        };
+
+        // 1차: 이미 로드된 그룹에서 학원 찾기 (필터 내 개원 학원)
         const group = groupsArrayRef.current.find(g => g.list.some(a =>
-            a.id === focusAcademy.id &&
-            a.name === focusAcademy.name &&
+            String(a.id) === String(focusAcademy.id) &&
             a.address === focusAcademy.address
         ));
-        if (!group) return;
-        const position = new kakao.maps.LatLng(group.lat, group.lng);
 
-        // 기존 포커스 마커 제거
-        if (focusMarkerRef.current) {
-            focusMarkerRef.current.setMap(null);
-            focusMarkerRef.current = null;
+        if (group) {
+            placeMarkerAndCenter(new kakao.maps.LatLng(group.lat, group.lng));
+        } else {
+            // 2차 fallback: 필터 밖(비개원, 광주시 등)인 경우 주소 직접 지오코딩
+            geocodeAddress(kakao, focusAcademy.address).then(coords => {
+                if (coords) {
+                    placeMarkerAndCenter(new kakao.maps.LatLng(coords.lat, coords.lng));
+                }
+            });
         }
-
-        // 보라색 핀 마커 생성
-        const pinEl = document.createElement('div');
-        pinEl.style.cssText = 'cursor:pointer;';
-        pinEl.innerHTML = `
-            <svg xmlns="http://www.w3.org/2000/svg" width="36" height="48" viewBox="0 0 36 48" style="display:block;filter:drop-shadow(0 3px 6px rgba(109,40,217,0.5));">
-                <path d="M18 0C8.059 0 0 8.059 0 18c0 12 18 30 18 30S36 30 36 18C36 8.059 27.941 0 18 0z" fill="#7c3aed"/>
-                <circle cx="18" cy="18" r="9" fill="white"/>
-                <circle cx="18" cy="18" r="5" fill="#7c3aed"/>
-            </svg>
-        `;
-        const focusOverlay = new kakao.maps.CustomOverlay({
-            position,
-            content: pinEl,
-            zIndex: 200,
-            xAnchor: 0.5,
-            yAnchor: 1.0,
-        });
-        focusOverlay.setMap(map);
-        focusMarkerRef.current = focusOverlay;
-
-        map.setCenter(position);
-        map.setLevel(2);
     }, [loading, focusAcademy]);
 
     // routeAcademies: 경로 번호 마커 표시 (일반 마커 숨김 포함)
