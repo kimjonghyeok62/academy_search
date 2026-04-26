@@ -740,23 +740,24 @@ function App() {
               </div>
               <h3 className="academy-name">{academy.name}</h3>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-                <p
+                <a
+                  href={`https://map.naver.com/p/search/${encodeURIComponent(academy.address)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
                   className="academy-address"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    window.open(`https://map.naver.com/p/search/${encodeURIComponent(academy.address)}`, '_blank');
-                  }}
                   style={{
                     cursor: 'pointer',
                     textDecoration: 'underline',
                     textDecorationColor: 'var(--border-color)',
                     margin: 0,
-                    flex: 1
+                    flex: 1,
+                    color: 'inherit'
                   }}
                   title="네이버 지도에서 보기"
                 >
                   {academy.address}
-                </p>
+                </a>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -824,12 +825,11 @@ function App() {
                 })()}
                 {academy.type !== 'privateTutor' && (<>
                 <span style={{ color: 'var(--border-color)' }}>•</span>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    const searchQuery = `${academy.name} ${cleanAddress(academy.address)}`;
-                    window.open(`https://map.naver.com/p/search/${encodeURIComponent(searchQuery)}`, '_blank');
-                  }}
+                <a
+                  href={`https://map.naver.com/p/search/${encodeURIComponent(`${academy.name} ${cleanAddress(academy.address)}`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
@@ -837,13 +837,13 @@ function App() {
                     padding: '4px 10px',
                     backgroundColor: '#5FD68A',
                     color: 'white',
-                    border: 'none',
                     borderRadius: '6px',
                     fontSize: '0.8rem',
                     fontWeight: '600',
                     cursor: 'pointer',
                     transition: 'all 0.2s',
-                    boxShadow: '0 1px 3px rgba(95, 214, 138, 0.3)'
+                    boxShadow: '0 1px 3px rgba(95, 214, 138, 0.3)',
+                    textDecoration: 'none'
                   }}
                   onMouseOver={(e) => {
                     e.currentTarget.style.backgroundColor = '#4EC57A';
@@ -863,7 +863,7 @@ function App() {
                     <line x1="10" y1="14" x2="21" y2="3"></line>
                   </svg>
                   <span>네이버</span>
-                </button>
+                </a>
                 </>)}
               </div>
             </div>
