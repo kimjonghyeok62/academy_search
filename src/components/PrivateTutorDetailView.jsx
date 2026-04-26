@@ -134,7 +134,7 @@ export default function PrivateTutorDetailView({ tutor, onBack, allTutors = [], 
 
   // Naver map open (address text is clickable)
   const openMap = (addr) => {
-    if (addr) window.open(`https://map.naver.com/v5/search/${encodeURIComponent(addr)}`, '_blank');
+    if (addr) window.open(`https://map.naver.com/p/search/${encodeURIComponent(addr)}`, '_blank');
   };
 
   // ── 현황 탭 ──────────────────────────────────────────

@@ -2138,7 +2138,7 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
         if (!address) return <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>-</span>;
         return (
             <a
-                href={`https://map.naver.com/v5/search/${encodeURIComponent(address)}`}
+                href={`https://map.naver.com/p/search/${encodeURIComponent(address)}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={(e) => e.stopPropagation()}
