@@ -5,26 +5,6 @@
  * 브라우저 print 방식으로 A4 PDF 생성 (한글 깨짐 없음, 추가 라이브러리 불필요)
  */
 
-// 팝업 없이 인쇄: 숨김 iframe에 Blob URL 로드 후 바로 print()
-function openPrintWithIframe(html) {
-    const blob = new Blob([html], { type: 'text/html; charset=utf-8' });
-    const blobUrl = URL.createObjectURL(blob);
-
-    const iframe = document.createElement('iframe');
-    iframe.style.cssText = 'position:fixed;top:-10000px;left:-10000px;width:210mm;height:297mm;border:none;';
-    document.body.appendChild(iframe);
-
-    iframe.onload = () => {
-        try { iframe.contentWindow.print(); } catch (_) {}
-        setTimeout(() => {
-            document.body.removeChild(iframe);
-            URL.revokeObjectURL(blobUrl);
-        }, 2000);
-    };
-
-    iframe.src = blobUrl;
-}
-
 // 콤마 포함 문자열 → 원 단위 정수로 변환 후 천단위 콤마 포맷
 function fmtNum(val) {
     if (!val && val !== 0) return '';
@@ -401,7 +381,13 @@ export function printTuitionForm(academy) {
 </body>
 </html>`;
 
-    openPrintWithIframe(html);
+    const blob = new Blob([html], { type: 'text/html; charset=utf-8' });
+    const blobUrl = URL.createObjectURL(blob);
+    const printWindow = window.open(blobUrl, '_blank', 'width=1000,height=800');
+    if (!printWindow) {
+        alert('팝업이 차단되었습니다. 브라우저의 팝업 차단을 해제한 후 다시 시도해 주세요.');
+    }
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
 }
 
 // ─────────────────────────────────────────────
@@ -716,5 +702,11 @@ export function printTuitionFormExternal(academy) {
 </body>
 </html>`;
 
-    openPrintWithIframe(html);
+    const blob = new Blob([html], { type: 'text/html; charset=utf-8' });
+    const blobUrl = URL.createObjectURL(blob);
+    const printWindow = window.open(blobUrl, '_blank', 'width=1000,height=800');
+    if (!printWindow) {
+        alert('팝업이 차단되었습니다. 브라우저의 팝업 차단을 해제한 후 다시 시도해 주세요.');
+    }
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
 }
