@@ -381,9 +381,13 @@ export function printTuitionForm(academy) {
 </body>
 </html>`;
 
-    const printWindow = window.open('', '_blank', 'width=1000,height=800');
-    printWindow.document.write(html);
-    printWindow.document.close();
+    const blob = new Blob([html], { type: 'text/html; charset=utf-8' });
+    const blobUrl = URL.createObjectURL(blob);
+    const printWindow = window.open(blobUrl, '_blank', 'width=1000,height=800');
+    if (!printWindow) {
+        alert('팝업이 차단되었습니다. 브라우저의 팝업 차단을 해제한 후 다시 시도해 주세요.');
+    }
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
 }
 
 // ─────────────────────────────────────────────
@@ -698,7 +702,11 @@ export function printTuitionFormExternal(academy) {
 </body>
 </html>`;
 
-    const printWindow = window.open('', '_blank', 'width=1000,height=800');
-    printWindow.document.write(html);
-    printWindow.document.close();
+    const blob = new Blob([html], { type: 'text/html; charset=utf-8' });
+    const blobUrl = URL.createObjectURL(blob);
+    const printWindow = window.open(blobUrl, '_blank', 'width=1000,height=800');
+    if (!printWindow) {
+        alert('팝업이 차단되었습니다. 브라우저의 팝업 차단을 해제한 후 다시 시도해 주세요.');
+    }
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
 }

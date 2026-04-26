@@ -744,7 +744,7 @@ function App() {
                   className="academy-address"
                   onClick={(e) => {
                     e.stopPropagation();
-                    window.open(`https://map.naver.com/v5/search/${encodeURIComponent(academy.address)}`, '_blank');
+                    window.open(`https://map.naver.com/p/search/${encodeURIComponent(academy.address)}`, '_blank');
                   }}
                   style={{
                     cursor: 'pointer',
@@ -828,7 +828,7 @@ function App() {
                   onClick={(e) => {
                     e.stopPropagation();
                     const searchQuery = `${academy.name} ${cleanAddress(academy.address)}`;
-                    window.open(`https://map.naver.com/v5/search/${encodeURIComponent(searchQuery)}`, '_blank');
+                    window.open(`https://map.naver.com/p/search/${encodeURIComponent(searchQuery)}`, '_blank');
                   }}
                   style={{
                     display: 'inline-flex',

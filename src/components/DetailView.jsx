@@ -1110,7 +1110,7 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
                                             if (onShowMap) {
                                                 onShowMap(academy);
                                             } else {
-                                                window.open(`https://map.naver.com/v5/search/${encodeURIComponent(academy.address)}`, '_blank');
+                                                window.open(`https://map.naver.com/p/search/${encodeURIComponent(academy.address)}`, '_blank');
                                             }
                                         }}
                                         style={{
@@ -1148,7 +1148,7 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
                                 </div>
                                 <span
                                     className="info-value clickable"
-                                    onClick={() => window.open(`https://map.naver.com/v5/search/${encodeURIComponent(academy.address)}`, '_blank')}
+                                    onClick={() => window.open(`https://map.naver.com/p/search/${encodeURIComponent(academy.address)}`, '_blank')}
                                     style={{
                                         cursor: 'pointer',
                                         textDecoration: 'underline',
