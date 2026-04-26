@@ -132,10 +132,8 @@ export default function PrivateTutorDetailView({ tutor, onBack, allTutors = [], 
       .sort((a, b) => extractHoSortKey(a.address) - extractHoSortKey(b.address));
   }, [address, baseAddress, allTutors]);
 
-  // Naver map open (address text is clickable)
-  const openMap = (addr) => {
-    if (addr) window.open(`https://map.naver.com/p/search/${encodeURIComponent(addr)}`, '_blank');
-  };
+  const naverMapUrl = (addr) =>
+    addr ? `https://map.naver.com/p/search/${encodeURIComponent(addr)}` : undefined;
 
   // ── 현황 탭 ──────────────────────────────────────────
   const renderStatus = () => (
@@ -165,9 +163,12 @@ export default function PrivateTutorDetailView({ tutor, onBack, allTutors = [], 
           </span>
         }
       >
-        <div
-          onClick={address ? () => openMap(address) : undefined}
+        <a
+          href={naverMapUrl(address)}
+          target="_blank"
+          rel="noopener noreferrer"
           style={{
+            display: 'block',
             marginTop: '12px',
             padding: '14px 16px',
             background: 'var(--bg-light)',
@@ -184,7 +185,7 @@ export default function PrivateTutorDetailView({ tutor, onBack, allTutors = [], 
           }}
         >
           {address || '-'}
-        </div>
+        </a>
       </Section>
 
       {sameBuildingTutors.length > 0 && (

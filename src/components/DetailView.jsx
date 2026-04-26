@@ -1146,18 +1146,21 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
                                         <span>지도</span>
                                     </button>
                                 </div>
-                                <span
+                                <a
+                                    href={academy.address ? `https://map.naver.com/p/search/${encodeURIComponent(academy.address)}` : undefined}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
                                     className="info-value clickable"
-                                    onClick={() => window.open(`https://map.naver.com/p/search/${encodeURIComponent(academy.address)}`, '_blank')}
                                     style={{
                                         cursor: 'pointer',
                                         textDecoration: 'underline',
-                                        textDecorationColor: 'var(--border-color)'
+                                        textDecorationColor: 'var(--border-color)',
+                                        color: 'inherit'
                                     }}
                                     title="네이버 지도에서 보기"
                                 >
                                     {academy.address || '-'}
-                                </span>
+                                </a>
                             </div>
                             <InfoRow label="우편번호" value={academy.zip} />
                         </Section>
