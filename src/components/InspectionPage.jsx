@@ -3238,11 +3238,37 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
             }
             showCopyToast(fullName);
         };
-        if (!id) return <span style={{ fontWeight: '600', cursor: 'copy' }} onClick={handleCopy} title="클릭하여 복사">{fullName}</span>;
+        const CopyBtn = () => (
+            <span
+                onClick={handleCopy}
+                title="학원명 복사"
+                style={{ cursor: 'pointer', color: 'var(--text-muted)', opacity: 0.4, flexShrink: 0, lineHeight: 1, display: 'inline-flex', alignItems: 'center' }}
+                onMouseEnter={e => e.currentTarget.style.opacity = '0.8'}
+                onMouseLeave={e => e.currentTarget.style.opacity = '0.4'}
+            >
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+            </span>
+        );
+        if (!id) return (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                <span style={{ fontWeight: '600' }}>{fullName}</span>
+                <CopyBtn />
+            </span>
+        );
         const pool = type === '교습소' ? hList : aList;
         const item = pool.find(a => a.id === id);
         return (
-            <span onClick={handleCopy} style={{ fontWeight: '700', color: 'var(--primary)', cursor: 'copy', textDecoration: 'underline', textUnderlineOffset: '2px' }} title="클릭하여 복사">{fullName}</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                <span
+                    onClick={item ? (e) => { e.stopPropagation(); onSelectAcademy(item); } : undefined}
+                    style={{ fontWeight: '700', color: 'var(--primary)', cursor: item ? 'pointer' : 'default', textDecoration: 'underline', textUnderlineOffset: '2px' }}
+                    title="클릭하여 상세보기"
+                >{fullName}</span>
+                <CopyBtn />
+            </span>
         );
     };
     const NavCell = ({ id, type, children, style }) => {
