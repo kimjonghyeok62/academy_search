@@ -642,7 +642,12 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy, focus
             <div id="close-btn" style="position: absolute; top: 10px; right: 12px; cursor: pointer; z-index: 10; font-size: 1rem; color: #4b5563; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.9); border-radius: 50%; box-shadow: 0 1px 4px rgba(0,0,0,0.2);">×</div>
             <div style="margin-bottom: 8px; border-bottom: 1.5px solid rgba(79, 70, 229, 0.15); padding-bottom: 7px; padding-right: 26px; word-break: keep-all;">
                 <div style="font-size: 0.75rem; color: #1f2937; font-weight: 700;">📍 ${academyList[0].address.split('(')[0].trim()}</div>
-                ${isMultiple ? `<div style="color: #4f46e5; font-weight: 900; margin-top: 4px; font-size: 0.78rem;">이 건물 내 ${academyList.length}개 기관</div>` : ''}
+                ${isMultiple ? `<div style="display: flex; align-items: center; gap: 6px; margin-top: 4px;">
+                    <span style="color: #4f46e5; font-weight: 900; font-size: 0.78rem;">이 건물 내 ${academyList.length}개 기관</span>
+                    <button id="copy-building-btn" title="학원명·등록번호 복사" style="display: flex; align-items: center; gap: 3px; font-size: 0.68rem; color: #4f46e5; background: rgba(79,70,229,0.1); border: 1px solid rgba(79,70,229,0.3); border-radius: 5px; padding: 2px 7px; cursor: pointer; font-weight: 700; white-space: nowrap;">
+                        📋 복사
+                    </button>
+                </div>` : ''}
             </div>
             <div style="display: flex; flex-direction: column; gap: 0;">
         `;
@@ -681,6 +686,40 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy, focus
             e.stopPropagation();
             if (overlayRef.current) overlayRef.current.setMap(null);
         });
+
+        const copyBtn = overlayContent.querySelector('#copy-building-btn');
+        if (copyBtn) {
+            copyBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const catLabel = (a) => {
+                    const c = a.category || '';
+                    if (c.includes('교습소')) return '교습소';
+                    if (c.includes('과외') || a.type === 'privateTutor') return '과외';
+                    return '학원';
+                };
+                const text = sortedList.map(a => `${catLabel(a)}\t${a.id || ''}\t${a.name}`).join('\n');
+                const fallback = () => {
+                    const ta = document.createElement('textarea');
+                    ta.value = text;
+                    ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
+                    document.body.appendChild(ta);
+                    ta.focus();
+                    ta.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(ta);
+                };
+                const done = () => {
+                    copyBtn.textContent = '✅ 복사됨';
+                    setTimeout(() => { copyBtn.innerHTML = '📋 복사'; }, 1500);
+                };
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(text).then(done).catch(() => { fallback(); done(); });
+                } else {
+                    fallback();
+                    done();
+                }
+            });
+        }
 
         overlayContent.querySelectorAll('.academy-name-link').forEach(link => {
             link.addEventListener('click', (e) => {
