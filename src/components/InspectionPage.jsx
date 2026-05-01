@@ -4476,7 +4476,7 @@ export default function InspectionPage({ onBack, academies, privateTutors, onSel
     }, [region, activeTab, onSelectAcademy]);
 
     const TABS      = ['계획', '완료', '통계', '검토', '사진', '면적'];
-    const TAB_ICONS = ['⚠️', '🕐', '📊', '🔬', '📐'];
+    const TAB_ICONS = ['⚠️', '🕐', '📊', '🔬', ''];
 
     useEffect(() => {
         fetchAcademyClosureData()
