@@ -10,6 +10,7 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy, focus
     const [statusMsg, setStatusMsg] = useState('');
     const [progress, setProgress] = useState(0);
     const [loading, setLoading] = useState(false);
+    const [mapReadyTick, setMapReadyTick] = useState(0); // 지도 로딩 완료 횟수 (배칭 우회용)
 
     const mapContainerRef = useRef(null);
     const mapInstanceRef = useRef(null);
@@ -463,6 +464,7 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy, focus
                 // 완료
                 setFailCount(localFail);
                 setLoading(false);
+                setMapReadyTick(t => t + 1); // 캐시 완전 히트 시 loading 배칭 우회
                 setStatusMsg('');
                 setErrorMsg('');
 
@@ -821,7 +823,7 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy, focus
                 }
             });
         }
-    }, [loading, focusAcademy]);
+    }, [loading, focusAcademy, mapReadyTick]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // routeAcademies: 경로 번호 마커 표시 (일반 마커 숨김 포함)
     useEffect(() => {
