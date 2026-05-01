@@ -98,6 +98,7 @@ function CropDialog({ blob, onApply, onCancel }) {
   const stateRef = useRef({
     mode: 'draw', rx0: null, ry0: null, rx1: null, ry1: null,
     sx: 0, sy: 0, dragOx: 0, dragOy: 0, rectId: null,
+    edgeDragStart: null,
   });
 
   const ASPECTS = { '자유': null, '1:1': [1,1], '4:3': [4,3], '3:4': [3,4], '16:9': [16,9], '9:16': [9,16] };
@@ -121,6 +122,24 @@ function CropDialog({ blob, onApply, onCancel }) {
     canvas.getContext('2d').drawImage(imgBitmap, 0, 0, canvas.width, canvas.height);
   }, [imgBitmap]);
 
+  const HANDLE_SIZE = 10;
+
+  const getHandles = (rx0, ry0, rx1, ry1) => ({
+    top:    { x: (rx0 + rx1) / 2, y: ry0 },
+    right:  { x: rx1,             y: (ry0 + ry1) / 2 },
+    bottom: { x: (rx0 + rx1) / 2, y: ry1 },
+    left:   { x: rx0,             y: (ry0 + ry1) / 2 },
+  });
+
+  const hitHandle = (x, y, rx0, ry0, rx1, ry1) => {
+    const h = HANDLE_SIZE / 2 + 4;
+    const handles = getHandles(rx0, ry0, rx1, ry1);
+    for (const [edge, pt] of Object.entries(handles)) {
+      if (Math.abs(x - pt.x) <= h && Math.abs(y - pt.y) <= h) return edge;
+    }
+    return null;
+  };
+
   const drawRect = useCallback((x0, y0, x1, y1) => {
     if (!canvasRef.current || !imgBitmap) return;
     const canvas = canvasRef.current;
@@ -130,15 +149,32 @@ function CropDialog({ blob, onApply, onCancel }) {
     ctx.drawImage(imgBitmap, 0, 0, canvas.width, canvas.height);
     const rx0 = Math.min(x0, x1), ry0 = Math.min(y0, y1);
     const rx1 = Math.max(x0, x1), ry1 = Math.max(y0, y1);
-    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.fillStyle = 'rgba(0,0,0,0.45)';
     ctx.fillRect(0, 0, canvas.width, ry0);
     ctx.fillRect(0, ry1, canvas.width, canvas.height - ry1);
     ctx.fillRect(0, ry0, rx0, ry1 - ry0);
     ctx.fillRect(rx1, ry0, canvas.width - rx1, ry1 - ry0);
-    ctx.strokeStyle = '#5b9cf6';
+    // border: bright white solid line
+    ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 2;
-    ctx.setLineDash([6, 3]);
+    ctx.setLineDash([]);
     ctx.strokeRect(rx0, ry0, rx1 - rx0, ry1 - ry0);
+    // thin shadow line for contrast on bright images
+    ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.strokeRect(rx0 + 1, ry0 + 1, rx1 - rx0 - 2, ry1 - ry0 - 2);
+    ctx.setLineDash([]);
+    // edge midpoint handles
+    const handles = getHandles(rx0, ry0, rx1, ry1);
+    const hs = HANDLE_SIZE;
+    for (const pt of Object.values(handles)) {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(pt.x - hs / 2, pt.y - hs / 2, hs, hs);
+      ctx.strokeStyle = '#333333';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(pt.x - hs / 2, pt.y - hs / 2, hs, hs);
+    }
     stateRef.current.rx0 = rx0; stateRef.current.ry0 = ry0;
     stateRef.current.rx1 = rx1; stateRef.current.ry1 = ry1;
     const pw = Math.round((rx1 - rx0) / s);
@@ -161,31 +197,63 @@ function CropDialog({ blob, onApply, onCancel }) {
   const insideRect = (x, y) => {
     const { rx0, ry0, rx1, ry1 } = stateRef.current;
     if (rx0 === null) return false;
-    return rx0 + 10 < x && x < rx1 - 10 && ry0 + 10 < y && y < ry1 - 10;
+    return rx0 + 14 < x && x < rx1 - 14 && ry0 + 14 < y && y < ry1 - 14;
+  };
+
+  const getCursor = (x, y) => {
+    const { rx0, ry0, rx1, ry1 } = stateRef.current;
+    if (rx0 === null) return 'crosshair';
+    const edge = hitHandle(x, y, rx0, ry0, rx1, ry1);
+    if (edge === 'top' || edge === 'bottom') return 'ns-resize';
+    if (edge === 'left' || edge === 'right') return 'ew-resize';
+    if (insideRect(x, y)) return 'move';
+    return 'crosshair';
   };
 
   const onMouseDown = (e) => {
     const { offsetX: x, offsetY: y } = e.nativeEvent;
+    const st = stateRef.current;
+    if (st.rx0 !== null) {
+      const edge = hitHandle(x, y, st.rx0, st.ry0, st.rx1, st.ry1);
+      if (edge) {
+        st.mode = 'edge-' + edge;
+        st.edgeDragStart = { x, y, rx0: st.rx0, ry0: st.ry0, rx1: st.rx1, ry1: st.ry1 };
+        return;
+      }
+    }
     if (insideRect(x, y)) {
-      stateRef.current.mode = 'move';
-      stateRef.current.dragOx = x - stateRef.current.rx0;
-      stateRef.current.dragOy = y - stateRef.current.ry0;
+      st.mode = 'move';
+      st.dragOx = x - st.rx0;
+      st.dragOy = y - st.ry0;
     } else {
-      stateRef.current.mode = 'draw';
-      stateRef.current.sx = x; stateRef.current.sy = y;
+      st.mode = 'draw';
+      st.sx = x; st.sy = y;
     }
   };
 
   const onMouseMove = (e) => {
-    if (!e.buttons) return;
     const canvas = canvasRef.current;
     const { offsetX: x, offsetY: y } = e.nativeEvent;
     const st = stateRef.current;
+    // cursor update when not dragging
+    if (!e.buttons) {
+      if (canvas) canvas.style.cursor = getCursor(x, y);
+      return;
+    }
     if (st.mode === 'move' && st.rx0 !== null) {
       const rw = st.rx1 - st.rx0, rh = st.ry1 - st.ry0;
       const nx0 = clamp(x - st.dragOx, 0, canvas.width - rw);
       const ny0 = clamp(y - st.dragOy, 0, canvas.height - rh);
       drawRect(nx0, ny0, nx0 + rw, ny0 + rh);
+    } else if (st.mode.startsWith('edge-') && st.edgeDragStart) {
+      const d = st.edgeDragStart;
+      let { rx0, ry0, rx1, ry1 } = d;
+      const edge = st.mode.slice(5);
+      if (edge === 'top')    ry0 = clamp(y, 0, ry1 - 10);
+      if (edge === 'bottom') ry1 = clamp(y, ry0 + 10, canvas.height);
+      if (edge === 'left')   rx0 = clamp(x, 0, rx1 - 10);
+      if (edge === 'right')  rx1 = clamp(x, rx0 + 10, canvas.width);
+      drawRect(rx0, ry0, rx1, ry1);
     } else {
       const [cx0, cy0, cx1, cy1] = constrain(
         st.sx, st.sy, clamp(x, 0, canvas.width), clamp(y, 0, canvas.height)
@@ -233,6 +301,7 @@ function CropDialog({ blob, onApply, onCancel }) {
         <canvas
           ref={canvasRef}
           style={{ display: 'block', margin: '0 auto', cursor: 'crosshair', maxWidth: '100%' }}
+          onMouseLeave={() => { if (canvasRef.current) canvasRef.current.style.cursor = 'crosshair'; }}
           onMouseDown={onMouseDown}
           onMouseMove={onMouseMove}
         />
