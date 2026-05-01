@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 
@@ -106,8 +107,12 @@ function CropDialog({ blob, onApply, onCancel }) {
 
   useEffect(() => {
     (async () => {
-      const bm = await createImageBitmap(blob);
-      setImgBitmap(bm);
+      try {
+        const bm = await createImageBitmap(blob);
+        setImgBitmap(bm);
+      } catch {
+        setInfoText('이미지를 불러올 수 없습니다.');
+      }
     })();
   }, [blob]);
 
@@ -286,10 +291,10 @@ function CropDialog({ blob, onApply, onCancel }) {
     setAspect(ASPECTS[label]);
   };
 
-  return (
+  return createPortal(
     <div style={{
       position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
+      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999
     }}>
       <div style={{
         background: 'var(--bg-main)', borderRadius: '16px', padding: '20px',
@@ -328,7 +333,8 @@ function CropDialog({ blob, onApply, onCancel }) {
           }}>취소</button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
