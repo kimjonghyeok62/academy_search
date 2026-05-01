@@ -1,6 +1,19 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
+
+const _raw = import.meta.env.VITE_CLAUDE_API_KEY || '';
+const ENV_API_KEY = _raw.startsWith('sk-ant') ? _raw : '';
+
+const PROMPT = [
+  '이 사진에서 학원, 교습소, 개인과외교습소의 공식 상호명을 찾아주세요.',
+  '규칙:',
+  '- 간판이나 현수막에 적힌 공식 명칭만 추출',
+  "- '학원', '교습소' 등 기관 종류명 포함",
+  '- 이름만 한 줄로 답변 (예: 하남수학학원)',
+  '- 파일명으로 쓸 수 없는 특수문자(/ \\ : * ? " < > |)는 제외',
+  "- 확인 불가능하면 '알수없음' 으로만 답변",
+].join('\n');
 
 const DOC_W = 630;
 const DOC_H = 472;
@@ -242,7 +255,7 @@ function CropDialog({ blob, onApply, onCancel }) {
 }
 
 // ── 메인 컴포넌트 ─────────────────────────────────────────────────────────
-export default function PhotoRenamePage({ onBack }) {
+export default function PhotoRenamePage({ onBack, embedded = false }) {
   const [images, setImages] = useState([]);     // { file, blob, name, status, objectUrl }
   const [currentIdx, setCurrentIdx] = useState(0);
   const [nameInput, setNameInput] = useState('');
@@ -297,16 +310,41 @@ export default function PhotoRenamePage({ onBack }) {
     setAnalyzing(true);
 
     try {
+      if (!ENV_API_KEY) {
+        setAiStatus('⚠️ VITE_CLAUDE_API_KEY 환경변수가 설정되지 않았습니다.');
+        setAiStatusColor('#f56565');
+        setAnalyzing(false);
+        return;
+      }
       const compressed = await compressToJpeg(img.blob);
       const b64 = await blobToBase64(compressed);
-      const res = await fetch('/api/analyze', {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageBase64: b64, mimeType: 'image/jpeg' }),
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': ENV_API_KEY,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+        },
+        body: JSON.stringify({
+          model: 'claude-opus-4-5',
+          max_tokens: 80,
+          messages: [{ role: 'user', content: [
+            { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } },
+            { type: 'text', text: PROMPT },
+          ]}],
+        }),
       });
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        throw new Error(e.error?.message || `API 오류 (${res.status})`);
+      }
       const data = await res.json();
-      if (data.name) {
-        setNameInput(data.name);
+      const raw = data.content[0]?.text?.trim() || '';
+      const recognized = raw.replace(/[\\/:*?"<>|]/g, '');
+      const name = recognized === '알수없음' ? '' : recognized;
+      if (name) {
+        setNameInput(name);
         setAiStatus('✅ 인식 완료 — 수정 후 [저장] 버튼을 누르세요.');
         setAiStatusColor('#43d9a0');
       } else {
@@ -405,22 +443,24 @@ export default function PhotoRenamePage({ onBack }) {
 
   // ── 렌더 ────────────────────────────────────────────────────────────────
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg-main)', padding: '0 0 40px' }}>
-      {/* 헤더 */}
-      <div style={{
-        background: 'var(--bg-card)', borderBottom: '1px solid var(--border-color)',
-        padding: '14px 20px', display: 'flex', alignItems: 'center', gap: '14px'
-      }}>
-        <button onClick={onBack} style={{
-          background: 'none', border: 'none', cursor: 'pointer',
-          color: 'var(--primary)', fontSize: '1.1rem', fontWeight: '700', padding: '4px 8px'
-        }}>← 뒤로</button>
-        <span style={{ fontSize: '1.1rem', fontWeight: '700', color: 'var(--text-main)' }}>
-          📷 학원 사진 자동 명명
-        </span>
-      </div>
+    <div style={embedded ? {} : { minHeight: '100vh', background: 'var(--bg-main)', padding: '0 0 40px' }}>
+      {/* 헤더 (standalone 모드에서만) */}
+      {!embedded && (
+        <div style={{
+          background: 'var(--bg-card)', borderBottom: '1px solid var(--border-color)',
+          padding: '14px 20px', display: 'flex', alignItems: 'center', gap: '14px'
+        }}>
+          <button onClick={onBack} style={{
+            background: 'none', border: 'none', cursor: 'pointer',
+            color: 'var(--primary)', fontSize: '1.1rem', fontWeight: '700', padding: '4px 8px'
+          }}>← 뒤로</button>
+          <span style={{ fontSize: '1.1rem', fontWeight: '700', color: 'var(--text-main)' }}>
+            📷 학원 사진 자동 명명
+          </span>
+        </div>
+      )}
 
-      <div style={{ maxWidth: '960px', margin: '0 auto', padding: '20px' }}>
+      <div style={{ maxWidth: '960px', margin: '0 auto', padding: embedded ? '12px 0' : '20px' }}>
         {/* 폴더 선택 영역 */}
         {!started && (
           <div style={{

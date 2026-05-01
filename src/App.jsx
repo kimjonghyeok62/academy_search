@@ -8,7 +8,6 @@ import InspectionStandardAccordion from './components/InspectionStandardAccordio
 import InspectionPage from './components/InspectionPage';
 import KakaoMapPage from './components/KakaoMapPage';
 import TuitionPrintPage from './components/TuitionPrintPage';
-import PhotoRenamePage from './components/PhotoRenamePage';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -60,7 +59,6 @@ function App() {
   const [savedMapState, setSavedMapState] = useState(null); // 지도 위치/줌 복원용
   const [routeAcademies, setRouteAcademies] = useState(null); // 점검 경로 학원 목록
   const [showTuitionPrint, setShowTuitionPrint] = useState(false); // 교습비출력 화면
-  const [showPhotoRename, setShowPhotoRename] = useState(false); // 사진 자동 명명 화면
 
   // Clean up any old auth data on mount
   useEffect(() => {
@@ -504,11 +502,6 @@ function App() {
         onBack={() => setShowTuitionPrint(false)}
       />
     );
-  }
-
-  // 사진 자동 명명 화면
-  if (showPhotoRename) {
-    return <PhotoRenamePage onBack={() => setShowPhotoRename(false)} />;
   }
 
   return (
@@ -1306,70 +1299,6 @@ function App() {
               <div>
                 <div style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--text-main)' }}>
                   지도점검 업무관리
-                </div>
-              </div>
-            </div>
-            <div style={{
-              width: '28px',
-              height: '28px',
-              borderRadius: '6px',
-              background: 'var(--bg-light)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              position: 'relative',
-              zIndex: 1
-            }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="9 18 15 12 9 6"></polyline>
-              </svg>
-            </div>
-          </div>
-
-          {/* 사진 자동 명명 버튼 */}
-          <div
-            onClick={() => setShowPhotoRename(true)}
-            style={{
-              marginTop: '10px',
-              padding: '12px 16px',
-              background: 'var(--bg-card)',
-              border: '1px solid var(--border-color)',
-              borderRadius: '14px',
-              cursor: 'pointer',
-              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '10px',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
-            }}
-            onMouseOver={(e) => {
-              e.currentTarget.style.borderColor = '#d97706';
-              e.currentTarget.style.boxShadow = '0 6px 12px -2px rgba(217,119,6,0.1)';
-              e.currentTarget.style.transform = 'translateY(-2px)';
-            }}
-            onMouseOut={(e) => {
-              e.currentTarget.style.borderColor = 'var(--border-color)';
-              e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.02)';
-              e.currentTarget.style.transform = 'translateY(0)';
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', position: 'relative', zIndex: 1 }}>
-              <div style={{
-                width: '36px',
-                height: '36px',
-                borderRadius: '10px',
-                background: '#fef3c7',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '1.2rem'
-              }}>
-                📷
-              </div>
-              <div>
-                <div style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--text-main)' }}>
-                  사진 자동 명명
                 </div>
               </div>
             </div>
