@@ -210,8 +210,17 @@ function CropDialog({ blob, onApply, onCancel }) {
     return 'crosshair';
   };
 
+  const canvasXY = (e) => {
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: (e.clientX - rect.left) * (canvas.width / rect.width),
+      y: (e.clientY - rect.top)  * (canvas.height / rect.height),
+    };
+  };
+
   const onMouseDown = (e) => {
-    const { offsetX: x, offsetY: y } = e.nativeEvent;
+    const { x, y } = canvasXY(e);
     const st = stateRef.current;
     if (st.rx0 !== null) {
       const edge = hitHandle(x, y, st.rx0, st.ry0, st.rx1, st.ry1);
@@ -233,7 +242,7 @@ function CropDialog({ blob, onApply, onCancel }) {
 
   const onMouseMove = (e) => {
     const canvas = canvasRef.current;
-    const { offsetX: x, offsetY: y } = e.nativeEvent;
+    const { x, y } = canvasXY(e);
     const st = stateRef.current;
     // cursor update when not dragging
     if (!e.buttons) {
