@@ -535,6 +535,7 @@ function App() {
             onShowMap={(academy) => {
               setMapReturnState({ academy: selectedAcademy, origin: detailOrigin });
               setFocusAcademy(academy);
+              setSavedMapState(null);
               setSelectedAcademy(null);
               setShowMap(true);
             }}
