@@ -653,11 +653,11 @@ export default function PhotoRenamePage({ onBack, embedded = false }) {
                   <div style={{ background: 'var(--bg-card)', borderRadius: '12px', padding: '14px', border: '1px solid var(--border-color)' }}>
                     <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '8px' }}>이미지 편집</p>
                     <div style={{ display: 'flex', gap: '6px', marginBottom: '6px' }}>
-                      <button onClick={() => handleRotate(-90)} disabled={analyzing} style={btnStyle('var(--bg-main)')}>↺ 좌회전</button>
-                      <button onClick={() => handleRotate(90)} disabled={analyzing} style={btnStyle('var(--bg-main)')}>↻ 우회전</button>
+                      <button onClick={() => handleRotate(-90)} style={btnStyle('var(--bg-main)')}>↺ 좌회전</button>
+                      <button onClick={() => handleRotate(90)} style={btnStyle('var(--bg-main)')}>↻ 우회전</button>
                     </div>
                     <div style={{ display: 'flex', gap: '6px' }}>
-                      <button onClick={() => setShowCrop(true)} disabled={analyzing} style={btnStyle('var(--bg-main)')}>✂️ 자르기</button>
+                      <button onClick={() => setShowCrop(true)} style={btnStyle('var(--bg-main)')}>✂️ 자르기</button>
                       <button onClick={handleBack} disabled={analyzing || currentIdx <= 0} style={btnStyle('var(--bg-main)')}>⬅ 이전</button>
                     </div>
                   </div>
