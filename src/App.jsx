@@ -64,7 +64,6 @@ function App() {
   // 모바일 뒤로가기 처리용 ref
   const backHandlerRef = useRef(null);
   const isSubScreenRef = useRef(false);
-  const popstateNavigatedRef = useRef(false);
   const lastBackPressRef = useRef(0);
   const backToastTimerRef = useRef(null);
 
@@ -83,6 +82,7 @@ function App() {
   }, [isAuthenticated]);
 
   // 현재 화면에 맞는 뒤로가기 핸들러를 ref에 동기화
+  // 핸들러는 다음 화면이 서브화면인지 여부를 반환 (true = 서브화면 유지, false = 홈으로)
   useEffect(() => {
     if (showMap) {
       backHandlerRef.current = () => {
@@ -93,26 +93,35 @@ function App() {
         if (mapReturnState) {
           if (mapReturnState.fromInspection) {
             setShowInspection(true);
+            setMapReturnState(null);
+            return true; // 점검화면으로 → 서브화면 유지
           } else {
             setSelectedAcademy(mapReturnState.academy);
             setDetailOrigin(mapReturnState.origin);
+            setMapReturnState(null);
+            return true; // 상세화면으로 → 서브화면 유지
           }
-          setMapReturnState(null);
         }
+        return false; // 홈으로
       };
     } else if (showInspection) {
       backHandlerRef.current = () => {
         setShowInspection(false);
         setInspectionInitialTab(undefined);
+        return false; // 홈으로
       };
     } else if (showTuitionPrint) {
-      backHandlerRef.current = () => setShowTuitionPrint(false);
+      backHandlerRef.current = () => {
+        setShowTuitionPrint(false);
+        return false; // 홈으로
+      };
     } else if (selectedAcademy) {
       backHandlerRef.current = () => {
         const origin = detailOrigin;
         setSelectedAcademy(null);
-        if (origin === 'inspection') setShowInspection(true);
-        if (origin === 'map') setShowMap(true);
+        if (origin === 'inspection') { setShowInspection(true); return true; }
+        if (origin === 'map') { setShowMap(true); return true; }
+        return false; // 홈으로
       };
     } else {
       backHandlerRef.current = null;
@@ -122,19 +131,17 @@ function App() {
   // 모바일 여부 판별
   const isMobile = () => /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1;
 
-  // 서브 화면 진입/이탈 시 history 엔트리 관리 (모바일 전용)
+  // 서브 화면 최초 진입 시 history 버퍼 삽입 (모바일 전용)
+  // popstate 핸들러가 직접 재삽입하므로, 여기서는 홈→서브 첫 진입만 처리
   useEffect(() => {
     if (!isMobile()) return;
     const isSubScreen = showInspection || showMap || showTuitionPrint || !!selectedAcademy;
-    if (isSubScreen) {
-      if (!isSubScreenRef.current || popstateNavigatedRef.current) {
-        window.history.pushState({ appSub: true }, '');
-        isSubScreenRef.current = true;
-        popstateNavigatedRef.current = false;
-      }
-    } else {
+    if (isSubScreen && !isSubScreenRef.current) {
+      window.history.pushState({ appSub: true }, '');
+      isSubScreenRef.current = true;
+    } else if (!isSubScreen) {
       isSubScreenRef.current = false;
-      popstateNavigatedRef.current = false;
+      lastBackPressRef.current = 0; // 홈 복귀 시 종료 타이머 리셋
     }
   }, [showInspection, showMap, showTuitionPrint, selectedAcademy]);
 
@@ -145,19 +152,23 @@ function App() {
 
     const handlePopState = () => {
       if (backHandlerRef.current) {
-        popstateNavigatedRef.current = true;
-        backHandlerRef.current();
+        const staysInSubScreen = backHandlerRef.current();
+        if (staysInSubScreen) {
+          // 다음 화면도 서브화면 → 즉시 동기적으로 재삽입해 다음 뒤로가기도 잡을 수 있게
+          window.history.pushState({ appSub: true }, '');
+        }
+        // 홈으로 가는 경우: isSubScreenRef는 위 effect에서 false로 설정됨
       } else {
-        // 홈 화면: 2초 내 2번 누르면 종료
+        // 홈 화면: 1.5초 내 2번 빠르게 누르면 종료
         const now = Date.now();
-        if (now - lastBackPressRef.current < 2000) {
+        if (now - lastBackPressRef.current < 1500) {
           return; // 브라우저 기본 동작(앱 종료) 허용
         }
         lastBackPressRef.current = now;
         window.history.pushState({ appHome: true }, '');
         setBackToast(true);
         clearTimeout(backToastTimerRef.current);
-        backToastTimerRef.current = setTimeout(() => setBackToast(false), 2000);
+        backToastTimerRef.current = setTimeout(() => setBackToast(false), 1500);
       }
     };
 
@@ -1481,18 +1492,19 @@ function App() {
       {backToast && (
         <div style={{
           position: 'fixed',
-          bottom: '48px',
+          bottom: '60px',
           left: '50%',
           transform: 'translateX(-50%)',
-          backgroundColor: 'rgba(30,30,30,0.88)',
+          backgroundColor: 'rgba(20,20,20,0.92)',
           color: '#fff',
-          padding: '12px 24px',
+          padding: '13px 28px',
           borderRadius: '24px',
-          fontSize: '0.9rem',
-          fontWeight: '500',
+          fontSize: '0.95rem',
+          fontWeight: '600',
           whiteSpace: 'nowrap',
-          zIndex: 9999,
+          zIndex: 2147483647,
           pointerEvents: 'none',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
         }}>
           한 번 더 누르면 앱이 종료됩니다
         </div>
