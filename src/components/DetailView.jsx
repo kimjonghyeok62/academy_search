@@ -1053,13 +1053,13 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
                         <Section
                             title="기본 정보"
                             rightButton={
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        const cityDistrict = getCityDistrict(academy.address);
-                                        const searchQuery = cityDistrict ? `${academy.name} ${cityDistrict}` : academy.name;
-                                        window.open(`https://map.naver.com/p/search/${encodeURIComponent(searchQuery)}`, '_blank');
-                                    }}
+                                <a
+                                    href={`https://map.naver.com/p/search/${encodeURIComponent(
+                                        (() => { const d = getCityDistrict(academy.address); return d ? `${academy.name} ${d}` : academy.name; })()
+                                    )}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
                                     style={{
                                         display: 'inline-flex',
                                         alignItems: 'center',
@@ -1067,13 +1067,13 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
                                         padding: '6px 12px',
                                         backgroundColor: '#5FD68A',
                                         color: 'white',
-                                        border: 'none',
                                         borderRadius: '8px',
                                         fontSize: '0.85rem',
                                         fontWeight: '600',
                                         cursor: 'pointer',
                                         transition: 'all 0.2s',
-                                        boxShadow: '0 1px 3px rgba(95, 214, 138, 0.3)'
+                                        boxShadow: '0 1px 3px rgba(95, 214, 138, 0.3)',
+                                        textDecoration: 'none'
                                     }}
                                     onMouseOver={(e) => {
                                         e.currentTarget.style.backgroundColor = '#4EC57A';
@@ -1093,7 +1093,7 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
                                         <line x1="10" y1="14" x2="21" y2="3"></line>
                                     </svg>
                                     <span>플레이스</span>
-                                </button>
+                                </a>
                             }
                         >
                             <InfoRow label="등록번호" value={academy.id} />
