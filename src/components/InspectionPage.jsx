@@ -3017,12 +3017,14 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                 positions.push(position);
 
                 const el = document.createElement('div');
-                // translate(-11px,-11px): 배지 중심(22px 원의 중앙=11px)이 정확히 좌표에 오도록
-                el.style.cssText = 'display:flex;flex-direction:column;align-items:flex-start;gap:3px;transform:translate(-11px,-11px);';
-                items.forEach(a => {
+                // 0×0 wrapper: 지리 좌표에 픽셀 오프셋 없이 정확히 고정 (transform 제거)
+                el.style.cssText = 'position:relative;width:0;height:0;overflow:visible;';
+                items.forEach((a, i) => {
                     const unitStr = getUnitLabel(a.address);
                     const row = document.createElement('div');
-                    row.style.cssText = 'display:flex;align-items:center;gap:4px;cursor:pointer;';
+                    const baseTop = i * 27 - 11; // 배지 중심(11px)이 좌표에 오도록
+                    row.dataset.baseTop = baseTop;
+                    row.style.cssText = `position:absolute;top:${baseTop}px;left:-11px;display:flex;align-items:center;gap:4px;cursor:pointer;`;
                     row.innerHTML = `
                         <div style="width:22px;height:22px;border-radius:50%;background:#f97316;color:white;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:10px;border:2px solid white;box-shadow:0 2px 5px rgba(249,115,22,0.5);flex-shrink:0;">${a._order}</div>
                         <div style="background:rgba(255,255,255,0.95);padding:2px 7px;border-radius:9px;border:1.5px solid #f97316;font-size:10px;font-weight:700;color:#1e1b4b;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,0.15);">${a.name}${unitStr ? ' ' + unitStr : ''}</div>
@@ -3105,7 +3107,10 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                             if (shift > 0) {
                                 b.item.cssShiftY = (b.item.cssShiftY || 0) + shift;
                                 // -11px 수직 오프셋(base) 유지하면서 shift 적용
-                                b.item.el.style.transform = `translate(-11px, ${-11 + b.item.cssShiftY}px)`;
+                                Array.from(b.item.el.children).forEach(child => {
+                                    const baseTop = parseInt(child.dataset.baseTop) || 0;
+                                    child.style.top = (baseTop + b.item.cssShiftY) + 'px';
+                                });
                                 b.top += shift;
                                 b.bottom += shift;
                             }
@@ -3113,6 +3118,24 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                     }
                 }
             };
+            // 줌 변경 시 shift 초기화 후 재계산
+            const resetAndResolve = () => {
+                if (cancelled) return;
+                overlayItems.forEach(item => {
+                    item.cssShiftY = 0;
+                    Array.from(item.el.children).forEach(child => {
+                        child.style.top = (parseInt(child.dataset.baseTop) || 0) + 'px';
+                    });
+                });
+                resolveCollisions();
+            };
+            let zoomTimer = null;
+            kakao.maps.event.addListener(map, 'zoom_changed', () => {
+                if (cancelled) return;
+                clearTimeout(zoomTimer);
+                zoomTimer = setTimeout(resetAndResolve, 200);
+            });
+
             // 지도 이동 완료 후 충돌 감지 실행
             // setBounds가 이미 완료됐을 수 있으므로 idle 이벤트와 타임아웃 두 가지로 보장
             let collisionDone = false;

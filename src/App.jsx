@@ -59,6 +59,14 @@ function App() {
   const [savedMapState, setSavedMapState] = useState(null); // 지도 위치/줌 복원용
   const [routeAcademies, setRouteAcademies] = useState(null); // 점검 경로 학원 목록
   const [showTuitionPrint, setShowTuitionPrint] = useState(false); // 교습비출력 화면
+  const [backToast, setBackToast] = useState(false); // 뒤로가기 토스트
+
+  // 모바일 뒤로가기 처리용 ref
+  const backHandlerRef = useRef(null);
+  const isSubScreenRef = useRef(false);
+  const popstateNavigatedRef = useRef(false);
+  const lastBackPressRef = useRef(0);
+  const backToastTimerRef = useRef(null);
 
   // Clean up any old auth data on mount
   useEffect(() => {
@@ -73,6 +81,89 @@ function App() {
       loadData();
     }
   }, [isAuthenticated]);
+
+  // 현재 화면에 맞는 뒤로가기 핸들러를 ref에 동기화
+  useEffect(() => {
+    if (showMap) {
+      backHandlerRef.current = () => {
+        setShowMap(false);
+        setFocusAcademy(null);
+        setRouteAcademies(null);
+        setSavedMapState(null);
+        if (mapReturnState) {
+          if (mapReturnState.fromInspection) {
+            setShowInspection(true);
+          } else {
+            setSelectedAcademy(mapReturnState.academy);
+            setDetailOrigin(mapReturnState.origin);
+          }
+          setMapReturnState(null);
+        }
+      };
+    } else if (showInspection) {
+      backHandlerRef.current = () => {
+        setShowInspection(false);
+        setInspectionInitialTab(undefined);
+      };
+    } else if (showTuitionPrint) {
+      backHandlerRef.current = () => setShowTuitionPrint(false);
+    } else if (selectedAcademy) {
+      backHandlerRef.current = () => {
+        const origin = detailOrigin;
+        setSelectedAcademy(null);
+        if (origin === 'inspection') setShowInspection(true);
+        if (origin === 'map') setShowMap(true);
+      };
+    } else {
+      backHandlerRef.current = null;
+    }
+  }, [showMap, showInspection, showTuitionPrint, selectedAcademy, mapReturnState, detailOrigin]);
+
+  // 모바일 여부 판별
+  const isMobile = () => /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1;
+
+  // 서브 화면 진입/이탈 시 history 엔트리 관리 (모바일 전용)
+  useEffect(() => {
+    if (!isMobile()) return;
+    const isSubScreen = showInspection || showMap || showTuitionPrint || !!selectedAcademy;
+    if (isSubScreen) {
+      if (!isSubScreenRef.current || popstateNavigatedRef.current) {
+        window.history.pushState({ appSub: true }, '');
+        isSubScreenRef.current = true;
+        popstateNavigatedRef.current = false;
+      }
+    } else {
+      isSubScreenRef.current = false;
+      popstateNavigatedRef.current = false;
+    }
+  }, [showInspection, showMap, showTuitionPrint, selectedAcademy]);
+
+  // popstate 이벤트 처리 (모바일 뒤로가기 버튼 전용)
+  useEffect(() => {
+    if (!isMobile()) return;
+    window.history.replaceState({ appHome: true }, '');
+
+    const handlePopState = () => {
+      if (backHandlerRef.current) {
+        popstateNavigatedRef.current = true;
+        backHandlerRef.current();
+      } else {
+        // 홈 화면: 2초 내 2번 누르면 종료
+        const now = Date.now();
+        if (now - lastBackPressRef.current < 2000) {
+          return; // 브라우저 기본 동작(앱 종료) 허용
+        }
+        lastBackPressRef.current = now;
+        window.history.pushState({ appHome: true }, '');
+        setBackToast(true);
+        clearTimeout(backToastTimerRef.current);
+        backToastTimerRef.current = setTimeout(() => setBackToast(false), 2000);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   const CACHE_KEY = 'academy_data_v8'; // v8: 학원(폐원) 시트도 GID 방식으로 전환
   const CACHE_TTL = 30 * 60 * 1000; // 30분
@@ -1385,6 +1476,26 @@ function App() {
         </div>
       )}
       </>
+      )}
+
+      {backToast && (
+        <div style={{
+          position: 'fixed',
+          bottom: '48px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          backgroundColor: 'rgba(30,30,30,0.88)',
+          color: '#fff',
+          padding: '12px 24px',
+          borderRadius: '24px',
+          fontSize: '0.9rem',
+          fontWeight: '500',
+          whiteSpace: 'nowrap',
+          zIndex: 9999,
+          pointerEvents: 'none',
+        }}>
+          한 번 더 누르면 앱이 종료됩니다
+        </div>
       )}
     </div>
   );
