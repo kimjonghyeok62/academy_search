@@ -4,6 +4,58 @@ import AdminSanctionAccordion from './AdminSanctionAccordion';
 import FineGuideAccordion from './FineGuideAccordion';
 import { printTuitionForm, printTuitionFormExternal } from '../utils/generateTuitionPDF';
 
+// 교습과정 정렬: 교습과정 → 레벨(유아<초등/초급<중등/중급<고등/고급<입시) → 과목기본명 자연정렬 → 주회수
+function sortCourses(courses) {
+    // 레벨 키워드 → 우선순위 (낮을수록 앞)
+    const LEVEL_RANK = [
+        ['유아', 0],
+        ['초등', 10], ['초급', 11],
+        ['중등', 20], ['중급', 21],
+        ['고등', 30], ['고급', 31],
+        ['입시', 40],
+    ];
+    const levelRank = (str) => {
+        const s = str || '';
+        for (const [kw, rank] of LEVEL_RANK) {
+            if (s.includes(kw)) return rank;
+        }
+        return 99;
+    };
+    const weeklyRank = (str) => {
+        const m = (str || '').match(/주(\d+)회/);
+        return m ? parseInt(m[1], 10) : 99;
+    };
+    // (주N회) 부분 제거한 기본 과목명
+    const baseName = (str) => (str || '').replace(/\s*\(주\d+회\)/g, '').replace(/\s+/g, ' ').trim();
+    const naturalCmp = (a, b) => {
+        const re = /(\d+)|(\D+)/g;
+        const pa = String(a).match(re) || [];
+        const pb = String(b).match(re) || [];
+        for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+            const ca = pa[i] || '', cb = pb[i] || '';
+            const na = parseInt(ca, 10), nb = parseInt(cb, 10);
+            if (!isNaN(na) && !isNaN(nb)) { if (na !== nb) return na - nb; }
+            else { const c = ca.localeCompare(cb, 'ko'); if (c !== 0) return c; }
+        }
+        return 0;
+    };
+    return [...courses].sort((a, b) => {
+        const subA = (a.subject || a.process || '').trim();
+        const subB = (b.subject || b.process || '').trim();
+        // 1. 교습과정(계열)
+        const pc = naturalCmp(a.process || '', b.process || '');
+        if (pc !== 0) return pc;
+        // 2. 레벨 순위
+        const la = levelRank(subA), lb = levelRank(subB);
+        if (la !== lb) return la - lb;
+        // 3. 기본 과목명 자연 정렬 (초급1 < 초급2, 고급A < 고급B 등)
+        const bc = naturalCmp(baseName(subA), baseName(subB));
+        if (bc !== 0) return bc;
+        // 4. 주회수 (주2회 < 주3회 < 주4회)
+        return weeklyRank(subA) - weeklyRank(subB);
+    });
+}
+
 const TUITION_STANDARDS = [
     { process: '보습', target: '단과(초등)', price: 210 },
     { process: '보습', target: '단과(중등)', price: 222 },
@@ -1376,7 +1428,7 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
                             </div>
                             {showSensitiveInfo && (
                                 <>
-                                    <InfoRow label="생년월일" value={academy.founder.birth} />
+                                    <InfoRow label="YY" value={(academy.founder.birth || '').substring(0, 2)} />
                                     <InfoRow label="주소" value={academy.founder.address} />
                                 </>
                             )}
@@ -1513,7 +1565,7 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
                         </div>
 
                         {/* 아코디언 리스트 */}
-                        {academy.courses.map((course, idx) => {
+                        {sortCourses(academy.courses).map((course, idx) => {
                             const isExpanded = expandedCourses.includes(idx);
                             return (
                                 <div

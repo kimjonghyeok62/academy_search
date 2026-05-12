@@ -555,17 +555,21 @@ export function transformAcademyData(rawRows, inspectionMap = new Map()) {
         const name = (row['학원명'] || row['교습소명'] || '').trim();
         if (!name) return;
 
+        const rowId = row['등록번호'] || row['신고번호'] || '';
+        const rowStatus = row['등록상태'] || '';
+        const ACTIVE = ['개원', '신고'];
+
         if (!academyMap.has(name)) {
             const normName = normalizeName(name);
             academyMap.set(name, {
-                id: row['등록번호'] || row['신고번호'] || '',
+                id: rowId,
                 name: name,
                 category: row['학원종류'] || '교습소',
                 field: row['분야구분'] || '',
                 address: row['학원주소'] || row['교습소주소'] || '',
                 zip: row['우편번호'] || '',
                 regDate: row['등록일'] || '',
-                status: row['등록상태'] || '',
+                status: rowStatus,
                 statusDate: row['개원/휴원/폐원일'] || row['개소/휴소/폐소일'] || '',
                 changeDate: row['변경일'] || '',
                 founder: {
@@ -588,6 +592,41 @@ export function transformAcademyData(rawRows, inspectionMap = new Map()) {
                 insurances: [],
                 inspections: inspectionMap.get(normName) || []
             });
+        } else {
+            // 같은 이름으로 재신고(재등록)한 경우: 새 항목이 활성 상태이고 기존이 비활성이면 메인 정보를 교체
+            const existing = academyMap.get(name);
+            if (rowId !== existing.id && ACTIVE.includes(rowStatus) && !ACTIVE.includes(existing.status)) {
+                const normName = normalizeName(name);
+                Object.assign(existing, {
+                    id: rowId,
+                    category: row['학원종류'] || existing.category,
+                    field: row['분야구분'] || existing.field,
+                    address: row['학원주소'] || row['교습소주소'] || existing.address,
+                    zip: row['우편번호'] || existing.zip,
+                    regDate: row['등록일'] || existing.regDate,
+                    status: rowStatus,
+                    statusDate: row['개원/휴원/폐원일'] || row['개소/휴소/폐소일'] || existing.statusDate,
+                    changeDate: row['변경일'] || existing.changeDate,
+                    founder: {
+                        name: row['설립자-성명'] || row['교습자-성명'] || existing.founder.name,
+                        phone: row['전화번호'] || existing.founder.phone,
+                        mobile: row['핸드폰'] || existing.founder.mobile,
+                        birth: row['설립자-생년월일'] || row['교습자-생년월일'] || existing.founder.birth,
+                        address: row['설립자-주소'] || existing.founder.address
+                    },
+                    facilities: {
+                        totalArea: row['총면적'] || existing.facilities.totalArea,
+                        dedicatedArea: row['전용부분면적'] || existing.facilities.dedicatedArea,
+                        capacityTotal: row['정원합계'] || existing.facilities.capacityTotal,
+                        buildingArea: row['건물연면적'] || existing.facilities.buildingArea,
+                        floors: row['총건물층수'] || existing.facilities.floors,
+                        builtDate: row['준공일(사용승인일)'] || existing.facilities.builtDate,
+                        capacityTemporary: row['일시수용능력인원'] || existing.facilities.capacityTemporary
+                    },
+                    courses: [],
+                    inspections: inspectionMap.get(normName) || existing.inspections
+                });
+            }
         }
 
         const academy = academyMap.get(name);
