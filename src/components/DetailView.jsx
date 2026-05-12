@@ -121,7 +121,7 @@ const eduShort = (edu) => {
 };
 
 // 강사 탭 컴포넌트
-function InstructorTab({ instructors = [] }) {
+function InstructorTab({ instructors = [], supplementLoading = false }) {
     const [filter, setFilter] = useState('현직'); // '전체' | '현직' | '전직'
     const [subjectFilter, setSubjectFilter] = useState('전체');
 
@@ -178,7 +178,12 @@ function InstructorTab({ instructors = [] }) {
             </div>
 
             {/* 강사 목록 */}
-            {filtered.length === 0 ? (
+            {filtered.length === 0 && supplementLoading ? (
+                <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)' }}>
+                    <div style={{ fontSize: '1.5rem', marginBottom: '10px', animation: 'spin 1s linear infinite', display: 'inline-block' }}>⟳</div>
+                    <p style={{ margin: 0, fontSize: '0.9rem' }}>강사 데이터를 불러오는 중...</p>
+                </div>
+            ) : filtered.length === 0 ? (
                 <p className="empty-msg">해당 조건의 강사가 없습니다.</p>
             ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -885,7 +890,7 @@ function Section({ title, children, rightButton }) {
     );
 }
 
-export default function DetailView({ academy, allAcademies = [], onBack, onSelectAcademy, onShowMap }) {
+export default function DetailView({ academy, allAcademies = [], supplementLoading = false, onBack, onSelectAcademy, onShowMap }) {
     const [activeTab, setActiveTab] = useState('status');
     const [showSensitiveInfo, setShowSensitiveInfo] = useState(true);
     const [expandedCourses, setExpandedCourses] = useState([]); // 모두 접힌 상태로 시작
@@ -1949,7 +1954,7 @@ export default function DetailView({ academy, allAcademies = [], onBack, onSelec
                 );
             case 'instructor': {
                 return (
-                    <InstructorTab instructors={academy.instructors || []} />
+                    <InstructorTab instructors={academy.instructors || []} supplementLoading={supplementLoading} />
                 );
             }
             case 'assistant': {

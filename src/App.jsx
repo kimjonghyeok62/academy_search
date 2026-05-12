@@ -40,6 +40,7 @@ function App() {
   const [academies, setAcademies] = useState([]);
   const [privateTutors, setPrivateTutors] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [supplementLoading, setSupplementLoading] = useState(false);
   const [error, setError] = useState('');
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -249,27 +250,42 @@ function App() {
       setPrivateTutors(tutorData);
       setLoading(false);
 
-      // 3. Phase 2: 보조 데이터 백그라운드 로드 (점검·강사·보조요원·시트명)
-      const [sheetName, inspectionMap, map2026, instructorMap, assistantMap] = await Promise.all([
-        fetchSheetName(),
-        fetchInspectionData(),
-        fetch2026InspectionData(),
-        fetchInstructorData(),
-        fetchAssistantData(),
-      ]);
-      const fullAcademies = mergeSupplementaryData(rawData, inspectionMap, map2026, instructorMap, assistantMap);
-      setAcademies(fullAcademies);
-      setDataAsOf(sheetName);
+      // 3. Phase 2: 보조 데이터 백그라운드 로드 (점검·강사·보조요원·시트명) — 최대 3회 재시도
+      setSupplementLoading(true);
+      const fetchPhase2 = async (attempt = 1) => {
+        try {
+          const [sheetName, inspectionMap, map2026, instructorMap, assistantMap] = await Promise.all([
+            fetchSheetName(),
+            fetchInspectionData(),
+            fetch2026InspectionData(),
+            fetchInstructorData(),
+            fetchAssistantData(),
+          ]);
+          const fullAcademies = mergeSupplementaryData(rawData, inspectionMap, map2026, instructorMap, assistantMap);
+          setAcademies(fullAcademies);
+          setDataAsOf(sheetName);
+          setSupplementLoading(false);
 
-      // 4. 캐시 저장 (용량 초과 시 무시)
-      try {
-        sessionStorage.setItem(CACHE_KEY, JSON.stringify({
-          academies: fullAcademies,
-          privateTutors: tutorData,
-          dataAsOf: sheetName,
-          timestamp: Date.now(),
-        }));
-      } catch (e) { /* 용량 초과 무시 */ }
+          // 4. 캐시 저장 (용량 초과 시 무시)
+          try {
+            sessionStorage.setItem(CACHE_KEY, JSON.stringify({
+              academies: fullAcademies,
+              privateTutors: tutorData,
+              dataAsOf: sheetName,
+              timestamp: Date.now(),
+            }));
+          } catch (e) { /* 용량 초과 무시 */ }
+        } catch (err) {
+          if (attempt < 3) {
+            // 재시도: 2초, 4초 간격
+            await new Promise(res => setTimeout(res, attempt * 2000));
+            return fetchPhase2(attempt + 1);
+          }
+          console.error('Phase 2 최종 실패:', err);
+          setSupplementLoading(false);
+        }
+      };
+      fetchPhase2();
     } catch (err) {
       console.error(err);
       setError('데이터를 불러오는데 실패했습니다.');
@@ -628,6 +644,7 @@ function App() {
           <DetailView
             academy={selectedAcademy}
             allAcademies={academies}
+            supplementLoading={supplementLoading}
             onBack={() => {
               setSelectedAcademy(null);
               if (detailOrigin === 'inspection') setShowInspection(true);
