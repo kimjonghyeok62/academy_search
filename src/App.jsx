@@ -293,6 +293,14 @@ function App() {
     }
   };
 
+  const handleClearCacheAndReload = () => {
+    ['academy_data_v1','academy_data_v2','academy_data_v3','academy_data_v4','academy_data_v5','academy_data_v6','academy_data_v7','academy_data_v8'].forEach(k => sessionStorage.removeItem(k));
+    localStorage.removeItem('academyMapLocations');
+    localStorage.removeItem('academyAddrDongCache');
+    setError('');
+    loadData();
+  };
+
   const handleLogin = () => {
     setIsAuthenticated(true);
     localStorage.setItem('academy_auth_v2', 'true');
@@ -547,6 +555,47 @@ function App() {
         <style>{`
           @keyframes spin { to { transform: rotate(360deg); } }
         `}</style>
+      </div>
+    );
+  }
+
+  // Render Error
+  if (error) {
+    return (
+      <div className="container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <div style={{ textAlign: 'center', padding: '32px', maxWidth: '360px' }}>
+          <div style={{ fontSize: '2.5rem', marginBottom: '16px' }}>⚠️</div>
+          <p style={{ color: 'var(--text-main)', fontWeight: '700', fontSize: '1rem', marginBottom: '8px' }}>
+            데이터를 불러오지 못했습니다
+          </p>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', lineHeight: '1.6', marginBottom: '20px' }}>
+            광고 차단 확장 프로그램(uBlock Origin, AdBlock 등)이 Google Sheets 요청을 막고 있을 수 있습니다.
+            확장 프로그램을 비활성화하거나 이 사이트를 허용 목록에 추가해주세요.
+          </p>
+          <button
+            onClick={handleClearCacheAndReload}
+            style={{
+              display: 'block', width: '100%', padding: '12px',
+              backgroundColor: 'var(--primary)', color: 'white',
+              border: 'none', borderRadius: '10px',
+              fontSize: '0.95rem', fontWeight: '700', cursor: 'pointer',
+              marginBottom: '10px'
+            }}
+          >
+            캐시 초기화 후 다시 시도
+          </button>
+          <button
+            onClick={handleLogout}
+            style={{
+              display: 'block', width: '100%', padding: '10px',
+              backgroundColor: 'transparent', color: 'var(--text-muted)',
+              border: '1px solid var(--border-color)', borderRadius: '10px',
+              fontSize: '0.85rem', cursor: 'pointer'
+            }}
+          >
+            로그아웃
+          </button>
+        </div>
       </div>
     );
   }

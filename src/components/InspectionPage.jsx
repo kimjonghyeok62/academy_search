@@ -3082,7 +3082,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                     const px = proj.pointFromCoords(item.overlay.getPosition());
                     const rowCount = item.el.children.length || 1;
                     const h = rowCount * ROW_H;
-                    // xAnchor=0, yAnchor=0 + translate(-11,-11) → 배지 중심이 px
+                    // 0×0 wrapper: el이 정확히 px에 위치, 첫 행 top=-11px → 배지 중심이 px
                     return {
                         item,
                         top: px.y - 11,

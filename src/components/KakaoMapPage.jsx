@@ -367,7 +367,18 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy, focus
                     });
 
                     // --- 마커 상단 텍스트 오버레이 생성 ---
+                    // yAnchor:1.0 사용 → wrapper 하단(spacer 끝)이 정확한 좌표에 고정
+                    // transform: translateY 제거 → 축소 시에도 위치 정확
+                    const labelWrapper = document.createElement('div');
+                    labelWrapper.style.cssText = `
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        pointer-events: none;
+                    `;
+
                     const textContent = document.createElement('div');
+                    textContent.className = 'map-label-inner';
                     textContent.style.cssText = `
                         background: rgba(255, 255, 255, 0.95);
                         padding: 3px 10px;
@@ -378,9 +389,8 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy, focus
                         color: #1e1b4b;
                         box-shadow: 0 4px 8px rgba(0,0,0,0.2);
                         white-space: nowrap;
-                        cursor: pointer; /* 클릭 가능하도록 변경 */
-                        pointer-events: auto; /* 이벤트 허용 */
-                        transform: translateY(-48px); /* 마커 바로 위로 올림 */
+                        cursor: pointer;
+                        pointer-events: auto;
                         text-shadow: 0 1px 1px white;
                         display: flex;
                         flex-direction: column;
@@ -395,10 +405,19 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy, focus
                         showOverlay(kakao, map, markerPosition, group.list);
                     };
 
+                    // 카카오 기본 마커 높이(~35px)만큼 투명 spacer → 라벨이 마커 바로 위에 위치
+                    const markerSpacer = document.createElement('div');
+                    markerSpacer.style.cssText = 'height: 36px; pointer-events: none; flex-shrink: 0;';
+
+                    labelWrapper.appendChild(textContent);
+                    labelWrapper.appendChild(markerSpacer);
+
                     const textOverlay = new kakao.maps.CustomOverlay({
                         position: markerPosition,
-                        content: textContent,
-                        zIndex: 50
+                        content: labelWrapper,
+                        zIndex: 50,
+                        xAnchor: 0.5,
+                        yAnchor: 1.0,   // wrapper 하단(spacer 끝)이 좌표에 정확히 고정
                     });
                     textOverlays.push(textOverlay);
 
@@ -424,22 +443,26 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy, focus
                         const overlay = textOverlays[idx];
                         if (!overlay) return;
 
-                        if (level <= 4) {
-                            // 최대로 확대되었을 때는 전수 노출
+                        if (level <= 2) {
+                            // 충분히 확대(레벨 1~2)했을 때만 라벨 표시 → 겹침 방지 + 위치 정확
+                            const labelEl = overlay.getContent().querySelector('.map-label-inner');
+                            if (!labelEl) return;
                             if (level <= 1) {
-                                overlay.getContent().innerHTML = group.list.map(a =>
+                                // 최대 확대: 전수 노출
+                                labelEl.innerHTML = group.list.map(a =>
                                     `<div style="line-height: 1.2; padding: 1px 0;">${makeName(a)}</div>`
                                 ).join('');
                             } else {
-                                // 중간 확대는 요약형: 포커스 학원이 있으면 그것을 앞에
+                                // 레벨 2: 요약형 (포커스 학원 우선)
                                 const focusedInGroup = group.list.find(isFocused);
                                 const first = focusedInGroup || group.list[0];
-                                overlay.getContent().innerHTML = group.list.length > 1
+                                labelEl.innerHTML = group.list.length > 1
                                     ? `${makeName(first)} <span style="color: #4f46e5; font-size: 10px;">외 ${group.list.length - 1}</span>`
                                     : makeName(first);
                             }
                             overlay.setMap(map);
                         } else {
+                            // 레벨 3 이상(축소): 라벨 숨김 → 마커 클릭 시 팝업으로 확인
                             overlay.setMap(null);
                         }
                     });
@@ -471,7 +494,15 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy, focus
             } catch (err) {
                 if (!isMounted) return;
                 console.error("Kakao Map Error:", err);
-                setErrorMsg(err.message || "지도 로드 중 오류가 발생했습니다.");
+                const isBlockedByExtension =
+                    err.message?.includes('스크립트 로드 실패') ||
+                    err.message?.includes('net::ERR_BLOCKED') ||
+                    !window.kakao;
+                setErrorMsg(
+                    isBlockedByExtension
+                        ? '🚫 지도 API 차단됨 — 브라우저 광고 차단 확장 프로그램(uBlock Origin, AdBlock 등)이 카카오맵을 막고 있을 수 있습니다. 해당 확장 프로그램을 비활성화하거나 이 사이트를 허용 목록에 추가해주세요.'
+                        : (err.message || '지도 로드 중 오류가 발생했습니다.')
+                );
                 setLoading(false);
             }
         };
@@ -845,11 +876,13 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy, focus
             textOverlaysRef.current.forEach((overlay, idx) => {
                 const group = groupsArrayRef.current[idx];
                 if (!group || !overlay) return;
-                if (level <= 4) {
+                if (level <= 2) {
+                    const labelEl = overlay.getContent().querySelector('.map-label-inner');
+                    if (!labelEl) return;
                     if (level <= 1) {
-                        overlay.getContent().innerHTML = group.list.map(a => `<div style="line-height:1.2;padding:1px 0;">${a.name}</div>`).join('');
+                        labelEl.innerHTML = group.list.map(a => `<div style="line-height:1.2;padding:1px 0;">${a.name}</div>`).join('');
                     } else {
-                        overlay.getContent().innerHTML = group.list.length > 1
+                        labelEl.innerHTML = group.list.length > 1
                             ? `${group.list[0].name} <span style="color:#4f46e5;font-size:10px;">외 ${group.list.length - 1}</span>`
                             : group.list[0].name;
                     }
@@ -880,27 +913,41 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy, focus
             const position = new kakao.maps.LatLng(group.lat, group.lng);
             positions.push(position);
 
+            // wrapper를 0×0으로 두고 자식을 absolute 배치
+            // → xAnchor:0, yAnchor:0 이므로 (0,0)점이 정확한 지리 좌표에 고정됨
+            // → CSS transform 없이 원 중심을 (0,0)에 맞춤 (줌 레벨 무관하게 오차 없음)
             const el = document.createElement('div');
-            el.style.cssText = 'display:flex;flex-direction:column;align-items:flex-start;gap:3px;';
+            el.style.cssText = 'position:relative;width:0;height:0;overflow:visible;';
 
-            items.forEach(({ academy, order }) => {
+            items.forEach(({ academy, order }, i) => {
                 const unit = extractUnitInfo(academy.address);
                 const unitStr = unit.label ? ` ${unit.label}` : '';
-                const row = document.createElement('div');
-                row.style.cssText = 'display:flex;align-items:center;gap:5px;cursor:pointer;';
-                row.innerHTML = `
-                    <div style="width:24px;height:24px;border-radius:50%;background:#f97316;color:white;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;border:2px solid white;box-shadow:0 2px 6px rgba(249,115,22,0.5);flex-shrink:0;">${order}</div>
-                    <div style="background:rgba(255,255,255,0.95);padding:2px 8px;border-radius:10px;border:1.5px solid #f97316;font-size:11px;font-weight:700;color:#1e1b4b;white-space:nowrap;box-shadow:0 2px 4px rgba(0,0,0,0.15);">${academy.name}${unitStr}</div>
-                `;
-                row.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    if (onSelectAcademy) onSelectAcademy(academy);
+                // 행 간격: 원(24px) + gap(3px) = 27px
+                const rowTop = i * 27;
+
+                const circle = document.createElement('div');
+                // 원 중심이 (0, rowTop)에 위치 → top = rowTop-12, left = -12
+                circle.style.cssText = `position:absolute;top:${rowTop - 12}px;left:-12px;width:24px;height:24px;border-radius:50%;background:#f97316;color:white;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;border:2px solid white;box-shadow:0 2px 6px rgba(249,115,22,0.5);cursor:pointer;flex-shrink:0;`;
+                circle.textContent = order;
+
+                const label = document.createElement('div');
+                // 라벨 높이 ≈ 20px → 중심 맞추려면 top = rowTop-10
+                label.style.cssText = `position:absolute;top:${rowTop - 10}px;left:17px;background:rgba(255,255,255,0.95);padding:2px 8px;border-radius:10px;border:1.5px solid #f97316;font-size:11px;font-weight:700;color:#1e1b4b;white-space:nowrap;box-shadow:0 2px 4px rgba(0,0,0,0.15);cursor:pointer;`;
+                label.textContent = `${academy.name}${unitStr}`;
+
+                [circle, label].forEach(elem => {
+                    elem.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        if (onSelectAcademy) onSelectAcademy(academy);
+                    });
                 });
-                el.appendChild(row);
+
+                el.appendChild(circle);
+                el.appendChild(label);
             });
 
             const overlay = new kakao.maps.CustomOverlay({
-                position, content: el, zIndex: 150, xAnchor: 0.5, yAnchor: 1.0,
+                position, content: el, zIndex: 150, xAnchor: 0, yAnchor: 0,
             });
             overlay.setMap(map);
             routeMarkersRef.current.push(overlay);
@@ -1213,8 +1260,30 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy, focus
 
             {/* Error Message */}
             {errorMsg && apiKey && (
-                <div style={{ padding: '20px', backgroundColor: '#fef2f2', color: '#ef4444', textAlign: 'center', borderBottom: '1px solid #fca5a5', fontWeight: 'bold' }}>
-                    {errorMsg}
+                <div style={{ padding: '16px 20px', backgroundColor: '#fef2f2', color: '#ef4444', borderBottom: '1px solid #fca5a5', fontSize: '0.85rem', lineHeight: '1.6' }}>
+                    <div style={{ fontWeight: 'bold', marginBottom: '10px' }}>{errorMsg}</div>
+                    <button
+                        onClick={() => {
+                            localStorage.removeItem('academyMapLocations');
+                            localStorage.removeItem('academyAddrDongCache');
+                            setErrorMsg('');
+                            setMapReadyTick(t => t + 1);
+                        }}
+                        style={{
+                            padding: '6px 14px',
+                            backgroundColor: '#ef4444',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '8px',
+                            fontSize: '0.8rem',
+                            fontWeight: '600',
+                            cursor: 'pointer',
+                            marginRight: '8px'
+                        }}
+                    >
+                        캐시 초기화 후 재시도
+                    </button>
+                    <span style={{ color: '#9ca3af', fontSize: '0.75rem' }}>문제가 계속되면 광고 차단 확장 프로그램을 비활성화해주세요.</span>
                 </div>
             )}
 

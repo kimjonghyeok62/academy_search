@@ -20,6 +20,13 @@ export const DATA_AS_OF = '2026.  1.  17. (토) 기준';
 // 매칭용 이름 정규화 (공백 및 특수문자 모두 제거)
 export const normalizeName = (name) => (name || '').toString().replace(/[^a-zA-Z0-9가-힣]/g, '').toLowerCase();
 
+// fetch with 15-second timeout
+function fetchWithTimeout(url, timeoutMs = 15000) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    return fetch(url, { signal: controller.signal }).finally(() => clearTimeout(timer));
+}
+
 /**
  * 유연한 컬럼 데이터 추출기
  */
@@ -39,7 +46,7 @@ export async function fetchGoogleSheetData(sheetNameOrGid) {
         ? `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${sheetNameOrGid}`
         : `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&sheet=${encodeURIComponent(sheetNameOrGid)}`;
     try {
-        const response = await fetch(url);
+        const response = await fetchWithTimeout(url);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const txt = await response.text();
         return parseCSV(txt);
@@ -56,7 +63,7 @@ export async function fetchGoogleSheetData(sheetNameOrGid) {
 export async function fetchAcademyClosureData() {
     const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${ACADEMY_CLOSED_GID}`;
     try {
-        const response = await fetch(url);
+        const response = await fetchWithTimeout(url);
         const txt = await response.text();
         const rows = parseCSV(txt);
         // 등록번호 기준 중복 제거 (교습과정별 다수 행 → 학원 1개로)
@@ -86,7 +93,7 @@ export async function fetchAcademyClosureData() {
 export async function fetchInspectionData() {
     const url = `https://docs.google.com/spreadsheets/d/${INSPECTION_SHEET_ID}/export?format=csv&gid=${INSPECTION_GID}`;
     try {
-        const response = await fetch(url);
+        const response = await fetchWithTimeout(url);
         const txt = await response.text();
         const rows = parseCSV(txt);
 
@@ -153,7 +160,7 @@ export async function fetch2026InspectionData() {
     const RECENT_GID = '1946422008';
     const url = `https://docs.google.com/spreadsheets/d/${RECENT_SHEET_ID}/export?format=csv&gid=${RECENT_GID}`;
     try {
-        const response = await fetch(url);
+        const response = await fetchWithTimeout(url);
         const txt = await response.text();
         // raw rows로 파싱 후 헤더 행 자동감지 (시트가 3행 헤더인 경우 대응)
         const rawRows = parseCSVRaw(txt);
@@ -248,7 +255,7 @@ export async function fetchInstructorData() {
     const INSTRUCTOR_SHEET_ID = '19loj6qHRNUMf72TN0GywJ4xf2eMaFPgK9Tzr9Ob4vR0';
     const url = `https://docs.google.com/spreadsheets/d/${INSTRUCTOR_SHEET_ID}/export?format=csv&gid=288159772`;
     try {
-        const response = await fetch(url);
+        const response = await fetchWithTimeout(url);
         const txt = await response.text();
         const rows = parseCSV(txt);
 
@@ -297,7 +304,7 @@ export async function fetchAssistantData() {
     const ASSISTANT_SHEET_ID = '19loj6qHRNUMf72TN0GywJ4xf2eMaFPgK9Tzr9Ob4vR0';
     const url = `https://docs.google.com/spreadsheets/d/${ASSISTANT_SHEET_ID}/export?format=csv&gid=1732095678`;
     try {
-        const response = await fetch(url);
+        const response = await fetchWithTimeout(url);
         const txt = await response.text();
         const rows = parseCSV(txt);
 
@@ -340,7 +347,7 @@ export async function fetchSheetName() {
 
     try {
         const htmlUrl = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit`;
-        const response = await fetch(htmlUrl);
+        const response = await fetchWithTimeout(htmlUrl);
         const html = await response.text();
         const titleMatch = html.match(/<title>([^<]+)<\/title>/i);
         if (titleMatch) {
@@ -443,7 +450,7 @@ function normalizeTutorAddress(address) {
 export async function fetchPrivateTutorData() {
     const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${PRIVATE_TUTOR_GID}`;
     try {
-        const response = await fetch(url);
+        const response = await fetchWithTimeout(url);
         const txt = await response.text();
         const rows = parseCSV(txt);
 
