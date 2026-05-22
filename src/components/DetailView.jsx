@@ -74,13 +74,11 @@ const TUITION_STANDARDS = [
 
 const TABS = [
     { id: 'status', label: '현황' },
-    { id: 'founder', label: '설립자' },
-    { id: 'facilities', label: '시설' },
     { id: 'tuition', label: '교습비' },
     { id: 'insurance', label: '보험' },
     { id: 'instructor', label: '강사' },
-    { id: 'assistant', label: '보조요원' },
     { id: 'inspection', label: '지도점검' },
+    { id: 'facilities', label: '시설' },
 ];
 
 // Format number with commas
@@ -1230,6 +1228,14 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
                             {academy.disclosure && <InfoRow label="수강료공개" value={academy.disclosure} />}
                             {academy.ownership && <InfoRow label="건물소유" value={academy.ownership} />}
                         </Section>
+                        {academy.founder && (
+                            <Section title="설립자 정보">
+                                <InfoRow label="성명" value={academy.founder.name} />
+                                <InfoRow label="YY" value={(academy.founder.birth || '').substring(0, 2)} />
+                                <InfoRow label="전화번호" value={academy.founder.phone} />
+                                <InfoRow label="핸드폰" value={academy.founder.mobile} />
+                            </Section>
+                        )}
                         {sameBuildingAcademies.length > 0 && (() => {
                             // Get building info from first academy
                             const firstAcademy = sameBuildingAcademies[0];
@@ -1397,14 +1403,14 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
                         })()}
                     </div>
                 );
-            case 'founder': {
+            case 'facilities': {
                 const founderName = academy.founder?.name;
                 let sameFounderAcademies = [];
-                let totalAreaSum = 0;
+                let founderTotalAreaSum = 0;
 
                 if (founderName) {
                     sameFounderAcademies = sameBuildingAcademies.filter(a => a.founder && a.founder.name === founderName);
-                    totalAreaSum = sameFounderAcademies.reduce((sum, a) => {
+                    founderTotalAreaSum = sameFounderAcademies.reduce((sum, a) => {
                         const area = parseFloat(a.facilities?.totalArea) || 0;
                         return sum + area;
                     }, 0);
@@ -1412,49 +1418,59 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
 
                 return (
                     <div className="tab-content animate-enter">
-                        <Section title="설립자 정보">
-                            <InfoRow label="성명" value={academy.founder.name} />
-                            <div
-                                onClick={() => setShowSensitiveInfo(!showSensitiveInfo)}
-                                style={{
-                                    padding: '12px 0',
-                                    cursor: 'pointer',
-                                    color: 'var(--primary)',
-                                    fontSize: '0.9rem',
-                                    fontWeight: '600',
-                                    borderBottom: '1px dotted var(--border-color)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '8px'
-                                }}
-                            >
-                                <span>{showSensitiveInfo ? '▼' : '▶'}</span>
-                                <span>개인정보 {showSensitiveInfo ? '숨기기' : '보기'}</span>
-                            </div>
-                            {showSensitiveInfo && (
-                                <>
-                                    <InfoRow label="YY" value={(academy.founder.birth || '').substring(0, 2)} />
-                                    <InfoRow label="주소" value={academy.founder.address} />
-                                </>
-                            )}
-                            <InfoRow label="전화번호" value={academy.founder.phone} />
-                            <InfoRow label="핸드폰" value={academy.founder.mobile} />
+                        <Section title="시설 현황">
+                            <InfoRow label="건물연면적" value={`${formatNumber(academy.facilities.buildingArea)}㎡`} />
+                            <InfoRow label="총면적" value={`${formatNumber(academy.facilities.totalArea)}㎡`} />
+                            <InfoRow label="전용면적" value={`${formatNumber(academy.facilities.dedicatedArea)}㎡`} />
+                            <InfoRow label="총 층수" value={academy.facilities.floors} />
+                            <InfoRow label="준공일" value={academy.facilities.builtDate} />
+                            <InfoRow label="일시수용능력" value={`${formatNumber(academy.facilities.capacityTemporary)}명`} />
+                            <InfoRow label="정원합계" value={`${formatNumber(academy.facilities.capacityTotal)}명`} />
                         </Section>
-
+                        {academy.founder && (
+                            <Section title="설립자 정보">
+                                <InfoRow label="성명" value={academy.founder.name} />
+                                <div
+                                    onClick={() => setShowSensitiveInfo(!showSensitiveInfo)}
+                                    style={{
+                                        padding: '12px 0',
+                                        cursor: 'pointer',
+                                        color: 'var(--primary)',
+                                        fontSize: '0.9rem',
+                                        fontWeight: '600',
+                                        borderBottom: '1px dotted var(--border-color)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '8px'
+                                    }}
+                                >
+                                    <span>{showSensitiveInfo ? '▼' : '▶'}</span>
+                                    <span>개인정보 {showSensitiveInfo ? '숨기기' : '보기'}</span>
+                                </div>
+                                {showSensitiveInfo && (
+                                    <>
+                                        <InfoRow label="YY" value={(academy.founder.birth || '').substring(0, 2)} />
+                                        <InfoRow label="주소" value={academy.founder.address} />
+                                    </>
+                                )}
+                                <InfoRow label="전화번호" value={academy.founder.phone} />
+                                <InfoRow label="핸드폰" value={academy.founder.mobile} />
+                            </Section>
+                        )}
                         {sameFounderAcademies.length > 0 && (
                             <Section title={`동일 위치 동일 설립자 등록 학원 (${sameFounderAcademies.length}개)`}>
                                 <div style={{
                                     fontSize: '0.85rem',
                                     padding: '12px',
                                     borderRadius: '8px',
-                                    backgroundColor: totalAreaSum >= 500 ? '#fff1f2' : 'var(--bg-light)',
-                                    border: totalAreaSum >= 500 ? '1.5px solid #fca5a5' : '1px solid var(--border-color)',
+                                    backgroundColor: founderTotalAreaSum >= 500 ? '#fff1f2' : 'var(--bg-light)',
+                                    border: founderTotalAreaSum >= 500 ? '1.5px solid #fca5a5' : '1px solid var(--border-color)',
                                     marginBottom: '12px'
                                 }}>
-                                    <div style={{ marginBottom: totalAreaSum >= 500 ? '10px' : '0', color: 'var(--text-main)', lineHeight: '1.5' }}>
-                                        동일 위치(<strong>{baseAddress}</strong>)에 설립자 <strong>{founderName}</strong>님 명의로 등록된 학원들의 <strong>총면적 합계</strong>는 <strong>{formatNumber(totalAreaSum.toFixed(2))}㎡</strong> 입니다.
+                                    <div style={{ marginBottom: founderTotalAreaSum >= 500 ? '10px' : '0', color: 'var(--text-main)', lineHeight: '1.5' }}>
+                                        동일 위치(<strong>{baseAddress}</strong>)에 설립자 <strong>{founderName}</strong>님 명의로 등록된 학원들의 <strong>총면적 합계</strong>는 <strong>{formatNumber(founderTotalAreaSum.toFixed(2))}㎡</strong> 입니다.
                                     </div>
-                                    {totalAreaSum >= 500 && (
+                                    {founderTotalAreaSum >= 500 && (
                                         <div style={{
                                             color: '#b91c1c',
                                             fontWeight: '700',
@@ -1497,20 +1513,6 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
                     </div>
                 );
             }
-            case 'facilities':
-                return (
-                    <div className="tab-content animate-enter">
-                        <Section title="시설 현황">
-                            <InfoRow label="건물연면적" value={`${formatNumber(academy.facilities.buildingArea)}㎡`} />
-                            <InfoRow label="총면적" value={`${formatNumber(academy.facilities.totalArea)}㎡`} />
-                            <InfoRow label="전용면적" value={`${formatNumber(academy.facilities.dedicatedArea)}㎡`} />
-                            <InfoRow label="총 층수" value={academy.facilities.floors} />
-                            <InfoRow label="준공일" value={academy.facilities.builtDate} />
-                            <InfoRow label="일시수용능력" value={`${formatNumber(academy.facilities.capacityTemporary)}명`} />
-                            <InfoRow label="정원합계" value={`${formatNumber(academy.facilities.capacityTotal)}명`} />
-                        </Section>
-                    </div>
-                );
             case 'tuition':
                 return (
                     <div className="tab-content animate-enter">
