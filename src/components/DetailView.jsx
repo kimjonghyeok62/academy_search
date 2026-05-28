@@ -76,6 +76,7 @@ const TABS = [
     { id: 'status', label: '현황' },
     { id: 'tuition', label: '교습비' },
     { id: 'insurance', label: '보험' },
+    { id: 'assistant', label: '보조요원' },
     { id: 'instructor', label: '강사' },
     { id: 'inspection', label: '지도점검' },
     { id: 'facilities', label: '시설' },
@@ -857,7 +858,14 @@ function InspectionTab({ inspections, totalCount, violationCount }) {
 
 
 
-function InfoRow({ label, value, isClickable, onClick, isExpired }) {
+function InfoRow({ label, value, isClickable, onClick, isExpired, highlight }) {
+    const highlightStyle = highlight === 'good'
+        ? { color: '#2563eb', fontWeight: '700' }
+        : highlight === 'bad'
+        ? { color: '#dc2626', fontWeight: '700' }
+        : isExpired
+        ? { color: '#dc2626', fontWeight: '600' }
+        : {};
     return (
         <div className="info-row">
             <span className="info-label">{label}</span>
@@ -866,7 +874,7 @@ function InfoRow({ label, value, isClickable, onClick, isExpired }) {
                 onClick={isClickable ? onClick : undefined}
                 style={{
                     ...(isClickable ? { cursor: 'pointer', textDecoration: 'underline', textDecorationColor: 'var(--border-color)' } : {}),
-                    ...(isExpired ? { color: '#dc2626', fontWeight: '600' } : {})
+                    ...highlightStyle,
                 }}
                 title={isClickable ? '네이버 지도에서 보기' : undefined}
             >
@@ -1153,7 +1161,23 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
                         >
                             <InfoRow label="등록번호" value={academy.id} />
                             <InfoRow label="학원명" value={academy.name} />
-                            {academy.founder?.name && <InfoRow label="설립자" value={academy.founder.name} />}
+                            {academy.founder?.name && (
+                                <InfoRow
+                                    label="설립자"
+                                    value={
+                                        <span>
+                                            {academy.founder.name}
+                                            {(academy.founder.birth || '').substring(0, 2) && (
+                                                <span style={{ color: '#94a3b8', marginLeft: '6px', fontWeight: '400', fontSize: '0.9em' }}>
+                                                    {(academy.founder.birth || '').substring(0, 2)}
+                                                </span>
+                                            )}
+                                        </span>
+                                    }
+                                />
+                            )}
+                            {academy.founder?.phone && <InfoRow label="전화번호" value={academy.founder.phone} />}
+                            {academy.founder?.mobile && <InfoRow label="핸드폰" value={academy.founder.mobile} />}
                             <InfoRow label="학원종류" value={academy.category} />
                             <InfoRow label="분야구분" value={academy.field} />
                             <div className="info-row">
@@ -1217,7 +1241,6 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
                                     {academy.address || '-'}
                                 </a>
                             </div>
-                            <InfoRow label="우편번호" value={academy.zip} />
                         </Section>
                         <Section title="상태 정보">
                             <InfoRow label="등록일" value={academy.regDate} />
@@ -1228,14 +1251,7 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
                             {academy.disclosure && <InfoRow label="수강료공개" value={academy.disclosure} />}
                             {academy.ownership && <InfoRow label="건물소유" value={academy.ownership} />}
                         </Section>
-                        {academy.founder && (
-                            <Section title="설립자 정보">
-                                <InfoRow label="성명" value={academy.founder.name} />
-                                <InfoRow label="YY" value={(academy.founder.birth || '').substring(0, 2)} />
-                                <InfoRow label="전화번호" value={academy.founder.phone} />
-                                <InfoRow label="핸드폰" value={academy.founder.mobile} />
-                            </Section>
-                        )}
+
                         {sameBuildingAcademies.length > 0 && (() => {
                             // Get building info from first academy
                             const firstAcademy = sameBuildingAcademies[0];
@@ -1930,30 +1946,46 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
                         })()}
                     </div>
                 );
-            case 'insurance':
+            case 'insurance': {
+                const isGyoseupso = (academy.category || '').includes('교습소');
+                const parseAmt = (val) => {
+                    const n = Number((val || '').toString().replace(/[^0-9]/g, ''));
+                    return isNaN(n) ? 0 : n;
+                };
+                const COMP_THRESHOLD = isGyoseupso ? 500_000_000 : 1_000_000_000;
+                const MEDICAL_THRESHOLD = 30_000_000;
+                const PER_PERSON_THRESHOLD = 150_000_000;
+
                 return (
                     <div className="tab-content animate-enter">
                         {academy.insurances.map((ins, idx) => {
                             const expired = isInsuranceExpired(ins.endDate);
+                            const comp = parseAmt(ins.compensationPerAccident);
+                            const medical = parseAmt(ins.medicalPerPerson);
+                            const perPerson = parseAmt(ins.compensationPerPerson);
+                            const compStatus = comp > 0 ? (comp >= COMP_THRESHOLD ? 'good' : 'bad') : null;
+                            const medicalStatus = medical > 0 ? (medical >= MEDICAL_THRESHOLD ? 'good' : 'bad') : null;
+                            const perPersonStatus = perPerson > 0 ? (perPerson >= PER_PERSON_THRESHOLD ? 'good' : 'bad') : null;
                             return (
                                 <div key={idx} className="card-item">
                                     <h4>{ins.company}</h4>
                                     <InfoRow label="계약업체" value={ins.contractor} />
                                     <InfoRow label="계약번호" value={ins.policyNumber} />
                                     <InfoRow label="강사수" value={`${ins.teachersCount}명`} />
-                                    <InfoRow label="사고당배상" value={`${ins.compensationPerAccident}원`} />
-                                    <InfoRow label="인당의료실비" value={`${ins.medicalPerPerson}원`} />
-                                    <InfoRow label="인당배상" value={`${ins.compensationPerPerson}원`} />
+                                    <InfoRow label="사고당배상" value={`${ins.compensationPerAccident}원`} highlight={compStatus} />
+                                    <InfoRow label="인당의료실비" value={`${ins.medicalPerPerson}원`} highlight={medicalStatus} />
+                                    <InfoRow label="인당배상" value={`${ins.compensationPerPerson}원`} highlight={perPersonStatus} />
                                     <InfoRow
                                         label="보험기간"
                                         value={`${ins.startDate} ~ ${ins.endDate}`}
-                                        isExpired={expired}
+                                        highlight={expired ? 'bad' : 'good'}
                                     />
                                 </div>
                             );
                         })}
                     </div>
                 );
+            }
             case 'instructor': {
                 return (
                     <InstructorTab instructors={academy.instructors || []} supplementLoading={supplementLoading} />
