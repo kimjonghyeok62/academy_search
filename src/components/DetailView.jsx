@@ -1118,7 +1118,7 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
                             rightButton={
                                 <a
                                     href={`https://map.naver.com/p/search/${encodeURIComponent(
-                                        (() => { const d = getCityDistrict(academy.address); return d ? `${academy.name} ${d}` : academy.name; })()
+                                        (() => { const d = getCityDistrict(academy.address); const n = academy.name.replace('교습소', ''); return d ? `${n} ${d}` : n; })()
                                     )}`}
                                     target="_blank"
                                     rel="noopener noreferrer"
