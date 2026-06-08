@@ -18,7 +18,7 @@ export const HANAM_HAGWON_SHEET_ID = '1pHQNblzLHIE3Rfz9h622MXDLAAXtkyv4I06Zync2-
 export const HANAM_HAGWON_SHEET = '교습소조회';
 
 // Google Apps Script Web App URL (구글 시트 쓰기용)
-export const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwyW4hpzU4xdAfMPi9Rs50YHRN1lPhJQrpuj-9EggKfvtCefbQS3IMsC4WB5O5tF44/exec';
+export const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyv393nKJ_S_a-Odi5omfTuU29WVu4qIeg6ScUyPsOMmJ3gz0rpbhBkaAfxwIa1g0lg/exec';
 
 function parseCSVText(text) {
     if (!text) return [];
@@ -214,6 +214,22 @@ export async function fetchNicePrivateRawRows() {
 export async function fetchInspectionDeferRawRows() {
     const text = await fetchCSV(RECENT_SHEET_ID, DEFER_GID);
     return parseCSVText(text);
+}
+
+// 지도내용(M열) 값을 Apps Script를 통해 구글 시트에 저장
+export async function saveGuidanceContent(date, name, value) {
+    try {
+        const res = await fetch(
+            `${APPS_SCRIPT_URL}?action=updateGuidanceContent` +
+            `&date=${encodeURIComponent(date)}` +
+            `&name=${encodeURIComponent(name)}` +
+            `&value=${encodeURIComponent(value)}`
+        );
+        if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
+        return await res.json();
+    } catch (err) {
+        return { ok: false, error: err.message };
+    }
 }
 
 // 점검경로 수동 순서를 Apps Script를 통해 구글 시트에 저장
