@@ -217,14 +217,16 @@ export async function fetchInspectionDeferRawRows() {
 }
 
 // 지도내용(M열) 값을 Apps Script를 통해 구글 시트에 저장
+// Vercel 프록시(/api/apps-script-proxy)를 경유하여 CORS 문제 우회
 export async function saveGuidanceContent(date, name, value) {
     try {
-        const res = await fetch(
-            `${APPS_SCRIPT_URL}?action=updateGuidanceContent` +
-            `&date=${encodeURIComponent(date)}` +
-            `&name=${encodeURIComponent(name)}` +
-            `&value=${encodeURIComponent(value)}`
-        );
+        const params = new URLSearchParams({
+            action: 'updateGuidanceContent',
+            date,
+            name,
+            value,
+        });
+        const res = await fetch(`/api/apps-script-proxy?${params}`);
         if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
         return await res.json();
     } catch (err) {
