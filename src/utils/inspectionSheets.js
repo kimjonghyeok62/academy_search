@@ -217,16 +217,17 @@ export async function fetchInspectionDeferRawRows() {
 }
 
 // 지도내용(M열) 값을 Apps Script를 통해 구글 시트에 저장
+// Apps Script 웹앱은 리다이렉트를 거쳐 CORS 응답 읽기가 차단되므로 no-cors로 낙관적 저장
 export async function saveGuidanceContent(date, name, value) {
     try {
-        const res = await fetch(
+        await fetch(
             `${APPS_SCRIPT_URL}?action=updateGuidanceContent` +
             `&date=${encodeURIComponent(date)}` +
             `&name=${encodeURIComponent(name)}` +
-            `&value=${encodeURIComponent(value)}`
+            `&value=${encodeURIComponent(value)}`,
+            { mode: 'no-cors' }
         );
-        if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
-        return await res.json();
+        return { ok: true };
     } catch (err) {
         return { ok: false, error: err.message };
     }
