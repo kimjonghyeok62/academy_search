@@ -384,7 +384,7 @@ function InspectionTab({ inspections, totalCount, violationCount, academyName })
 
     const submitEdit = async (idx, insp) => {
         setSavingIdx(idx);
-        const result = await saveGuidanceContent(insp.date, academyName, editValue);
+        const result = await saveGuidanceContent(insp.date, insp.rawName || academyName, editValue);
         setSavingIdx(null);
         if (result.ok) {
             setLocalGuidance(prev => ({ ...prev, [idx]: editValue }));

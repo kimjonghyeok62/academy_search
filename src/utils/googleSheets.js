@@ -198,6 +198,7 @@ export async function fetch2026InspectionData() {
 
             const record = {
                 date: getFlexibleVal(row,['점검일', '점검일자', '지도점검일']).replace(/-/g, '.'),
+                rawName: name,
                 isViolation: isViolNonEmpty,
                 violationType: isViolNonEmpty ? violRaw : '',
                 // 지도내용은 별도 필드로 보관
