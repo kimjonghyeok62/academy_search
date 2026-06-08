@@ -18,7 +18,7 @@ export const HANAM_HAGWON_SHEET_ID = '1pHQNblzLHIE3Rfz9h622MXDLAAXtkyv4I06Zync2-
 export const HANAM_HAGWON_SHEET = '교습소조회';
 
 // Google Apps Script Web App URL (구글 시트 쓰기용)
-export const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyv393nKJ_S_a-Odi5omfTuU29WVu4qIeg6ScUyPsOMmJ3gz0rpbhBkaAfxwIa1g0lg/exec';
+export const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw94rY8I4uynsLRWp2qyBxOK15yYNv7RfB5tPvFoAt8kn_xsEibr3mUzsiOaL3RC61f/exec';
 
 function parseCSVText(text) {
     if (!text) return [];

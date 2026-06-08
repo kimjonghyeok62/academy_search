@@ -1,7 +1,7 @@
 // Vercel 서버리스 프록시 — CORS 우회용
 // 클라이언트가 /api/apps-script-proxy?... 로 요청하면 서버 측에서 Apps Script 호출
 const APPS_SCRIPT_URL =
-  'https://script.google.com/macros/s/AKfycbyv393nKJ_S_a-Odi5omfTuU29WVu4qIeg6ScUyPsOMmJ3gz0rpbhBkaAfxwIa1g0lg/exec';
+  'https://script.google.com/macros/s/AKfycbw94rY8I4uynsLRWp2qyBxOK15yYNv7RfB5tPvFoAt8kn_xsEibr3mUzsiOaL3RC61f/exec';
 
 export default async function handler(req, res) {
   const params = new URLSearchParams(req.query).toString();
