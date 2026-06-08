@@ -216,13 +216,20 @@ export async function fetchInspectionDeferRawRows() {
     return parseCSVText(text);
 }
 
+// "2026. 6. 9" → "2026-06-09" (Apps Script Date 객체의 0패딩 형식과 일치)
+function padDate(dateStr) {
+    const m = String(dateStr).match(/(\d{4})[.\-\s]+(\d{1,2})[.\-\s]+(\d{1,2})/);
+    if (!m) return dateStr;
+    return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
+}
+
 // 지도내용(M열) 값을 Apps Script를 통해 구글 시트에 저장
 // Vercel 프록시(/api/apps-script-proxy)를 경유하여 CORS 문제 우회
 export async function saveGuidanceContent(date, name, value) {
     try {
         const params = new URLSearchParams({
             action: 'updateGuidanceContent',
-            date,
+            date: padDate(date),
             name,
             value,
         });
