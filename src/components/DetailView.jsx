@@ -3,6 +3,7 @@ import './DetailView.css';
 import AdminSanctionAccordion from './AdminSanctionAccordion';
 import FineGuideAccordion from './FineGuideAccordion';
 import { printTuitionForm, printTuitionFormExternal } from '../utils/generateTuitionPDF';
+import { saveGuidanceContent } from '../utils/inspectionSheets';
 
 // 교습과정 정렬: 교습과정 → 레벨(유아<초등/초급<중등/중급<고등/고급<입시) → 과목기본명 자연정렬 → 주회수
 function sortCourses(courses) {
@@ -368,8 +369,31 @@ function AssistantTab({ assistants = [] }) {
 }
 
 // 지도점검 탭 전용 컴포넌트 (아코디언 상태 관리 포함)
-function InspectionTab({ inspections, totalCount, violationCount }) {
+function InspectionTab({ inspections, totalCount, violationCount, academyName }) {
     const [expandedIndexes, setExpandedIndexes] = useState([]);
+    const [editingIdx, setEditingIdx] = useState(null);
+    const [editValue, setEditValue] = useState('');
+    const [savingIdx, setSavingIdx] = useState(null);
+    const [localGuidance, setLocalGuidance] = useState({});
+
+    const startEdit = (idx, currentValue) => {
+        setEditingIdx(idx);
+        setEditValue(currentValue || '');
+    };
+    const cancelEdit = () => { setEditingIdx(null); setEditValue(''); };
+
+    const submitEdit = async (idx, insp) => {
+        setSavingIdx(idx);
+        const result = await saveGuidanceContent(insp.date, academyName, editValue);
+        setSavingIdx(null);
+        if (result.ok) {
+            setLocalGuidance(prev => ({ ...prev, [idx]: editValue }));
+            setEditingIdx(null);
+            setEditValue('');
+        } else {
+            alert('저장 실패: ' + (result.error || '알 수 없는 오류'));
+        }
+    };
 
     const toggleExpand = (idx) => {
         setExpandedIndexes(prev =>
@@ -576,7 +600,9 @@ function InspectionTab({ inspections, totalCount, violationCount }) {
             {/* 점검 이력 목록 */}
             {totalCount > 0 ? inspections.map((insp, idx) => {
                 const isViolation = insp.isViolation;
-                const hasGuidance = !!(insp.guidanceContent && insp.guidanceContent !== '없음' && insp.guidanceContent !== '이상없음' && insp.guidanceContent !== '-');
+                const guidanceText = localGuidance[idx] !== undefined ? localGuidance[idx] : insp.guidanceContent;
+                const hasGuidance = !!(guidanceText && guidanceText !== '없음' && guidanceText !== '이상없음' && guidanceText !== '-');
+                const canEdit = insp.source === '2026';
                 const isExpanded = expandedIndexes.includes(idx);
                 const hasPunishment = insp.punishmentCode || insp.punishmentDate;
                 const hasFine = insp.fine && insp.fine !== '0' && insp.fine !== '';
@@ -703,16 +729,112 @@ function InspectionTab({ inspections, totalCount, violationCount }) {
                             </div>
                         )}
 
-                        {/* ─── 지도 카드 (지도내용만 있을 때) ─── */}
+                        {/* ─── 지도 카드 (지도내용 있을 때) ─── */}
                         {!isViolation && hasGuidance && (
                             <div style={{
                                 padding: '0 16px 12px',
                                 borderTop: '1px dashed #bae6fd',
                                 marginTop: '2px',
                             }}>
+                                {editingIdx === idx ? (
+                                    <div style={{ marginTop: '10px' }}>
+                                        <textarea
+                                            value={editValue}
+                                            onChange={e => setEditValue(e.target.value)}
+                                            rows={3}
+                                            style={{
+                                                width: '100%', boxSizing: 'border-box',
+                                                fontSize: '0.85rem', padding: '8px',
+                                                borderRadius: '8px', border: '1.5px solid #7dd3fc',
+                                                resize: 'vertical', outline: 'none',
+                                                fontFamily: 'inherit', lineHeight: 1.5,
+                                            }}
+                                        />
+                                        <div style={{ display: 'flex', gap: '6px', marginTop: '6px', justifyContent: 'flex-end' }}>
+                                            <button onClick={cancelEdit} style={{
+                                                padding: '4px 12px', borderRadius: '6px', border: '1px solid #cbd5e1',
+                                                background: 'white', fontSize: '0.8rem', cursor: 'pointer',
+                                            }}>취소</button>
+                                            <button
+                                                onClick={() => submitEdit(idx, insp)}
+                                                disabled={savingIdx === idx}
+                                                style={{
+                                                    padding: '4px 14px', borderRadius: '6px', border: 'none',
+                                                    background: savingIdx === idx ? '#93c5fd' : '#3b82f6',
+                                                    color: 'white', fontSize: '0.8rem', fontWeight: '700',
+                                                    cursor: savingIdx === idx ? 'not-allowed' : 'pointer',
+                                                }}
+                                            >{savingIdx === idx ? '저장 중…' : '저장'}</button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div style={{ marginTop: '10px', display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+                                        <div style={{ flex: 1 }}>
+                                            <span style={{ fontSize: '0.75rem', color: '#0c4a6e', fontWeight: '700', marginRight: '8px' }}>📋 지도내용</span>
+                                            <span style={{ fontSize: '0.85rem', color: '#1e3a5f', lineHeight: 1.5 }}>{guidanceText}</span>
+                                        </div>
+                                        {canEdit && (
+                                            <button
+                                                onClick={() => startEdit(idx, guidanceText)}
+                                                title="지도내용 수정"
+                                                style={{
+                                                    flexShrink: 0, background: 'none', border: 'none',
+                                                    cursor: 'pointer', padding: '2px 4px',
+                                                    fontSize: '0.85rem', color: '#64748b',
+                                                    lineHeight: 1,
+                                                }}
+                                            >✏️</button>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* ─── 지도내용 없는 2026 기록 — 추가 버튼 ─── */}
+                        {!isViolation && !hasGuidance && canEdit && editingIdx !== idx && (
+                            <div style={{ padding: '0 16px 10px' }}>
+                                <button
+                                    onClick={() => startEdit(idx, '')}
+                                    style={{
+                                        background: 'none', border: '1px dashed #93c5fd',
+                                        borderRadius: '8px', padding: '4px 12px',
+                                        fontSize: '0.78rem', color: '#0369a1', cursor: 'pointer',
+                                    }}
+                                >+ 지도내용 추가</button>
+                            </div>
+                        )}
+                        {!isViolation && !hasGuidance && canEdit && editingIdx === idx && (
+                            <div style={{ padding: '0 16px 12px', borderTop: '1px dashed #bae6fd', marginTop: '2px' }}>
                                 <div style={{ marginTop: '10px' }}>
-                                    <span style={{ fontSize: '0.75rem', color: '#0c4a6e', fontWeight: '700', marginRight: '8px' }}>📋 지도내용</span>
-                                    <span style={{ fontSize: '0.85rem', color: '#1e3a5f', lineHeight: 1.5 }}>{insp.guidanceContent}</span>
+                                    <textarea
+                                        value={editValue}
+                                        onChange={e => setEditValue(e.target.value)}
+                                        rows={3}
+                                        placeholder="지도내용을 입력하세요"
+                                        style={{
+                                            width: '100%', boxSizing: 'border-box',
+                                            fontSize: '0.85rem', padding: '8px',
+                                            borderRadius: '8px', border: '1.5px solid #7dd3fc',
+                                            resize: 'vertical', outline: 'none',
+                                            fontFamily: 'inherit', lineHeight: 1.5,
+                                        }}
+                                    />
+                                    <div style={{ display: 'flex', gap: '6px', marginTop: '6px', justifyContent: 'flex-end' }}>
+                                        <button onClick={cancelEdit} style={{
+                                            padding: '4px 12px', borderRadius: '6px', border: '1px solid #cbd5e1',
+                                            background: 'white', fontSize: '0.8rem', cursor: 'pointer',
+                                        }}>취소</button>
+                                        <button
+                                            onClick={() => submitEdit(idx, insp)}
+                                            disabled={savingIdx === idx}
+                                            style={{
+                                                padding: '4px 14px', borderRadius: '6px', border: 'none',
+                                                background: savingIdx === idx ? '#93c5fd' : '#3b82f6',
+                                                color: 'white', fontSize: '0.8rem', fontWeight: '700',
+                                                cursor: savingIdx === idx ? 'not-allowed' : 'pointer',
+                                            }}
+                                        >{savingIdx === idx ? '저장 중…' : '저장'}</button>
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -2005,6 +2127,7 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
                         inspections={academy.inspections}
                         totalCount={totalCount}
                         violationCount={violationCount}
+                        academyName={academy.name}
                     />
                 );
             }
