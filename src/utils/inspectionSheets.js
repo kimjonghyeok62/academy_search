@@ -219,10 +219,16 @@ export async function fetchInspectionDeferRawRows() {
 // 지도내용(M열) 값을 Apps Script를 통해 구글 시트에 저장
 // Vercel 프록시(/api/apps-script-proxy)를 경유하여 CORS 문제 우회
 export async function saveGuidanceContent(date, name, value) {
+    // Apps Script nd()는 Date 객체를 "YYYYMMDD" (제로패딩)으로 변환하므로
+    // 문자열도 동일 결과가 되도록 "2026. 6. 8" → "2026.06.08" 형식으로 정규화
+    const normDate = (() => {
+        const m = (date || '').trim().match(/(\d{4})[.\s\-\/년]+(\d{1,2})[.\s\-\/월]+(\d{1,2})/);
+        return m ? `${m[1]}.${m[2].padStart(2, '0')}.${m[3].padStart(2, '0')}` : date;
+    })();
     try {
         const params = new URLSearchParams({
             action: 'updateGuidanceContent',
-            date,
+            date: normDate,
             name,
             value,
         });
