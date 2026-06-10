@@ -1021,6 +1021,7 @@ function Section({ title, children, rightButton }) {
 export default function DetailView({ academy, allAcademies = [], supplementLoading = false, onBack, onSelectAcademy, onShowMap, initialTab }) {
     const [activeTab, setActiveTab] = useState(initialTab || 'status');
     const [showSensitiveInfo, setShowSensitiveInfo] = useState(true);
+    useEffect(() => { if (initialTab) setActiveTab(initialTab); }, [initialTab]);
     const [expandedCourses, setExpandedCourses] = useState([]); // 모두 접힌 상태로 시작
     const [allCoursesExpanded, setAllCoursesExpanded] = useState(false);
 
