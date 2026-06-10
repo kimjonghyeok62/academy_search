@@ -61,6 +61,8 @@ function App() {
   const [routeAcademies, setRouteAcademies] = useState(null); // 점검 경로 학원 목록
   const [showTuitionPrint, setShowTuitionPrint] = useState(false); // 교습비출력 화면
   const [backToast, setBackToast] = useState(false); // 뒤로가기 토스트
+  const [detailInitialTab, setDetailInitialTab] = useState(undefined); // 상세화면 초기 탭
+  const urlParamHandledRef = useRef(false); // URL 파라미터 1회 처리 플래그
 
   // 모바일 뒤로가기 처리용 ref
   const backHandlerRef = useRef(null);
@@ -292,6 +294,29 @@ function App() {
       setLoading(false);
     }
   };
+
+  // URL 파라미터 ?q=학원명&tab=tuition 처리 (외부 링크 진입 시 자동 검색·탭 이동)
+  useEffect(() => {
+    if (urlParamHandledRef.current) return;
+    if (!isAuthenticated || academies.length === 0) return;
+    const params = new URLSearchParams(window.location.search);
+    const q = params.get('q');
+    const tab = params.get('tab');
+    if (!q) return;
+    urlParamHandledRef.current = true;
+    const norm = (s) => (s || '').toLowerCase().replace(/\s+/g, '');
+    const target = norm(q);
+    const found = academies.find(a =>
+      ['개원', '신고'].includes(a.status) && norm(a.name) === target
+    ) || academies.find(a =>
+      ['개원', '신고'].includes(a.status) && norm(a.name).includes(target)
+    );
+    if (found) {
+      setDetailInitialTab(tab || undefined);
+      setDetailOrigin('main');
+      setSelectedAcademy(found);
+    }
+  }, [isAuthenticated, academies]);
 
   const handleClearCacheAndReload = () => {
     ['academy_data_v1','academy_data_v2','academy_data_v3','academy_data_v4','academy_data_v5','academy_data_v6','academy_data_v7','academy_data_v8'].forEach(k => sessionStorage.removeItem(k));
@@ -694,12 +719,14 @@ function App() {
             academy={selectedAcademy}
             allAcademies={academies}
             supplementLoading={supplementLoading}
+            initialTab={detailInitialTab}
             onBack={() => {
               setSelectedAcademy(null);
+              setDetailInitialTab(undefined);
               if (detailOrigin === 'inspection') setShowInspection(true);
               if (detailOrigin === 'map') setShowMap(true);
             }}
-            onSelectAcademy={(academy) => setSelectedAcademy(academy)}
+            onSelectAcademy={(academy) => { setDetailInitialTab(undefined); setSelectedAcademy(academy); }}
             onShowMap={(academy) => {
               setMapReturnState({ academy: selectedAcademy, origin: detailOrigin });
               setFocusAcademy(academy);
