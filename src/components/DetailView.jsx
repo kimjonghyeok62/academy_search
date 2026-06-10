@@ -1038,8 +1038,8 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
         if (contentRef.current) {
             contentRef.current.scrollTo({ top: 0, behavior: 'smooth' });
         }
-        // 탭도 현황으로 초기화
-        setActiveTab('status');
+        // 탭도 초기화 (initialTab이 지정된 경우 우선 적용)
+        setActiveTab(initialTab || 'status');
     }, [academy.id]);
 
     // 탭 변경 시 해당 탭이 화면에 보이도록 스크롤
