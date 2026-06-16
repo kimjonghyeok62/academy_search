@@ -1449,9 +1449,9 @@ function TabStats({ region, statRows, academies, privateTutors, academyClosures,
             return { opened, closed };
         }
         if (kind === 'priv') {
-            const opened = pAllList.filter(a => (a.status || '') === '신고' && getY(a.reportDate) === year).map(a => a.name || '-');
             const P_CLOSE = ['자진반납', '직권폐지'];
-            const closed = pAllList.filter(a => (P_CLOSE.includes(a.status || '') || (a.status || '') === '') && getY(a.reportDate) === year).map(a => a.name || '-');
+            const opened = pAllList.filter(a => getY(a.reportDate) === year).map(a => a.name || '-');
+            const closed = pAllList.filter(a => P_CLOSE.some(s => (a.status || '').includes(s)) && getY(a.changeDate) === year).map(a => a.name || '-');
             return { opened, closed };
         }
         return null;
