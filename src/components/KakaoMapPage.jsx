@@ -264,8 +264,8 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy, focus
                 // 좌표 데이터 수집 및 그룹핑 시작
                 const allItems = [...filteredAcademies, ...filteredPrivateTutors];
                 setStatusMsg(`주소 좌표 변환 및 그룹핑 중... (총 ${allItems.length}건)`);
-                // v2: geocoding 정제 로직 개선 → 기존 null 캐시 제거하여 재시도
-                const CACHE_VER = 2;
+                // v3: 캐시 키에 주소 포함 → 주소 변경 시 자동 재지오코딩
+                const CACHE_VER = 3;
                 const rawCache = JSON.parse(localStorage.getItem('academyMapLocations') || '{}');
                 const cachedLocations = rawCache._v === CACHE_VER
                     ? rawCache
@@ -291,8 +291,8 @@ function KakaoMapPage({ academies, privateTutors, onBack, onSelectAcademy, focus
 
                     const academy = allItems[i];
                     const cacheKey = academy.type === 'privateTutor'
-                        ? `tutor-${academy.id}`
-                        : `${academy.id}-${academy.category}`;
+                        ? `tutor-${academy.id}|${academy.address}`
+                        : `${academy.id}-${academy.category}|${academy.address}`;
                     let coords = cachedLocations[cacheKey];
 
                     if (coords === undefined || coords === null) {
