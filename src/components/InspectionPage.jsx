@@ -2651,16 +2651,13 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
         loadInspectedNames();
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // ── 점검 경로: 향후 30일 내 날짜별 그룹 ──
+    // ── 점검 경로: 전체 날짜별 그룹 (과거 포함) ──
     const planDateMap = useMemo(() => {
-        const today = new Date(); today.setHours(0,0,0,0);
-        const limit = new Date(today); limit.setDate(today.getDate() + 30);
         const map = new Map();
         allRawRows.forEach(row => {
             const d = toDateRev(colVal(row, ['점검일','점검일자','지도점검일']));
             if (!d) return;
             const nd = new Date(d); nd.setHours(0,0,0,0);
-            if (nd < today || nd > limit) return;
             const key = `${nd.getFullYear()}.${String(nd.getMonth()+1).padStart(2,'0')}.${String(nd.getDate()).padStart(2,'0')}`;
             if (!map.has(key)) map.set(key, []);
             map.get(key).push(row);
@@ -2668,12 +2665,16 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
         return map;
     }, [allRawRows]);
 
-    // planDateMap 로드 후 routeDate 미설정 시 가장 가까운 날짜(오늘~미래 순)로 자동 선택
+    // planDateMap 로드 후 routeDate 미설정 시 오늘 또는 가장 가까운 미래 날짜로 자동 선택
     useEffect(() => {
         if (planDateMap.size === 0) return;
         setRouteDate(prev => {
             if (prev && planDateMap.has(prev)) return prev;
-            return [...planDateMap.keys()].sort((a, b) => a.localeCompare(b))[0] || prev;
+            const today = new Date(); today.setHours(0,0,0,0);
+            const todayStr = `${today.getFullYear()}.${String(today.getMonth()+1).padStart(2,'0')}.${String(today.getDate()).padStart(2,'0')}`;
+            const keys = [...planDateMap.keys()].sort((a, b) => a.localeCompare(b));
+            const todayOrFuture = keys.filter(k => k >= todayStr);
+            return (todayOrFuture.length > 0 ? todayOrFuture[0] : keys[keys.length - 1]) || prev;
         });
     }, [planDateMap]);
 
@@ -3766,7 +3767,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                 {openSections.route && (<div style={{ cursor: 'pointer' }} onClick={() => toggleSection('route')}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginTop: '10px' }}>
                     {allRawRows.length > 0 && planDateMap.size === 0 && (
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>향후 30일 내 계획 없음</span>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>계획된 점검 일정 없음</span>
                     )}
                     {planDateMap.size > 0 && (
                         <select
