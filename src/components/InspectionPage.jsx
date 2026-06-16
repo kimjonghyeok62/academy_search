@@ -1525,11 +1525,17 @@ function TabStats({ region, statRows, academies, privateTutors, academyClosures,
             const aSchoolActive = netCumul(aSchoolNewByYear, aSchoolCloseByYear, yNum);
             const hNew          = (hNewByYear[y] || 0) - (hCloseByYear[y] || 0);   // 증감
             const hActive       = netCumul(hNewByYear, hCloseByYear, yNum);
-            // 과외: 증감 = 신규 - 반납, 누적 = netCumul (현재연도는 실제 활성 수로 보정)
-            const pNew    = (pNewByYear[y] || 0) - (pCloseByYear[y] || 0);
+            // 과외 누적: 현재연도는 실제 활성 수, 과거는 netCumul
             const pActive = yNum >= parseInt(CURRENT_YEAR)
                 ? pCurrentActive
                 : netCumul(pNewByYear, pCloseByYear, yNum);
+            // 과외 증감: 현재연도는 (실제 활성 수 - 전년도 누적)으로 pActive와 수학적 일관성 확보
+            const pPrevCumul = yNum > parseInt(YEARS[0])
+                ? netCumul(pNewByYear, pCloseByYear, yNum - 1)
+                : 0;
+            const pNew = yNum >= parseInt(CURRENT_YEAR)
+                ? pCurrentActive - pPrevCumul
+                : (pNewByYear[y] || 0) - (pCloseByYear[y] || 0);
             return { year: y, aNew, aActive, aSchoolActive, hNew, hActive, pNew, pActive };
         });
     }, [YEARS, aList, hList, pAllList, cityClosures]);
@@ -1747,7 +1753,7 @@ function TabStats({ region, statRows, academies, privateTutors, academyClosures,
                                     <Td style={{ color: s.hActive > 0 ? '#10b981' : 'var(--text-muted)', fontWeight: '700', padding: '8px 3px 8px 14px', borderLeft: '2px solid var(--border-color)' }}>{s.hActive > 0 ? s.hActive.toLocaleString() : '-'}</Td>
                                     <Td onClick={() => setYearDrill({ year: s.year, kind: 'hagwon' })} style={{ color: s.hNew > 0 ? '#10b981' : s.hNew < 0 ? '#ef4444' : 'var(--text-muted)', fontWeight: '400', padding: '8px 12px 8px 3px', cursor: 'pointer', textDecoration: 'underline dotted' }}>{s.hNew > 0 ? '+' + s.hNew : s.hNew < 0 ? String(s.hNew) : '-'}</Td>
                                     <Td style={{ color: s.pActive > 0 ? '#8b5cf6' : 'var(--text-muted)', fontWeight: '700', padding: '8px 3px 8px 14px', borderLeft: '2px solid var(--border-color)' }}>{s.pActive > 0 ? s.pActive.toLocaleString() : '-'}</Td>
-                                    <Td onClick={() => s.pNew > 0 && setYearDrill({ year: s.year, kind: 'priv' })} style={{ color: s.pNew > 0 ? '#8b5cf6' : 'var(--text-muted)', fontWeight: '400', padding: '8px 12px 8px 3px', cursor: s.pNew > 0 ? 'pointer' : 'default', textDecoration: s.pNew > 0 ? 'underline dotted' : 'none' }}>{s.pNew > 0 ? '+' + s.pNew : '-'}</Td>
+                                    <Td onClick={() => s.pNew !== 0 && setYearDrill({ year: s.year, kind: 'priv' })} style={{ color: s.pNew > 0 ? '#8b5cf6' : s.pNew < 0 ? '#ef4444' : 'var(--text-muted)', fontWeight: '400', padding: '8px 12px 8px 3px', cursor: s.pNew !== 0 ? 'pointer' : 'default', textDecoration: s.pNew !== 0 ? 'underline dotted' : 'none' }}>{s.pNew > 0 ? '+' + s.pNew : s.pNew < 0 ? String(s.pNew) : '-'}</Td>
                                 </tr>
                             ))}
                         </tbody>
