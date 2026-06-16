@@ -472,6 +472,7 @@ export async function fetchPrivateTutorData() {
                     address: normalizeTutorAddress((row['주소'] || '').trim()),
                     reportDate: (row['신고일'] || '').trim(),
                     status: (row['신고상태'] || '신고').trim(),
+                    changeDate: (row['변경일'] || '').trim(), // 반납/폐지 시 상태 변경일
                     education: (row['학력'] || '').trim(),
                     region: (row['행정구역'] || '').trim(),
                     teachingPlaces: [], // 교습장소 배열 (여러 곳 가능)

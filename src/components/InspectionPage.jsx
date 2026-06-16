@@ -1467,13 +1467,18 @@ function TabStats({ region, statRows, academies, privateTutors, academyClosures,
         const getY = d => { const m = (d || '').match(/(\d{4})/); return m ? m[1] : ''; };
         const addToMap = (map, year) => { if (year) map[year] = (map[year] || 0) + 1; };
 
+        const CLOSED_STATUSES = ['자진폐원', '직권폐원', '자진폐소', '직권폐소'];
+
         // ── 학원 ──
         const aNewByYear = {};
         aList.forEach(a => addToMap(aNewByYear, getY(a.regDate)));
         cityClosures.forEach(a => addToMap(aNewByYear, getY(a.regDate)));
-        // 폐원 연도별 카운트
+        // 폐원 연도별 카운트: 별도 폐원 시트 + 메인 시트에 폐원 상태로 남아있는 학원의 statusDate
         const aCloseByYear = {};
         cityClosures.forEach(a => addToMap(aCloseByYear, getY(a.closeDate)));
+        aList
+            .filter(a => CLOSED_STATUSES.some(s => (a.status || '').includes(s)))
+            .forEach(a => addToMap(aCloseByYear, getY(a.statusDate)));
 
         // 학교교과교습학원 (점검률 분모용): 같은 방식
         const aSchoolNewByYear = {};
@@ -1481,10 +1486,12 @@ function TabStats({ region, statRows, academies, privateTutors, academyClosures,
         cityClosures.filter(a => a.category === '학교교과교습학원').forEach(a => addToMap(aSchoolNewByYear, getY(a.regDate)));
         const aSchoolCloseByYear = {};
         cityClosures.filter(a => a.category === '학교교과교습학원').forEach(a => addToMap(aSchoolCloseByYear, getY(a.closeDate)));
+        aList
+            .filter(a => a.category === '학교교과교습학원' && CLOSED_STATUSES.some(s => (a.status || '').includes(s)))
+            .forEach(a => addToMap(aSchoolCloseByYear, getY(a.statusDate)));
 
         // ── 교습소 ──
         // hList에는 현재 활성 + 폐소된 교습소가 모두 포함됨
-        const CLOSED_STATUSES = ['자진폐원', '직권폐원', '자진폐소', '직권폐소'];
         const hNewByYear = {};
         hList.forEach(a => addToMap(hNewByYear, getY(a.regDate)));
         const hCloseByYear = {};
@@ -1492,12 +1499,14 @@ function TabStats({ region, statRows, academies, privateTutors, academyClosures,
             .filter(h => CLOSED_STATUSES.some(s => (h.status || '').includes(s)))
             .forEach(h => addToMap(hCloseByYear, getY(h.statusDate)));
 
-        // ── 과외: 반납일 데이터 없음 → 신규는 reportDate 기준, 누적은 전체 등록 누계 + 현재 기준 보정
+        // ── 과외: 신규=reportDate 기준 전체 집계, 반납=changeDate 기준 차감
         const P_CLOSE_ST = ['자진반납', '직권폐지'];
         const pNewByYear = {};
-        pAllList.filter(a => (a.status || '') === '신고').forEach(a => addToMap(pNewByYear, getY(a.reportDate)));
-        const pAllRegByYear = {};
-        pAllList.forEach(a => addToMap(pAllRegByYear, getY(a.reportDate)));
+        pAllList.forEach(a => addToMap(pNewByYear, getY(a.reportDate)));
+        const pCloseByYear = {};
+        pAllList
+            .filter(a => P_CLOSE_ST.some(s => (a.status || '').includes(s)))
+            .forEach(a => addToMap(pCloseByYear, getY(a.changeDate)));
         const pCurrentActive = pAllList.filter(a => (a.status || '').includes('신고')).length;
 
         // 누적 순증(순감) 계산
@@ -1516,10 +1525,11 @@ function TabStats({ region, statRows, academies, privateTutors, academyClosures,
             const aSchoolActive = netCumul(aSchoolNewByYear, aSchoolCloseByYear, yNum);
             const hNew          = (hNewByYear[y] || 0) - (hCloseByYear[y] || 0);   // 증감
             const hActive       = netCumul(hNewByYear, hCloseByYear, yNum);
-            const pNew    = (pNewByYear[y] || 0);   // 증감: 해당연도 신규 신고 수
+            // 과외: 증감 = 신규 - 반납, 누적 = netCumul (현재연도는 실제 활성 수로 보정)
+            const pNew    = (pNewByYear[y] || 0) - (pCloseByYear[y] || 0);
             const pActive = yNum >= parseInt(CURRENT_YEAR)
                 ? pCurrentActive
-                : cumul(pAllRegByYear, yNum);
+                : netCumul(pNewByYear, pCloseByYear, yNum);
             return { year: y, aNew, aActive, aSchoolActive, hNew, hActive, pNew, pActive };
         });
     }, [YEARS, aList, hList, pAllList, cityClosures]);
