@@ -1529,13 +1529,8 @@ function TabStats({ region, statRows, academies, privateTutors, academyClosures,
             const pActive = yNum >= parseInt(CURRENT_YEAR)
                 ? pCurrentActive
                 : netCumul(pNewByYear, pCloseByYear, yNum);
-            // 과외 증감: 현재연도는 (실제 활성 수 - 전년도 누적)으로 pActive와 수학적 일관성 확보
-            const pPrevCumul = yNum > parseInt(YEARS[0])
-                ? netCumul(pNewByYear, pCloseByYear, yNum - 1)
-                : 0;
-            const pNew = yNum >= parseInt(CURRENT_YEAR)
-                ? pCurrentActive - pPrevCumul
-                : (pNewByYear[y] || 0) - (pCloseByYear[y] || 0);
+            // 과외 증감: 해당 연도 신규 - 반납/폐지 (드릴다운 건수와 일치)
+            const pNew = (pNewByYear[y] || 0) - (pCloseByYear[y] || 0);
             return { year: y, aNew, aActive, aSchoolActive, hNew, hActive, pNew, pActive };
         });
     }, [YEARS, aList, hList, pAllList, cityClosures]);
