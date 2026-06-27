@@ -14,7 +14,6 @@ function Login({ onLogin }) {
       window.google.accounts.id.initialize({
         client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
         callback: handleCredentialResponse,
-        auto_select: true,
       });
       window.google.accounts.id.renderButton(buttonRef.current, {
         theme: 'outline',
@@ -23,7 +22,6 @@ function Login({ onLogin }) {
         locale: 'ko',
         width: 320,
       });
-      window.google.accounts.id.prompt();
     };
     document.head.appendChild(script);
     return () => {
