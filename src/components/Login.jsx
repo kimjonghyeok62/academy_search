@@ -12,9 +12,12 @@ function Login({ onLogin, initialError = '' }) {
     const challenge = await generateChallenge(verifier);
     sessionStorage.setItem('pkce_verifier', verifier);
 
+    const redirectUri = `${window.location.origin}/auth/callback`;
+    sessionStorage.setItem('pkce_redirect_uri', redirectUri);
+
     const params = new URLSearchParams({
       client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
-      redirect_uri: window.location.origin,
+      redirect_uri: redirectUri,
       response_type: 'code',
       scope: 'openid email profile',
       code_challenge: challenge,
