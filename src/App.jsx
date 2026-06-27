@@ -35,7 +35,7 @@ class ErrorBoundary extends React.Component {
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    return localStorage.getItem('academy_auth_v2') === 'true';
+    return localStorage.getItem('academy_auth_v3') === 'true';
   });
   const [academies, setAcademies] = useState([]);
   const [privateTutors, setPrivateTutors] = useState([]);
@@ -326,15 +326,17 @@ function App() {
     loadData();
   };
 
-  const handleLogin = () => {
+  const handleLogin = (email) => {
     setIsAuthenticated(true);
-    localStorage.setItem('academy_auth_v2', 'true');
+    localStorage.setItem('academy_auth_v3', 'true');
+    if (email) localStorage.setItem('academy_auth_email', email);
   };
 
   const handleLogout = () => {
     setIsAuthenticated(false);
     setAcademies([]);
-    localStorage.removeItem('academy_auth_v2');
+    localStorage.removeItem('academy_auth_v3');
+    localStorage.removeItem('academy_auth_email');
     sessionStorage.removeItem(CACHE_KEY);
   };
 
