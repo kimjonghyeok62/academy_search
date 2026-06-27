@@ -28,7 +28,8 @@ export default async function handler(req, res) {
 
     if (!tokenRes.ok || tokens.error) {
       console.error('Token exchange error:', tokens);
-      return res.status(401).json({ ok: false, error: '토큰 교환에 실패했습니다.' });
+      const detail = tokens.error_description || tokens.error || 'unknown';
+      return res.status(401).json({ ok: false, error: `토큰 교환 실패: ${detail}` });
     }
 
     // 2. id_token 검증
