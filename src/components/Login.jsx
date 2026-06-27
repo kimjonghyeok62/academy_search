@@ -1,65 +1,27 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 function Login({ onLogin, initialError = '' }) {
   const [error, setError] = useState(initialError);
-  const [loading, setLoading] = useState(false);
-  const btnRef = useRef(null);
 
   useEffect(() => {
     if (initialError) setError(initialError);
   }, [initialError]);
 
-  useEffect(() => {
-    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-    if (!clientId) return;
+  const handleGoogleLogin = async () => {
+    const verifier = generateVerifier();
+    const challenge = await generateChallenge(verifier);
+    sessionStorage.setItem('pkce_verifier', verifier);
 
-    const initGSI = () => {
-      window.google.accounts.id.initialize({
-        client_id: clientId,
-        callback: handleCredentialResponse,
-      });
-      if (btnRef.current) {
-        window.google.accounts.id.renderButton(btnRef.current, {
-          theme: 'outline',
-          size: 'large',
-          width: 280,
-          text: 'signin_with',
-          locale: 'ko',
-        });
-      }
-    };
-
-    if (window.google?.accounts?.id) {
-      initGSI();
-    } else {
-      const script = document.createElement('script');
-      script.src = 'https://accounts.google.com/gsi/client';
-      script.async = true;
-      script.onload = initGSI;
-      document.head.appendChild(script);
-    }
-  }, []);
-
-  const handleCredentialResponse = async (response) => {
-    setLoading(true);
-    setError('');
-    try {
-      const res = await fetch('/api/auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ credential: response.credential }),
-      });
-      const data = await res.json();
-      if (data.ok) {
-        onLogin(data.email);
-      } else {
-        setError(data.error || '로그인에 실패했습니다.');
-      }
-    } catch {
-      setError('서버 오류가 발생했습니다.');
-    } finally {
-      setLoading(false);
-    }
+    const params = new URLSearchParams({
+      client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
+      redirect_uri: window.location.origin,
+      response_type: 'code',
+      scope: 'openid email profile',
+      code_challenge: challenge,
+      code_challenge_method: 'S256',
+      prompt: 'select_account',
+    });
+    window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
   };
 
   return (
@@ -94,22 +56,37 @@ function Login({ onLogin, initialError = '' }) {
           </p>
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'center', minHeight: '44px' }}>
-          {loading ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-              <div style={{
-                width: '18px', height: '18px',
-                border: '2px solid var(--border-color)',
-                borderTopColor: 'var(--primary)',
-                borderRadius: '50%',
-                animation: 'spin 0.8s linear infinite'
-              }} />
-              인증 중...
-            </div>
-          ) : (
-            <div ref={btnRef} />
-          )}
-        </div>
+        <button
+          onClick={handleGoogleLogin}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '12px',
+            width: '100%',
+            padding: '12px 24px',
+            backgroundColor: '#fff',
+            color: '#3c4043',
+            border: '1px solid #dadce0',
+            borderRadius: '4px',
+            fontSize: '14px',
+            fontWeight: '500',
+            cursor: 'pointer',
+            fontFamily: "'Google Sans', Roboto, sans-serif",
+            boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
+            transition: 'box-shadow 0.2s',
+          }}
+          onMouseOver={e => e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.2)'}
+          onMouseOut={e => e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.12)'}
+        >
+          <svg width="18" height="18" viewBox="0 0 18 18">
+            <path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 002.38-5.88c0-.57-.05-.66-.15-1.18z"/>
+            <path fill="#34A853" d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2a4.8 4.8 0 01-7.18-2.54H1.83v2.07A8 8 0 008.98 17z"/>
+            <path fill="#FBBC05" d="M4.5 10.52a4.8 4.8 0 010-3.04V5.41H1.83a8 8 0 000 7.18l2.67-2.07z"/>
+            <path fill="#EA4335" d="M8.98 4.18c1.17 0 2.23.4 3.06 1.2l2.3-2.3A8 8 0 001.83 5.4L4.5 7.49a4.77 4.77 0 014.48-3.31z"/>
+          </svg>
+          Google로 로그인
+        </button>
 
         {error && (
           <div style={{
@@ -130,9 +107,21 @@ function Login({ onLogin, initialError = '' }) {
           허가된 구글 계정만 접근할 수 있습니다
         </p>
       </div>
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
+}
+
+function generateVerifier() {
+  const array = new Uint8Array(32);
+  crypto.getRandomValues(array);
+  return btoa(String.fromCharCode(...array)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+
+async function generateChallenge(verifier) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(verifier);
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  return btoa(String.fromCharCode(...new Uint8Array(digest))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
 }
 
 export default Login;

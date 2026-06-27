@@ -71,35 +71,43 @@ function App() {
   const lastBackPressRef = useRef(0);
   const backToastTimerRef = useRef(null);
 
-  // Clean up any old auth data on mount + Google OAuth 리다이렉트 결과 처리 (implicit flow)
+  // Clean up any old auth data on mount + Google PKCE 리다이렉트 결과 처리
   useEffect(() => {
     localStorage.removeItem('academy_auth');
     sessionStorage.removeItem('academy_auth');
 
-    // Google implicit flow: id_token이 URL 해시에 담겨 돌아옴 (#id_token=...&...)
-    const hash = window.location.hash.slice(1);
-    if (hash) {
-      const hashParams = new URLSearchParams(hash);
-      const idToken = hashParams.get('id_token');
-      if (idToken) {
-        window.history.replaceState({}, '', window.location.pathname);
-        fetch('/api/auth', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ credential: idToken }),
-        })
-          .then(r => r.json())
-          .then(data => {
-            if (data.ok) {
-              setIsAuthenticated(true);
-              localStorage.setItem('academy_auth_v3', 'true');
-              if (data.email) localStorage.setItem('academy_auth_email', data.email);
-            } else {
-              setAuthError(data.error || '로그인에 실패했습니다.');
-            }
-          })
-          .catch(() => setAuthError('인증 처리 중 오류가 발생했습니다.'));
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    if (code) {
+      const verifier = sessionStorage.getItem('pkce_verifier');
+      sessionStorage.removeItem('pkce_verifier');
+      window.history.replaceState({}, '', window.location.pathname);
+
+      if (!verifier) {
+        setAuthError('인증 세션이 만료됐습니다. 다시 시도해주세요.');
+        return;
       }
+
+      fetch('/api/auth-pkce', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code,
+          code_verifier: verifier,
+          redirect_uri: window.location.origin,
+        }),
+      })
+        .then(r => r.json())
+        .then(data => {
+          if (data.ok) {
+            setIsAuthenticated(true);
+            localStorage.setItem('academy_auth_v3', 'true');
+            if (data.email) localStorage.setItem('academy_auth_email', data.email);
+          } else {
+            setAuthError(data.error || '로그인에 실패했습니다.');
+          }
+        })
+        .catch(() => setAuthError('인증 처리 중 오류가 발생했습니다.'));
     }
   }, []);
 
