@@ -88,13 +88,16 @@ function App() {
         return;
       }
 
+      const redirectUri = sessionStorage.getItem('pkce_redirect_uri') || `${window.location.origin}/auth/callback`;
+      sessionStorage.removeItem('pkce_redirect_uri');
+
       fetch('/api/auth-pkce', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           code,
           code_verifier: verifier,
-          redirect_uri: window.location.origin,
+          redirect_uri: redirectUri,
         }),
       })
         .then(r => r.json())
