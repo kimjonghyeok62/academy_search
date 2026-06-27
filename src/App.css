@@ -345,3 +345,49 @@ h3 {
   .record-chip.fee   { flex: 1; }
   .record-chip.rate  { flex: 1; }
 }
+/* ── 교습비 검토 탭 (pill-style) ── */
+.tab-btn {
+  font-family: inherit;
+  transition: all 0.15s;
+}
+.tab-btn:hover {
+  opacity: 0.85;
+}
+.tab-maintext {
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.tab-subtext {
+  font-size: 0.72rem;
+  font-weight: 500;
+  opacity: 0.75;
+}
+.tab-icon {
+  flex-shrink: 0;
+}
+
+/* ── 서브타이틀 ── */
+.app-subtitle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: -0.01em;
+}
+
+/* ── 하단 푸터 ── */
+.app-footer {
+  margin-top: 36px;
+  padding: 16px 0 8px;
+  border-top: 1px solid var(--border-color);
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+.app-footer p {
+  margin: 0;
+}

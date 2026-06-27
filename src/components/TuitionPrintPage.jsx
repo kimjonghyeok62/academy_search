@@ -2,39 +2,25 @@ import React, { useState, useRef } from 'react';
 import { printTuitionForm, printTuitionFormExternal } from '../utils/generateTuitionPDF';
 import { parseExcelTuition } from '../utils/parseExcelTuition';
 import TuitionReviewTab from './TuitionReviewTab';
+import StandardPriceTable from './StandardPriceTable';
 
-export default function TuitionPrintPage({ academies, onBack }) {
-  const [tab, setTab] = useState('review'); // 'search' | 'excel' | 'review'
+export default function TuitionPrintPage({ onBack }) {
+  const [tab, setTab] = useState('review'); // 'review' | 'tutoring' | 'excel'
+  const [showStandardPrices, setShowStandardPrices] = useState(false);
 
-  // 학원 검색 탭
-  const [query, setQuery] = useState('');
-  const [selected, setSelected] = useState(null);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const searchInputRef = useRef(null);
-
-  // 엑셀 업로드 탭
+  // 엑셀 업로드 탭 상태
   const [excelAcademies, setExcelAcademies] = useState([]);
   const [excelSelected, setExcelSelected] = useState(null);
   const [excelError, setExcelError] = useState('');
   const [excelLoading, setExcelLoading] = useState(false);
+  const [excelDragOver, setExcelDragOver] = useState(false);
   const fileInputRef = useRef(null);
 
-  // --- 학원 검색 ---
-  const suggestions = query.trim()
-    ? academies.filter(a =>
-        a.name?.includes(query) ||
-        a.founder?.name?.includes(query) ||
-        a.address?.includes(query)
-      ).slice(0, 20)
-    : [];
-
-  function handleSelect(academy) {
-    setSelected(academy);
-    setQuery(academy.name || '');
-    setShowSuggestions(false);
+  // StandardPriceTable 오버레이
+  if (showStandardPrices) {
+    return <StandardPriceTable onBack={() => setShowStandardPrices(false)} />;
   }
 
-  // --- 엑셀 업로드 ---
   async function handleFile(e) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -58,24 +44,38 @@ export default function TuitionPrintPage({ academies, onBack }) {
     }
   }
 
+  function handleDrop(e) {
+    e.preventDefault();
+    setExcelDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleFile({ target: { files: [file], value: '' } });
+  }
+
   const tabStyle = (active) => ({
     flex: 1,
-    padding: '9px 0',
+    padding: '11px 8px',
     border: 'none',
-    borderBottom: active ? '2px solid var(--primary)' : '2px solid transparent',
-    background: 'none',
+    borderRadius: '8px',
     cursor: 'pointer',
-    fontSize: '0.88rem',
-    fontWeight: active ? '700' : '500',
+    backgroundColor: active ? '#fff' : 'transparent',
     color: active ? 'var(--primary)' : 'var(--text-muted)',
-    transition: 'all 0.15s'
+    boxShadow: active ? '0 4px 10px rgba(79, 70, 229, 0.12), 0 2px 4px rgba(0, 0, 0, 0.02)' : 'none',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '3px',
+    lineHeight: '1.25',
+    transform: active ? 'scale(1.02)' : 'scale(1)',
+    transition: 'all 0.15s',
+    fontFamily: 'inherit',
   });
 
   return (
     <div className="container animate-enter" style={{ maxWidth: '600px', margin: '0 auto', padding: '24px 16px' }}>
 
       {/* 헤더 */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
         <button
           onClick={onBack}
           style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '4px', display: 'flex', alignItems: 'center' }}
@@ -90,93 +90,102 @@ export default function TuitionPrintPage({ academies, onBack }) {
         </h2>
       </div>
 
-      {/* 탭 */}
-      <div style={{ display: 'flex', borderBottom: '1px solid var(--border-color)', marginBottom: '20px' }}>
-        <button style={tabStyle(tab === 'review')} onClick={() => setTab('review')}>교습비 검토</button>
-        <button style={tabStyle(tab === 'search')} onClick={() => setTab('search')}>학원 검색</button>
-        <button style={tabStyle(tab === 'excel')} onClick={() => setTab('excel')}>업로드</button>
+      {/* 서브타이틀 + 기준단가 보기 */}
+      <div style={{ marginTop: '15px', display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap', justifyContent: 'center', width: '100%', marginBottom: '22px' }}>
+        <div className="app-subtitle">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+          경기도광주하남교육지원청 교습비 기준
+        </div>
+        <button
+          onClick={() => setShowStandardPrices(true)}
+          style={{
+            padding: '3px 10px',
+            backgroundColor: '#0f172a',
+            boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+            border: '1px solid #1e293b',
+            borderRadius: '20px',
+            color: '#f8fafc',
+            fontSize: '0.76rem',
+            fontWeight: '700',
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            fontFamily: 'inherit',
+          }}
+        >
+          기준단가 보기
+        </button>
       </div>
 
-      {/* ── 탭 1: 학원 검색 ── */}
-      {tab === 'search' && (
-        <>
-          <div style={{ marginBottom: '24px' }}>
-            <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '8px' }}>학원 선택</label>
-            <div style={{ position: 'relative' }}>
-              <div style={{
-                display: 'flex', alignItems: 'center',
-                backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-color)',
-                borderRadius: '10px', padding: '10px 14px', gap: '8px'
-              }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--text-muted)', flexShrink: 0 }}>
-                  <circle cx="11" cy="11" r="8"></circle>
-                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                </svg>
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  value={query}
-                  onChange={e => { setQuery(e.target.value); setSelected(null); setShowSuggestions(true); }}
-                  onFocus={() => query && setShowSuggestions(true)}
-                  onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-                  placeholder="학원명, 운영자, 주소 입력..."
-                  style={{ flex: 1, border: 'none', background: 'none', outline: 'none', fontSize: '0.95rem', color: 'var(--text-primary)' }}
-                />
-                {query && (
-                  <button type="button" onClick={() => { setQuery(''); setSelected(null); setShowSuggestions(false); searchInputRef.current?.focus(); }}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1.1rem', padding: '0', lineHeight: 1 }}>×</button>
-                )}
-              </div>
+      {/* 필 탭 바 */}
+      <div style={{
+        display: 'flex',
+        backgroundColor: '#f8fafc',
+        padding: '5px',
+        borderRadius: '12px',
+        marginBottom: '26px',
+        gap: '6px',
+        alignItems: 'stretch',
+        border: '1px solid #e2e8f0',
+        boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.02), 0 4px 12px rgba(0,0,0,0.03)',
+      }}>
+        <button className="tab-btn" style={tabStyle(tab === 'review')} onClick={() => setTab('review')}>
+          <svg className="tab-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+            <polyline points="9 22 9 12 15 12 15 22"></polyline>
+          </svg>
+          <span className="tab-maintext">학원·교습소</span>
+          <span className="tab-subtext">교습비 변경</span>
+        </button>
+        <button className="tab-btn" style={tabStyle(tab === 'tutoring')} onClick={() => setTab('tutoring')}>
+          <svg className="tab-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+          </svg>
+          <span className="tab-maintext">개인과외</span>
+          <span className="tab-subtext">교습비 변경</span>
+        </button>
+        <button className="tab-btn" style={tabStyle(tab === 'excel')} onClick={() => setTab('excel')}>
+          <svg className="tab-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="6 9 6 2 18 2 18 9"></polyline>
+            <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+            <rect x="6" y="14" width="12" height="8"></rect>
+          </svg>
+          <span className="tab-maintext">게시표 출력</span>
+          <span className="tab-subtext">(나이스자료 이용)</span>
+        </button>
+      </div>
 
-              {showSuggestions && suggestions.length > 0 && (
-                <ul style={{
-                  position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
-                  backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-color)',
-                  borderRadius: '10px', boxShadow: 'var(--shadow-md)',
-                  margin: 0, padding: '4px 0', listStyle: 'none', zIndex: 100,
-                  maxHeight: '260px', overflowY: 'auto'
-                }}>
-                  {suggestions.map(a => (
-                    <li key={a.id || a.name} onMouseDown={() => handleSelect(a)}
-                      style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid var(--border-color)', fontSize: '0.9rem' }}
-                      onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
-                      onMouseLeave={e => e.currentTarget.style.backgroundColor = ''}>
-                      <div style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{a.name}</div>
-                      <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                        {a.founder?.name && <span style={{ marginRight: '8px' }}>{a.founder.name}</span>}
-                        {a.address && <span>{a.address}</span>}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
+      {/* ── 탭 1: 학원·교습소 교습비 변경 ── */}
+      {tab === 'review' && <TuitionReviewTab mode="academy" />}
 
-          {selected && <PrintButtons academy={selected} />}
+      {/* ── 탭 2: 개인과외 교습비 변경 ── */}
+      {tab === 'tutoring' && <TuitionReviewTab mode="tutoring" />}
 
-          {!selected && (
-            <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.88rem', marginTop: '40px', lineHeight: '1.6' }}>
-              학원을 검색하여 선택하면<br />교습비등 게시표를 출력할 수 있습니다.
-            </div>
-          )}
-        </>
-      )}
-
-      {/* ── 탭 2: 엑셀 업로드 ── */}
+      {/* ── 탭 3: 게시표 출력 ── */}
       {tab === 'excel' && (
         <>
           {/* 업로드 영역 */}
           <div
             onClick={() => fileInputRef.current?.click()}
+            onDragOver={e => { e.preventDefault(); setExcelDragOver(true); }}
+            onDragEnter={e => { e.preventDefault(); setExcelDragOver(true); }}
+            onDragLeave={e => { e.preventDefault(); setExcelDragOver(false); }}
+            onDrop={handleDrop}
             style={{
-              border: '2px dashed var(--border-color)', borderRadius: '12px',
+              border: `2px dashed ${excelDragOver ? 'var(--primary)' : 'var(--border-color)'}`,
+              borderRadius: '12px',
               padding: '32px 20px', textAlign: 'center', cursor: 'pointer',
-              backgroundColor: 'var(--bg-card)', marginBottom: '20px',
-              transition: 'border-color 0.2s'
+              backgroundColor: excelDragOver ? '#eef2ff' : 'var(--bg-card)',
+              marginBottom: '20px',
+              transition: 'border-color 0.2s, background-color 0.2s',
             }}
-            onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--primary)'}
-            onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border-color)'}
+            onMouseEnter={e => { if (!excelDragOver) e.currentTarget.style.borderColor = 'var(--primary)'; }}
+            onMouseLeave={e => { if (!excelDragOver) e.currentTarget.style.borderColor = 'var(--border-color)'; }}
           >
             <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--primary)', marginBottom: '10px' }}>
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
@@ -185,10 +194,10 @@ export default function TuitionPrintPage({ academies, onBack }) {
               <line x1="9" y1="15" x2="15" y2="15"></line>
             </svg>
             <div style={{ fontWeight: '600', color: 'var(--text-primary)', marginBottom: '4px' }}>
-              {excelLoading ? '파일 분석 중...' : '엑셀 파일 선택'}
+              {excelLoading ? '파일 분석 중...' : excelDragOver ? '여기에 놓으세요!' : '엑셀 파일 선택 또는 여기에 끌어다 놓기'}
             </div>
             <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              교육청 표준 학원교습비 목록 파일 (.xlsx)
+              나이스에서 내려받은 학원 교습비 목록 파일 (.xlsx)
             </div>
             <input ref={fileInputRef} type="file" accept=".xlsx,.xls" onChange={handleFile} style={{ display: 'none' }} />
           </div>
@@ -199,7 +208,7 @@ export default function TuitionPrintPage({ academies, onBack }) {
             </div>
           )}
 
-          {/* 여러 학원이 있을 때 선택 목록 */}
+          {/* 여러 학원 선택 목록 */}
           {excelAcademies.length > 1 && !excelSelected && (
             <div>
               <div style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '10px' }}>
@@ -209,19 +218,13 @@ export default function TuitionPrintPage({ academies, onBack }) {
                 {excelAcademies.map((a, i) => (
                   <li key={i}
                     onClick={() => setExcelSelected(a)}
-                    style={{
-                      padding: '12px 16px', backgroundColor: 'var(--bg-card)',
-                      border: '1px solid var(--border-color)', borderRadius: '10px',
-                      cursor: 'pointer', transition: 'border-color 0.15s'
-                    }}
+                    style={{ padding: '12px 16px', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '10px', cursor: 'pointer', transition: 'border-color 0.15s' }}
                     onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--primary)'}
                     onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border-color)'}
                   >
                     <div style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{a.name}</div>
                     {a.address && <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>{a.address}</div>}
-                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                      교습과정 {a.courses.length}개
-                    </div>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>교습과정 {a.courses.length}개</div>
                   </li>
                 ))}
               </ul>
@@ -234,7 +237,7 @@ export default function TuitionPrintPage({ academies, onBack }) {
               {excelAcademies.length > 1 && (
                 <button
                   onClick={() => setExcelSelected(null)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.83rem', marginBottom: '12px', padding: 0, display: 'flex', alignItems: 'center', gap: '4px' }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.83rem', marginBottom: '12px', padding: 0, display: 'flex', alignItems: 'center', gap: '4px', fontFamily: 'inherit' }}
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
                   목록으로 돌아가기
@@ -246,20 +249,24 @@ export default function TuitionPrintPage({ academies, onBack }) {
 
           {!excelAcademies.length && !excelLoading && !excelError && (
             <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.88rem', marginTop: '8px', lineHeight: '1.6' }}>
-              교육청에서 제공하는<br />학원 교습비 목록 엑셀 파일을 업로드하세요.<br />
+              나이스에서 내려받은<br />학원 교습비 목록 엑셀 파일을 업로드하세요.<br />
               <span style={{ fontSize: '0.78rem' }}>(성명·비고 등 누락된 항목은 빈칸으로 출력됩니다)</span>
             </div>
           )}
         </>
       )}
 
-      {/* ── 탭 3: 교습비 검토 ── */}
-      {tab === 'review' && <TuitionReviewTab />}
+      {/* 푸터 (게시표 탭 제외) */}
+      {tab !== 'excel' && (
+        <footer className="app-footer">
+          <p>경기도광주하남교육지원청 · 교습비 검토 도우미</p>
+          <p style={{ marginTop: '4px', fontSize: '0.78rem' }}>교습비 기준 적용 여부는 담당자 최종 판단을 따릅니다.</p>
+        </footer>
+      )}
     </div>
   );
 }
 
-// 공통 출력 버튼 컴포넌트
 function PrintButtons({ academy }) {
   return (
     <div style={{
@@ -280,7 +287,8 @@ function PrintButtons({ academy }) {
             flex: 1, minWidth: '140px', padding: '12px 16px',
             backgroundColor: 'var(--primary)', color: '#fff',
             border: 'none', borderRadius: '10px', fontSize: '0.9rem', fontWeight: '600',
-            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px'
+            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+            fontFamily: 'inherit',
           }}
         >
           <PrintIcon /> 교습비등 게시표 (내부용)
@@ -291,7 +299,8 @@ function PrintButtons({ academy }) {
             flex: 1, minWidth: '140px', padding: '12px 16px',
             backgroundColor: 'var(--bg-card)', color: 'var(--primary)',
             border: '2px solid var(--primary)', borderRadius: '10px', fontSize: '0.9rem', fontWeight: '600',
-            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px'
+            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+            fontFamily: 'inherit',
           }}
         >
           <PrintIcon stroke="var(--primary)" /> 교습비등 게시표 (외부용)
