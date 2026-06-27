@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 
-function Login({ onLogin }) {
+function Login({ onLogin, initialError = '' }) {
   const buttonRef = useRef(null);
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(initialError);
+
+  useEffect(() => {
+    if (initialError) setError(initialError);
+  }, [initialError]);
 
   useEffect(() => {
     const script = document.createElement('script');
@@ -13,7 +16,8 @@ function Login({ onLogin }) {
     script.onload = () => {
       window.google.accounts.id.initialize({
         client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
-        callback: handleCredentialResponse,
+        ux_mode: 'redirect',
+        login_uri: `${window.location.origin}/api/google-callback`,
       });
       window.google.accounts.id.renderButton(buttonRef.current, {
         theme: 'outline',
@@ -28,28 +32,6 @@ function Login({ onLogin }) {
       if (document.head.contains(script)) document.head.removeChild(script);
     };
   }, []);
-
-  const handleCredentialResponse = async ({ credential }) => {
-    setLoading(true);
-    setError('');
-    try {
-      const res = await fetch('/api/auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ credential }),
-      });
-      const data = await res.json();
-      if (data.ok) {
-        onLogin(data.email);
-      } else {
-        setError(data.error || '로그인에 실패했습니다.');
-      }
-    } catch {
-      setError('서버 연결에 실패했습니다.');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <div style={{
@@ -83,11 +65,7 @@ function Login({ onLogin }) {
           </p>
         </div>
 
-        {loading ? (
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem' }}>확인 중...</p>
-        ) : (
-          <div ref={buttonRef} style={{ display: 'flex', justifyContent: 'center' }} />
-        )}
+        <div ref={buttonRef} style={{ display: 'flex', justifyContent: 'center' }} />
 
         {error && (
           <div style={{
