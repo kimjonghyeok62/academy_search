@@ -1,37 +1,23 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 function Login({ onLogin, initialError = '' }) {
-  const buttonRef = useRef(null);
   const [error, setError] = useState(initialError);
 
   useEffect(() => {
     if (initialError) setError(initialError);
   }, [initialError]);
 
-  useEffect(() => {
-    const script = document.createElement('script');
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.async = true;
-    script.defer = true;
-    script.onload = () => {
-      window.google.accounts.id.initialize({
-        client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
-        ux_mode: 'redirect',
-        login_uri: `${window.location.origin}/api/google-callback`,
-      });
-      window.google.accounts.id.renderButton(buttonRef.current, {
-        theme: 'outline',
-        size: 'large',
-        text: 'signin_with',
-        locale: 'ko',
-        width: 320,
-      });
-    };
-    document.head.appendChild(script);
-    return () => {
-      if (document.head.contains(script)) document.head.removeChild(script);
-    };
-  }, []);
+  const handleGoogleLogin = () => {
+    const params = new URLSearchParams({
+      client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
+      redirect_uri: window.location.origin,
+      response_type: 'id_token',
+      scope: 'openid email profile',
+      nonce: Math.random().toString(36).substring(2),
+      prompt: 'select_account',
+    });
+    window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
+  };
 
   return (
     <div style={{
@@ -65,7 +51,37 @@ function Login({ onLogin, initialError = '' }) {
           </p>
         </div>
 
-        <div ref={buttonRef} style={{ display: 'flex', justifyContent: 'center' }} />
+        <button
+          onClick={handleGoogleLogin}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '12px',
+            width: '100%',
+            padding: '12px 24px',
+            backgroundColor: '#fff',
+            color: '#3c4043',
+            border: '1px solid #dadce0',
+            borderRadius: '4px',
+            fontSize: '14px',
+            fontWeight: '500',
+            cursor: 'pointer',
+            fontFamily: "'Google Sans', Roboto, sans-serif",
+            boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
+            transition: 'box-shadow 0.2s',
+          }}
+          onMouseOver={e => e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.2)'}
+          onMouseOut={e => e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.12)'}
+        >
+          <svg width="18" height="18" viewBox="0 0 18 18">
+            <path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 002.38-5.88c0-.57-.05-.66-.15-1.18z"/>
+            <path fill="#34A853" d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2a4.8 4.8 0 01-7.18-2.54H1.83v2.07A8 8 0 008.98 17z"/>
+            <path fill="#FBBC05" d="M4.5 10.52a4.8 4.8 0 010-3.04V5.41H1.83a8 8 0 000 7.18l2.67-2.07z"/>
+            <path fill="#EA4335" d="M8.98 4.18c1.17 0 2.23.4 3.06 1.2l2.3-2.3A8 8 0 001.83 5.4L4.5 7.49a4.77 4.77 0 014.48-3.31z"/>
+          </svg>
+          Google로 로그인
+        </button>
 
         {error && (
           <div style={{
