@@ -3351,7 +3351,9 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
     const isMidnightInsp = (insp) => ['심야', '야간'].some(k => (insp.inspectionType || '').includes(k));
     const lastRegularDate = (a) => {
         const r = (a.inspections || []).filter(i => !isMidnightInsp(i));
-        return r.length ? toDateRev(r[0].date) : null;
+        const insD = r.length ? toDateRev(r[0].date) : null;
+        const niceD = toDateRev(a.niceInspectionDate);
+        return (insD && niceD) ? (insD > niceD ? insD : niceD) : (insD || niceD);
     };
     const uninspMonths = (a, today) => {
         const neisD = lastRegularDate(a);
@@ -3492,7 +3494,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
             .filter(a => !isClosed(a) && !deferNames.has(normName(a.name)))
             .map(a => {
                 const months = uninspMonths(a, today);
-                const neverInspected = (a.inspections || []).filter(i => !isMidnightInsp(i)).length === 0 && !inspectedDates.has(normName(a.name));
+                const neverInspected = !lastRegularDate(a) && !inspectedDates.has(normName(a.name));
                 const regD = toDateRev(a.regDate);
                 const regMonths = regD ? Math.floor((today - regD) / 2629800000) : 0;
                 const viol = (a.inspections || []).filter(i => i.isViolation && !isMidnightInsp(i)).length;
@@ -3519,7 +3521,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
             .filter(a => !isClosed(a) && !deferNames.has(normName(a.name)))
             .map(a => {
                 const months = uninspMonths(a, today);
-                const neverInspected = (a.inspections || []).filter(i => !isMidnightInsp(i)).length === 0 && !inspectedDates.has(normName(a.name));
+                const neverInspected = !lastRegularDate(a) && !inspectedDates.has(normName(a.name));
                 const regD = toDateRev(a.regDate);
                 const regMonths = regD ? Math.floor((today - regD) / 2629800000) : 0;
                 const viol = (a.inspections || []).filter(i => i.isViolation && !isMidnightInsp(i)).length;
@@ -3555,7 +3557,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
             .filter(a => !isClosed(a) && !deferNames.has(normName(a.name)))
             .map(a => {
                 const months = uninspMonths(a, today);
-                const neverInspected = (a.inspections || []).filter(i => !isMidnightInsp(i)).length === 0 && !inspectedDates.has(normName(a.name));
+                const neverInspected = !lastRegularDate(a) && !inspectedDates.has(normName(a.name));
                 const regD = toDateRev(a.regDate);
                 const regMonths = regD ? Math.floor((today - regD) / 2629800000) : 0;
                 const viol = (a.inspections || []).filter(i => i.isViolation && !isMidnightInsp(i)).length;
@@ -3591,7 +3593,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
             .filter(a => !isClosed(a) && !deferNames.has(normName(a.name)))
             .map(a => {
                 const months = uninspMonths(a, today);
-                const neverInspected = (a.inspections || []).filter(i => !isMidnightInsp(i)).length === 0 && !inspectedDates.has(normName(a.name));
+                const neverInspected = !lastRegularDate(a) && !inspectedDates.has(normName(a.name));
                 const regD = toDateRev(a.regDate);
                 const regMonths = regD ? Math.floor((today - regD) / 2629800000) : 0;
                 const viol = (a.inspections || []).filter(i => i.isViolation && !isMidnightInsp(i)).length;
@@ -3637,7 +3639,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
             .filter(a => !isClosed(a) && !deferNames.has(normName(a.name)))
             .map(a => {
                 const months = uninspMonths(a, today);
-                const neverInspected = (a.inspections || []).filter(i => !isMidnightInsp(i)).length === 0 && !inspectedDates.has(normName(a.name));
+                const neverInspected = !lastRegularDate(a) && !inspectedDates.has(normName(a.name));
                 const regD = toDateRev(a.regDate);
                 const regMonths = regD ? Math.floor((today - regD) / 2629800000) : 0;
                 const viol = (a.inspections || []).filter(i => i.isViolation && !isMidnightInsp(i)).length;

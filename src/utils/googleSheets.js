@@ -581,6 +581,7 @@ export function transformAcademyData(rawRows, inspectionMap = new Map()) {
                 status: rowStatus,
                 statusDate: row['개원/휴원/폐원일'] || row['개소/휴소/폐소일'] || '',
                 changeDate: row['변경일'] || '',
+                niceInspectionDate: row['지도점검 받은 일자'] || '',
                 founder: {
                     name: row['설립자-성명'] || row['교습자-성명'] || '',
                     phone: row['전화번호'] || '',
@@ -616,6 +617,7 @@ export function transformAcademyData(rawRows, inspectionMap = new Map()) {
                     status: rowStatus,
                     statusDate: row['개원/휴원/폐원일'] || row['개소/휴소/폐소일'] || existing.statusDate,
                     changeDate: row['변경일'] || existing.changeDate,
+                    niceInspectionDate: row['지도점검 받은 일자'] || existing.niceInspectionDate,
                     founder: {
                         name: row['설립자-성명'] || row['교습자-성명'] || existing.founder.name,
                         phone: row['전화번호'] || existing.founder.phone,
@@ -687,7 +689,8 @@ export function transformAcademyData(rawRows, inspectionMap = new Map()) {
             medicalPerPerson: row['인당의료실비금액'] || '',
             compensationPerPerson: row['인당배상금액'] || ''
         };
-        if (insurance.policyNumber && !academy.insurances.some(i => i.policyNumber === insurance.policyNumber)) {
+        const insuranceKey = insurance.policyNumber || `${insurance.startDate}__${insurance.endDate}__${insurance.company}`;
+        if (insurance.endDate && !academy.insurances.some(i => (i.policyNumber || `${i.startDate}__${i.endDate}__${i.company}`) === insuranceKey)) {
             academy.insurances.push(insurance);
         }
     });
