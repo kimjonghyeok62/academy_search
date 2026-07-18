@@ -1,4 +1,5 @@
 ﻿import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import * as XLSX from 'xlsx';
 import AreaCalculatorApp from './AreaCalculatorApp';
 import PhotoRenamePage from './PhotoRenamePage';
 import {
@@ -4357,18 +4358,37 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
             </CautionSection>
 
             {/* C. 점검 우선순위 (신설미점검 포함) */}
-            <CautionSection id="risk" title="🎯 점검 우선순위 (상위 50개씩)" badge={Math.min(riskList.filter(a=>a.category!=='교습소').length,50)+Math.min(riskList.filter(a=>a.category==='교습소').length,50)} badgeColor="#6366f1">
+            <CautionSection id="risk" title="🎯 점검 우선순위 (학원 70·교습소 50)" badge={Math.min(riskList.filter(a=>a.category!=='교습소'&&!(a.name||'').trim().endsWith('독서실')).length,70)+Math.min(riskList.filter(a=>a.category==='교습소').length,50)} badgeColor="#6366f1">
                 {(() => {
-                    const allAcItems = riskList.filter(a => a.category !== '교습소');
+                    const allAcItems = riskList.filter(a => a.category !== '교습소' && !(a.name || '').trim().endsWith('독서실'));
                     const allHgItems = riskList.filter(a => a.category === '교습소');
                     const acDisplayItems = acRefreshed
-                        ? allAcItems.filter(a => !isInsp2026(a)).slice(0, 50)
-                        : allAcItems.slice(0, 50);
+                        ? allAcItems.filter(a => !isInsp2026(a)).slice(0, 70)
+                        : allAcItems.slice(0, 70);
                     const hgDisplayItems = hgRefreshed
                         ? allHgItems.filter(a => !isInsp2026(a)).slice(0, 50)
                         : allHgItems.slice(0, 50);
                     const fmtMonths = (a) => a.neverInspected ? '미점검' : a.months >= 12 ? `${Math.floor(a.months/12)}년${a.months%12>0?' '+a.months%12+'개월':''}` : `${a.months}개월`;
                     const riskType = (a) => a.category === '교습소' ? '교습소' : '학원';
+                    const downloadRiskExcel = (items, typeLabel) => {
+                        const rows = items.map((a, i) => ({
+                            '순위': i + 1,
+                            '학원명': a.name || '',
+                            '연락처': a.founder?.mobile || a.founder?.phone || '',
+                            '동': a.dong || '',
+                            '미점검': fmtMonths(a),
+                            '보험': a.hasIns ? '만료/미가입' : '정상',
+                            '위반': a.viol > 0 ? `${a.viol}건` : '-',
+                            '점수': Math.round(a.score * 100),
+                        }));
+                        const ws = XLSX.utils.json_to_sheet(rows);
+                        ws['!cols'] = [{ wch: 5 }, { wch: 28 }, { wch: 15 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 8 }, { wch: 6 }];
+                        const wb = XLSX.utils.book_new();
+                        XLSX.utils.book_append_sheet(wb, ws, typeLabel);
+                        const d = new Date();
+                        const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+                        XLSX.writeFile(wb, `점검우선순위_${region}_${typeLabel}_${ymd}.xlsx`);
+                    };
                     const renderRow = (a, i) => {
                         const done = isInsp2026(a);
                         return (
@@ -4395,15 +4415,21 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                             </tr>
                         );
                     };
-                    const SubAccordion = ({ label, color, items, isOpen, setOpen, onRefresh, colCount }) => (
+                    const SubAccordion = ({ label, color, items, isOpen, setOpen, onRefresh, onDownload, colCount }) => (
                         <div style={{ border: '1px solid var(--border-color)', borderRadius: '8px', marginBottom: '8px', overflow: 'hidden' }}>
                             <div style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'var(--bg-main)', cursor: 'pointer' }} onClick={() => setOpen(v => !v)}>
                                 <span style={{ fontWeight: '700', fontSize: '0.82rem', color }}>{label}</span>
                                 <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{items.length}개</span>
                                 <button
+                                    onClick={e => { e.stopPropagation(); onDownload(); }}
+                                    style={{ marginLeft: 'auto', fontSize: '0.72rem', padding: '2px 8px', borderRadius: '6px', border: '1px solid #10b98155', background: 'var(--bg-card)', cursor: 'pointer', color: '#10b981', fontWeight: '700' }}
+                                >
+                                    📥 엑셀
+                                </button>
+                                <button
                                     onClick={e => { e.stopPropagation(); onRefresh(); }}
                                     disabled={riskRefreshing}
-                                    style={{ marginLeft: 'auto', fontSize: '0.72rem', padding: '2px 8px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', cursor: 'pointer', color: 'var(--text-muted)', fontWeight: '600' }}
+                                    style={{ fontSize: '0.72rem', padding: '2px 8px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', cursor: 'pointer', color: 'var(--text-muted)', fontWeight: '600' }}
                                 >
                                     {riskRefreshing ? '⟳' : '새로고침'}
                                 </button>
@@ -4426,8 +4452,8 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                     );
                     return (
                         <div style={{ padding: '4px 0' }}>
-                            <SubAccordion label="🏫 학원" color="#3b82f6" items={acDisplayItems} isOpen={riskAcOpen} setOpen={setRiskAcOpen} onRefresh={() => handleRiskRefresh('ac')} colCount={8} />
-                            <SubAccordion label="🏠 교습소" color="#8b5cf6" items={hgDisplayItems} isOpen={riskHgOpen} setOpen={setRiskHgOpen} onRefresh={() => handleRiskRefresh('hg')} colCount={8} />
+                            <SubAccordion label="🏫 학원" color="#3b82f6" items={acDisplayItems} isOpen={riskAcOpen} setOpen={setRiskAcOpen} onRefresh={() => handleRiskRefresh('ac')} onDownload={() => downloadRiskExcel(acDisplayItems, '학원')} colCount={8} />
+                            <SubAccordion label="🏠 교습소" color="#8b5cf6" items={hgDisplayItems} isOpen={riskHgOpen} setOpen={setRiskHgOpen} onRefresh={() => handleRiskRefresh('hg')} onDownload={() => downloadRiskExcel(hgDisplayItems, '교습소')} colCount={8} />
                         </div>
                     );
                 })()}

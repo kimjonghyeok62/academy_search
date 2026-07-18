@@ -834,7 +834,7 @@ function App() {
 
           {/* 면적 버튼 (왼쪽) */}
           <button
-            onClick={() => { setInspectionInitialTab(4); setShowInspection(true); }}
+            onClick={() => { setInspectionInitialTab(5); setShowInspection(true); }}
             style={{
               position: 'absolute',
               left: '0',

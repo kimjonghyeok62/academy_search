@@ -10,4 +10,15 @@ export default defineConfig({
       '/api': 'http://localhost:3000',
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          xlsx: ['xlsx'],
+          charts: ['chart.js', 'react-chartjs-2'],
+          vendor: ['react', 'react-dom'],
+        },
+      },
+    },
+  },
 })
