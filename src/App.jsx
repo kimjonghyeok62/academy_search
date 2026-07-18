@@ -5,7 +5,6 @@ import PrivateTutorDetailView from './components/PrivateTutorDetailView';
 import { fetchGoogleSheetData, transformAcademyData, fetchSheetName, fetchInspectionData, fetch2026InspectionData, fetchInstructorData, fetchAssistantData, fetchPrivateTutorData, DATA_GID, GYOSEUPSO_GID } from './utils/googleSheets';
 import './App.css';
 import InspectionStandardAccordion from './components/InspectionStandardAccordion';
-import ManualSearchModal from './components/ManualSearchModal';
 import InspectionPage from './components/InspectionPage';
 import KakaoMapPage from './components/KakaoMapPage';
 import TuitionPrintPage from './components/TuitionPrintPage';
@@ -52,7 +51,6 @@ function App() {
   const searchInputRef = useRef(null);
   const [dataAsOf, setDataAsOf] = useState(''); // 데이터 기준일
   const [showLegalResources, setShowLegalResources] = useState(false); // 법령 자료 표시 여부
-  const [showManualSearch, setShowManualSearch] = useState(false); // 업무편람 검색 모달
   const [showInspection, setShowInspection] = useState(false); // 지도점검 화면
   const [inspectionInitialTab, setInspectionInitialTab] = useState(undefined); // 지도점검 초기 탭
   const [showMap, setShowMap] = useState(false); // 맵 화면
@@ -1285,32 +1283,6 @@ function App() {
                     <span>📚</span>
                     <span>업무 메뉴얼</span>
                   </h4>
-                  {/* 업무편람 통합검색 */}
-                  <button
-                    onClick={() => setShowManualSearch(true)}
-                    style={{
-                      width: '100%',
-                      padding: '11px 14px',
-                      marginBottom: '10px',
-                      background: 'var(--primary)',
-                      border: 'none',
-                      borderRadius: '10px',
-                      color: 'white',
-                      fontSize: '0.88rem',
-                      fontWeight: '700',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '8px'
-                    }}
-                  >
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="11" cy="11" r="8"></circle>
-                      <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                    </svg>
-                    업무편람 검색 (경기·서울)
-                  </button>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     <a
                       href="https://drive.google.com/file/d/1I6j4VkHEeDzKc6YvfTcv8Wl48LAzbSsN/preview"
@@ -1669,9 +1641,6 @@ function App() {
           한 번 더 누르면 앱이 종료됩니다
         </div>
       )}
-
-      {/* 업무편람 검색 모달 */}
-      {showManualSearch && <ManualSearchModal onClose={() => setShowManualSearch(false)} />}
     </div>
   );
 }
