@@ -2625,7 +2625,10 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                 if (!dateStr || !dateStr.trim()) return false;
                 const d = toDateRev(dateStr);
                 if (!d) return false;
-                return d <= today;
+                if (d > today) return false;
+                const purpose = colVal(r, ['점검목적', '점검구분', '방문목적', '민원구분']);
+                if (purpose.includes('교습시간')) return false;
+                return true;
             })
             .map(r => normName(colVal(r, ['학원(교습소)명', '명칭', '학원명', '기관명'])))
             .filter(Boolean));
@@ -4358,16 +4361,16 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
             </CautionSection>
 
             {/* C. 점검 우선순위 (신설미점검 포함) */}
-            <CautionSection id="risk" title="🎯 점검 우선순위 (학원 70·교습소 50)" badge={Math.min(riskList.filter(a=>a.category!=='교습소'&&!(a.name||'').trim().endsWith('독서실')).length,70)+Math.min(riskList.filter(a=>a.category==='교습소').length,50)} badgeColor="#6366f1">
+            <CautionSection id="risk" title="🎯 점검 우선순위 (학원 100·교습소 60)" badge={Math.min(riskList.filter(a=>a.category!=='교습소'&&!(a.name||'').trim().endsWith('독서실')).length,100)+Math.min(riskList.filter(a=>a.category==='교습소').length,60)} badgeColor="#6366f1">
                 {(() => {
                     const allAcItems = riskList.filter(a => a.category !== '교습소' && !(a.name || '').trim().endsWith('독서실'));
                     const allHgItems = riskList.filter(a => a.category === '교습소');
                     const acDisplayItems = acRefreshed
-                        ? allAcItems.filter(a => !isInsp2026(a)).slice(0, 70)
-                        : allAcItems.slice(0, 70);
+                        ? allAcItems.filter(a => !isInsp2026(a)).slice(0, 100)
+                        : allAcItems.slice(0, 100);
                     const hgDisplayItems = hgRefreshed
-                        ? allHgItems.filter(a => !isInsp2026(a)).slice(0, 50)
-                        : allHgItems.slice(0, 50);
+                        ? allHgItems.filter(a => !isInsp2026(a)).slice(0, 60)
+                        : allHgItems.slice(0, 60);
                     const fmtMonths = (a) => a.neverInspected ? '미점검' : a.months >= 12 ? `${Math.floor(a.months/12)}년${a.months%12>0?' '+a.months%12+'개월':''}` : `${a.months}개월`;
                     const riskType = (a) => a.category === '교습소' ? '교습소' : '학원';
                     const downloadRiskExcel = (items, typeLabel) => {
