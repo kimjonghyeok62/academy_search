@@ -111,6 +111,12 @@ export default function PrivateTutorDetailView({ tutor, onBack, allTutors = [], 
     }
   }, [activeTab]);
 
+  // 주소 클릭 시 네이버 지도 검색 (DetailView와 동일 방식)
+  const openMap = (addr) => {
+    if (!addr) return;
+    window.open(`https://map.naver.com/p/search/${encodeURIComponent(addr)}`, '_blank');
+  };
+
   // Swipe support
   const minSwipe = 50;
   const onTouchStart = (e) => { setTouchEnd(null); setTouchStart(e.targetTouches[0].clientX); };
