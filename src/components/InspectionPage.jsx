@@ -2573,8 +2573,8 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
 
     useEffect(() => { loadDeferNames(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // ── 점검완료 추적 ──
-    const [inspectedNames, setInspectedNames] = useState(new Set());
+    // ── 점검완료 추적 (구글시트 최근 점검기록: 명칭 → 최근 유효 점검일) ──
+    const [inspectedDates, setInspectedDates] = useState(new Map());
     const riskAcOpen = openSections.riskAc ?? false;
     const setRiskAcOpen = (val) => setOpenSections(prev => { const next = { ...prev, riskAc: typeof val === 'function' ? val(prev.riskAc ?? false) : val }; onSubStateChange?.(next); return next; });
     const riskHgOpen = openSections.riskHg ?? false;
@@ -2612,28 +2612,28 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
     const inlineRouteMarkersRef = useRef([]);
 
     const normName = (n) => (n || '').replace(/[^a-zA-Z0-9가-힣]/g, '').toLowerCase();
-    const isInsp2026 = useCallback((a) => inspectedNames.has(normName(a.name)), [inspectedNames]);
+    const isInsp2026 = useCallback((a) => inspectedDates.has(normName(a.name)), [inspectedDates]);
 
     const RECENT_ROWS_CACHE_KEY = 'recentRawRows_cache';
 
     const applyRows = (bodyRows) => {
         setAllRawRows(bodyRows);
         const today = new Date(); today.setHours(0, 0, 0, 0);
-        const names = new Set(bodyRows
-            .filter(r => {
-                const dateStr = colVal(r, ['점검일', '점검일자', '지도점검일']);
-                if (!dateStr || !dateStr.trim()) return false;
-                const d = toDateRev(dateStr);
-                if (!d) return false;
-                if (d > today) return false;
-                const purpose = colVal(r, ['점검목적', '점검구분', '방문목적', '민원구분']);
-                if (purpose.includes('교습시간')) return false;
-                return true;
-            })
-            .map(r => normName(colVal(r, ['학원(교습소)명', '명칭', '학원명', '기관명'])))
-            .filter(Boolean));
-        setInspectedNames(names);
-        return names;
+        const dates = new Map();
+        bodyRows.forEach(r => {
+            const dateStr = colVal(r, ['점검일', '점검일자', '지도점검일']);
+            if (!dateStr || !dateStr.trim()) return;
+            const d = toDateRev(dateStr);
+            if (!d || d > today) return;
+            const purpose = colVal(r, ['점검목적', '점검구분', '방문목적', '민원구분']);
+            if (purpose.includes('교습시간')) return;
+            const name = normName(colVal(r, ['학원(교습소)명', '명칭', '학원명', '기관명']));
+            if (!name) return;
+            const prev = dates.get(name);
+            if (!prev || d > prev) dates.set(name, d);
+        });
+        setInspectedDates(dates);
+        return dates;
     };
 
     const loadInspectedNames = async () => {
@@ -2641,8 +2641,8 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
             const { bodyRows } = await fetchRecentRawRows();
             try { sessionStorage.setItem(RECENT_ROWS_CACHE_KEY, JSON.stringify(bodyRows)); } catch { /* 저장 실패 무시 */ }
             applyRows(bodyRows);
-            return new Set();
-        } catch { return new Set(); }
+            return new Map();
+        } catch { return new Map(); }
     };
 
     useEffect(() => {
@@ -3354,8 +3354,10 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
         return r.length ? toDateRev(r[0].date) : null;
     };
     const uninspMonths = (a, today) => {
-        const d = lastRegularDate(a);
-        const base = d || toDateRev(a.regDate);
+        const neisD = lastRegularDate(a);
+        const sheetD = inspectedDates.get(normName(a.name)) || null;
+        const base = (neisD && sheetD) ? (neisD > sheetD ? neisD : sheetD)
+            : (neisD || sheetD || toDateRev(a.regDate));
         if (!base) return 999;
         return Math.floor((today - base) / 2629800000);
     };
@@ -3490,7 +3492,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
             .filter(a => !isClosed(a) && !deferNames.has(normName(a.name)))
             .map(a => {
                 const months = uninspMonths(a, today);
-                const neverInspected = (a.inspections || []).filter(i => !isMidnightInsp(i)).length === 0;
+                const neverInspected = (a.inspections || []).filter(i => !isMidnightInsp(i)).length === 0 && !inspectedDates.has(normName(a.name));
                 const regD = toDateRev(a.regDate);
                 const regMonths = regD ? Math.floor((today - regD) / 2629800000) : 0;
                 const viol = (a.inspections || []).filter(i => i.isViolation && !isMidnightInsp(i)).length;
@@ -3506,7 +3508,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
             })
             .filter(a => a.neverInspected || a.months >= 12)
             .sort((a, b) => b.score - a.score);
-    }, [aList, hActiveList, feeExceed, insuranceIssues, deferNames]);
+    }, [aList, hActiveList, feeExceed, insuranceIssues, deferNames, inspectedDates]);
 
     // ── D. 2년 이상 미점검 ──
     const overdueList = useMemo(() => {
@@ -3517,7 +3519,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
             .filter(a => !isClosed(a) && !deferNames.has(normName(a.name)))
             .map(a => {
                 const months = uninspMonths(a, today);
-                const neverInspected = (a.inspections || []).filter(i => !isMidnightInsp(i)).length === 0;
+                const neverInspected = (a.inspections || []).filter(i => !isMidnightInsp(i)).length === 0 && !inspectedDates.has(normName(a.name));
                 const regD = toDateRev(a.regDate);
                 const regMonths = regD ? Math.floor((today - regD) / 2629800000) : 0;
                 const viol = (a.inspections || []).filter(i => i.isViolation && !isMidnightInsp(i)).length;
@@ -3529,7 +3531,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
             })
             .filter(a => a.months >= 24)
             .sort((a, b) => b.months - a.months);
-    }, [aList, hActiveList, feeExceed, insuranceIssues, deferNames]);
+    }, [aList, hActiveList, feeExceed, insuranceIssues, deferNames, inspectedDates]);
 
     // ── D-2. 2년이상 미점검 동별 그룹핑 ──
     const overdueByDong = useMemo(() => {
@@ -3553,7 +3555,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
             .filter(a => !isClosed(a) && !deferNames.has(normName(a.name)))
             .map(a => {
                 const months = uninspMonths(a, today);
-                const neverInspected = (a.inspections || []).filter(i => !isMidnightInsp(i)).length === 0;
+                const neverInspected = (a.inspections || []).filter(i => !isMidnightInsp(i)).length === 0 && !inspectedDates.has(normName(a.name));
                 const regD = toDateRev(a.regDate);
                 const regMonths = regD ? Math.floor((today - regD) / 2629800000) : 0;
                 const viol = (a.inspections || []).filter(i => i.isViolation && !isMidnightInsp(i)).length;
@@ -3565,7 +3567,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
             })
             .filter(a => a.months >= 1 && a.months < 24)
             .sort((a, b) => b.months - a.months);
-    }, [aList, hActiveList, feeExceed, insuranceIssues, deferNames]);
+    }, [aList, hActiveList, feeExceed, insuranceIssues, deferNames, inspectedDates]);
 
     // ── D-4. 2년 미만 미점검 동별 그룹핑 ──
     const underdueByDong = useMemo(() => {
@@ -3589,7 +3591,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
             .filter(a => !isClosed(a) && !deferNames.has(normName(a.name)))
             .map(a => {
                 const months = uninspMonths(a, today);
-                const neverInspected = (a.inspections || []).filter(i => !isMidnightInsp(i)).length === 0;
+                const neverInspected = (a.inspections || []).filter(i => !isMidnightInsp(i)).length === 0 && !inspectedDates.has(normName(a.name));
                 const regD = toDateRev(a.regDate);
                 const regMonths = regD ? Math.floor((today - regD) / 2629800000) : 0;
                 const viol = (a.inspections || []).filter(i => i.isViolation && !isMidnightInsp(i)).length;
@@ -3602,7 +3604,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
             })
             .filter(a => a.months >= 12 && a.months < 24)
             .sort((a, b) => b.months - a.months);
-    }, [aList, hActiveList, feeExceed, insuranceIssues, deferNames]);
+    }, [aList, hActiveList, feeExceed, insuranceIssues, deferNames, inspectedDates]);
 
     const byBuildingByDong = useMemo(() => {
         const dongMap = new Map();
@@ -3635,7 +3637,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
             .filter(a => !isClosed(a) && !deferNames.has(normName(a.name)))
             .map(a => {
                 const months = uninspMonths(a, today);
-                const neverInspected = (a.inspections || []).filter(i => !isMidnightInsp(i)).length === 0;
+                const neverInspected = (a.inspections || []).filter(i => !isMidnightInsp(i)).length === 0 && !inspectedDates.has(normName(a.name));
                 const regD = toDateRev(a.regDate);
                 const regMonths = regD ? Math.floor((today - regD) / 2629800000) : 0;
                 const viol = (a.inspections || []).filter(i => i.isViolation && !isMidnightInsp(i)).length;
@@ -3738,7 +3740,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
             });
         }
         return weeks;
-    }, [aList, hActiveList, feeExceed, insuranceIssues, deferNames]);
+    }, [aList, hActiveList, feeExceed, insuranceIssues, deferNames, inspectedDates]);
 
     return (
         <div style={{ position: 'relative' }}>
