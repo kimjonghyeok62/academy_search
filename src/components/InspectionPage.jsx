@@ -3348,6 +3348,10 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
     // ── 점검 우선순위 헬퍼 ──
     const CAUTION_CLOSED = ['폐원', '폐소', '정지', '취소', '직권'];
     const isClosed = (a) => CAUTION_CLOSED.some(s => (a.status || '').includes(s));
+    // 학원·교습소는 등록번호(id) 채번 체계가 서로 달라 같은 id가 우연히 겹칠 수 있으므로
+    // feeSet/insSet 조회 시 반드시 유형(type)까지 합친 키로 구분한다.
+    const catType = (a) => a.category === '교습소' ? '교습소' : '학원';
+    const idKey = (type, id) => `${type}::${id}`;
     const isMidnightInsp = (insp) => ['심야', '야간'].some(k => (insp.inspectionType || '').includes(k));
     const lastRegularDate = (a) => {
         const r = (a.inspections || []).filter(i => !isMidnightInsp(i));
@@ -3488,8 +3492,8 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
     // ── C. 점검 우선순위 (신설미점검 전체 + 1년이상 미점검) ──
     const riskList = useMemo(() => {
         const today = new Date();
-        const feeSet = new Set(feeExceed.map(f => f.id));
-        const insSet = new Set(insuranceIssues.map(i => i.id));
+        const feeSet = new Set(feeExceed.map(f => idKey(f.type, f.id)));
+        const insSet = new Set(insuranceIssues.map(i => idKey(i.type, i.id)));
         return [...aList, ...hActiveList]
             .filter(a => !isClosed(a) && !deferNames.has(normName(a.name)))
             .map(a => {
@@ -3498,8 +3502,8 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                 const regD = toDateRev(a.regDate);
                 const regMonths = regD ? Math.floor((today - regD) / 2629800000) : 0;
                 const viol = (a.inspections || []).filter(i => i.isViolation && !isMidnightInsp(i)).length;
-                const hasFee = feeSet.has(a.id);
-                const hasIns = insSet.has(a.id);
+                const hasFee = feeSet.has(idKey(catType(a), a.id));
+                const hasIns = insSet.has(idKey(catType(a), a.id));
                 const score = Math.min(months / 48, 1) * 0.8
                     + (hasFee ? 0.1 : 0)
                     + (hasIns ? 0.1 : 0);
@@ -3515,8 +3519,8 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
     // ── D. 2년 이상 미점검 ──
     const overdueList = useMemo(() => {
         const today = new Date();
-        const feeSet = new Set(feeExceed.map(f => f.id));
-        const insSet = new Set(insuranceIssues.map(i => i.id));
+        const feeSet = new Set(feeExceed.map(f => idKey(f.type, f.id)));
+        const insSet = new Set(insuranceIssues.map(i => idKey(i.type, i.id)));
         return [...aList, ...hActiveList]
             .filter(a => !isClosed(a) && !deferNames.has(normName(a.name)))
             .map(a => {
@@ -3525,8 +3529,8 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                 const regD = toDateRev(a.regDate);
                 const regMonths = regD ? Math.floor((today - regD) / 2629800000) : 0;
                 const viol = (a.inspections || []).filter(i => i.isViolation && !isMidnightInsp(i)).length;
-                const hasFee = feeSet.has(a.id);
-                const hasIns = insSet.has(a.id);
+                const hasFee = feeSet.has(idKey(catType(a), a.id));
+                const hasIns = insSet.has(idKey(catType(a), a.id));
                 const reasons = buildReasons(months, viol, hasFee, hasIns, neverInspected, regMonths);
                 const dong = getDong(a);
                 return { ...a, months, viol, hasFee, hasIns, neverInspected, regMonths, reasons, dong };
@@ -3551,8 +3555,8 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
     // ── D-3. 2년 미만 미점검 ──
     const underdueList = useMemo(() => {
         const today = new Date();
-        const feeSet = new Set(feeExceed.map(f => f.id));
-        const insSet = new Set(insuranceIssues.map(i => i.id));
+        const feeSet = new Set(feeExceed.map(f => idKey(f.type, f.id)));
+        const insSet = new Set(insuranceIssues.map(i => idKey(i.type, i.id)));
         return [...aList, ...hActiveList]
             .filter(a => !isClosed(a) && !deferNames.has(normName(a.name)))
             .map(a => {
@@ -3561,8 +3565,8 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                 const regD = toDateRev(a.regDate);
                 const regMonths = regD ? Math.floor((today - regD) / 2629800000) : 0;
                 const viol = (a.inspections || []).filter(i => i.isViolation && !isMidnightInsp(i)).length;
-                const hasFee = feeSet.has(a.id);
-                const hasIns = insSet.has(a.id);
+                const hasFee = feeSet.has(idKey(catType(a), a.id));
+                const hasIns = insSet.has(idKey(catType(a), a.id));
                 const reasons = buildReasons(months, viol, hasFee, hasIns, neverInspected, regMonths);
                 const dong = getDong(a);
                 return { ...a, months, viol, hasFee, hasIns, neverInspected, regMonths, reasons, dong };
@@ -3587,8 +3591,8 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
     // ── D-5. 1~2년 미점검 동별+건물별 그룹핑 ──
     const byBuildingList = useMemo(() => {
         const today = new Date();
-        const feeSet = new Set(feeExceed.map(f => f.id));
-        const insSet = new Set(insuranceIssues.map(i => i.id));
+        const feeSet = new Set(feeExceed.map(f => idKey(f.type, f.id)));
+        const insSet = new Set(insuranceIssues.map(i => idKey(i.type, i.id)));
         return [...aList, ...hActiveList]
             .filter(a => !isClosed(a) && !deferNames.has(normName(a.name)))
             .map(a => {
@@ -3597,8 +3601,8 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                 const regD = toDateRev(a.regDate);
                 const regMonths = regD ? Math.floor((today - regD) / 2629800000) : 0;
                 const viol = (a.inspections || []).filter(i => i.isViolation && !isMidnightInsp(i)).length;
-                const hasFee = feeSet.has(a.id);
-                const hasIns = insSet.has(a.id);
+                const hasFee = feeSet.has(idKey(catType(a), a.id));
+                const hasIns = insSet.has(idKey(catType(a), a.id));
                 const reasons = buildReasons(months, viol, hasFee, hasIns, neverInspected, regMonths);
                 const dong = getDong(a);
                 const building = getBuilding(a.address);
@@ -3632,8 +3636,8 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
     // ── G. 주간 점검 일정 (이번 주 + 4주) — 전체 풀 사용 ──
     const weeklyPlan = useMemo(() => {
         const today = new Date();
-        const feeSet = new Set(feeExceed.map(f => f.id));
-        const insSet = new Set(insuranceIssues.map(i => i.id));
+        const feeSet = new Set(feeExceed.map(f => idKey(f.type, f.id)));
+        const insSet = new Set(insuranceIssues.map(i => idKey(i.type, i.id)));
         // 전체 활성 기관을 위험지수 순으로 정렬한 풀 (riskList와 달리 상위 30 제한 없음)
         const fullPool = [...aList, ...hActiveList]
             .filter(a => !isClosed(a) && !deferNames.has(normName(a.name)))
@@ -3643,8 +3647,8 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                 const regD = toDateRev(a.regDate);
                 const regMonths = regD ? Math.floor((today - regD) / 2629800000) : 0;
                 const viol = (a.inspections || []).filter(i => i.isViolation && !isMidnightInsp(i)).length;
-                const hasFee = feeSet.has(a.id);
-                const hasIns = insSet.has(a.id);
+                const hasFee = feeSet.has(idKey(catType(a), a.id));
+                const hasIns = insSet.has(idKey(catType(a), a.id));
                 const score = Math.min(months / 48, 1) * 0.8
                     + (hasFee ? 0.1 : 0)
                     + (hasIns ? 0.1 : 0);
