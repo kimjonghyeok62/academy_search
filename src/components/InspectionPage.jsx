@@ -4381,11 +4381,13 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                         : allHgItems.slice(0, 60);
                     const fmtMonths = (a) => a.neverInspected ? '미점검' : a.months >= 12 ? `${Math.floor(a.months/12)}년${a.months%12>0?' '+a.months%12+'개월':''}` : `${a.months}개월`;
                     const riskType = (a) => a.category === '교습소' ? '교습소' : '학원';
+                    const statusDateLabel = (typeLabel) => typeLabel === '교습소' ? '개소/휴소/폐소일' : '개원/휴원/폐원일';
                     const downloadRiskExcel = (items, typeLabel) => {
                         const rows = items.map((a, i) => ({
                             '순위': i + 1,
                             '학원명': a.name || '',
                             '연락처': a.founder?.mobile || a.founder?.phone || '',
+                            [statusDateLabel(typeLabel)]: a.statusDate || '',
                             '동': a.dong || '',
                             '미점검': fmtMonths(a),
                             '보험': a.hasIns ? '만료/미가입' : '정상',
@@ -4393,7 +4395,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                             '점수': Math.round(a.score * 100),
                         }));
                         const ws = XLSX.utils.json_to_sheet(rows);
-                        ws['!cols'] = [{ wch: 5 }, { wch: 28 }, { wch: 15 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 8 }, { wch: 6 }];
+                        ws['!cols'] = [{ wch: 5 }, { wch: 28 }, { wch: 15 }, { wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 8 }, { wch: 6 }];
                         const wb = XLSX.utils.book_new();
                         XLSX.utils.book_append_sheet(wb, ws, typeLabel);
                         const d = new Date();
@@ -4405,18 +4407,21 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                         return (
                             <tr key={`${a.id}_${i}`} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)', opacity: done ? 0.5 : 1 }}>
                                 <NavCell id={a.id} type={riskType(a)} style={{ color: i < 3 ? '#ef4444' : 'var(--text-muted)', fontWeight: '800', fontSize: '0.78rem' }}>{i + 1}</NavCell>
-                                <Td style={{ position: 'sticky', left: 0, zIndex: 1, background: 'var(--bg-card)', maxWidth: '130px', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                                <Td style={{ position: 'sticky', left: 0, zIndex: 1, background: 'var(--bg-card)', overflow: 'hidden', whiteSpace: 'nowrap' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0 }}>
                                         <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, flexShrink: 1 }}>
                                             <NameLink id={a.id} type={riskType(a)} name={a.name} />
                                         </span>
-                                        {a.neverInspected && <span style={{ fontSize: '0.67rem', color: '#10b981', fontWeight: '700', flexShrink: 0 }}>신설</span>}
                                         {done && <span style={{ fontSize: '0.67rem', color: '#6366f1', fontWeight: '700', flexShrink: 0 }}>(완료)</span>}
                                     </div>
                                 </Td>
                                 <NavCell id={a.id} type={riskType(a)} style={{ whiteSpace: 'nowrap' }}>
                                     <div style={{ fontSize: '0.75rem', color: 'var(--text-main)', fontWeight: '600' }}>{a.founder?.name || '-'}</div>
                                     {(a.founder?.mobile || a.founder?.phone) && <span style={{ color: '#3b82f6', fontWeight: '600', fontSize: '0.75rem' }}>{a.founder?.mobile || a.founder?.phone}</span>}
+                                </NavCell>
+                                <NavCell id={a.id} type={riskType(a)} style={{ whiteSpace: 'nowrap' }}>
+                                    <div style={{ fontSize: '0.72rem', fontWeight: '600', color: (a.status || '').includes('휴') ? '#f59e0b' : 'var(--text-muted)' }}>{a.status || '-'}</div>
+                                    {a.statusDate && <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{a.statusDate}</span>}
                                 </NavCell>
                                 <NavCell id={a.id} type={riskType(a)} style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>{a.dong || '-'}</NavCell>
                                 <NavCell id={a.id} type={riskType(a)} style={{ fontWeight: '700', fontSize: '0.78rem', color: a.months >= 36 ? '#ef4444' : a.months >= 24 ? '#f59e0b' : 'var(--text-muted)' }}>{fmtMonths(a)}</NavCell>
@@ -4426,7 +4431,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                             </tr>
                         );
                     };
-                    const SubAccordion = ({ label, color, items, isOpen, setOpen, onRefresh, onDownload, colCount }) => (
+                    const SubAccordion = ({ label, color, items, isOpen, setOpen, onRefresh, onDownload, dateLabel }) => (
                         <div style={{ border: '1px solid var(--border-color)', borderRadius: '8px', marginBottom: '8px', overflow: 'hidden' }}>
                             <div style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'var(--bg-main)', cursor: 'pointer' }} onClick={() => setOpen(v => !v)}>
                                 <span style={{ fontWeight: '700', fontSize: '0.82rem', color }}>{label}</span>
@@ -4448,10 +4453,13 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                             </div>
                             {isOpen && (
                                 <div style={{ overflowX: 'auto' }}>
-                                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+                                        <colgroup>
+                                            <col style={{ width: '5%' }} /><col style={{ width: '19%' }} /><col style={{ width: '15%' }} /><col style={{ width: '13%' }} /><col style={{ width: '8%' }} /><col style={{ width: '11%' }} /><col style={{ width: '10%' }} /><col style={{ width: '9%' }} /><col style={{ width: '10%' }} />
+                                        </colgroup>
                                         <thead><tr>
-                                            <Th style={{ width: '28px' }}>#</Th>
-                                            <Th style={{ position: 'sticky', left: 0, zIndex: 2, background: 'var(--bg-main)' }}>학원명</Th><Th>연락처</Th><Th>동</Th><Th>미점검</Th><Th>보험</Th><Th>위반</Th><Th>점수</Th>
+                                            <Th style={{ width: '5%' }}>#</Th>
+                                            <Th style={{ position: 'sticky', left: 0, zIndex: 2, background: 'var(--bg-main)' }}>학원명</Th><Th>연락처</Th><Th style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{dateLabel}</Th><Th>동</Th><Th>미점검</Th><Th>보험</Th><Th>위반</Th><Th>점수</Th>
                                         </tr></thead>
                                         <tbody>
                                             {items.map((a, i) => renderRow(a, i))}
@@ -4463,8 +4471,8 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                     );
                     return (
                         <div style={{ padding: '4px 0' }}>
-                            <SubAccordion label="🏫 학원" color="#3b82f6" items={acDisplayItems} isOpen={riskAcOpen} setOpen={setRiskAcOpen} onRefresh={() => handleRiskRefresh('ac')} onDownload={() => downloadRiskExcel(acDisplayItems, '학원')} colCount={8} />
-                            <SubAccordion label="🏠 교습소" color="#8b5cf6" items={hgDisplayItems} isOpen={riskHgOpen} setOpen={setRiskHgOpen} onRefresh={() => handleRiskRefresh('hg')} onDownload={() => downloadRiskExcel(hgDisplayItems, '교습소')} colCount={8} />
+                            <SubAccordion label="🏫 학원" color="#3b82f6" items={acDisplayItems} isOpen={riskAcOpen} setOpen={setRiskAcOpen} onRefresh={() => handleRiskRefresh('ac')} onDownload={() => downloadRiskExcel(acDisplayItems, '학원')} dateLabel="개원/휴원/폐원일" />
+                            <SubAccordion label="🏠 교습소" color="#8b5cf6" items={hgDisplayItems} isOpen={riskHgOpen} setOpen={setRiskHgOpen} onRefresh={() => handleRiskRefresh('hg')} onDownload={() => downloadRiskExcel(hgDisplayItems, '교습소')} dateLabel="개소/휴소/폐소일" />
                         </div>
                     );
                 })()}
