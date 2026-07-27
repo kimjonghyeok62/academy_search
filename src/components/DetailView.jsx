@@ -4,6 +4,7 @@ import AdminSanctionAccordion from './AdminSanctionAccordion';
 import FineGuideAccordion from './FineGuideAccordion';
 import { printTuitionForm, printTuitionFormExternal } from '../utils/generateTuitionPDF';
 import { saveGuidanceContent } from '../utils/inspectionSheets';
+import SnsDetailPanel from './SnsDetailPanel';
 
 // 교습과정 정렬: 교습과정 → 레벨(유아<초등/초급<중등/중급<고등/고급<입시) → 과목기본명 자연정렬 → 주회수
 function sortCourses(courses) {
@@ -76,6 +77,7 @@ const TUITION_STANDARDS = [
 const TABS = [
     { id: 'status', label: '현황' },
     { id: 'tuition', label: '교습비' },
+    { id: 'sns', label: 'SNS' },
     { id: 'insurance', label: '보험' },
     { id: 'assistant', label: '보조요원' },
     { id: 'instructor', label: '강사' },
@@ -2069,6 +2071,8 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
                         })()}
                     </div>
                 );
+            case 'sns':
+                return <SnsDetailPanel academy={academy} region={(academy.address || '').includes('광주') ? '광주' : '하남'} />;
             case 'insurance': {
                 const isGyoseupso = (academy.category || '').includes('교습소');
                 const parseAmt = (val) => {
