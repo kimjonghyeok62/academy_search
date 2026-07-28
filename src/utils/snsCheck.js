@@ -3,7 +3,7 @@
 // 조사는 /api/sns-probe (서버) 가 수행하고, 결과 저장·조회는
 // /api/apps-script-proxy 를 통해 구글시트 'SNS게시점검' 탭에 한다.
 
-const PROBE_BATCH = 3;    // api/sns-probe.js 의 MAX_BATCH 와 맞출 것
+const PROBE_BATCH = 4;    // api/sns-probe.js 의 MAX_BATCH 와 맞출 것
 const SAVE_BATCH = 60;    // 한 번에 저장할 레코드 수
 
 // 시트 헤더 (Apps Script 의 SNS_HEADERS 와 순서·이름이 일치해야 함)
@@ -147,10 +147,12 @@ async function probeChunk(academies, city) {
 // ── 조사 속도 ───────────────────────────────────────────
 // 네이버는 데이터센터 IP 한 곳에서 요청이 몰리면 429 로 막고 15분 넘게 안 풀어준다.
 // 그래서 청크 사이를 일부러 쉬고, 한 번 막히면 그 뒤로는 더 느리게 간다(다시 빨라지지 않는다).
-const CHUNK_GAP_MS = 8000;
+const CHUNK_GAP_MS = 5000;
 const MAX_CHUNK_GAP_MS = 60000;
 // 차단됐을 때 기다릴 시간(분). 막힐 때마다 다음 단계로 넘어간다.
-const BLOCK_WAIT_MIN = [10, 15, 20, 30, 40, 40];
+// 첫 대기는 짧게 — 진짜 차단이면 어차피 다음 단계로 올라가고, 일시적인 것이면 몇 분에 풀린다.
+// 처음부터 10분씩 세워두면 아닌 경우에도 무조건 10분을 버리게 된다.
+const BLOCK_WAIT_MIN = [3, 8, 15, 20, 30, 40];
 
 /** ms 만큼 기다린다. 중단을 누르면 false 를 돌려주고 즉시 빠져나온다. */
 async function waitOrStop(ms, shouldStop, onTick) {
@@ -180,6 +182,8 @@ export async function probeAll(targets, city, { onProgress, shouldStop, onWait, 
     let chunkGap = CHUNK_GAP_MS;
     let blockCount = 0;
     let i = 0;
+    // 같은 자리에서 반복해서 막히는지 추적한다 (아래 '건너뛰기' 참고)
+    let lastBlockedAt = -1;
 
     while (i < targets.length) {
         if (shouldStop?.()) break;
@@ -206,6 +210,17 @@ export async function probeAll(targets, city, { onProgress, shouldStop, onWait, 
 
             // 1곳만 조사하는 화면(학원 상세)에서는 기다리지 않고 바로 알려준다
             if (!autoResume || blockCount >= BLOCK_WAIT_MIN.length) { blocked = true; break; }
+
+            // 기다렸다 재개했는데 같은 자리에서 또 막혔다면, 네이버 전체 차단이 아니라
+            // 이 학원이(정확히는 연결된 링크 중 하나가) 계속 거부당하는 것이다.
+            // 더 기다려도 안 풀리므로 이 곳만 건너뛴다 — 결과를 만들지 않으니 기존 값은 그대로 남는다.
+            if (i === lastBlockedAt) {
+                i += 1;
+                lastBlockedAt = -1;
+                onProgress?.(Math.min(i, targets.length), targets.length, []);
+                continue;
+            }
+            lastBlockedAt = i;
             const waitMs = BLOCK_WAIT_MIN[blockCount] * 60000;
             blockCount++;
             chunkGap = Math.min(chunkGap * 2, MAX_CHUNK_GAP_MS);
@@ -216,6 +231,11 @@ export async function probeAll(targets, city, { onProgress, shouldStop, onWait, 
             if (!resumed) break;
             continue;   // 같은 자리에서 다시
         }
+
+        // 청크를 통째로 성공했으면 차단 단계를 한 칸 되돌린다. 수백 곳을 도는 동안
+        // 드문드문 막히는 것까지 누적하면 멀쩡히 진행되는데도 대기 단계가 40분까지 올라간다.
+        lastBlockedAt = -1;
+        if (blockCount > 0) blockCount--;
 
         i += chunk.length;
         onProgress?.(Math.min(i, targets.length), targets.length, results);
