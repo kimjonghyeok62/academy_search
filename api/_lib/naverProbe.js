@@ -342,25 +342,63 @@ export function htmlToText(html) {
         .trim();
 }
 
-// 블로그 목록 페이지(PostList)에는 글 본문이 안 들어 있다 — 본문은 iframe 으로 따로 불러온다.
-// RSS 는 최근 글 본문을 통째로 주므로, 둘을 합쳐야 '본문에만 적어둔 교습비'를 잡을 수 있다.
+// 블로그에서 교습비·등록번호를 어디에 적어두는지가 제각각이라 세 군데를 본다.
+//   1) m.blog        — 사이드바 '소개'. PC PostList 에는 이 글이 안 들어온다.
+//                      (예: "[학원등록번호:제1537호]")
+//   2) RSS           — 최근 글 본문. PostList 는 본문을 iframe 으로 따로 불러와 껍데기뿐이다.
+//   3) 블로그 내 검색 — 오래된 '교습비' 글은 최근 글에도 사이드바에도 안 잡힌다.
+//                      블로그 자체 검색이 이런 글을 정확히 찾아준다.
+async function fetchTextOrNull(url, headers) {
+    try { return htmlToText(await getText(url, headers)); }
+    catch (err) { if (isBlocked(err)) throw err; return null; }
+}
+
+/** 블로그 안에서 keyword 로 글을 검색한다. { count, text } — text 는 검색결과 요약(본문 일부 포함) */
+async function searchInBlog(blogId, keyword) {
+    const text = await fetchTextOrNull(
+        `https://blog.naver.com/PostSearchList.naver?blogId=${encodeURIComponent(blogId)}&SearchText=${encodeURIComponent(keyword)}`,
+        H_DESKTOP
+    );
+    if (text === null) return null;
+    const m = text.match(/검색결과\s*([\d,]+)\s*건/);
+    return { count: m ? Number(m[1].replace(/,/g, '')) : 0, text };
+}
+
 async function probeBlogChannel(link) {
-    const id = encodeURIComponent(link.id);
+    const id = link.id;
     const parts = [];
-    for (const url of [
-        `https://rss.blog.naver.com/${id}.xml`,
-        `https://blog.naver.com/PostList.naver?blogId=${id}`,
+    for (const [url, headers] of [
+        [`https://m.blog.naver.com/${encodeURIComponent(id)}`, H_MOBILE],
+        [`https://rss.blog.naver.com/${encodeURIComponent(id)}.xml`, H_DESKTOP],
     ]) {
-        try { parts.push(htmlToText(await getText(url, H_DESKTOP))); }
-        catch (err) { if (isBlocked(err)) throw err; }
+        const t = await fetchTextOrNull(url, headers);
+        if (t) parts.push(t);
     }
     if (!parts.length) throw new Error('블로그를 열지 못했습니다');
-    const text = parts.join(' ');
-    return {
-        feeMentioned: FEE_KEYWORD.test(text),
-        regNos: extractRegNos(text),
-        scope: '최근 글 본문·사이드바',
-    };
+
+    let feeMentioned = FEE_KEYWORD.test(parts.join(' '));
+    let regNos = extractRegNos(parts.join(' '));
+
+    // 소개·최근 글에서 못 찾았을 때만 검색한다 (요청 수를 아끼기 위해)
+    if (!feeMentioned) {
+        for (const kw of ['교습비', '수강료']) {
+            const hit = await searchInBlog(id, kw);
+            if (!hit) break;
+            if (hit.count > 0) {
+                feeMentioned = true;
+                // 검색 결과 미리보기에 등록번호가 같이 적혀 있는 경우가 많다
+                if (!regNos.length) regNos = extractRegNos(hit.text);
+                break;
+            }
+        }
+    }
+    if (!regNos.length) {
+        const hit = await searchInBlog(id, '등록번호');
+        // 검색 건수는 '등록'만 걸려도 올라가므로, 실제로 번호가 적힌 경우만 인정한다
+        if (hit) regNos = extractRegNos(hit.text);
+    }
+
+    return { feeMentioned, regNos, scope: '소개·최근 글·블로그 내 검색' };
 }
 
 // 인스타그램은 로그인 없이 게시물 본문을 볼 수 없다. 첫 화면 소개글(bio)만 판정 대상으로 삼는다.
