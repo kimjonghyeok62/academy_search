@@ -3,7 +3,7 @@
 // 조사는 /api/sns-probe (서버) 가 수행하고, 결과 저장·조회는
 // /api/apps-script-proxy 를 통해 구글시트 'SNS게시점검' 탭에 한다.
 
-const PROBE_BATCH = 8;    // api/sns-probe.js 의 MAX_BATCH 와 맞출 것
+const PROBE_BATCH = 3;    // api/sns-probe.js 의 MAX_BATCH 와 맞출 것
 const SAVE_BATCH = 60;    // 한 번에 저장할 레코드 수
 
 // 시트 헤더 (Apps Script 의 SNS_HEADERS 와 순서·이름이 일치해야 함)
@@ -91,6 +91,17 @@ export function resultToRecord(r) {
 
 export const recordKey = (category, regNo) => `${category}|${regNo}`;
 
+// 게시 상태는 자주 바뀌지 않는다. 최근에 본 곳을 매번 다시 도는 게 차단의 가장 큰 원인이라
+// 기본 조사 대상은 '한 번도 안 본 곳 + 오래된 곳'으로 잡는다.
+export const RECHECK_DAYS = 30;
+
+export function needsRecheck(result, days = RECHECK_DAYS) {
+    if (!result || !result.checkedAt) return true;
+    const t = new Date(result.checkedAt).getTime();
+    if (isNaN(t)) return true;
+    return Date.now() - t > days * 86400000;
+}
+
 /** 기재된 번호 요약 — '제436호 ≠1867' 처럼 왜 X 인지 한눈에 보이게 */
 export function regSub(기재번호, 대조, master) {
     if (대조 === '일치') return 기재번호;
@@ -133,21 +144,44 @@ async function probeChunk(academies, city) {
     return json;
 }
 
+// ── 조사 속도 ───────────────────────────────────────────
+// 네이버는 데이터센터 IP 한 곳에서 요청이 몰리면 429 로 막고 15분 넘게 안 풀어준다.
+// 그래서 청크 사이를 일부러 쉬고, 한 번 막히면 그 뒤로는 더 느리게 간다(다시 빨라지지 않는다).
+const CHUNK_GAP_MS = 8000;
+const MAX_CHUNK_GAP_MS = 60000;
+// 차단됐을 때 기다릴 시간(분). 막힐 때마다 다음 단계로 넘어간다.
+const BLOCK_WAIT_MIN = [10, 15, 20, 30, 40, 40];
+
+/** ms 만큼 기다린다. 중단을 누르면 false 를 돌려주고 즉시 빠져나온다. */
+async function waitOrStop(ms, shouldStop, onTick) {
+    const end = Date.now() + ms;
+    while (Date.now() < end) {
+        if (shouldStop?.()) return false;
+        onTick?.(Math.ceil((end - Date.now()) / 1000));
+        await new Promise((r) => setTimeout(r, 1000));
+    }
+    return !shouldStop?.();
+}
+
 /**
  * 대상을 청크로 나눠 순차 조사한다.
  * onProgress(done, total, results) 로 진행 상황을 흘려보내 화면에 즉시 반영할 수 있게 한다.
- * shouldStop() 이 true 를 반환하면 다음 청크로 넘어가지 않고 중단한다.
+ * onWait(남은초, 차단횟수, 사유) 는 차단돼서 쉬는 동안 호출된다 (끝나면 남은초 0).
+ * shouldStop() 이 true 를 반환하면 즉시 중단한다 (대기 중에도).
  *
- * 네이버가 차단(403/캡차)하면 즉시 멈춘다. 남은 학원을 '확인불가'로 채우면
- * 이전에 제대로 조사해 둔 결과까지 덮어써 버리기 때문이다.
- * 반환값의 blocked 로 호출부가 사용자에게 알릴 수 있다.
+ * 네이버가 차단(403/429)하면 조사된 곳까지만 반영하고 기다렸다가 같은 자리에서 이어간다.
+ * 남은 학원을 '확인불가'로 채우면 이전에 제대로 조사해 둔 결과까지 덮어써 버리므로,
+ * 못 돌린 학원은 건드리지 않는다.
  */
-export async function probeAll(targets, city, { onProgress, shouldStop } = {}) {
+export async function probeAll(targets, city, { onProgress, shouldStop, onWait, autoResume = true } = {}) {
     const all = [];
     let blocked = false;
     let blockedReason = '';
+    let chunkGap = CHUNK_GAP_MS;
+    let blockCount = 0;
+    let i = 0;
 
-    for (let i = 0; i < targets.length; i += PROBE_BATCH) {
+    while (i < targets.length) {
         if (shouldStop?.()) break;
         const chunk = targets.slice(i, i + PROBE_BATCH);
         let json;
@@ -156,18 +190,36 @@ export async function probeAll(targets, city, { onProgress, shouldStop } = {}) {
         } catch (err) {
             // 통신 오류는 해당 청크만 건너뛴다 (결과를 만들어 덮어쓰지 않음)
             blockedReason = err.message;
-            onProgress?.(Math.min(i + PROBE_BATCH, targets.length), targets.length, []);
+            i += chunk.length;
+            onProgress?.(Math.min(i, targets.length), targets.length, []);
             continue;
         }
         const results = json.results || [];
         all.push(...results);
-        onProgress?.(Math.min(i + PROBE_BATCH, targets.length), targets.length, results);
 
         if (json.blocked) {
-            blocked = true;
+            // 서버는 순서대로 조사하다 막힌 지점에서 멈춘다 — 조사된 만큼만 전진한다
+            i += results.length;
+            onProgress?.(Math.min(i, targets.length), targets.length, results);
             blockedReason = json.blockedReason || '네이버 요청 차단';
-            break;
+            if (i >= targets.length) break;
+
+            // 1곳만 조사하는 화면(학원 상세)에서는 기다리지 않고 바로 알려준다
+            if (!autoResume || blockCount >= BLOCK_WAIT_MIN.length) { blocked = true; break; }
+            const waitMs = BLOCK_WAIT_MIN[blockCount] * 60000;
+            blockCount++;
+            chunkGap = Math.min(chunkGap * 2, MAX_CHUNK_GAP_MS);
+
+            const resumed = await waitOrStop(waitMs, shouldStop,
+                (left) => onWait?.(left, blockCount, blockedReason));
+            onWait?.(0, blockCount, '');
+            if (!resumed) break;
+            continue;   // 같은 자리에서 다시
         }
+
+        i += chunk.length;
+        onProgress?.(Math.min(i, targets.length), targets.length, results);
+        if (i < targets.length && !(await waitOrStop(chunkGap, shouldStop))) break;
     }
     return { results: all, blocked, blockedReason };
 }

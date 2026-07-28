@@ -2,7 +2,8 @@ import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import {
     probeAll, fetchSnsChecks, saveSnsChecks, resultToRecord, recordKey, rowToResult, regSub,
-    toProbeTargets, placeSearchUrl, blogSearchUrl, parseChannels, VERDICT_COLOR,
+    toProbeTargets, placeSearchUrl, blogSearchUrl, parseChannels, needsRecheck,
+    RECHECK_DAYS, VERDICT_COLOR,
 } from '../utils/snsCheck';
 import OxBadge from './SnsOxBadge';
 
@@ -14,6 +15,8 @@ const fmtWhen = (iso) => {
     if (isNaN(d)) return String(iso).slice(0, 16).replace('T', ' ');
     return `${d.getMonth() + 1}월 ${d.getDate()}일 ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 };
+
+const fmtLeft = (sec) => (sec >= 60 ? `${Math.ceil(sec / 60)}분` : `${sec}초`);
 
 const Chip = ({ label, active, onClick, count, color }) => (
     <button onClick={onClick} style={{
@@ -54,6 +57,8 @@ export default function SnsCheckTab({ region, academies }) {
     const [running, setRunning] = useState(false);
     const [progress, setProgress] = useState({ done: 0, total: 0 });
     const [saveState, setSaveState] = useState('');
+    // 네이버가 막았을 때 자동으로 쉬는 중인 상태 (남은 초, 몇 번째 대기인지)
+    const [wait, setWait] = useState(null);
     const [typeTab, setTypeTab] = useState('학원');
     const numberLabel = typeTab === '교습소' ? '신고번호' : '등록번호';
     const [filter, setFilter] = useState('미이행');
@@ -96,6 +101,11 @@ export default function SnsCheckTab({ region, academies }) {
         return c;
     }, [withResult]);
 
+    // 기본 조사 대상 — 한 번도 안 본 곳 + 조사한 지 오래된 곳
+    const stale = useMemo(
+        () => withResult.filter(x => needsRecheck(x.result)),
+        [withResult]);
+
     const visible = useMemo(() => {
         if (filter === '전체') return withResult;
         if (filter === '미조사') return withResult.filter(x => !x.result);
@@ -114,6 +124,7 @@ export default function SnsCheckTab({ region, academies }) {
         stopRef.current = false;
         setRunning(true);
         setSaveState('');
+        setWait(null);
         setProgress({ done: 0, total: list.length });
 
         // 조사가 오래 걸리므로(수백 곳) 청크가 끝날 때마다 곧바로 시트에 저장한다.
@@ -124,6 +135,7 @@ export default function SnsCheckTab({ region, academies }) {
 
         const { blocked, blockedReason } = await probeAll(list, region, {
             shouldStop: () => stopRef.current,
+            onWait: (left, nth, reason) => setWait(left ? { left, nth, reason } : null),
             onProgress: (done, total, chunk) => {
                 setProgress({ done, total });
                 if (!chunk.length) return;
@@ -147,10 +159,11 @@ export default function SnsCheckTab({ region, academies }) {
 
         await saveQueue;
         setRunning(false);
+        setWait(null);
 
         if (blocked) {
-            setSaveState(`⛔ ${savedCount}곳까지 저장 후 중단 — 네이버가 요청을 일시 차단했습니다 (${blockedReason}). `
-                + `5~10분 뒤 "미조사 …곳만" 버튼으로 이어서 진행하세요. 남은 학원은 덮어쓰지 않았습니다.`);
+            setSaveState(`⛔ ${savedCount}곳까지 저장 후 중단 — 네이버 차단이 오래 풀리지 않습니다 (${blockedReason}). `
+                + `한참 뒤에 "조사 필요 …곳" 버튼으로 이어서 진행하세요. 남은 학원은 덮어쓰지 않았습니다.`);
             return;
         }
         if (!savedCount && !saveError) return;
@@ -159,13 +172,12 @@ export default function SnsCheckTab({ region, academies }) {
             : `✓ ${label} ${savedCount}곳 저장 완료`);
     }, [region]);
 
-    const runAll = () => runProbe(withResult.map(x => x.target), typeTab);
-    const runUnchecked = () => runProbe(
-        withResult.filter(x => !x.result).map(x => x.target), `${typeTab} 미조사`);
+    const runStale = () => runProbe(stale.map(x => x.target), typeTab);
+    const runAll = () => runProbe(withResult.map(x => x.target), `${typeTab} 전체`);
     const runOne = async (target) => {
         setRunning(true);
         setSaveState('');
-        const { results: [r], blocked, blockedReason } = await probeAll([target], region, {});
+        const { results: [r], blocked, blockedReason } = await probeAll([target], region, { autoResume: false });
         setRunning(false);
         if (blocked || !r) {
             setSaveState(`⛔ 네이버가 요청을 일시 차단했습니다 (${blockedReason || '차단'}). 잠시 후 다시 시도하세요.`);
@@ -250,22 +262,31 @@ export default function SnsCheckTab({ region, academies }) {
                             <button onClick={() => { stopRef.current = true; }} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '0.76rem', fontWeight: '700', cursor: 'pointer' }}>중단</button>
                         </div>
                         <div style={{ height: '6px', borderRadius: '3px', background: 'var(--border-color)', overflow: 'hidden' }}>
-                            <div style={{ height: '100%', width: `${progress.total ? (progress.done / progress.total) * 100 : 0}%`, background: 'var(--primary)', transition: 'width .3s' }} />
+                            <div style={{ height: '100%', width: `${progress.total ? (progress.done / progress.total) * 100 : 0}%`, background: wait ? '#f59e0b' : 'var(--primary)', transition: 'width .3s' }} />
                         </div>
+                        {wait && (
+                            <div style={{ fontSize: '0.74rem', color: '#f59e0b', marginTop: '6px', lineHeight: 1.6 }}>
+                                ⏸ 네이버가 요청을 잠시 막았습니다 — <b>{fmtLeft(wait.left)} 뒤 자동으로 이어서 진행</b>합니다 ({wait.nth}번째 대기).
+                                <br />여기 계실 필요 없습니다. 탭만 열어두시면 끝까지 알아서 돕니다. 지금까지 결과는 이미 저장돼 있습니다.
+                            </div>
+                        )}
                     </div>
                 ) : (
                     <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                        <button onClick={runAll} style={btnStyle('var(--primary)')}>🔍 {typeTab} 전체 조사 ({scoped.length}곳)</button>
-                        {counts.미조사 > 0 && <button onClick={runUnchecked} style={btnStyle('#0ea5e9')}>미조사 {counts.미조사}곳만</button>}
+                        <button onClick={runStale} disabled={!stale.length} style={btnStyle(stale.length ? 'var(--primary)' : 'var(--border-color)')}>
+                            🔍 조사 필요 {stale.length}곳
+                        </button>
+                        <button onClick={runAll} style={btnStyle('#64748b')}>전체 다시 조사 ({scoped.length}곳)</button>
                         {counts.미이행 > 0 && <button onClick={downloadNonCompliantExcel} style={btnStyle('#ef4444')}>📥 미이행 연락처 ({counts.미이행})</button>}
                     </div>
                 )}
                 {saveState && <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '8px' }}>{saveState}</div>}
-                {!running && scoped.length > 60 && (
+                {!running && (
                     <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '6px', lineHeight: 1.6 }}>
-                        전체 조사는 약 {Math.ceil(scoped.length * 6 / 60)}분 걸립니다. 네이버가 요청을 막지 않도록 일부러 천천히 보내기 때문입니다.
-                        탭을 열어둔 채로 두시고, 중간에 멈춰도 그때까지 결과는 저장됩니다.
-                        <br />두 번째부터는 찾아둔 플레이스 주소를 재사용해 더 빠르고 안전합니다.
+                        <b>조사 필요</b> = 한 번도 안 본 곳 + 조사한 지 {RECHECK_DAYS}일 지난 곳. 게시 상태는 자주 바뀌지 않아서,
+                        최근에 본 곳까지 매번 다시 도는 것이 네이버 차단의 가장 큰 원인이었습니다.
+                        {stale.length > 30 && <> 지금 대상은 약 {Math.ceil(stale.length * 15 / 60)}분 걸립니다.</>}
+                        <br />네이버가 막으면 <b>화면이 알아서 기다렸다 이어서 진행</b>합니다. 지켜보실 필요 없이 탭만 열어두시면 됩니다.
                     </div>
                 )}
             </div>

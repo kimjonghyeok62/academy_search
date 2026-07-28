@@ -74,7 +74,8 @@ export default function SnsDetailPanel({ academy, region = '하남' }) {
             // 이미 찾아둔 플레이스면 검색 단계를 건너뛴다 (차단에 가장 취약한 구간)
             placeId: result?.플레이스ID || '',
         };
-        const { results: [r], blocked, blockedReason } = await probeAll([target], region, {});
+        // 1곳짜리 조사는 막혔다고 10분씩 기다릴 게 아니라 바로 알려준다
+        const { results: [r], blocked, blockedReason } = await probeAll([target], region, { autoResume: false });
         setRunning(false);
         if (blocked || !r) {
             setMessage(`⛔ 네이버가 요청을 일시 차단했습니다${blockedReason ? ` (${blockedReason})` : ''}. 잠시 후 다시 시도하세요.`);
