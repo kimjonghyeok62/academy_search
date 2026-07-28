@@ -3,7 +3,7 @@
 // 조사는 /api/sns-probe (서버) 가 수행하고, 결과 저장·조회는
 // /api/apps-script-proxy 를 통해 구글시트 'SNS게시점검' 탭에 한다.
 
-const PROBE_BATCH = 20;   // api/sns-probe.js 의 MAX_BATCH 와 맞출 것
+const PROBE_BATCH = 8;    // api/sns-probe.js 의 MAX_BATCH 와 맞출 것
 const SAVE_BATCH = 60;    // 한 번에 저장할 레코드 수
 
 // 시트 헤더 (Apps Script 의 SNS_HEADERS 와 순서·이름이 일치해야 함)
@@ -13,7 +13,36 @@ export const SNS_COLUMNS = [
     '플레이스_교습비', '플레이스_게시형태', '플레이스_번호', '플레이스_기재번호', '플레이스_번호대조',
     '블로그', '블로그URL', '블로그_교습비', '블로그_번호', '블로그_기재번호', '블로그_번호대조',
     '판정', '미이행사유', '비고',
+    // 플레이스 홈에 걸린 링크(블로그·홈페이지·인스타그램…) 전체 결과 — JSON 문자열
+    '채널수', '채널상세',
 ];
+
+// 결과·시트 행 양쪽에서 같은 키를 그대로 옮기는 항목
+const PASSTHROUGH = [
+    '플레이스ID', '플레이스명', '플레이스URL', '플레이스_교습비', '플레이스_게시형태', '플레이스_번호',
+    '플레이스_기재번호', '플레이스_번호대조', '블로그', '블로그URL', '블로그_교습비',
+    '블로그_번호', '블로그_기재번호', '블로그_번호대조', '판정', '미이행사유', '채널수', '채널상세',
+];
+
+/**
+ * 채널상세(JSON 문자열) → 배열.
+ * 이 컬럼이 생기기 전에 저장된 행에는 블로그 결과만 있으므로, 그 값으로 채널 1건을 만들어 준다.
+ */
+export function parseChannels(result) {
+    if (!result) return [];
+    let list = [];
+    try {
+        const v = JSON.parse(result.채널상세 || '[]');
+        if (Array.isArray(v)) list = v;
+    } catch { /* 형식이 깨졌으면 아래 예전 형식으로 대체 */ }
+    if (list.length || result.블로그 !== '있음' || !result.블로그URL) return list;
+    return [{
+        유형: '네이버블로그', 종류: 'blog', url: result.블로그URL,
+        교습비: result.블로그_교습비, 번호: result.블로그_번호,
+        번호대조: result.블로그_번호대조, 기재번호: result.블로그_기재번호,
+        조사범위: '최근 글·사이드바', 비고: '', 소개글: '',
+    }];
+}
 
 export const VERDICTS = ['이행', '미이행', '확인불가'];
 
@@ -56,10 +85,7 @@ export function resultToRecord(r) {
         비고: '', // 수기 입력 항목 — 빈 값이면 Apps Script 가 기존 값을 보존한다
     };
     // 나머지는 컬럼명이 결과 키와 같으므로 그대로 옮긴다
-    ['플레이스ID', '플레이스명', '플레이스URL', '플레이스_교습비', '플레이스_게시형태', '플레이스_번호',
-        '플레이스_기재번호', '플레이스_번호대조', '블로그', '블로그URL', '블로그_교습비',
-        '블로그_번호', '블로그_기재번호', '블로그_번호대조', '판정', '미이행사유',
-    ].forEach((k) => { rec[k] = r[k] || ''; });
+    PASSTHROUGH.forEach((k) => { rec[k] = r[k] ?? ''; });
     return rec;
 }
 
@@ -83,10 +109,7 @@ export function rowToResult(row) {
         matchScore: row['매칭점수'] === '' ? null : Number(row['매칭점수']),
         checkedAt: row['확인일시'] || '',
     };
-    ['플레이스ID', '플레이스명', '플레이스URL', '플레이스_교습비', '플레이스_게시형태', '플레이스_번호',
-        '플레이스_기재번호', '플레이스_번호대조', '블로그', '블로그URL', '블로그_교습비',
-        '블로그_번호', '블로그_기재번호', '블로그_번호대조', '판정', '미이행사유', '비고',
-    ].forEach((k) => { r[k] = row[k] || ''; });
+    [...PASSTHROUGH, '비고'].forEach((k) => { r[k] = row[k] || ''; });
     return r;
 }
 

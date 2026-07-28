@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import {
     probeAll, fetchSnsChecks, saveSnsChecks, resultToRecord, recordKey, rowToResult, regSub,
-    toProbeTargets, placeSearchUrl, blogSearchUrl, VERDICT_COLOR,
+    toProbeTargets, placeSearchUrl, blogSearchUrl, parseChannels, VERDICT_COLOR,
 } from '../utils/snsCheck';
 import OxBadge from './SnsOxBadge';
 
@@ -194,14 +194,16 @@ export default function SnsCheckTab({ region, academies }) {
             '블로그 교습비': result.블로그_교습비 || '',
             [`블로그 ${numberLabel}`]: result.블로그_번호 || '',
             '블로그 기재번호': result.블로그_기재번호 || '',
+            // 플레이스 홈에 걸린 링크 전체 (블로그·홈페이지·인스타그램…)
+            '연결채널': parseChannels(result)
+                .map(c => `${c.유형} 교습비${c.교습비}/번호${c.번호} ${c.url}`).join('\n'),
             '플레이스URL': result.플레이스URL || '',
-            '블로그URL': result.블로그URL || '',
             '확인일시': fmtWhen(result.checkedAt),
         }));
         const ws = XLSX.utils.json_to_sheet(rows);
         ws['!cols'] = [{ wch: 5 }, { wch: 28 }, { wch: 10 }, { wch: 12 }, { wch: 15 }, { wch: 40 },
         { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 8 }, { wch: 12 }, { wch: 12 },
-        { wch: 14 }, { wch: 40 }, { wch: 30 }, { wch: 16 }];
+        { wch: 14 }, { wch: 50 }, { wch: 40 }, { wch: 16 }];
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, typeTab);
         const d = new Date();
@@ -219,7 +221,8 @@ export default function SnsCheckTab({ region, academies }) {
             <div style={{ background: 'var(--bg-card)', borderRadius: '14px', padding: '14px 16px', border: '1px solid var(--border-color)', marginBottom: '12px', boxShadow: 'var(--shadow-sm)' }}>
                 <div style={{ fontSize: '0.88rem', fontWeight: '800', marginBottom: '6px' }}>📣 네이버 교습비·등록번호 게시점검</div>
                 <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>
-                    네이버플레이스의 가격 메뉴·소개글과 연결된 네이버블로그를 자동으로 조사해 교습비와 등록(신고)번호 게시 여부를 판정합니다.
+                    네이버플레이스의 가격 메뉴·가격표 이미지·소개글과, <b>플레이스 홈에 링크된 블로그·홈페이지·인스타그램</b>을
+                    자동으로 조사해 교습비와 등록(신고)번호 게시 여부를 판정합니다. 링크가 없는 채널은 따로 검색하지 않습니다.
                     <b> 자동 판정이므로 확정 위반이 아니라 안내·점검 우선순위 참고 자료</b>이며,
                     동명 학원이나 지점이 있으면 <b>확인불가</b>로 남습니다. 최종 확인은 링크로 직접 보시기 바랍니다.
                     {lastCheckedAt && <><br />최근 조사: <b>{fmtWhen(lastCheckedAt)}</b></>}
@@ -260,7 +263,7 @@ export default function SnsCheckTab({ region, academies }) {
                 {saveState && <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '8px' }}>{saveState}</div>}
                 {!running && scoped.length > 60 && (
                     <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '6px', lineHeight: 1.6 }}>
-                        전체 조사는 약 {Math.ceil(scoped.length * 3 / 60)}분 걸립니다. 네이버가 요청을 막지 않도록 일부러 천천히 보내기 때문입니다.
+                        전체 조사는 약 {Math.ceil(scoped.length * 6 / 60)}분 걸립니다. 네이버가 요청을 막지 않도록 일부러 천천히 보내기 때문입니다.
                         탭을 열어둔 채로 두시고, 중간에 멈춰도 그때까지 결과는 저장됩니다.
                         <br />두 번째부터는 찾아둔 플레이스 주소를 재사용해 더 빠르고 안전합니다.
                     </div>
@@ -331,7 +334,14 @@ export default function SnsCheckTab({ region, academies }) {
                                     )}
                                     <div style={{ display: 'flex', gap: '8px', fontSize: '0.71rem', flexWrap: 'wrap' }}>
                                         <a href={result?.플레이스URL || placeSearchUrl(target.name, region)} target="_blank" rel="noreferrer" style={linkStyle}>플레이스</a>
-                                        <a href={blogSearchUrl(target.name, region)} target="_blank" rel="noreferrer" style={linkStyle}>블로그검색</a>
+                                        {/* 플레이스 홈에 걸린 링크들 — 실제로 조사한 대상이다 */}
+                                        {parseChannels(result).map((c, ci) => (
+                                            <a key={`${c.url}-${ci}`} href={c.url} target="_blank" rel="noreferrer" style={linkStyle}
+                                                title={`${c.유형} · 교습비 ${c.교습비} / ${numberLabel} ${c.번호}`}>
+                                                {c.유형}{c.교습비 === 'O' && c.번호 === 'O' ? '✓' : c.번호대조 === '확인불가' ? '?' : '✕'}
+                                            </a>
+                                        ))}
+                                        {!result && <a href={blogSearchUrl(target.name, region)} target="_blank" rel="noreferrer" style={linkStyle}>블로그검색</a>}
                                         <button onClick={() => runOne(target)} disabled={running} style={{ background: 'none', border: 'none', padding: 0, color: '#0ea5e9', fontSize: '0.71rem', fontWeight: '600', cursor: running ? 'default' : 'pointer' }}>다시확인</button>
                                         {target.contact && <a href={`tel:${target.contact}`} style={linkStyle}>{target.contact}</a>}
                                     </div>
