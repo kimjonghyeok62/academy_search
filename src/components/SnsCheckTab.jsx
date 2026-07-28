@@ -285,7 +285,7 @@ export default function SnsCheckTab({ region, academies }) {
                     <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '6px', lineHeight: 1.6 }}>
                         <b>조사 필요</b> = 한 번도 안 본 곳 + 조사한 지 {RECHECK_DAYS}일 지난 곳. 게시 상태는 자주 바뀌지 않아서,
                         최근에 본 곳까지 매번 다시 도는 것이 네이버 차단의 가장 큰 원인이었습니다.
-                        {stale.length > 30 && <> 지금 대상은 약 {Math.ceil(stale.length * 15 / 60)}분 걸립니다.</>}
+                        {stale.length > 30 && <> 지금 대상은 약 {Math.ceil(stale.length * 10 / 60)}분 걸립니다.</>}
                         <br />네이버가 막으면 <b>화면이 알아서 기다렸다 이어서 진행</b>합니다. 지켜보실 필요 없이 탭만 열어두시면 됩니다.
                     </div>
                 )}

@@ -6,7 +6,7 @@ import { probeAcademy, isBlocked, sleep } from './_lib/naverProbe.js';
 // 학원 1곳당 플레이스 + 연결 채널(최대 4개)까지 조사하므로 요청이 4~12개 나간다.
 // 한 요청에 몰아넣으면 (1) 서버리스 실행시간 제한에 걸리고 (2) 초당 요청 수가 튀어 차단당한다.
 // 작게 끊고, 청크 사이 간격은 프론트(probeAll)가 벌린다.
-const MAX_BATCH = 3;
+const MAX_BATCH = 4;
 // 네이버는 짧은 시간에 요청이 몰리면 403/캡차로 막는다. 실측상 동시 4 + 무지연으로 240건쯤에서
 // 확실히 차단됐고 해제까지 15분 이상 걸렸다. 학원 1곳당 내부적으로 3~5개 요청이 나가므로
 // 순차 처리 + 넉넉한 간격으로 초당 요청 수를 낮춰 완주 가능성을 우선했다.
@@ -26,7 +26,8 @@ async function runPool(items, worker, limit) {
                 if (isBlocked(err)) { blockedErr = err; return; }
                 throw err;
             }
-            await sleep(GAP_MS);
+            // 마지막 학원 뒤에 쉬는 건 응답만 늦출 뿐이다 (청크 사이 간격은 프론트가 따로 둔다)
+            if (cursor < items.length) await sleep(GAP_MS);
         }
     });
     await Promise.all(runners);

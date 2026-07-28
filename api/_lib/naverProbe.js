@@ -18,6 +18,8 @@ const H_DESKTOP = { 'User-Agent': UA_DESKTOP, 'Accept-Language': 'ko-KR,ko;q=0.9
 const H_PCMAP = { ...H_DESKTOP, Referer: 'https://map.naver.com/' };
 
 const FETCH_TIMEOUT_MS = 12000;
+// 네이버가 아닌 곳(학원 홈페이지 등)은 응답이 없어도 오래 붙들고 있을 이유가 없다
+const FETCH_TIMEOUT_EXTERNAL_MS = 7000;
 
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -31,14 +33,29 @@ function blockedError(msg) {
     return e;
 }
 
-async function getText(url, headers) {
+// 403/429 를 '배치 전체를 멈출 차단'으로 볼 곳은 네이버뿐이다.
+// 인스타그램 API 는 서버(데이터센터 IP)에서 부르면 거의 항상 401/403 을 주고,
+// 학원 홈페이지도 Cloudflare 같은 방화벽이 봇을 403 으로 막는 일이 흔하다.
+// 이걸 네이버 차단으로 오인하면 아무리 기다려도 안 풀리는 대기에 배치가 갇힌다.
+function isNaverHost(url) {
+    try { return /(^|\.)naver\.com$/.test(new URL(url).hostname.toLowerCase()); }
+    catch { return false; }
+}
+
+async function getText(url, headers, timeoutMs) {
+    const naver = isNaverHost(url);
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    const timer = setTimeout(
+        () => controller.abort(),
+        timeoutMs || (naver ? FETCH_TIMEOUT_MS : FETCH_TIMEOUT_EXTERNAL_MS)
+    );
     try {
         const res = await fetch(url, { headers, signal: controller.signal, redirect: 'follow' });
-        // 429/403 은 요청이 과했다는 뜻 — 개별 실패가 아니라 배치 전체를 멈춰야 한다
+        // 네이버의 429/403 은 요청이 과했다는 뜻 — 개별 실패가 아니라 배치 전체를 멈춰야 한다.
+        // 그 외 호스트의 403 은 그 채널 하나만 '확인불가'로 두고 계속 간다.
         if (res.status === 403 || res.status === 429) {
-            throw blockedError(`네이버 요청 차단 (HTTP ${res.status})`);
+            if (naver) throw blockedError(`네이버 요청 차단 (HTTP ${res.status})`);
+            throw new Error(`HTTP ${res.status} (차단 아님 — 해당 사이트가 봇 접근을 막음)`);
         }
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return await res.text();
@@ -366,14 +383,14 @@ async function searchInBlog(blogId, keyword) {
 
 async function probeBlogChannel(link) {
     const id = link.id;
-    const parts = [];
-    for (const [url, headers] of [
-        [`https://m.blog.naver.com/${encodeURIComponent(id)}`, H_MOBILE],
-        [`https://rss.blog.naver.com/${encodeURIComponent(id)}.xml`, H_DESKTOP],
-    ]) {
-        const t = await fetchTextOrNull(url, headers);
-        if (t) parts.push(t);
-    }
+    // 소개(m.blog)와 최근 글(RSS)은 서로 독립이라 동시에 받는다 — 순차로 받으면 이유 없이 두 배 걸린다
+    const settled = await Promise.allSettled([
+        fetchTextOrNull(`https://m.blog.naver.com/${encodeURIComponent(id)}`, H_MOBILE),
+        fetchTextOrNull(`https://rss.blog.naver.com/${encodeURIComponent(id)}.xml`, H_DESKTOP),
+    ]);
+    const blockedHit = settled.find((s) => s.status === 'rejected' && isBlocked(s.reason));
+    if (blockedHit) throw blockedHit.reason;
+    const parts = settled.filter((s) => s.status === 'fulfilled' && s.value).map((s) => s.value);
     if (!parts.length) throw new Error('블로그를 열지 못했습니다');
 
     let feeMentioned = FEE_KEYWORD.test(parts.join(' '));
@@ -646,14 +663,26 @@ export async function probeAcademy(academy, city) {
         }
 
         // 플레이스 홈에 링크가 걸린 채널만 조사한다 (별도 검색 없음)
-        const channels = [];
-        if (best) {
-            for (const link of best.links.slice(0, MAX_CHANNELS)) {
-                channels.push(await probeChannel(link));
-                await sleep(300);
-            }
+        // 채널은 대부분 서로 다른 호스트(블로그·인스타그램·홈페이지)라 동시에 받아도
+        // 어느 한 곳에 요청이 몰리지 않는다. 다만 네이버 블로그끼리는 순차로 둔다.
+        const links = best ? best.links.slice(0, MAX_CHANNELS) : [];
+        const channels = new Array(links.length);
+        if (links.length) {
+            const blogIdx = links.map((l, i) => [l, i]).filter(([l]) => l.kind === 'blog');
+            const otherIdx = links.map((l, i) => [l, i]).filter(([l]) => l.kind !== 'blog');
+            const settled = await Promise.allSettled([
+                (async () => {
+                    for (const [link, i] of blogIdx) {
+                        channels[i] = await probeChannel(link);
+                        if (blogIdx.length > 1) await sleep(300);
+                    }
+                })(),
+                ...otherIdx.map(async ([link, i]) => { channels[i] = await probeChannel(link); }),
+            ]);
+            const blockedHit = settled.find((s) => s.status === 'rejected' && isBlocked(s.reason));
+            if (blockedHit) throw blockedHit.reason;
         }
-        return buildResult({ academy, place: best, channels, matchScore: bestScore });
+        return buildResult({ academy, place: best, channels: channels.filter(Boolean), matchScore: bestScore });
     } catch (err) {
         // 차단은 이 학원의 문제가 아니라 배치 전체의 문제 — 호출부가 중단하도록 그대로 올린다.
         // (여기서 '확인불가'로 삼키면 멀쩡한 기존 결과를 차단 결과로 덮어쓰게 된다)
