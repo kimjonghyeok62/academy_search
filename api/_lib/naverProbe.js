@@ -378,9 +378,31 @@ export function extractInstagramBio(html) {
     return '';
 }
 
+// 인스타그램 웹이 자기 프로필을 그릴 때 쓰는 엔드포인트. HTML 은 로그인 벽에 막히는 경우가 있는데
+// (서버에서 부르면 특히) 이쪽은 소개글을 그대로 준다.
+async function fetchInstagramBioViaApi(handle) {
+    const json = await getText(
+        `https://www.instagram.com/api/v1/users/web_profile_info/?username=${encodeURIComponent(handle)}`,
+        {
+            ...H_DESKTOP,
+            'x-ig-app-id': '936619743392459',
+            Accept: '*/*',
+            Referer: `https://www.instagram.com/${handle}/`,
+            'Sec-Fetch-Site': 'same-origin',
+            'Sec-Fetch-Mode': 'cors',
+            'Sec-Fetch-Dest': 'empty',
+        }
+    );
+    return (JSON.parse(json)?.data?.user?.biography || '').trim();
+}
+
 async function probeInstagramChannel(link) {
-    const html = await getText(link.url, H_MOBILE);
-    const bio = extractInstagramBio(html);
+    let bio = '';
+    if (link.id) {
+        try { bio = await fetchInstagramBioViaApi(link.id); }
+        catch (err) { if (isBlocked(err)) throw err; }
+    }
+    if (!bio) bio = extractInstagramBio(await getText(link.url, H_MOBILE));
     if (!bio) {
         return { unavailable: true, scope: '첫 화면 소개글', note: '소개글을 읽지 못했습니다 (비공개이거나 인스타그램이 차단)' };
     }
