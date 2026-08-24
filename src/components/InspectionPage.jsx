@@ -14,7 +14,7 @@ import {
     fetchNiceAcademyRawRows, fetchNiceHagwonRawRows, fetchNicePrivateRawRows,
     fetchInspectionDeferRawRows,
 } from '../utils/inspectionSheets';
-import { fetchAcademyClosureData } from '../utils/googleSheets';
+import { fetchAcademyClosureData, regKey } from '../utils/googleSheets';
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title);
 
@@ -2613,7 +2613,13 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
     const inlineRouteMarkersRef = useRef([]);
 
     const normName = (n) => (n || '').replace(/[^a-zA-Z0-9가-힣]/g, '').toLowerCase();
-    const isInsp2026 = useCallback((a) => inspectedDates.has(normName(a.name)), [inspectedDates]);
+    // 명칭이 바뀐 학원도 잡히도록 등록번호 키로도 조회한다 (inspectedDates는 두 키 모두 보유)
+    const inspDateOf = useCallback((a) => {
+        const byName = inspectedDates.get(normName(a.name)) || null;
+        const byReg = inspectedDates.get(regKey(a.category, a.id)) || null;
+        return (byName && byReg) ? (byName > byReg ? byName : byReg) : (byName || byReg);
+    }, [inspectedDates]);
+    const isInsp2026 = useCallback((a) => !!inspDateOf(a), [inspDateOf]);
 
     const RECENT_ROWS_CACHE_KEY = 'recentRawRows_cache';
 
@@ -2629,9 +2635,14 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
             const purpose = colVal(r, ['점검목적', '점검구분', '방문목적', '민원구분']);
             if (purpose.includes('교습시간')) return;
             const name = normName(colVal(r, ['학원(교습소)명', '명칭', '학원명', '기관명']));
-            if (!name) return;
-            const prev = dates.get(name);
-            if (!prev || d > prev) dates.set(name, d);
+            const put = (key) => {
+                if (!key) return;
+                const prev = dates.get(key);
+                if (!prev || d > prev) dates.set(key, d);
+            };
+            if (name) put(name);
+            // 등록번호 키 (명칭 변경 대응) — 유형이 다르면 번호가 겹치므로 유형 포함
+            put(regKey(colVal(r, ['구분', '종별']), colVal(r, ['등록번호', '신고번호', '고유번호'])));
         });
         setInspectedDates(dates);
         return dates;
@@ -3362,7 +3373,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
     };
     const uninspMonths = (a, today) => {
         const neisD = lastRegularDate(a);
-        const sheetD = inspectedDates.get(normName(a.name)) || null;
+        const sheetD = inspDateOf(a);
         const base = (neisD && sheetD) ? (neisD > sheetD ? neisD : sheetD)
             : (neisD || sheetD || toDateRev(a.regDate));
         if (!base) return 999;
@@ -3499,7 +3510,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
             .filter(a => !isClosed(a) && !deferNames.has(normName(a.name)))
             .map(a => {
                 const months = uninspMonths(a, today);
-                const neverInspected = !lastRegularDate(a) && !inspectedDates.has(normName(a.name));
+                const neverInspected = !lastRegularDate(a) && !inspDateOf(a);
                 const regD = toDateRev(a.regDate);
                 const regMonths = regD ? Math.floor((today - regD) / 2629800000) : 0;
                 const viol = (a.inspections || []).filter(i => i.isViolation && !isMidnightInsp(i)).length;
@@ -3526,7 +3537,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
             .filter(a => !isClosed(a) && !deferNames.has(normName(a.name)))
             .map(a => {
                 const months = uninspMonths(a, today);
-                const neverInspected = !lastRegularDate(a) && !inspectedDates.has(normName(a.name));
+                const neverInspected = !lastRegularDate(a) && !inspDateOf(a);
                 const regD = toDateRev(a.regDate);
                 const regMonths = regD ? Math.floor((today - regD) / 2629800000) : 0;
                 const viol = (a.inspections || []).filter(i => i.isViolation && !isMidnightInsp(i)).length;
@@ -3562,7 +3573,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
             .filter(a => !isClosed(a) && !deferNames.has(normName(a.name)))
             .map(a => {
                 const months = uninspMonths(a, today);
-                const neverInspected = !lastRegularDate(a) && !inspectedDates.has(normName(a.name));
+                const neverInspected = !lastRegularDate(a) && !inspDateOf(a);
                 const regD = toDateRev(a.regDate);
                 const regMonths = regD ? Math.floor((today - regD) / 2629800000) : 0;
                 const viol = (a.inspections || []).filter(i => i.isViolation && !isMidnightInsp(i)).length;
@@ -3598,7 +3609,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
             .filter(a => !isClosed(a) && !deferNames.has(normName(a.name)))
             .map(a => {
                 const months = uninspMonths(a, today);
-                const neverInspected = !lastRegularDate(a) && !inspectedDates.has(normName(a.name));
+                const neverInspected = !lastRegularDate(a) && !inspDateOf(a);
                 const regD = toDateRev(a.regDate);
                 const regMonths = regD ? Math.floor((today - regD) / 2629800000) : 0;
                 const viol = (a.inspections || []).filter(i => i.isViolation && !isMidnightInsp(i)).length;
@@ -3644,7 +3655,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
             .filter(a => !isClosed(a) && !deferNames.has(normName(a.name)))
             .map(a => {
                 const months = uninspMonths(a, today);
-                const neverInspected = !lastRegularDate(a) && !inspectedDates.has(normName(a.name));
+                const neverInspected = !lastRegularDate(a) && !inspDateOf(a);
                 const regD = toDateRev(a.regDate);
                 const regMonths = regD ? Math.floor((today - regD) / 2629800000) : 0;
                 const viol = (a.inspections || []).filter(i => i.isViolation && !isMidnightInsp(i)).length;

@@ -371,12 +371,13 @@ function AssistantTab({ assistants = [] }) {
 }
 
 // 지도점검 탭 전용 컴포넌트 (아코디언 상태 관리 포함)
-function InspectionTab({ inspections, totalCount, violationCount, academyName }) {
+function InspectionTab({ inspections, totalCount, violationCount, academyName, founderName, regNum }) {
     const [expandedIndexes, setExpandedIndexes] = useState([]);
     const [editingIdx, setEditingIdx] = useState(null);
     const [editValue, setEditValue] = useState('');
     const [savingIdx, setSavingIdx] = useState(null);
     const [localGuidance, setLocalGuidance] = useState({});
+    const [nowMs] = useState(() => Date.now());   // 가중처분 1년 계산 기준 시각 (렌더마다 변하지 않도록 고정)
 
     const startEdit = (idx, currentValue) => {
         setEditingIdx(idx);
@@ -402,6 +403,53 @@ function InspectionTab({ inspections, totalCount, violationCount, academyName })
             prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx]
         );
     };
+
+    // ──────────────────────────────────────────────────────────
+    // 과거 명칭 이력 (등록번호로 매칭된 점검 중 당시 명칭이 다른 것)
+    // ──────────────────────────────────────────────────────────
+    const normCmp = (str) => (str || '').toString().replace(/[^a-zA-Z0-9가-힣]/g, '').toLowerCase();
+    const toTime = (str) => {
+        if (!str) return 0;
+        const d = new Date(String(str).replace(/\./g, '-'));
+        return isNaN(d.getTime()) ? 0 : d.getTime();
+    };
+    const pastNameOf = (insp) => {
+        const raw = (insp.rawName || '').trim();
+        return (!raw || normCmp(raw) === normCmp(academyName)) ? '' : raw;
+    };
+
+    const aliasMap = new Map();
+    inspections.forEach(insp => {
+        const past = pastNameOf(insp);
+        if (!past) return;
+        const key = normCmp(past);
+        if (!aliasMap.has(key)) aliasMap.set(key, { name: past, operators: [], dates: [], count: 0, violations: 0 });
+        const a = aliasMap.get(key);
+        const op = (insp.operator || '').trim();
+        if (op && !a.operators.includes(op)) a.operators.push(op);
+        if (insp.date) a.dates.push(insp.date);
+        a.count += 1;
+        if (insp.isViolation) a.violations += 1;
+    });
+    const aliases = [...aliasMap.values()].map(a => {
+        const times = a.dates.map(toTime).filter(Boolean).sort((x, y) => x - y);
+        const byTime = a.dates.slice().sort((x, y) => toTime(x) - toTime(y));
+        return {
+            ...a,
+            first: byTime[0] || '',
+            last: byTime[byTime.length - 1] || '',
+            lastTime: times[times.length - 1] || 0,
+            // 당시 운영자 중 현재 운영자와 일치하는 사람이 없으면 운영자도 바뀐 것으로 본다
+            operatorChanged: !!(founderName && a.operators.length > 0 &&
+                !a.operators.some(op => normCmp(op) === normCmp(founderName))),
+        };
+    }).sort((a, b) => b.lastTime - a.lastTime);
+
+    // 과거 명칭 시절 위반이 최근 1년 이내인지 (가중처분 검토 대상)
+    const ONE_YEAR = 365 * 24 * 60 * 60 * 1000;
+    const recentAliasViolation = inspections.some(insp =>
+        insp.isViolation && pastNameOf(insp) && toTime(insp.date) > nowMs - ONE_YEAR
+    );
 
     // 정보 행 렌더링 헬퍼
     const InfoChip = ({ label, value, color }) => {
@@ -575,6 +623,60 @@ function InspectionTab({ inspections, totalCount, violationCount, academyName })
             <FineGuideAccordion />
             <AdminSanctionAccordion />
 
+            {/* ② 과거 명칭 이력 (등록번호로 이어붙인 이력) */}
+            {aliases.length > 0 && (
+                <div style={{
+                    margin: '8px 0 14px', padding: '12px 14px',
+                    background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '12px'
+                }}>
+                    <div style={{
+                        display: 'flex', alignItems: 'center', gap: '6px',
+                        fontSize: '0.85rem', fontWeight: '800', color: '#92400e', marginBottom: '8px'
+                    }}>
+                        🏷 과거 명칭 이력
+                        <span style={{ fontSize: '0.72rem', fontWeight: '600', color: '#b45309' }}>
+                            등록번호{regNum ? ` ${regNum}` : ''} 기준으로 연결된 이력입니다
+                        </span>
+                    </div>
+                    {aliases.map((a, i) => (
+                        <div key={i} style={{
+                            display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px',
+                            padding: '6px 0', borderTop: i === 0 ? 'none' : '1px dashed #fde68a'
+                        }}>
+                            <span style={{ fontSize: '0.9rem', fontWeight: '800', color: '#78350f' }}>{a.name}</span>
+                            <span style={{ fontSize: '0.78rem', color: '#a16207' }}>
+                                {a.first === a.last ? a.first : `${a.first} ~ ${a.last}`} · {a.count}건
+                                {a.violations > 0 ? ` (위반 ${a.violations}건)` : ''}
+                            </span>
+                            {a.operators.length > 0 && (
+                                <span style={{ fontSize: '0.78rem', color: '#a16207' }}>
+                                    · 당시 운영자 {a.operators.join(', ')}
+                                </span>
+                            )}
+                            {a.operatorChanged ? (
+                                <span style={{
+                                    fontSize: '0.72rem', fontWeight: '700', padding: '2px 8px', borderRadius: '20px',
+                                    background: '#fee2e2', color: '#b91c1c', border: '1px solid #fecaca'
+                                }}>운영자도 변경{founderName ? ` (현재 ${founderName})` : ''}</span>
+                            ) : (
+                                <span style={{
+                                    fontSize: '0.72rem', fontWeight: '700', padding: '2px 8px', borderRadius: '20px',
+                                    background: '#dcfce7', color: '#15803d', border: '1px solid #bbf7d0'
+                                }}>운영자 동일 · 명칭만 변경</span>
+                            )}
+                        </div>
+                    ))}
+                    {recentAliasViolation && (
+                        <div style={{
+                            marginTop: '8px', fontSize: '0.76rem', color: '#b45309',
+                            background: '#fef3c7', borderRadius: '8px', padding: '6px 8px'
+                        }}>
+                            ⚠ 1년 이내 과거 명칭 시절 위반 이력이 있습니다 — 동일 위반 시 가중처분 여부를 확인하세요.
+                        </div>
+                    )}
+                </div>
+            )}
+
             {/* ③ 통계 카드 */}
             <div style={{ display: 'flex', gap: '10px', margin: '8px 0 16px' }}>
                 <div style={{
@@ -602,9 +704,12 @@ function InspectionTab({ inspections, totalCount, violationCount, academyName })
             {/* 점검 이력 목록 */}
             {totalCount > 0 ? inspections.map((insp, idx) => {
                 const isViolation = insp.isViolation;
+                const dateUnknown = !(insp.date || '').trim();
+                const pastName = pastNameOf(insp);
                 const guidanceText = localGuidance[idx] !== undefined ? localGuidance[idx] : insp.guidanceContent;
                 const hasGuidance = !!(guidanceText && guidanceText !== '없음' && guidanceText !== '이상없음' && guidanceText !== '-');
-                const canEdit = insp.source === '2026';
+                // Apps Script가 '점검일 + 명칭'으로 행을 찾으므로 날짜 없는 건은 저장 대상에서 제외
+                const canEdit = insp.source === '2026' && !dateUnknown;
                 const isExpanded = expandedIndexes.includes(idx);
                 const hasPunishment = insp.punishmentCode || insp.punishmentDate;
                 const hasFine = insp.fine && insp.fine !== '0' && insp.fine !== '';
@@ -641,9 +746,22 @@ function InspectionTab({ inspections, totalCount, violationCount, academyName })
                                 cursor: isClickable ? 'pointer' : 'default',
                             }}
                         >
-                            <span style={{ fontSize: '0.9rem', fontWeight: '700', color: 'var(--text-main)', whiteSpace: 'nowrap' }}>
-                                📅 {insp.date || '-'}
+                            <span style={{
+                                fontSize: '0.9rem', fontWeight: '700', whiteSpace: 'nowrap',
+                                color: dateUnknown ? 'var(--text-muted)' : 'var(--text-main)'
+                            }} title={dateUnknown ? '대장에 점검일이 기록되지 않은 건입니다' : undefined}>
+                                📅 {dateUnknown ? '날짜미상' : insp.date}
                             </span>
+                            {pastName && (
+                                <span style={{
+                                    fontSize: '0.68rem', padding: '2px 7px', borderRadius: '6px',
+                                    background: '#fffbeb', color: '#b45309', fontWeight: '700',
+                                    border: '1px solid #fde68a', whiteSpace: 'nowrap',
+                                    overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '45%'
+                                }} title={`당시 명칭: ${pastName}${insp.operator ? ` / 당시 운영자: ${insp.operator}` : ''}`}>
+                                    🏷 {pastName}
+                                </span>
+                            )}
                             {insp.source === '2026' && (
                                 <span style={{
                                     fontSize: '0.68rem', padding: '2px 7px', borderRadius: '6px',
@@ -2133,6 +2251,8 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
                         totalCount={totalCount}
                         violationCount={violationCount}
                         academyName={academy.name}
+                        founderName={academy.founder?.name || ''}
+                        regNum={academy.id || ''}
                     />
                 );
             }
