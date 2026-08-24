@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import DetailView from './components/DetailView';
 import Login from './components/Login';
 import PrivateTutorDetailView from './components/PrivateTutorDetailView';
-import { fetchGoogleSheetData, transformAcademyData, fetchSheetName, fetchInspectionData, fetch2026InspectionData, fetchInstructorData, fetchAssistantData, fetchPrivateTutorData, DATA_GID, GYOSEUPSO_GID } from './utils/googleSheets';
+import { fetchGoogleSheetData, transformAcademyData, fetchSheetName, fetchInspectionData, fetch2026InspectionData, fetchInstructorData, fetchAssistantData, fetchPrivateTutorData, lookupInspections, DATA_GID, GYOSEUPSO_GID } from './utils/googleSheets';
 import './App.css';
 import InspectionStandardAccordion from './components/InspectionStandardAccordion';
 import InspectionPage from './components/InspectionPage';
@@ -225,7 +225,8 @@ function App() {
       const normName = academy.name.replace(/[^a-zA-Z0-9가-힣]/g, '').toLowerCase();
 
       // 2026 점검 병합 (중복: 같은 날짜 + 같은 위반사항 + 같은 위반내역 기준, 1번 시트 우선)
-      const records2026 = map2026.get(normName) || [];
+      // 등록번호 + 명칭 양쪽으로 조회 → 명칭이 바뀐 학원도 과거 이력이 붙는다
+      const records2026 = lookupInspections(map2026, academy);
       if (records2026.length > 0) {
         const existingKeys = new Set(
           academy.inspections.map(r =>

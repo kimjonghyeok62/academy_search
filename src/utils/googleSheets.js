@@ -20,6 +20,46 @@ export const DATA_AS_OF = '2026.  1.  17. (토) 기준';
 // 매칭용 이름 정규화 (공백 및 특수문자 모두 제거)
 export const normalizeName = (name) => (name || '').toString().replace(/[^a-zA-Z0-9가-힣]/g, '').toLowerCase();
 
+// 기관 유형 정규화: '학원' | '교습소' | '개인과외'
+// (등록번호는 유형이 다르면 같은 번호가 재사용되므로 반드시 유형과 함께 써야 한다)
+export const entityTypeOf = (text) => {
+    const s = (text || '').toString();
+    if (s.includes('교습소')) return '교습소';
+    if (s.includes('과외')) return '개인과외';
+    return '학원';
+};
+
+// 등록번호(=2025 대장 고유번호) 기반 매칭 키
+export const regKey = (typeText, regNum) => {
+    const num = (regNum || '').toString().trim().replace(/\s+/g, '');
+    return num ? `#REG#${entityTypeOf(typeText)}#${num}` : '';
+};
+
+// 점검 이력 조회: 등록번호 매칭 + 명칭 매칭 결과를 합쳐서 반환
+// (명칭이 바뀐 학원은 등록번호로만 잡히고, 등록번호가 비어 있으면 명칭으로 잡힌다)
+export function lookupInspections(map, { id, name, category } = {}) {
+    if (!map || map.size === 0) return [];
+    const seen = new Set();
+    const out = [];
+    const add = (records) => {
+        (records || []).forEach(r => {
+            if (seen.has(r)) return;   // 같은 레코드가 두 키에 모두 들어있으므로 객체 동일성으로 중복 제거
+            seen.add(r);
+            out.push(r);
+        });
+    };
+    add(map.get(regKey(category, id)));
+    add(map.get(normalizeName(name)));
+    return out.sort((a, b) => {
+        const toDate = str => {
+            if (!str) return new Date(0);
+            const d = new Date(String(str).replace(/\./g, '-'));
+            return isNaN(d.getTime()) ? new Date(0) : d;
+        };
+        return toDate(b.date) - toDate(a.date);
+    });
+}
+
 // fetch with 15-second timeout
 function fetchWithTimeout(url, timeoutMs = 15000) {
     const controller = new AbortController();
@@ -105,6 +145,9 @@ export async function fetchInspectionData() {
 
             const record = {
                 date: getFlexibleVal(row, ['점검일', '점검일자', '지도점검일', '보정']).trim().replace(/-/g, '.'),
+                rawName: name.trim(),
+                regNum: getFlexibleVal(row, ['고유번호', '등록번호', '신고번호']).trim(),
+                operator: getFlexibleVal(row, ['대표자/교습자', '대표자', '교습자', '운영자', '설립자']).trim(),
                 isViolation: getFlexibleVal(row, ['위반여부']).trim().toUpperCase() === 'Y',
                 violationType: getFlexibleVal(row, ['위반사항', '위반유형']).trim(),
                 violationDetail: getFlexibleVal(row, ['위반내역', '위반내용']).trim(),
@@ -125,11 +168,20 @@ export async function fetchInspectionData() {
                 source: '~2025',
             };
 
-            const key = normalizeName(name);
-            if (!inspectionMap.has(key)) {
-                inspectionMap.set(key, []);
+            const push = (key) => {
+                if (!key) return;
+                if (!inspectionMap.has(key)) inspectionMap.set(key, []);
+                inspectionMap.get(key).push(record);
+            };
+
+            // ① 명칭 키
+            push(normalizeName(name));
+
+            // ② 고유번호 키 (하남 지역 행만 — 지역이 다르면 같은 번호가 다른 학원이다)
+            const region = getFlexibleVal(row, ['지역']).trim();
+            if (region.includes('하남')) {
+                push(regKey(getFlexibleVal(row, ['구분']), record.regNum));
             }
-            inspectionMap.get(key).push(record);
         });
 
         // 날짜순 정렬 (최신이 위로)
@@ -196,9 +248,16 @@ export async function fetch2026InspectionData() {
             const isViolNonEmpty = violRaw && !NON_VIOL.includes(violRaw.trim().toLowerCase());
             const isGuidanceNonEmpty = guidanceRaw && !NON_VIOL.includes(guidanceRaw.trim().toLowerCase());
 
+            // 점검일도 없고 지도·위반 내용도 없는 행 = 점검 미실시 메모(문자 발송/연기/연락두절 등)
+            // → 실제 점검이 아니므로 이력에서 제외 (업무관리 페이지의 미점검 판정과 동일 기준)
+            const dateStr = getFlexibleVal(row,['점검일', '점검일자', '지도점검일']).replace(/-/g, '.').trim();
+            if (!dateStr && !isViolNonEmpty && !isGuidanceNonEmpty) return;
+
             const record = {
-                date: getFlexibleVal(row,['점검일', '점검일자', '지도점검일']).replace(/-/g, '.'),
+                date: dateStr,
                 rawName: name,
+                regNum: getFlexibleVal(row,['등록번호', '신고번호', '고유번호']),
+                operator: getFlexibleVal(row,['운영자', '대표자', '교습자', '설립자']),
                 isViolation: isViolNonEmpty,
                 violationType: isViolNonEmpty ? violRaw : '',
                 // 지도내용은 별도 필드로 보관
@@ -221,14 +280,20 @@ export async function fetch2026InspectionData() {
                 source: '2026',
             };
 
-            const key = normalizeName(name);
-            if (!inspectionMap.has(key)) inspectionMap.set(key, []);
-            // 날짜 + 위반내용 조합으로 진짜 중복만 제거 (같은 날 여러 위반 허용)
-            const existing = inspectionMap.get(key);
             const dupKey = `${record.date}__${record.violationType}__${record.violationDetail}`;
-            if (!existing.some(r => `${r.date}__${r.violationType}__${r.violationDetail}` === dupKey)) {
-                existing.push(record);
-            }
+            const push = (key) => {
+                if (!key) return;
+                if (!inspectionMap.has(key)) inspectionMap.set(key, []);
+                const existing = inspectionMap.get(key);
+                // 날짜 + 위반내용 조합으로 진짜 중복만 제거 (같은 날 여러 위반 허용)
+                if (!existing.some(r => `${r.date}__${r.violationType}__${r.violationDetail}` === dupKey)) {
+                    existing.push(record);
+                }
+            };
+
+            // ① 명칭 키  ② 등록번호 키 (명칭이 바뀐 학원 대응)
+            push(normalizeName(name));
+            push(regKey(getFlexibleVal(row,['구분', '종별']), record.regNum));
         });
 
         // 날짜 내림차순 정렬 (최신순)
@@ -569,11 +634,11 @@ export function transformAcademyData(rawRows, inspectionMap = new Map()) {
         const ACTIVE = ['개원', '신고'];
 
         if (!academyMap.has(name)) {
-            const normName = normalizeName(name);
+            const category = row['학원종류'] || '교습소';
             academyMap.set(name, {
                 id: rowId,
                 name: name,
-                category: row['학원종류'] || '교습소',
+                category: category,
                 field: row['분야구분'] || '',
                 address: row['학원주소'] || row['교습소주소'] || '',
                 zip: row['우편번호'] || '',
@@ -600,16 +665,17 @@ export function transformAcademyData(rawRows, inspectionMap = new Map()) {
                 },
                 courses: [],
                 insurances: [],
-                inspections: inspectionMap.get(normName) || []
+                inspections: lookupInspections(inspectionMap, { id: rowId, name, category })
             });
         } else {
             // 같은 이름으로 재신고(재등록)한 경우: 새 항목이 활성 상태이고 기존이 비활성이면 메인 정보를 교체
             const existing = academyMap.get(name);
             if (rowId !== existing.id && ACTIVE.includes(rowStatus) && !ACTIVE.includes(existing.status)) {
-                const normName = normalizeName(name);
+                const category = row['학원종류'] || existing.category;
+                const newInspections = lookupInspections(inspectionMap, { id: rowId, name, category });
                 Object.assign(existing, {
                     id: rowId,
-                    category: row['학원종류'] || existing.category,
+                    category: category,
                     field: row['분야구분'] || existing.field,
                     address: row['학원주소'] || row['교습소주소'] || existing.address,
                     zip: row['우편번호'] || existing.zip,
@@ -635,7 +701,7 @@ export function transformAcademyData(rawRows, inspectionMap = new Map()) {
                         capacityTemporary: row['일시수용능력인원'] || existing.facilities.capacityTemporary
                     },
                     courses: [],
-                    inspections: inspectionMap.get(normName) || existing.inspections
+                    inspections: newInspections.length ? newInspections : existing.inspections
                 });
             }
         }
