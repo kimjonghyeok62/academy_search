@@ -1,7 +1,7 @@
 // 네이버플레이스/블로그 게시 여부 자동 조사 (배치)
 // 프론트가 학원 목록을 청크로 나눠 호출하고 진행률을 표시한다.
 // 서버리스 실행시간 제한이 있으므로 한 번에 받는 학원 수를 제한한다.
-import { probeAcademy, isBlocked, sleep } from './_lib/naverProbe.js';
+import { probeAcademy, isBlocked, blockedScope, sleep } from './_lib/naverProbe.js';
 
 // 학원 1곳당 플레이스 + 연결 채널(최대 4개)까지 조사하므로 요청이 4~12개 나간다.
 // 한 요청에 몰아넣으면 (1) 서버리스 실행시간 제한에 걸리고 (2) 초당 요청 수가 튀어 차단당한다.
@@ -13,25 +13,37 @@ const MAX_BATCH = 4;
 const CONCURRENCY = 1;
 const GAP_MS = 2000;
 
+// 검색이 막히면 아무 학원도 조사할 수 없으니 배치를 멈추고 기다려야 한다.
+// 반면 플레이스 상세(pcmap)나 블로그가 막힌 것은 그 학원만의 문제다 —
+// 결과를 만들지 않고(=기존 행을 덮어쓰지 않고) 건너뛰면 나머지는 계속 돌 수 있다.
+const STOPS_BATCH = 'search';
+
 async function runPool(items, worker, limit) {
     const results = new Array(items.length);
     let cursor = 0;
     let blockedErr = null;
+    let skipped = 0;
+    let skipReason = '';
     const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
         while (cursor < items.length && !blockedErr) {
             const i = cursor++;
             try {
                 results[i] = await worker(items[i]);
             } catch (err) {
-                if (isBlocked(err)) { blockedErr = err; return; }
-                throw err;
+                if (isBlocked(err)) {
+                    if (blockedScope(err) === STOPS_BATCH) { blockedErr = err; return; }
+                    skipped++;
+                    skipReason = err.message;
+                } else {
+                    throw err;
+                }
             }
             // 마지막 학원 뒤에 쉬는 건 응답만 늦출 뿐이다 (청크 사이 간격은 프론트가 따로 둔다)
             if (cursor < items.length) await sleep(GAP_MS);
         }
     });
     await Promise.all(runners);
-    return { results: results.filter(Boolean), blockedErr };
+    return { results: results.filter(Boolean), blockedErr, skipped, skipReason };
 }
 
 export default async function handler(req, res) {
@@ -53,7 +65,7 @@ export default async function handler(req, res) {
     }
 
     try {
-        const { results, blockedErr } = await runPool(
+        const { results, blockedErr, skipped, skipReason } = await runPool(
             academies,
             (a) => probeAcademy(a, city || '하남'),
             CONCURRENCY
@@ -65,6 +77,9 @@ export default async function handler(req, res) {
             results,
             blocked: !!blockedErr,
             blockedReason: blockedErr ? blockedErr.message : undefined,
+            // 플레이스·블로그 제한으로 이번엔 건너뛴 학원 수 (기존 결과는 그대로 남는다)
+            skipped: skipped || undefined,
+            skipReason: skipped ? skipReason : undefined,
         });
     } catch (err) {
         return res.status(500).json({ ok: false, error: err.message });

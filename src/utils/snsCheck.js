@@ -177,8 +177,13 @@ export const recordKey = (category, regNo) => `${category}|${regNo}`;
 // 기본 조사 대상은 '한 번도 안 본 곳 + 오래된 곳'으로 잡는다.
 export const RECHECK_DAYS = 30;
 
+// 소개글을 못 읽어 보류된 행은 '조사한 셈' 치면 안 된다.
+// 그대로 두면 반쪽 판정이 30일 동안 굳어 버린다 (naverProbe.js 의 보류 사유 문구와 짝)
+const HELD_BACK_MARK = '읽지 못해 보류';
+
 export function needsRecheck(result, days = RECHECK_DAYS) {
     if (!result || !result.checkedAt) return true;
+    if (String(result.미이행사유 || '').includes(HELD_BACK_MARK)) return true;
     const t = new Date(result.checkedAt).getTime();
     if (isNaN(t)) return true;
     return Date.now() - t > days * 86400000;
@@ -253,6 +258,8 @@ export async function probeAll(targets, city, { onProgress, shouldStop, onWait, 
     const all = [];
     let blocked = false;
     let blockedReason = '';
+    // 플레이스·블로그 제한으로 이번엔 못 본 학원 수 (배치는 멈추지 않고 지나간다)
+    let skipped = 0;
     let chunkGap = CHUNK_GAP_MS;
     let blockCount = 0;
     let i = 0;
@@ -273,6 +280,7 @@ export async function probeAll(targets, city, { onProgress, shouldStop, onWait, 
             continue;
         }
         const results = json.results || [];
+        skipped += json.skipped || 0;
         all.push(...results);
 
         if (json.blocked) {
@@ -315,7 +323,7 @@ export async function probeAll(targets, city, { onProgress, shouldStop, onWait, 
         onProgress?.(Math.min(i, targets.length), targets.length, results);
         if (i < targets.length && !(await waitOrStop(chunkGap, shouldStop))) break;
     }
-    return { results: all, blocked, blockedReason };
+    return { results: all, blocked, blockedReason, skipped };
 }
 
 // ── 구글시트 저장 / 조회 ────────────────────────────────

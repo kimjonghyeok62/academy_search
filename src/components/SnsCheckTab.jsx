@@ -99,6 +99,8 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
     const numberLabel = typeTab === '교습소' ? '신고번호' : '등록번호';
     const [filter, setFilter] = useState('미이행');
     const stopRef = useRef(false);
+    // 저장 여부를 판단할 때 최신 결과가 필요하다 (setState 갱신함수 안에서 부수효과를 내지 않으려고 ref 로 둔다)
+    const resultsRef = useRef({});
 
     // 헤더 2행의 sticky top = 1행의 실제 높이. 고정값으로 두면 글꼴·확대율에 따라 겹치거나 벌어진다.
     const headRowRef = useRef(null);
@@ -124,6 +126,7 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                 if (r.regNo) map[recordKey(r.category, r.regNo)] = r;
             });
             setResults(map);
+            resultsRef.current = map;
             setLoading(false);
         });
         return () => { alive = false; };
@@ -181,23 +184,31 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
         let saveQueue = Promise.resolve();
         let savedCount = 0;
         let saveError = '';
+        let heldBack = 0;   // 플레이스 상세 제한으로 반쪽만 본 결과 — 기존 판정을 지키려고 버린 수
 
-        const { blocked, blockedReason } = await probeAll(list, region, {
+        const { blocked, blockedReason, skipped } = await probeAll(list, region, {
             shouldStop: () => stopRef.current,
             onWait: (left, nth, reason) => setWait(left ? { left, nth, reason } : null),
             onProgress: (done, total, chunk) => {
                 setProgress({ done, total });
                 if (!chunk.length) return;
-                setResults(prev => {
-                    const next = { ...prev };
-                    chunk.forEach(r => { next[recordKey(r.category, r.regNo)] = r; });
-                    return next;
-                });
+                // 네이버 플레이스 상세가 제한 중이면 소개글을 못 읽어 교습비·번호를 확정할 수 없다.
+                // 그 반쪽 결과로 이미 제대로 조사해 둔 학원을 덮으면 멀쩡한 '이행'이 '확인불가'가 된다.
+                // 아직 한 번도 안 본 학원은 반쪽이라도 없는 것보다 낫다.
+                const usable = chunk.filter(r => !r.partial || !resultsRef.current[recordKey(r.category, r.regNo)]);
+                heldBack += chunk.length - usable.length;
+                if (!usable.length) return;
+
+                const next = { ...resultsRef.current };
+                usable.forEach(r => { next[recordKey(r.category, r.regNo)] = r; });
+                resultsRef.current = next;
+                setResults(next);
+
                 // 저장은 순차 처리(동시 쓰기로 시트 행이 꼬이지 않도록)
                 saveQueue = saveQueue.then(async () => {
                     try {
-                        await saveSnsChecks(chunk.map(resultToRecord));
-                        savedCount += chunk.length;
+                        await saveSnsChecks(usable.map(resultToRecord));
+                        savedCount += usable.length;
                         setSaveState(`저장됨 ${savedCount}곳`);
                     } catch (err) {
                         saveError = err.message;
@@ -215,10 +226,18 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                 + `한참 뒤에 "조사 필요 …곳" 버튼으로 이어서 진행하세요. 남은 학원은 덮어쓰지 않았습니다.`);
             return;
         }
-        if (!savedCount && !saveError) return;
+        // 플레이스 상세는 IP당 제한이 빡빡해 일부는 이번에 못 볼 수 있다. 배치를 세우지 않고 지나간 몫이다.
+        const leftover = (skipped || 0) + heldBack;
+        const leftoverMsg = leftover
+            ? ` (${leftover}곳은 네이버 플레이스 상세가 제한 중이라 이번엔 건너뛰었습니다 — 기존 결과는 그대로입니다. 잠시 뒤 다시 돌리면 채워집니다)`
+            : '';
+        if (!savedCount && !saveError) {
+            if (leftover) setSaveState(`이번에는 새로 저장한 곳이 없습니다.${leftoverMsg}`);
+            return;
+        }
         setSaveState(saveError
             ? `⚠ 일부 저장 실패: ${saveError} (저장 ${savedCount}곳, 화면 결과는 유지됩니다)`
-            : `✓ ${label} ${savedCount}곳 저장 완료`);
+            : `✓ ${label} ${savedCount}곳 저장 완료${leftoverMsg}`);
     }, [region]);
 
     const runStale = () => runProbe(stale.map(x => x.target), typeTab);
@@ -232,7 +251,14 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
             setSaveState(`⛔ 네이버가 요청을 일시 차단했습니다 (${blockedReason || '차단'}). 잠시 후 다시 시도하세요.`);
             return;
         }
-        setResults(prev => ({ ...prev, [recordKey(r.category, r.regNo)]: r }));
+        const key = recordKey(r.category, r.regNo);
+        if (r.partial && resultsRef.current[key]) {
+            setSaveState('지금은 네이버 플레이스 상세가 제한 중이라 소개글을 읽지 못했습니다 — 기존 결과를 그대로 둡니다. 잠시 뒤 다시 눌러 주세요.');
+            return;
+        }
+        const next = { ...resultsRef.current, [key]: r };
+        resultsRef.current = next;
+        setResults(next);
         try { await saveSnsChecks([resultToRecord(r)]); } catch { /* 화면 결과는 유지 */ }
     };
 
