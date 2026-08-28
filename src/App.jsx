@@ -675,9 +675,10 @@ function App() {
         academies={academies}
         privateTutors={privateTutors}
         initialTab={inspectionInitialTab}
-        onSelectAcademy={(academy) => {
+        onSelectAcademy={(academy, tab) => {
           setDetailOrigin('inspection');
           setShowInspection(false);
+          setDetailInitialTab(tab || undefined);
           setSelectedAcademy(academy);
         }}
         onShowRouteMap={(academies) => {

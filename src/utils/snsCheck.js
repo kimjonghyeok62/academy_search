@@ -44,6 +44,87 @@ export function parseChannels(result) {
     }];
 }
 
+// 표의 채널 열 이름 — 인스타그램은 열이 없고 비고·링크에만 나온다
+export const BUCKET_LABEL = { blog: '블로그', homepage: '홈페이지', cafe: '카페', instagram: '인스타' };
+
+/**
+ * 채널 하나가 표의 어느 열에 들어가는지 정한다.
+ * 카페는 URL 호스트로만 가려낼 수 있다 — cafe.daum.net 은 종류가 'homepage' 이고
+ * 유형(라벨)은 사업주가 붙인 값(카페/홈페이지…)이라 믿을 수 없다.
+ */
+export function channelBucket(c) {
+    if (c.종류 === 'blog') return 'blog';
+    if (c.종류 === 'instagram') return 'instagram';
+    let host = String(c.url || '').toLowerCase();
+    try { host = new URL(c.url).hostname.toLowerCase(); } catch { /* 형식이 깨진 URL 은 문자열 그대로 본다 */ }
+    return /(^|\.)cafe\./.test(host) ? 'cafe' : 'homepage';
+}
+
+// 나쁜 순서 — 같은 종류 채널이 여러 개면 가장 나쁜 값 하나로 합쳐 보여준다
+const CELL_RANK = { X: 0, '?': 1, O: 2 };
+function worstCell(values) {
+    let worst = null;
+    for (const v of values) {
+        if (CELL_RANK[v] === undefined) continue;
+        if (worst === null || CELL_RANK[v] < CELL_RANK[worst]) worst = v;
+    }
+    return worst;
+}
+
+/**
+ * 채널 목록 → 표의 블로그·홈페이지·카페 칸 값.
+ * 링크가 없는 종류는 null 로 남겨 화면에서 '없음' 으로 표시한다.
+ */
+export function bucketCells(channels) {
+    const out = { blog: null, homepage: null, cafe: null, instagram: null };
+    (channels || []).forEach((c) => {
+        const b = channelBucket(c);
+        if (!out[b]) out[b] = { 교습비: [], 번호: [], count: 0 };
+        out[b].교습비.push(c.교습비);
+        out[b].번호.push(c.번호);
+        out[b].count++;
+    });
+    Object.keys(out).forEach((k) => {
+        if (!out[k]) return;
+        out[k] = { 교습비: worstCell(out[k].교습비), 번호: worstCell(out[k].번호), count: out[k].count };
+    });
+    return out;
+}
+
+/**
+ * 비고 — 표의 O/X 칸만 봐서는 알 수 없는 것만 적는다.
+ * '교습비 미게시 / 번호 미기재' 는 이미 칸이 X 로 보여주므로 넣지 않고, URL 도 링크 열에 있으므로 뺀다.
+ */
+export function snsRemark(result) {
+    if (!result) return '';
+    const notes = [];
+
+    if (result.matchStatus === 'no_match') notes.push('네이버플레이스 못 찾음');
+    else if (result.matchStatus === 'ambiguous') notes.push('동명 업체 가능성 — 직접 확인');
+    else if (result.matchStatus === 'error') notes.push('조사 중 오류 — 다시 확인 필요');
+
+    if (result.플레이스_번호대조 === '불일치') {
+        notes.push(`플레이스 번호 오기재(${result.플레이스_기재번호} ≠ ${result.regNo})`);
+    }
+
+    const channels = parseChannels(result);
+    const counted = {};
+    channels.forEach((c) => {
+        const b = channelBucket(c);
+        const name = BUCKET_LABEL[b];
+        counted[b] = (counted[b] || 0) + 1;
+        if (c.번호대조 === '확인불가') notes.push(`${name} 확인불가${c.비고 ? ` — ${c.비고}` : ''}`);
+        else if (c.번호대조 === '불일치') notes.push(`${name} 번호 오기재(${c.기재번호} ≠ ${result.regNo})`);
+        // 인스타그램은 열이 없으므로 결과를 비고에 적는다
+        if (b === 'instagram' && c.번호대조 !== '확인불가') notes.push(`인스타 교습비${c.교습비}·번호${c.번호}`);
+    });
+
+    // 같은 종류가 여러 곳이면 한 칸에 합쳐 보여준다는 사실을 알려준다
+    Object.entries(counted).forEach(([b, n]) => { if (n > 1) notes.push(`${BUCKET_LABEL[b]} ${n}곳`); });
+
+    return notes.join(' / ');
+}
+
 export const VERDICTS = ['이행', '미이행', '확인불가'];
 
 export const VERDICT_COLOR = {
@@ -100,14 +181,6 @@ export function needsRecheck(result, days = RECHECK_DAYS) {
     const t = new Date(result.checkedAt).getTime();
     if (isNaN(t)) return true;
     return Date.now() - t > days * 86400000;
-}
-
-/** 기재된 번호 요약 — '제436호 ≠1867' 처럼 왜 X 인지 한눈에 보이게 */
-export function regSub(기재번호, 대조, master) {
-    if (대조 === '일치') return 기재번호;
-    if (대조 === '불일치') return `${기재번호} ≠${master}`;
-    if (대조 === '미기재') return '미기재';
-    return '';
 }
 
 // 시트에서 읽어온 행 → 화면이 쓰는 결과 형태

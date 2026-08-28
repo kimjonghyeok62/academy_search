@@ -4561,13 +4561,14 @@ export default function InspectionPage({ onBack, academies, privateTutors, onSel
     }, []);
 
     // 학원 선택 시 현재 탭·스크롤·하위상태 저장 후 이동
-    const handleSelectAcademy = useCallback((academy) => {
+    // tab 을 넘기면 상세화면이 그 탭으로 열린다 (SNS 탭에서 학원명을 누른 경우 등)
+    const handleSelectAcademy = useCallback((academy, tab) => {
         try {
             sessionStorage.setItem(INSP_STATE_KEY, JSON.stringify({
                 region, activeTab, scrollY: window.scrollY, subState: subStateRef.current,
             }));
         } catch { /* ignore */ }
-        onSelectAcademy(academy);
+        onSelectAcademy(academy, tab);
     }, [region, activeTab, onSelectAcademy]);
 
     const TABS      = ['계획', '완료', '통계', '검토', 'SNS', '사진', '면적'];
@@ -4752,7 +4753,7 @@ export default function InspectionPage({ onBack, academies, privateTutors, onSel
                         {activeTab === 1 && <TabRecent region={region} academies={academies} onSelectAcademy={handleSelectAcademy} initialPage={recentInitPage} initialScrollY={recentInitScrollY} onPageChange={p => handleSubStateChange({ page: p })} />}
                         {activeTab === 2 && <TabStats region={region} statRows={statRows} academies={academies} privateTutors={privateTutors} academyClosures={academyClosures} addrDongCacheVer={addrDongCacheVer} />}
                         {activeTab === 3 && <TabReview region={region} academies={academies} privateTutors={privateTutors} academyClosures={academyClosures} onSelectAcademy={handleSelectAcademy} addrDongCacheVer={addrDongCacheVer} initialOpenSections={savedSubState.reviewOpenSections} onSubStateChange={s => handleSubStateChange({ reviewOpenSections: s })} />}
-                        {activeTab === 4 && <SnsCheckTab region={region} academies={academies} />}
+                        {activeTab === 4 && <SnsCheckTab region={region} academies={academies} onSelectAcademy={handleSelectAcademy} />}
                         {activeTab === 5 && <PhotoRenamePage embedded={true} />}
                         {activeTab === 6 && <AreaCalculatorApp embedded={true} />}
                     </div>

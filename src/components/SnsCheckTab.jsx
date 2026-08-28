@@ -1,8 +1,9 @@
-import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import {
-    probeAll, fetchSnsChecks, saveSnsChecks, resultToRecord, recordKey, rowToResult, regSub,
+    probeAll, fetchSnsChecks, saveSnsChecks, resultToRecord, recordKey, rowToResult,
     toProbeTargets, placeSearchUrl, blogSearchUrl, parseChannels, needsRecheck,
+    channelBucket, bucketCells, snsRemark, BUCKET_LABEL,
     RECHECK_DAYS, VERDICT_COLOR,
 } from '../utils/snsCheck';
 import OxBadge from './SnsOxBadge';
@@ -20,23 +21,50 @@ const fmtLeft = (sec) => (sec >= 60 ? `${Math.ceil(sec / 60)}분` : `${sec}초`)
 
 const Chip = ({ label, active, onClick, count, color }) => (
     <button onClick={onClick} style={{
-        padding: '5px 10px', borderRadius: '999px', fontSize: '0.76rem', cursor: 'pointer',
+        padding: '6px 12px', borderRadius: '999px', fontSize: '0.82rem', cursor: 'pointer',
         border: '1px solid', borderColor: active ? (color || 'var(--primary)') : 'var(--border-color)',
         background: active ? (color || 'var(--primary)') : 'transparent',
         color: active ? 'white' : 'var(--text-muted)', fontWeight: active ? '700' : '500', whiteSpace: 'nowrap',
     }}>{label}{count !== undefined ? ` ${count}` : ''}</button>
 );
 
-const Th = ({ children, w }) => (
-    <th style={{ padding: '7px 8px', fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', textAlign: 'left', whiteSpace: 'nowrap', width: w }}>{children}</th>
+// ── 표 치수 ────────────────────────────────────────────
+const W_NUM = 40;     // '#' 열 — 학원명 열의 sticky left 값이기도 하다
+const W_NAME = 168;
+const W_CH = 64;      // 채널 O/X 칸 8개 (플레이스·블로그·홈페이지·카페 × 번호·교습비)
+// 줄무늬·헤더 배경 (--bg-main 은 어디에도 정의돼 있지 않아 투명하게 나온다.
+//  sticky 헤더가 투명하면 아래 행이 그대로 비쳐 보이므로 정의된 변수를 쓴다)
+const BG_STRIPE = 'var(--bg-light)';
+const BG_ROW = 'var(--bg-card)';
+
+// sticky 셀은 borderCollapse 표에서 border 가 사라지고 tr 배경도 따라오지 않는다.
+// 그래서 배경색과 아래 경계선(inset shadow)을 셀마다 직접 준다.
+const thBase = {
+    padding: '9px 10px', fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-muted)',
+    whiteSpace: 'nowrap', background: BG_STRIPE,
+    boxShadow: 'inset 0 -1px 0 var(--border-color)',
+};
+
+// top 은 호출부에서 넘긴다 — 2행의 위치는 1행 높이를 실제로 재서 정한다(글꼴에 따라 달라진다)
+// 열 너비는 colgroup 이 정한다 (table-layout: fixed)
+const Th = ({ children, top = 0, colSpan, rowSpan, center, left, tight }) => (
+    <th colSpan={colSpan} rowSpan={rowSpan} style={{
+        ...thBase,
+        ...(tight ? { padding: '9px 4px' } : null),
+        textAlign: center ? 'center' : 'left',
+        position: 'sticky', top,
+        ...(left !== undefined ? { left, zIndex: 20 } : { zIndex: 12 }),
+    }}>{children}</th>
 );
 
 const Td = ({ children, style }) => (
-    <td style={{ padding: '7px 8px', fontSize: '0.76rem', color: 'var(--text-main)', borderTop: '1px solid var(--border-color)', ...style }}>{children}</td>
+    <td style={{
+        padding: '10px', fontSize: '0.86rem', lineHeight: 1.5, color: 'var(--text-main)',
+        borderTop: '1px solid var(--border-color)', ...style,
+    }}>{children}</td>
 );
 
-
-export default function SnsCheckTab({ region, academies }) {
+export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
     const city = region.endsWith('시') ? region : region + '시';
 
     // 검토 탭과 동일한 활성 목록 기준 (지역 + 개원 상태)
@@ -52,6 +80,14 @@ export default function SnsCheckTab({ region, academies }) {
         ...toProbeTargets(hActiveList, '교습소'),
     ], [aActiveList, hActiveList]);
 
+    // 학원명을 눌러 상세화면으로 갈 때 원본 학원 객체가 필요하다.
+    // 조사 대상(target)에 통째로 붙이면 /api/sns-probe 요청 본문까지 커지므로 여기서만 따로 찾는다.
+    const academyById = useMemo(() => {
+        const m = new Map();
+        [...aActiveList, ...hActiveList].forEach(a => { if (a.id) m.set(a.id, a); });
+        return m;
+    }, [aActiveList, hActiveList]);
+
     const [results, setResults] = useState({});      // key → result
     const [loading, setLoading] = useState(true);
     const [running, setRunning] = useState(false);
@@ -63,6 +99,19 @@ export default function SnsCheckTab({ region, academies }) {
     const numberLabel = typeTab === '교습소' ? '신고번호' : '등록번호';
     const [filter, setFilter] = useState('미이행');
     const stopRef = useRef(false);
+
+    // 헤더 2행의 sticky top = 1행의 실제 높이. 고정값으로 두면 글꼴·확대율에 따라 겹치거나 벌어진다.
+    const headRowRef = useRef(null);
+    const [headRowH, setHeadRowH] = useState(37);
+    useLayoutEffect(() => {
+        const el = headRowRef.current;
+        if (!el) return undefined;
+        const update = () => setHeadRowH(el.getBoundingClientRect().height);
+        update();
+        const ro = new ResizeObserver(update);
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, [loading]);
 
     // 저장된 결과 불러오기
     useEffect(() => {
@@ -231,12 +280,13 @@ export default function SnsCheckTab({ region, academies }) {
         <div>
             {/* 안내 */}
             <div style={{ background: 'var(--bg-card)', borderRadius: '14px', padding: '14px 16px', border: '1px solid var(--border-color)', marginBottom: '12px', boxShadow: 'var(--shadow-sm)' }}>
-                <div style={{ fontSize: '0.88rem', fontWeight: '800', marginBottom: '6px' }}>📣 네이버 교습비·등록번호 게시점검</div>
-                <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>
-                    네이버플레이스의 가격 메뉴·가격표 이미지·소개글과, <b>플레이스 홈에 링크된 블로그·홈페이지·인스타그램</b>을
+                <div style={{ fontSize: '0.95rem', fontWeight: '800', marginBottom: '6px' }}>📣 네이버 교습비·등록번호 게시점검</div>
+                <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.7 }}>
+                    네이버플레이스의 가격 메뉴·가격표 이미지·소개글과, <b>플레이스 홈에 링크된 블로그·홈페이지·카페·인스타그램</b>을
                     자동으로 조사해 교습비와 등록(신고)번호 게시 여부를 판정합니다. 링크가 없는 채널은 따로 검색하지 않습니다.
                     <b> 자동 판정이므로 확정 위반이 아니라 안내·점검 우선순위 참고 자료</b>이며,
-                    동명 학원이나 지점이 있으면 <b>확인불가</b>로 남습니다. 최종 확인은 링크로 직접 보시기 바랍니다.
+                    동명 학원이나 지점이 있으면 <b>확인불가</b>로 남습니다.
+                    <b> 학원명을 누르면</b> 그 학원의 상세 SNS 화면에서 판정 근거를 전부 볼 수 있습니다.
                     {lastCheckedAt && <><br />최근 조사: <b>{fmtWhen(lastCheckedAt)}</b></>}
                 </div>
             </div>
@@ -257,15 +307,15 @@ export default function SnsCheckTab({ region, academies }) {
 
                 {running ? (
                     <div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.76rem', marginBottom: '4px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', marginBottom: '4px' }}>
                             <span style={{ color: 'var(--text-muted)' }}>조사 중… {progress.done} / {progress.total}</span>
-                            <button onClick={() => { stopRef.current = true; }} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '0.76rem', fontWeight: '700', cursor: 'pointer' }}>중단</button>
+                            <button onClick={() => { stopRef.current = true; }} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '0.82rem', fontWeight: '700', cursor: 'pointer' }}>중단</button>
                         </div>
                         <div style={{ height: '6px', borderRadius: '3px', background: 'var(--border-color)', overflow: 'hidden' }}>
                             <div style={{ height: '100%', width: `${progress.total ? (progress.done / progress.total) * 100 : 0}%`, background: wait ? '#f59e0b' : 'var(--primary)', transition: 'width .3s' }} />
                         </div>
                         {wait && (
-                            <div style={{ fontSize: '0.74rem', color: '#f59e0b', marginTop: '6px', lineHeight: 1.6 }}>
+                            <div style={{ fontSize: '0.8rem', color: '#f59e0b', marginTop: '6px', lineHeight: 1.7 }}>
                                 ⏸ 네이버가 요청을 잠시 막았습니다 — <b>{fmtLeft(wait.left)} 뒤 자동으로 이어서 진행</b>합니다 ({wait.nth}번째 대기).
                                 <br />여기 계실 필요 없습니다. 탭만 열어두시면 끝까지 알아서 돕니다. 지금까지 결과는 이미 저장돼 있습니다.
                             </div>
@@ -280,9 +330,9 @@ export default function SnsCheckTab({ region, academies }) {
                         {counts.미이행 > 0 && <button onClick={downloadNonCompliantExcel} style={btnStyle('#ef4444')}>📥 미이행 연락처 ({counts.미이행})</button>}
                     </div>
                 )}
-                {saveState && <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '8px' }}>{saveState}</div>}
+                {saveState && <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '8px' }}>{saveState}</div>}
                 {!running && (
-                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '6px', lineHeight: 1.6 }}>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '6px', lineHeight: 1.7 }}>
                         <b>조사 필요</b> = 한 번도 안 본 곳 + 조사한 지 {RECHECK_DAYS}일 지난 곳. 게시 상태는 자주 바뀌지 않아서,
                         최근에 본 곳까지 매번 다시 도는 것이 네이버 차단의 가장 큰 원인이었습니다.
                         {stale.length > 30 && <> 지금 대상은 약 {Math.ceil(stale.length * 10 / 60)}분 걸립니다.</>}
@@ -291,84 +341,120 @@ export default function SnsCheckTab({ region, academies }) {
                 )}
             </div>
 
-            {/* 결과 표 */}
-            <div style={{ background: 'var(--bg-card)', borderRadius: '14px', border: '1px solid var(--border-color)', overflowX: 'auto', boxShadow: 'var(--shadow-sm)' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '820px' }}>
+            {/* 결과 표 — 헤더 2줄은 위에, 연번·학원명은 왼쪽에 고정된다 */}
+            <div style={{
+                background: 'var(--bg-card)', borderRadius: '14px', border: '1px solid var(--border-color)',
+                overflowX: 'auto', overflowY: 'auto', maxHeight: '72vh', boxShadow: 'var(--shadow-sm)',
+            }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', minWidth: '1400px' }}>
+                    {/* 열 너비는 여기서 정한다 — 자동 배분에 맡기면 '비고' 가 짜부라져 행이 10줄로 늘어난다.
+                        너비를 주지 않은 '비고' 가 남는 폭을 모두 가져간다. */}
+                    <colgroup>
+                        <col style={{ width: `${W_NUM}px` }} />
+                        <col style={{ width: `${W_NAME}px` }} />
+                        <col style={{ width: '76px' }} />
+                        {Array.from({ length: 8 }, (_, i) => <col key={i} style={{ width: `${W_CH}px` }} />)}
+                        <col style={{ width: '130px' }} />
+                        <col />
+                        <col style={{ width: '118px' }} />
+                        <col style={{ width: '84px' }} />
+                    </colgroup>
                     <thead>
-                        <tr style={{ background: 'var(--bg-main)' }}>
-                            <Th w="34px">#</Th><Th>학원명</Th><Th w="66px">{numberLabel}</Th>
-                            <Th w="66px">판정</Th>
-                            <Th w="104px">플레이스<br />교습비</Th><Th w="112px">플레이스<br />{numberLabel}</Th>
-                            <Th w="96px">블로그<br />교습비</Th><Th w="112px">블로그<br />{numberLabel}</Th>
-                            <Th>사유 / 링크</Th>
+                        {/* 1행: 채널 묶음 */}
+                        <tr ref={headRowRef}>
+                            <Th rowSpan={2} left={0} center>#</Th>
+                            <Th rowSpan={2} left={W_NUM}>학원명</Th>
+                            <Th rowSpan={2}>{numberLabel}</Th>
+                            <Th colSpan={2} center>플레이스</Th>
+                            <Th colSpan={2} center>블로그</Th>
+                            <Th colSpan={2} center>홈페이지</Th>
+                            <Th colSpan={2} center>카페</Th>
+                            <Th rowSpan={2}>링크</Th>
+                            <Th rowSpan={2}>비고</Th>
+                            <Th rowSpan={2}>전화번호</Th>
+                            <Th rowSpan={2} center>새로고침</Th>
+                        </tr>
+                        {/* 2행: 묶음별 항목 */}
+                        <tr>
+                            {['place', 'blog', 'homepage', 'cafe'].map(g => [
+                                <Th key={`${g}-no`} top={headRowH} center tight>{numberLabel}</Th>,
+                                <Th key={`${g}-fee`} top={headRowH} center tight>교습비</Th>,
+                            ])}
                         </tr>
                     </thead>
                     <tbody>
                         {visible.length === 0 && (
-                            <tr><td colSpan={9} style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                            <tr><td colSpan={15} style={{ padding: '28px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
                                 해당하는 {typeTab}이(가) 없습니다.
                             </td></tr>
                         )}
-                        {visible.map(({ target, result }, i) => (
-                            <tr key={recordKey(target.category, target.regNo)} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
-                                <Td style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>{i + 1}</Td>
-                                <Td style={{ fontWeight: '600' }}>
-                                    {target.name}
-                                    {result?.플레이스명 && result.플레이스명 !== target.name && (
-                                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>→ {result.플레이스명}</div>
-                                    )}
-                                </Td>
-                                <Td style={{ color: 'var(--text-muted)', fontSize: '0.73rem' }}>{target.regNo}</Td>
-                                <Td>
-                                    {result
-                                        ? <span style={{ color: VERDICT_COLOR[result.판정], fontWeight: '800', fontSize: '0.74rem' }}>{result.판정}</span>
-                                        : <span style={{ color: 'var(--text-muted)', fontSize: '0.74rem' }}>미조사</span>}
-                                </Td>
-                                <Td>
-                                    <OxBadge value={result?.플레이스_교습비} sub={result?.플레이스_게시형태 !== '없음' ? result?.플레이스_게시형태 : ''} />
-                                </Td>
-                                <Td>
-                                    <OxBadge value={result?.플레이스_번호}
-                                        sub={result ? regSub(result.플레이스_기재번호, result.플레이스_번호대조, target.regNo) : ''}
-                                        subColor={result?.플레이스_번호대조 === '불일치' ? '#ef4444' : undefined} />
-                                </Td>
-                                <Td>
-                                    {result && result.블로그 !== '있음'
-                                        ? <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{result.블로그 || '-'}</span>
-                                        : <OxBadge value={result?.블로그_교습비} />}
-                                </Td>
-                                <Td>
-                                    {result && result.블로그 !== '있음'
-                                        ? <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>-</span>
-                                        : <OxBadge value={result?.블로그_번호}
-                                            sub={result ? regSub(result.블로그_기재번호, result.블로그_번호대조, target.regNo) : ''}
-                                            subColor={result?.블로그_번호대조 === '불일치' ? '#ef4444' : undefined} />}
-                                </Td>
-                                <Td>
-                                    {result?.미이행사유 && (
-                                        <div style={{ fontSize: '0.71rem', color: '#ef4444', marginBottom: '3px' }}>{result.미이행사유}</div>
-                                    )}
-                                    {result && result.판정 === '확인불가' && (
-                                        <div style={{ fontSize: '0.71rem', color: 'var(--text-muted)', marginBottom: '3px' }}>
-                                            자동 매칭 실패 — 직접 확인 필요
-                                        </div>
-                                    )}
-                                    <div style={{ display: 'flex', gap: '8px', fontSize: '0.71rem', flexWrap: 'wrap' }}>
-                                        <a href={result?.플레이스URL || placeSearchUrl(target.name, region)} target="_blank" rel="noreferrer" style={linkStyle}>플레이스</a>
-                                        {/* 플레이스 홈에 걸린 링크들 — 실제로 조사한 대상이다 */}
-                                        {parseChannels(result).map((c, ci) => (
-                                            <a key={`${c.url}-${ci}`} href={c.url} target="_blank" rel="noreferrer" style={linkStyle}
-                                                title={`${c.유형} · 교습비 ${c.교습비} / ${numberLabel} ${c.번호}`}>
-                                                {c.유형}{c.교습비 === 'O' && c.번호 === 'O' ? '✓' : c.번호대조 === '확인불가' ? '?' : '✕'}
+                        {visible.map(({ target, result }, i) => {
+                            const rowBg = i % 2 === 0 ? BG_ROW : BG_STRIPE;
+                            const channels = parseChannels(result);
+                            const cells = bucketCells(channels);
+                            const academy = academyById.get(target.id);
+                            const remark = snsRemark(result);
+                            // 아직 조사 전이면 빈 값(–), 조사했는데 그 채널 링크가 없으면 '없음'
+                            const ch = (key, field) => (!result ? '' : cells[key] ? cells[key][field] : '없음');
+                            const place = (field) => (!result ? '' : result.matchStatus === 'no_match' ? '없음' : result[field]);
+                            return (
+                                <tr key={recordKey(target.category, target.regNo)} style={{ background: rowBg }}>
+                                    <Td style={{ ...stickyTd(0, rowBg), color: 'var(--text-muted)', fontSize: '0.78rem', textAlign: 'center' }}>{i + 1}</Td>
+                                    <Td style={{ ...stickyTd(W_NUM, rowBg), wordBreak: 'keep-all' }}>
+                                        {academy && onSelectAcademy ? (
+                                            <span onClick={() => onSelectAcademy(academy, 'sns')}
+                                                style={{ fontSize: '0.9rem', fontWeight: '700', color: 'var(--primary)', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '2px' }}>
+                                                {target.name}
+                                            </span>
+                                        ) : (
+                                            <span style={{ fontSize: '0.9rem', fontWeight: '700' }}>{target.name}</span>
+                                        )}
+                                        {result?.플레이스명 && result.플레이스명 !== target.name && (
+                                            <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>→ {result.플레이스명}</div>
+                                        )}
+                                    </Td>
+                                    <Td style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{target.regNo}</Td>
+
+                                    <Td style={CENTER}><OxBadge value={place('플레이스_번호')} /></Td>
+                                    <Td style={CENTER}><OxBadge value={place('플레이스_교습비')} /></Td>
+                                    <Td style={CENTER}><OxBadge value={ch('blog', '번호')} /></Td>
+                                    <Td style={CENTER}><OxBadge value={ch('blog', '교습비')} /></Td>
+                                    <Td style={CENTER}><OxBadge value={ch('homepage', '번호')} /></Td>
+                                    <Td style={CENTER}><OxBadge value={ch('homepage', '교습비')} /></Td>
+                                    <Td style={CENTER}><OxBadge value={ch('cafe', '번호')} /></Td>
+                                    <Td style={CENTER}><OxBadge value={ch('cafe', '교습비')} /></Td>
+
+                                    <Td>
+                                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', fontSize: '0.8rem' }}>
+                                            <a href={result?.플레이스URL || placeSearchUrl(target.name, region)} target="_blank" rel="noreferrer" style={linkStyle}>
+                                                {result?.플레이스URL ? '플레이스' : '플레이스검색'}
                                             </a>
-                                        ))}
-                                        {!result && <a href={blogSearchUrl(target.name, region)} target="_blank" rel="noreferrer" style={linkStyle}>블로그검색</a>}
-                                        <button onClick={() => runOne(target)} disabled={running} style={{ background: 'none', border: 'none', padding: 0, color: '#0ea5e9', fontSize: '0.71rem', fontWeight: '600', cursor: running ? 'default' : 'pointer' }}>다시확인</button>
-                                        {target.contact && <a href={`tel:${target.contact}`} style={linkStyle}>{target.contact}</a>}
-                                    </div>
-                                </Td>
-                            </tr>
-                        ))}
+                                            {/* 플레이스 홈에 걸린 링크들 — 실제로 조사한 대상이다 */}
+                                            {channels.map((c, ci) => (
+                                                <a key={`${c.url}-${ci}`} href={c.url} target="_blank" rel="noreferrer" style={linkStyle}>
+                                                    {BUCKET_LABEL[channelBucket(c)]}
+                                                </a>
+                                            ))}
+                                            {!result && <a href={blogSearchUrl(target.name, region)} target="_blank" rel="noreferrer" style={linkStyle}>블로그검색</a>}
+                                        </div>
+                                    </Td>
+                                    <Td style={{ fontSize: '0.8rem', color: '#ef4444', wordBreak: 'keep-all' }}>{remark}</Td>
+                                    <Td style={{ whiteSpace: 'nowrap' }}>
+                                        {target.contact
+                                            ? <a href={`tel:${target.contact}`} style={{ ...linkStyle, fontSize: '0.84rem' }}>{target.contact}</a>
+                                            : <span style={{ color: 'var(--text-muted)' }}>–</span>}
+                                    </Td>
+                                    <Td style={CENTER}>
+                                        <button onClick={() => runOne(target)} disabled={running} style={{
+                                            background: 'none', border: '1px solid var(--border-color)', borderRadius: '6px',
+                                            padding: '5px 9px', color: running ? 'var(--text-muted)' : '#0ea5e9',
+                                            fontSize: '0.8rem', fontWeight: '600', whiteSpace: 'nowrap',
+                                            cursor: running ? 'default' : 'pointer',
+                                        }}>새로고침</button>
+                                    </Td>
+                                </tr>
+                            );
+                        })}
                     </tbody>
                 </table>
             </div>
@@ -377,8 +463,12 @@ export default function SnsCheckTab({ region, academies }) {
 }
 
 const btnStyle = (bg) => ({
-    padding: '7px 12px', borderRadius: '8px', border: 'none', background: bg,
-    color: 'white', fontSize: '0.78rem', fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap',
+    padding: '8px 14px', borderRadius: '8px', border: 'none', background: bg,
+    color: 'white', fontSize: '0.84rem', fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap',
 });
 
 const linkStyle = { color: '#3b82f6', fontWeight: '600', textDecoration: 'none' };
+const CENTER = { textAlign: 'center' };
+
+// 가로로 스크롤해도 남는 왼쪽 고정 칸 — 배경이 투명하면 뒤 칸이 비쳐 보인다
+const stickyTd = (left, background) => ({ position: 'sticky', left, zIndex: 2, background });
