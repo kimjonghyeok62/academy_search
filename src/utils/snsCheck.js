@@ -114,14 +114,18 @@ export function snsRemark(result) {
         const b = channelBucket(c);
         const name = BUCKET_LABEL[b];
         counted[b] = (counted[b] || 0) + 1;
+        // 인스타그램은 자동 조사 대상이 아니다 — 링크 열에만 두고 비고에는 쓰지 않는다
+        if (c.번호대조 === '조사안함') return;
         if (c.번호대조 === '확인불가') notes.push(`${name} 확인불가${c.비고 ? ` — ${c.비고}` : ''}`);
         else if (c.번호대조 === '불일치') notes.push(`${name} 번호 오기재(${c.기재번호} ≠ ${result.regNo})`);
-        // 인스타그램은 열이 없으므로 결과를 비고에 적는다
-        if (b === 'instagram' && c.번호대조 !== '확인불가') notes.push(`인스타 교습비${c.교습비}·번호${c.번호}`);
+        // 인스타그램은 열이 없으므로 판정된 경우에만 결과를 비고에 적는다
+        if (b === 'instagram') notes.push(`인스타 번호${c.번호}`);
     });
 
     // 같은 종류가 여러 곳이면 한 칸에 합쳐 보여준다는 사실을 알려준다
-    Object.entries(counted).forEach(([b, n]) => { if (n > 1) notes.push(`${BUCKET_LABEL[b]} ${n}곳`); });
+    Object.entries(counted).forEach(([b, n]) => {
+        if (n > 1 && b !== 'instagram') notes.push(`${BUCKET_LABEL[b]} ${n}곳`);
+    });
 
     return notes.join(' / ');
 }
