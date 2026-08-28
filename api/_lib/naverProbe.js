@@ -585,6 +585,17 @@ export function buildResult({ academy, place, channels = [], matchScore, error }
 
     // ── 연결 채널별 판정 ──
     const 채널 = channels.map((c) => {
+        // 아예 부르지 않은 채널(인스타그램)은 '확인불가'와도 구분한다.
+        // 확인불가는 '열려다 실패'라 다시 시도할 값이 있지만, 이쪽은 의도적으로 안 본 것이다.
+        if (c.notProbed) {
+            return {
+                유형: c.label, 종류: c.kind, url: c.url,
+                교습비: '-', 번호: '-', 번호대조: '조사안함', 기재번호: '',
+                조사범위: '조사 안 함',
+                비고: '소개글 한 줄만 보이고 서버에서는 거의 열리지 않아 자동 조사 대상에서 뺐습니다 — 링크로 직접 확인하세요',
+                소개글: '',
+            };
+        }
         const 대조 = c.unavailable ? '확인불가' : compareRegNos(c.regNos, masterDigits);
         return {
             유형: c.label,
@@ -612,9 +623,14 @@ export function buildResult({ academy, place, channels = [], matchScore, error }
         if (플레이스_번호대조 === '미기재') 미이행사유.push(`플레이스 ${numberLabel} 미기재`);
         if (플레이스_번호대조 === '불일치') 미이행사유.push(`플레이스 ${numberLabel} 오기재(${플레이스_기재번호} ≠ ${academy.regNo})`);
         for (const c of 채널) {
-            if (c.번호대조 === '확인불가') continue;   // 열지 못한 채널은 판정하지 않는다
+            // 열지 못한 채널도, 아예 안 본 채널도 판정하지 않는다
+            if (c.번호대조 === '확인불가' || c.번호대조 === '조사안함') continue;
             const 이름 = c.종류 === 'instagram' ? '인스타그램 소개글' : `${c.유형}(${shortUrl(c.url)})`;
-            if (c.교습비 === 'X') 미이행사유.push(`${이름} 교습비 미게시`);
+            // 인스타그램 프로필 소개글은 150자 한 줄이라 교습비를 적는 자리가 아니다.
+            // 표본 14곳 중 교습비를 적어둔 곳은 1곳뿐이었는데 14곳 모두 미이행이 됐다 —
+            // 학원이 안 지킨 게 아니라 근거로 삼을 자리가 아니어서 생기는 오판이다.
+            // 반면 등록번호는 짧아서 실제로 36%가 적어두므로 판정에 반영한다.
+            if (c.교습비 === 'X' && c.종류 !== 'instagram') 미이행사유.push(`${이름} 교습비 미게시`);
             if (c.번호대조 === '미기재') 미이행사유.push(`${이름} ${numberLabel} 미기재`);
             if (c.번호대조 === '불일치') 미이행사유.push(`${이름} ${numberLabel} 오기재(${c.기재번호} ≠ ${academy.regNo})`);
         }
@@ -708,7 +724,13 @@ export async function probeAcademy(academy, city) {
         // 플레이스 홈에 링크가 걸린 채널만 조사한다 (별도 검색 없음)
         // 채널은 대부분 서로 다른 호스트(블로그·인스타그램·홈페이지)라 동시에 받아도
         // 어느 한 곳에 요청이 몰리지 않는다. 다만 네이버 블로그끼리는 순차로 둔다.
-        const links = best ? best.links.slice(0, MAX_CHANNELS) : [];
+        //
+        // 인스타그램은 부르지 않는다. 데이터센터 IP 에서는 401/403 이라 실측 262건이 전부
+        // '확인불가'로 끝났다 — 못 읽을 요청을 학원마다 1~2건씩 보내 조사 시간과 차단 위험만 늘렸다.
+        // 링크는 그대로 남겨 담당자가 직접 눌러 볼 수 있게 한다.
+        const all = best ? best.links : [];
+        const skipList = all.filter((l) => l.kind === 'instagram');
+        const links = all.filter((l) => l.kind !== 'instagram').slice(0, MAX_CHANNELS);
         const channels = new Array(links.length);
         if (links.length) {
             const blogIdx = links.map((l, i) => [l, i]).filter(([l]) => l.kind === 'blog');
@@ -725,7 +747,9 @@ export async function probeAcademy(academy, city) {
             const blockedHit = settled.find((s) => s.status === 'rejected' && isBlocked(s.reason));
             if (blockedHit) throw blockedHit.reason;
         }
-        return buildResult({ academy, place: best, channels: channels.filter(Boolean), matchScore: bestScore });
+        const probed = channels.filter(Boolean);
+        const skipped = skipList.map((l) => ({ ...l, notProbed: true, scope: '조사 안 함' }));
+        return buildResult({ academy, place: best, channels: [...probed, ...skipped], matchScore: bestScore });
     } catch (err) {
         // 차단은 이 학원의 문제가 아니라 배치 전체의 문제 — 호출부가 중단하도록 그대로 올린다.
         // (여기서 '확인불가'로 삼키면 멀쩡한 기존 결과를 차단 결과로 덮어쓰게 된다)
