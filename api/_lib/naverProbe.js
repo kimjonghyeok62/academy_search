@@ -27,34 +27,48 @@ export function isBlocked(err) {
     return err && err.code === 'BLOCKED';
 }
 
-function blockedError(msg) {
+/** 차단이 어느 엔드포인트에서 났는지 — 'search' | 'place' | 'blog' */
+export function blockedScope(err) {
+    return (err && err.scope) || '';
+}
+
+function blockedError(msg, scope) {
     const e = new Error(msg);
     e.code = 'BLOCKED';
+    e.scope = scope || '';
     return e;
 }
 
-// 403/429 를 '배치 전체를 멈출 차단'으로 볼 곳은 네이버뿐이다.
+// 403/429 를 차단으로 볼 곳은 네이버뿐이다.
 // 인스타그램 API 는 서버(데이터센터 IP)에서 부르면 거의 항상 401/403 을 주고,
 // 학원 홈페이지도 Cloudflare 같은 방화벽이 봇을 403 으로 막는 일이 흔하다.
 // 이걸 네이버 차단으로 오인하면 아무리 기다려도 안 풀리는 대기에 배치가 갇힌다.
-function isNaverHost(url) {
-    try { return /(^|\.)naver\.com$/.test(new URL(url).hostname.toLowerCase()); }
-    catch { return false; }
+//
+// 네이버 안에서도 한 덩어리로 보면 안 된다. 실측상 pcmap.place 는 IP당 허용치가 유난히 빡빡해서
+// 열 몇 건이면 429 가 나는데, 그 순간에도 search 와 m.place 는 200 을 준다.
+// 예전에는 이걸 전부 '네이버 전면 차단'으로 보고 배치를 3~40분씩 세웠다.
+function naverScope(url) {
+    let host;
+    try { host = new URL(url).hostname.toLowerCase(); } catch { return ''; }
+    if (!/(^|\.)naver\.com$/.test(host)) return '';
+    if (host.endsWith('search.naver.com')) return 'search';
+    if (host.endsWith('place.naver.com')) return 'place';
+    return 'blog';   // blog / m.blog / rss.blog
 }
 
 async function getText(url, headers, timeoutMs) {
-    const naver = isNaverHost(url);
+    const scope = naverScope(url);
     const controller = new AbortController();
     const timer = setTimeout(
         () => controller.abort(),
-        timeoutMs || (naver ? FETCH_TIMEOUT_MS : FETCH_TIMEOUT_EXTERNAL_MS)
+        timeoutMs || (scope ? FETCH_TIMEOUT_MS : FETCH_TIMEOUT_EXTERNAL_MS)
     );
     try {
         const res = await fetch(url, { headers, signal: controller.signal, redirect: 'follow' });
-        // 네이버의 429/403 은 요청이 과했다는 뜻 — 개별 실패가 아니라 배치 전체를 멈춰야 한다.
+        // 네이버의 429/403 은 요청이 과했다는 뜻 — 어느 엔드포인트가 막혔는지까지 실어 보낸다.
         // 그 외 호스트의 403 은 그 채널 하나만 '확인불가'로 두고 계속 간다.
         if (res.status === 403 || res.status === 429) {
-            if (naver) throw blockedError(`네이버 요청 차단 (HTTP ${res.status})`);
+            if (scope) throw blockedError(`네이버 ${scope} 요청 제한 (HTTP ${res.status})`, scope);
             throw new Error(`HTTP ${res.status} (차단 아님 — 해당 사이트가 봇 접근을 막음)`);
         }
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -277,14 +291,19 @@ export function classifyLink(url, declaredType) {
 // '소개글에 등록번호 있는데 미기재' 오판의 원인이었다.
 export async function probePlace(placeId) {
     let state = null;
+    let introUnavailable = false;
     try {
         state = extractApolloState(await getText(`https://pcmap.place.naver.com/place/${placeId}/home`, H_PCMAP));
     } catch (err) {
-        if (isBlocked(err)) throw err;
+        // pcmap 이 429 로 막혀도 m.place 는 살아 있는 경우가 대부분이다.
+        // 예전에는 여기서 그대로 올려버려 바로 아래 대체 경로에 닿지도 못했다.
+        if (isBlocked(err) && blockedScope(err) !== 'place') throw err;
     }
     if (!state) {
-        // pcmap 이 실패하면 정보가 적더라도 모바일로 대체 (완전 실패보다 낫다)
+        // m.place 는 가격 메뉴와 연결 링크는 실어주지만 소개글(description)은 안 준다.
+        // 등록번호는 소개글에서 뽑으므로, 이 경로로 온 결과는 번호를 판정하지 않고 보류한다.
         state = extractApolloState(await getText(`https://m.place.naver.com/place/${placeId}/information`, H_MOBILE)) || {};
+        introUnavailable = true;
     }
 
     const base = state[`PlaceDetailBase:${placeId}`] || {};
@@ -336,6 +355,8 @@ export async function probePlace(placeId) {
         phone: base.virtualPhone || base.phone || '',
         roadAddress: base.roadAddress || base.address || '',
         intro,
+        // 소개글을 못 받은 경로로 왔다 — 소개글이 실제로 딸려왔다면 굳이 보류할 것 없다
+        introUnavailable: introUnavailable && !intro,
         menus,
         priceImageCount,
         links,
@@ -540,20 +561,27 @@ export function buildResult({ academy, place, channels = [], matchScore, error }
     const matchStatus = matchScore >= MATCH_OK ? 'matched' : matchScore >= MATCH_MAYBE ? 'ambiguous' : 'no_match';
 
     // ── 플레이스: 교습비 / 등록(신고)번호 각각 판정 ──
+    // pcmap 이 막혀 m.place 로 받아온 경우 소개글이 없다.
+    // 소개글에만 교습비를 적어둔 곳도, 등록번호를 적어둔 곳도 있으므로
+    // '못 봤다'를 '없다'로 바꿔 읽으면 멀쩡한 학원을 미이행으로 몰게 된다. 보류한다.
+    const introUnknown = !!place.introUnavailable;
     const introHasFee = FEE_KEYWORD.test(place.intro);
     const hasMenu = place.menus.length > 0;
     const hasPriceImage = place.priceImageCount > 0;
-    const placeFee = hasMenu || hasPriceImage || introHasFee;
+    // 메뉴·가격표가 있으면 소개글을 못 봐도 게시가 확실하다. 없을 때만 판정을 보류한다.
+    const feeConfirmed = hasMenu || hasPriceImage || introHasFee;
+    const placeFee = feeConfirmed || (introUnknown ? null : false);
 
     const 플레이스_게시형태 = hasMenu && hasPriceImage ? '가격메뉴+가격표이미지'
         : hasMenu ? '가격메뉴'
             : hasPriceImage ? '가격표이미지'
                 : introHasFee ? '소개글텍스트'
-                    : '없음';
+                    : introUnknown ? '확인불가'
+                        : '없음';
 
     const introRegs = extractRegNos(place.intro);
-    const 플레이스_기재번호 = [...new Set(introRegs.map((r) => r.raw))].join(',');
-    const 플레이스_번호대조 = compareRegNos(introRegs, masterDigits);
+    const 플레이스_기재번호 = introUnknown ? '' : [...new Set(introRegs.map((r) => r.raw))].join(',');
+    const 플레이스_번호대조 = introUnknown ? '확인불가' : compareRegNos(introRegs, masterDigits);
 
     // ── 연결 채널별 판정 ──
     const 채널 = channels.map((c) => {
@@ -580,7 +608,7 @@ export function buildResult({ academy, place, channels = [], matchScore, error }
     // 채널은 플레이스에 링크가 걸린 곳만 대상 — 블로그가 없다는 사실 자체는 위반이 아니다.
     const 미이행사유 = [];
     if (matchStatus === 'matched') {
-        if (!placeFee) 미이행사유.push('플레이스 교습비 미게시');
+        if (placeFee === false) 미이행사유.push('플레이스 교습비 미게시');
         if (플레이스_번호대조 === '미기재') 미이행사유.push(`플레이스 ${numberLabel} 미기재`);
         if (플레이스_번호대조 === '불일치') 미이행사유.push(`플레이스 ${numberLabel} 오기재(${플레이스_기재번호} ≠ ${academy.regNo})`);
         for (const c of 채널) {
@@ -592,7 +620,8 @@ export function buildResult({ academy, place, channels = [], matchScore, error }
         }
     }
     const 판정 = matchStatus !== 'matched' ? '확인불가'
-        : 미이행사유.length ? '미이행' : '이행';
+        : 미이행사유.length ? '미이행'
+            : introUnknown ? '확인불가' : '이행';
 
     return {
         id: academy.id,
@@ -604,9 +633,10 @@ export function buildResult({ academy, place, channels = [], matchScore, error }
         플레이스ID: place.placeId,
         플레이스명: place.placeName,
         플레이스URL: place.placeUrl,
-        플레이스_교습비: placeFee ? 'O' : 'X',
+        플레이스_교습비: placeFee === null ? '?' : placeFee ? 'O' : 'X',
         플레이스_게시형태,
-        플레이스_번호: 플레이스_번호대조 === '일치' ? 'O' : 'X',
+        플레이스_번호: 플레이스_번호대조 === '확인불가' ? '?'
+            : 플레이스_번호대조 === '일치' ? 'O' : 'X',
         플레이스_기재번호,
         플레이스_번호대조,
         블로그: blogCh ? '있음' : '없음',
@@ -618,8 +648,12 @@ export function buildResult({ academy, place, channels = [], matchScore, error }
         채널수: 채널.length,
         채널상세: JSON.stringify(채널),
         판정,
-        미이행사유: 미이행사유.join(' / '),
+        미이행사유: 미이행사유.join(' / ')
+            || (introUnknown ? '플레이스 소개글을 읽지 못해 보류 — 잠시 뒤 다시 확인' : ''),
         checkedAt: new Date().toISOString(),
+        // 소개글을 못 봐 반쪽만 본 결과. 시트에는 저장되지 않고(resultToRecord 가 아는 키만 옮긴다)
+        // 이미 제대로 조사해 둔 행을 덮어쓰지 않도록 프론트가 판단하는 데 쓴다.
+        partial: introUnknown,
     };
 }
 
@@ -627,6 +661,12 @@ export function buildResult({ academy, place, channels = [], matchScore, error }
 // academy.placeId 가 있으면 검색 단계를 건너뛴다. 검색 엔드포인트가 차단에 가장 취약하므로,
 // 한 번 찾아둔 플레이스 ID를 재사용하면 재조사 시 요청 수와 차단 위험이 크게 줄어든다.
 const MAX_CHANNELS = 4;   // 링크를 잔뜩 걸어둔 곳에서 요청이 폭증하지 않도록
+// 플레이스 상세(pcmap)는 IP당 허용치가 가장 빡빡한 엔드포인트다. 후보를 3곳씩 훑으면
+// 학원 한 곳에 요청 3건이 몰려 금방 429 가 난다. 기본 2곳으로 줄이고 사이도 넉넉히 벌린다.
+// 다만 2곳을 봐도 그럴듯한 곳이 없으면(=어차피 확인불가로 남을 판이면) 마지막 한 곳은 더 본다.
+const MAX_PLACE_CANDIDATES = 2;
+const MAX_PLACE_CANDIDATES_HARD = 3;
+const PLACE_GAP_MS = 1200;
 
 export async function probeAcademy(academy, city) {
     try {
@@ -646,8 +686,11 @@ export async function probeAcademy(academy, city) {
         // 상위 후보를 순회하며 가장 그럴듯한 곳을 채택 (최대 3곳)
         // 점수 = 이름 유사도 0.7 + 주소 일치 0.3, 등록번호가 실제로 일치하면 강한 증거로 가산
         const masterDigits = String(academy.regNo || '').replace(/\D/g, '');
-        let best = null, bestScore = -1;
-        for (const id of ids.slice(0, 3)) {
+        let best = null, bestScore = -1, seen = 0;
+        for (const id of ids.slice(0, MAX_PLACE_CANDIDATES_HARD)) {
+            // 앞의 두 곳 중 하나라도 그럴듯했다면 세 번째는 보지 않는다
+            if (seen >= MAX_PLACE_CANDIDATES && bestScore >= MATCH_MAYBE) break;
+            seen++;
             const place = await probePlace(id);
             const nScore = nameScore(academy.name, place.placeName);
             const aScore = addressScore(academy.address, place.roadAddress);
@@ -659,7 +702,7 @@ export async function probeAcademy(academy, city) {
             }
             if (score > bestScore) { bestScore = score; best = place; }
             if (score >= MATCH_OK) break;
-            await sleep(300);
+            await sleep(PLACE_GAP_MS);
         }
 
         // 플레이스 홈에 링크가 걸린 채널만 조사한다 (별도 검색 없음)
