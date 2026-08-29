@@ -3,7 +3,8 @@ import * as XLSX from 'xlsx';
 import {
     probeAll, fetchSnsChecks, saveSnsChecks, resultToRecord, recordKey, rowToResult,
     toProbeTargets, placeSearchUrl, blogSearchUrl, parseChannels, needsRecheck,
-    assignBuckets, bucketCells, snsRemark, BUCKETS, BUCKET_LABEL,
+    assignBuckets, snsRemark, BUCKETS, BUCKET_LABEL,
+    rowCells, parseManual, nextManual, effectiveVerdict,
     RECHECK_DAYS, VERDICT_COLOR,
 } from '../utils/snsCheck';
 import OxBadge from './SnsOxBadge';
@@ -59,8 +60,8 @@ const Th = ({ children, top = 0, colSpan, rowSpan, center, left, tight }) => (
     }}>{children}</th>
 );
 
-const Td = ({ children, style }) => (
-    <td style={{
+const Td = ({ children, style, onClick, title }) => (
+    <td onClick={onClick} title={title} style={{
         padding: '10px', fontSize: '0.86rem', lineHeight: 1.5, color: 'var(--text-main)',
         borderTop: '1px solid var(--border-color)', ...style,
     }}>{children}</td>
@@ -103,6 +104,14 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
     const stopRef = useRef(false);
     // 저장 여부를 판단할 때 최신 결과가 필요하다 (setState 갱신함수 안에서 부수효과를 내지 않으려고 ref 로 둔다)
     const resultsRef = useRef({});
+
+    // 새로 조사한 결과에는 담당자가 적어둔 값이 없다. 시트는 Apps Script 가 지켜주지만
+    // 화면까지 지워지면 방금 고친 파란 값이 사라진 것처럼 보인다 — 이어 붙여 준다.
+    const keepManual = (fresh) => {
+        const prev = resultsRef.current[recordKey(fresh.category, fresh.regNo)];
+        if (!prev) return fresh;
+        return { ...fresh, 수동확인: prev.수동확인 || '', 비고: prev.비고 || '', 연락처: prev.연락처 || '' };
+    };
 
     // 헤더 2행의 sticky top = 1행의 실제 높이. 고정값으로 두면 글꼴·확대율에 따라 겹치거나 벌어진다.
     const headRowRef = useRef(null);
@@ -150,7 +159,7 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
         const c = { 전체: withResult.length, 이행: 0, 미이행: 0, 확인불가: 0, 미조사: 0 };
         withResult.forEach(({ result }) => {
             if (!result) c.미조사++;
-            else c[result.판정] = (c[result.판정] || 0) + 1;
+            else { const v = effectiveVerdict(result); c[v] = (c[v] || 0) + 1; }
         });
         return c;
     }, [withResult]);
@@ -163,7 +172,7 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
     const visible = useMemo(() => {
         if (filter === '전체') return withResult;
         if (filter === '미조사') return withResult.filter(x => !x.result);
-        return withResult.filter(x => x.result && x.result.판정 === filter);
+        return withResult.filter(x => x.result && effectiveVerdict(x.result) === filter);
     }, [withResult, filter]);
 
     const lastCheckedAt = useMemo(() => {
@@ -202,7 +211,7 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                 if (!usable.length) return;
 
                 const next = { ...resultsRef.current };
-                usable.forEach(r => { next[recordKey(r.category, r.regNo)] = r; });
+                usable.forEach(r => { next[recordKey(r.category, r.regNo)] = keepManual(r); });
                 resultsRef.current = next;
                 setResults(next);
 
@@ -258,10 +267,38 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
             setSaveState('지금은 네이버 플레이스 상세가 제한 중이라 소개글을 읽지 못했습니다 — 기존 결과를 그대로 둡니다. 잠시 뒤 다시 눌러 주세요.');
             return;
         }
-        const next = { ...resultsRef.current, [key]: r };
+        const next = { ...resultsRef.current, [key]: keepManual(r) };
         resultsRef.current = next;
         setResults(next);
         try { await saveSnsChecks([resultToRecord(r)]); } catch { /* 화면 결과는 유지 */ }
+    };
+
+    // ── 칸을 눌러 직접 확인한 값 넣기 ────────────────────
+    // 자동값 → O → X → 자동값. 시트의 '수동확인' 칸에 남아 다시 조사해도 유지된다.
+    const cycleCell = async (result, key) => {
+        if (!result) return;   // 아직 조사 안 한 학원은 시트에 행이 없다
+        const manual = parseManual(result);
+        const next = nextManual(manual[key]);
+        if (next === undefined) delete manual[key]; else manual[key] = next;
+
+        const rowKey = recordKey(result.category, result.regNo);
+        // 다 지웠을 때도 빈 문자열로 보내면 안 된다 — Apps Script 는 빈 값을 '안 넘어온 것'으로
+        // 보고 기존 값을 지켜주므로, 되돌리기가 영영 저장되지 않는다. 빈 객체를 명시해 보낸다.
+        const updated = { ...result, 수동확인: JSON.stringify(manual) };
+        const before = resultsRef.current;
+        const nextResults = { ...before, [rowKey]: updated };
+        resultsRef.current = nextResults;
+        setResults(nextResults);
+        setSaveState('');
+
+        try {
+            await saveSnsChecks([resultToRecord(updated)]);
+        } catch (err) {
+            // 저장이 안 됐는데 화면만 바뀌어 있으면 고쳤다고 착각하게 된다 — 되돌린다
+            resultsRef.current = before;
+            setResults(before);
+            setSaveState(`⚠ 직접 입력한 값을 저장하지 못했습니다: ${err.message}`);
+        }
     };
 
     // ── 미이행 연락처 엑셀 ──────────────────────────────
@@ -315,6 +352,8 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                     <b> 자동 판정이므로 확정 위반이 아니라 안내·점검 우선순위 참고 자료</b>이며,
                     동명 학원이나 지점이 있으면 <b>확인불가</b>로 남습니다.
                     <b> 학원명을 누르면</b> 그 학원의 상세 SNS 화면에서 판정 근거를 전부 볼 수 있습니다.
+                    <br /><b>직접 확인해 고치기</b> — O/X 칸을 누르면 <b>자동값 → O → X → 자동값</b> 으로 바뀝니다.
+                    직접 넣은 값은 <b style={{ color: '#2563eb' }}>파란색</b> 으로 보이고, <b>다시 조사해도 덮이지 않으며</b> 미이행·이행 집계에도 반영됩니다.
                     {lastCheckedAt && <><br />최근 조사: <b>{fmtWhen(lastCheckedAt)}</b></>}
                 </div>
             </div>
@@ -417,20 +456,10 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                         {visible.map(({ target, result }, i) => {
                             const rowBg = i % 2 === 0 ? BG_ROW : BG_STRIPE;
                             const channels = parseChannels(result);
-                            const cells = bucketCells(channels);
                             const at = assignBuckets(channels);
                             const academy = academyById.get(target.id);
                             const remark = snsRemark(result);
-                            // 아직 조사 전이면 빈 값(–), 조사했는데 그 채널 링크가 없으면 '없음'
-                            const ch = (key, field) => {
-                                if (!result) return '';
-                                const c = cells[key];
-                                if (!c) return '없음';
-                                return c.notProbed ? '조사안함' : c[field];
-                            };
-                            // 플레이스를 못 찾은 것은 '없다'는 뜻이 아니다 — 이름이 달라 검색에 안 걸렸을 뿐
-                            // 실제로는 거의 다 플레이스가 있으므로 '없음'이 아니라 '?'로 남긴다
-                            const place = (field) => (!result ? '' : result.matchStatus === 'no_match' ? '?' : result[field]);
+                            const cells = rowCells(result);
                             return (
                                 <tr key={recordKey(target.category, target.regNo)} style={{ background: rowBg }}>
                                     <Td style={{ ...stickyTd(0, rowBg), color: 'var(--text-muted)', fontSize: '0.78rem', textAlign: 'center' }}>{i + 1}</Td>
@@ -449,12 +478,14 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                                     </Td>
                                     <Td style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{target.regNo}</Td>
 
-                                    <Td style={CENTER}><OxBadge value={place('플레이스_번호')} /></Td>
-                                    <Td style={CENTER}><OxBadge value={place('플레이스_교습비')} /></Td>
-                                    {BUCKETS.map(b => [
-                                        <Td key={`${b}-no`} style={CENTER}><OxBadge value={ch(b, '번호')} /></Td>,
-                                        <Td key={`${b}-fee`} style={CENTER}><OxBadge value={ch(b, '교습비')} /></Td>,
-                                    ])}
+                                    {cells.map(c => (
+                                        <Td key={c.key}
+                                            style={{ ...CENTER, cursor: result ? 'pointer' : 'default', userSelect: 'none' }}
+                                            onClick={result ? () => cycleCell(result, c.key) : undefined}
+                                            title={result ? '눌러서 직접 확인한 값으로 바꿉니다 (자동값 → O → X → 자동값)' : undefined}>
+                                            <OxBadge value={c.value} manual={c.manual !== undefined} />
+                                        </Td>
+                                    ))}
 
                                     <Td>
                                         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', fontSize: '0.8rem' }}>

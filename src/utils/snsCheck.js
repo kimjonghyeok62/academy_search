@@ -14,6 +14,8 @@ export const SNS_COLUMNS = [
     '플레이스_교습비', '플레이스_게시형태', '플레이스_번호', '플레이스_기재번호', '플레이스_번호대조',
     '블로그', '블로그URL', '블로그_교습비', '블로그_번호', '블로그_기재번호', '블로그_번호대조',
     '판정', '미이행사유', '비고',
+    // 담당자가 직접 확인해 고친 칸 — {"place|교습비":"O", ...} JSON 문자열
+    '수동확인',
     // 플레이스 홈에 걸린 링크(블로그·홈페이지·인스타그램…) 전체 결과 — JSON 문자열
     '채널수', '채널상세',
 ];
@@ -23,6 +25,9 @@ const PASSTHROUGH = [
     '플레이스ID', '플레이스명', '플레이스URL', '플레이스_교습비', '플레이스_게시형태', '플레이스_번호',
     '플레이스_기재번호', '플레이스_번호대조', '블로그', '블로그URL', '블로그_교습비',
     '블로그_번호', '블로그_기재번호', '블로그_번호대조', '판정', '미이행사유', '채널수', '채널상세',
+    // 조사 결과에는 없다. 화면에서 고친 값을 그대로 실어 보내야 시트에 남는다
+    // (빈 값으로 가면 Apps Script 가 기존 값을 지키므로 자동 조사가 덮어쓰지 않는다)
+    '수동확인',
 ];
 
 /**
@@ -156,6 +161,73 @@ export function snsRemark(result) {
     });
 
     return notes.join(' / ');
+}
+
+// ── 담당자가 직접 확인해 고친 칸 ────────────────────────
+// 자동 판정이 X 인데 직접 보니 O 인 경우가 있다. 그 값을 시트에 따로 남겨
+// 다시 조사해도 유지되게 한다. 키는 `${열}|${항목}` (예: 'place|교습비').
+
+export function parseManual(result) {
+    if (!result) return {};
+    try {
+        const v = JSON.parse(result.수동확인 || '{}');
+        return v && typeof v === 'object' && !Array.isArray(v) ? v : {};
+    } catch { return {}; }
+}
+
+export const CELL_FIELDS = ['번호', '교습비'];
+export const cellKey = (bucket, field) => `${bucket}|${field}`;
+
+/**
+ * 한 학원 행의 칸 값 — 표와 판정이 같은 값을 보도록 여기 한 곳에서 만든다.
+ * auto 는 자동 조사값, value 는 직접 고친 값이 있으면 그것.
+ *   'O'/'X'/'?' 판정값 · '없음' 링크 없음 · '안함' 자동 조사 대상 아님 · '' 아직 조사 전
+ */
+export function rowCells(result) {
+    const manual = parseManual(result);
+    const cells = bucketCells(parseChannels(result));
+    const noPlace = result && result.matchStatus === 'no_match';
+    const out = [];
+    const push = (bucket, field, auto) => {
+        const key = cellKey(bucket, field);
+        out.push({ key, bucket, field, auto, manual: manual[key], value: manual[key] ?? auto });
+    };
+
+    // 플레이스를 못 찾은 것은 '없다'가 아니라 '못 봤다' — 이름이 달라 검색에 안 걸렸을 뿐이다
+    push('place', '번호', !result ? '' : noPlace ? '?' : result.플레이스_번호);
+    push('place', '교습비', !result ? '' : noPlace ? '?' : result.플레이스_교습비);
+    BUCKETS.forEach((b) => {
+        const c = cells[b];
+        CELL_FIELDS.forEach((f) => {
+            push(b, f, !result ? '' : !c ? '없음' : c.notProbed ? '안함' : c[f]);
+        });
+    });
+    return out;
+}
+
+// 칸을 누를 때마다 자동값 → O → X → 자동값
+export function nextManual(current) {
+    if (current === undefined) return 'O';
+    if (current === 'O') return 'X';
+    return undefined;
+}
+
+/**
+ * 직접 고친 값을 반영한 판정.
+ * 자동 판정을 다시 계산하지 않고 '남은 X 가 있는지'만 본다 — 서버 판정 규칙을
+ * 화면에서 흉내 내면 두 곳이 갈라지기 때문이다.
+ */
+export function effectiveVerdict(result) {
+    if (!result) return '미조사';
+    const manual = parseManual(result);
+    if (!Object.keys(manual).length) return result.판정;
+    // 동일 업체인지 자체가 불확실한 건 칸을 고친다고 풀리지 않는다
+    if (result.matchStatus !== 'matched') return result.판정;
+
+    const hasX = rowCells(result).some((c) => c.value === 'X');
+    if (result.판정 === '미이행' && !hasX) return '이행';
+    if (result.판정 === '이행' && hasX) return '미이행';
+    return result.판정;
 }
 
 export const VERDICTS = ['이행', '미이행', '확인불가'];
