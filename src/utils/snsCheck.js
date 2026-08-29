@@ -18,6 +18,10 @@ export const SNS_COLUMNS = [
     '수동확인',
     // 플레이스 홈에 걸린 링크(블로그·홈페이지·인스타그램…) 전체 결과 — JSON 문자열
     '채널수', '채널상세',
+    // 담당자가 직접 지정한 플레이스 ID (이름만으로는 1호점·2호점을 가려내지 못하는 곳이 있다)
+    '플레이스지정',
+    // 여러 학원이 블로그·플레이스 하나를 함께 쓰는 곳의 묶음 이름 (예: '페르마')
+    '묶음',
 ];
 
 // 결과·시트 행 양쪽에서 같은 키를 그대로 옮기는 항목
@@ -27,7 +31,7 @@ const PASSTHROUGH = [
     '블로그_번호', '블로그_기재번호', '블로그_번호대조', '판정', '미이행사유', '채널수', '채널상세',
     // 조사 결과에는 없다. 화면에서 고친 값을 그대로 실어 보내야 시트에 남는다
     // (빈 값으로 가면 Apps Script 가 기존 값을 지키므로 자동 조사가 덮어쓰지 않는다)
-    '수동확인',
+    '수동확인', '플레이스지정', '묶음',
 ];
 
 /**
@@ -129,9 +133,15 @@ export function bucketCells(channels) {
  * 비고 — 표의 O/X 칸만 봐서는 알 수 없는 것만 적는다.
  * '교습비 미게시 / 번호 미기재' 는 이미 칸이 X 로 보여주므로 넣지 않고, URL 도 링크 열에 있으므로 뺀다.
  */
-export function snsRemark(result) {
+export function snsRemark(result, dupNames) {
     if (!result) return '';
     const notes = [];
+
+    // 같은 플레이스를 여러 학원이 물고 있다 — 지점(1호점·2호점)을 잘못 잡았을 수 있다.
+    // 한 행만 봐서는 알 수 없으므로 목록에서 계산해 넘겨준다.
+    if (dupNames && dupNames.length) {
+        notes.push(`⚠ ${dupNames.join('·')}와 같은 플레이스 — 확인 필요`);
+    }
 
     if (result.matchStatus === 'no_match') notes.push('네이버플레이스 못 찾음');
     else if (result.matchStatus === 'ambiguous') notes.push('동명 업체 가능성 — 직접 확인');
@@ -230,6 +240,221 @@ export function effectiveVerdict(result) {
     return result.판정;
 }
 
+/** 칸에 특정 값을 넣는다 (undefined 면 자동값으로 되돌린다). 저장은 부르는 쪽이 한다. */
+export function setManualCell(result, key, value) {
+    const manual = parseManual(result);
+    if (value === undefined) delete manual[key]; else manual[key] = value;
+    // 다 지웠을 때도 빈 문자열로 보내면 안 된다 — Apps Script 는 빈 값을 '안 넘어온 것'으로 보고
+    // 기존 값을 지켜주므로, 되돌리기가 영영 저장되지 않는다. 빈 객체를 명시해 보낸다.
+    return { ...result, 수동확인: JSON.stringify(manual) };
+}
+
+/** 칸을 한 번 눌렀을 때 — 자동값 → O → X → 자동값 */
+export function applyManualCell(result, key) {
+    return setManualCell(result, key, nextManual(parseManual(result)[key]));
+}
+
+// 자동 조사 결과에는 없는, 사람이 넣은 값 — 새 결과에 이어 붙여야 화면에서 사라지지 않는다
+const KEEP_KEYS = ['수동확인', '비고', '연락처', '플레이스지정', '묶음'];
+
+/** 새로 조사한 결과(fresh)에 이전 행(prev)의 사람이 넣은 값을 이어 붙인다 */
+export function keepManual(fresh, prev) {
+    if (!prev) return fresh;
+    const out = { ...fresh };
+    KEEP_KEYS.forEach((k) => { out[k] = prev[k] || ''; });
+    return out;
+}
+
+// ── 플레이스 직접 지정 ──────────────────────────────────
+// 이름만으로는 '나룰음악학원'과 '나룰음악학원 2호점'을 가려내지 못한다.
+// 담당자가 플레이스 주소를 넣어 두면 그 ID를 시트에 남겨, 다시 조사해도 그 플레이스만 본다.
+
+export function parsePlaceId(input) {
+    const s = String(input || '').trim();
+    if (!s) return '';
+    if (/^\d+$/.test(s)) return s;
+    const m = s.match(/place\/(\d+)/) || s.match(/[?&]id=(\d+)/) || s.match(/(\d{6,})/);
+    return m ? m[1] : '';
+}
+
+// 지정을 푼 자리는 빈 값이 아니라 '-' 로 남긴다 — Apps Script 는 빈 값을 '안 넘어온 것'으로 보고
+// 기존 값을 지켜주므로, 빈 문자열로 보내면 해제가 영영 저장되지 않는다.
+export const PIN_CLEARED = '-';
+
+export function pinnedPlaceId(result) {
+    const v = String(result?.플레이스지정 || '').trim();
+    return v === PIN_CLEARED ? '' : v;
+}
+
+/** 조사에 쓸 플레이스 ID — 직접 지정한 값이 항상 이긴다 */
+export const effectivePlaceId = (result) =>
+    pinnedPlaceId(result) || String(result?.플레이스ID || '').trim();
+
+// ── 공동 운영 묶음 ──────────────────────────────────────
+// 원장이 같거나 분관이라 여러 학원이 블로그·플레이스 하나를 함께 쓰는 곳이 있다.
+// 그런 곳은 '교습비를 올렸는가'가 한 몸이라, 학원마다 따로 고치면 값이 어긋난다.
+
+/** m.·www. 와 꼬리 슬래시만 떼어 두 URL 이 같은 곳인지 비교할 수 있게 한다 */
+export function channelUrlKey(url) {
+    const s = String(url || '').trim().toLowerCase();
+    if (!s) return '';
+    return s.replace(/^https?:\/\//, '').replace(/^(m|www)\./, '').replace(/\/+$/, '');
+}
+
+// 이름에 붙은 지점 번호 ('나룰음악학원(2호)' → 2). 없으면 null.
+// naverProbe.js 의 branchNo 와 같은 규칙이다 — 한쪽만 고치면 화면과 조사 결과가 갈라진다.
+// '2관'·'중등관'·'캠퍼스'는 지점 번호로 보지 않는다. 본관과 플레이스·블로그를 함께 쓰는 곳이 많아서다.
+const BRANCH_NO = /(?:^|[^0-9])(\d{1,2})\s*호점|\(\s*(\d{1,2})\s*호\s*\)|제\s*(\d{1,2})\s*호점/;
+
+export function branchNo(name) {
+    const m = String(name || '').match(BRANCH_NO);
+    if (!m) return null;
+    const n = Number(m[1] || m[2] || m[3]);
+    return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/** '묶음' 열 값 — 해제한 자리(PIN_CLEARED)는 빈 값으로 본다 */
+export function groupTag(result) {
+    const v = String(result?.묶음 || '').trim();
+    return v === PIN_CLEARED ? '' : v;
+}
+
+const rowsOf = (results) => (Array.isArray(results) ? results : Object.values(results || {}));
+
+/**
+ * 같은 채널을 쓰는 학원들을 묶는다 → Map(행키 → 묶음).
+ *   1) '묶음' 열 값이 같으면 확정 (사람이 정한 값이 항상 이긴다)
+ *   2) 플레이스 홈에 걸린 블로그 URL 이 같으면 자동으로 묶는다
+ *   3) 같은 플레이스를 쓰고 지점 번호도 어긋나지 않으면 묶는다
+ *      ('루나영어학원'과 '루나영어2관학원'처럼 본관·2관이 플레이스를 함께 쓰는 곳)
+ * 다만 지점 번호가 어긋나면(1호점 학원이 2호점 플레이스를 물고 있으면) 묶지 않는다 —
+ * 함께 쓰는 게 아니라 잘못 잡았을 가능성이 크므로 placeDuplicates() 로 '확인 필요'라고 알린다.
+ */
+export function buildGroups(results) {
+    const rows = rowsOf(results).filter((r) => r && r.regNo);
+    const keyOf = (r) => recordKey(r.category, r.regNo);
+    const parent = new Map();
+    const find = (x) => {
+        while (parent.get(x) !== x) { parent.set(x, parent.get(parent.get(x))); x = parent.get(x); }
+        return x;
+    };
+    const union = (a, b) => { const ra = find(a), rb = find(b); if (ra !== rb) parent.set(ra, rb); };
+
+    rows.forEach((r) => parent.set(keyOf(r), keyOf(r)));
+    const firstTag = new Map();
+    const firstBlog = new Map();
+    const firstPlace = new Map();   // 플레이스ID + 지점번호
+    rows.forEach((r) => {
+        const k = keyOf(r);
+        const tag = groupTag(r);
+        // 사람이 적은 묶음 이름은 지점이 달라도 그대로 따른다
+        if (tag) { if (firstTag.has(tag)) union(k, firstTag.get(tag)); else firstTag.set(tag, k); }
+
+        // 자동으로 묶을 때는 지점 번호를 키에 넣는다. 1호점이 2호점 플레이스를 잘못 물면
+        // 블로그까지 따라오므로, 채널이 같다는 것만으로 묶으면 오매칭이 '공동 운영'으로 굳어버린다.
+        const branch = branchNo(r.name) ?? '';
+        parseChannels(r).forEach((c) => {
+            if (c.종류 !== 'blog') return;
+            const u = channelUrlKey(c.url);
+            if (!u) return;
+            const b = `${u}|${branch}`;
+            if (firstBlog.has(b)) union(k, firstBlog.get(b)); else firstBlog.set(b, k);
+        });
+        const pid = String(r.플레이스ID || '');
+        if (pid) {
+            const p = `${pid}|${branch}`;
+            if (firstPlace.has(p)) union(k, firstPlace.get(p)); else firstPlace.set(p, k);
+        }
+    });
+
+    const byRoot = new Map();
+    rows.forEach((r) => {
+        const root = find(keyOf(r));
+        if (!byRoot.has(root)) byRoot.set(root, { key: root, members: [], names: [], via: 'auto', label: '' });
+        const g = byRoot.get(root);
+        g.members.push(keyOf(r));
+        g.names.push(r.name || r.regNo);
+        const tag = groupTag(r);
+        if (tag) { g.via = 'manual'; g.label = g.label || tag; }
+    });
+
+    const out = new Map();
+    byRoot.forEach((g) => { if (g.members.length > 1) g.members.forEach((m) => out.set(m, g)); });
+    return out;
+}
+
+/**
+ * 같은 플레이스를 물고 있는데 묶음으로도 안 묶인 경우 → 지점을 잘못 잡았을 가능성.
+ * 본관·2관처럼 함께 쓰는 곳은 buildGroups 가 이미 묶으므로, 여기 남는 것은
+ * '1호점 학원이 2호점 플레이스를 물고 있는' 같은 어긋난 짝이다.
+ * Map(행키 → 같은 플레이스를 쓰는 다른 학원 이름들)
+ */
+export function placeDuplicates(results, groups) {
+    const rows = rowsOf(results).filter((r) => r && r.regNo && r.플레이스ID);
+    const byPlace = new Map();
+    rows.forEach((r) => {
+        const id = String(r.플레이스ID);
+        if (!byPlace.has(id)) byPlace.set(id, []);
+        byPlace.get(id).push(r);
+    });
+    const out = new Map();
+    byPlace.forEach((list) => {
+        if (list.length < 2) return;
+        list.forEach((r) => {
+            // 직접 지정한 곳은 사람이 이미 확인한 것이다
+            if (pinnedPlaceId(r)) return;
+            const k = recordKey(r.category, r.regNo);
+            const g = groups?.get(k);
+            const others = list.filter((o) => o !== r && !(g && g.members.includes(recordKey(o.category, o.regNo))));
+            if (others.length) out.set(k, others.map((o) => o.name || o.regNo));
+        });
+    });
+    return out;
+}
+
+/**
+ * 묶음 형제 중 '같은 채널'을 쓰는 행의 같은 칸을 찾아 준다 (교습비 전파용).
+ * 형제마다 링크 순서가 달라 열이 어긋날 수 있으므로 열 이름이 아니라 URL 로 찾는다.
+ * 번호 칸은 학원마다 자기 번호가 게시돼 있어야 하므로 전파하지 않는다.
+ */
+export function sharedCellTargets(results, source, key, groups) {
+    const [bucket, field] = String(key).split('|');
+    if (field !== '교습비' || !source) return [];
+    const selfKey = recordKey(source.category, source.regNo);
+    const group = groups?.get(selfKey);
+    if (!group) return [];
+
+    const placeId = bucket === 'place' ? String(source.플레이스ID || '') : '';
+    let urls = [];
+    if (bucket !== 'place') {
+        const chs = parseChannels(source);
+        const at = assignBuckets(chs);
+        urls = chs.filter((c, i) => at[i] === bucket).map((c) => channelUrlKey(c.url)).filter(Boolean);
+    }
+    if (!placeId && !urls.length) return [];
+
+    const byKey = {};
+    rowsOf(results).forEach((r) => { if (r && r.regNo) byKey[recordKey(r.category, r.regNo)] = r; });
+
+    const out = [];
+    group.members.forEach((m) => {
+        if (m === selfKey) return;
+        const r = byKey[m];
+        if (!r) return;
+        if (bucket === 'place') {
+            if (placeId && String(r.플레이스ID || '') === placeId) {
+                out.push({ rowKey: m, result: r, key: cellKey('place', '교습비'), name: r.name });
+            }
+            return;
+        }
+        const chs = parseChannels(r);
+        const at = assignBuckets(chs);
+        const hit = chs.findIndex((c) => urls.includes(channelUrlKey(c.url)));
+        if (hit >= 0) out.push({ rowKey: m, result: r, key: cellKey(at[hit], '교습비'), name: r.name });
+    });
+    return out;
+}
+
 export const VERDICTS = ['이행', '미이행', '확인불가'];
 
 export const VERDICT_COLOR = {
@@ -305,6 +530,21 @@ export function rowToResult(row) {
     };
     [...PASSTHROUGH, '비고'].forEach((k) => { r[k] = row[k] || ''; });
     return r;
+}
+
+/**
+ * 학원 상세화면용 — 해당 학원 1건과, 묶음 판정에 필요한 전체 결과를 함께 돌려준다.
+ * (fetchSnsChecks 가 어차피 전체를 읽어오므로 요청이 늘지 않는다)
+ */
+export async function fetchSnsCheckContext(category, regNo) {
+    const rows = await fetchSnsChecks();
+    const map = {};
+    rows.forEach((row) => {
+        const r = rowToResult(row);
+        if (r.regNo) map[recordKey(r.category, r.regNo)] = r;
+    });
+    const key = recordKey(category, String(regNo || '').trim());
+    return { result: map[key] || null, results: map, groups: buildGroups(map) };
 }
 
 /** 학원 상세화면용 — 저장된 결과에서 해당 학원 1건만 찾아 준다 */

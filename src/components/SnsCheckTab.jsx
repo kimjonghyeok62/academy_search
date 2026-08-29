@@ -4,7 +4,8 @@ import {
     probeAll, fetchSnsChecks, saveSnsChecks, resultToRecord, recordKey, rowToResult,
     toProbeTargets, placeSearchUrl, blogSearchUrl, parseChannels, needsRecheck,
     assignBuckets, snsRemark, BUCKETS, BUCKET_LABEL,
-    rowCells, parseManual, nextManual, effectiveVerdict,
+    rowCells, parseManual, effectiveVerdict, applyManualCell, setManualCell, keepManual,
+    buildGroups, placeDuplicates, sharedCellTargets, effectivePlaceId, pinnedPlaceId,
     RECHECK_DAYS, VERDICT_COLOR,
 } from '../utils/snsCheck';
 import OxBadge from './SnsOxBadge';
@@ -85,9 +86,13 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
 
     // 학원명을 눌러 상세화면으로 갈 때 원본 학원 객체가 필요하다.
     // 조사 대상(target)에 통째로 붙이면 /api/sns-probe 요청 본문까지 커지므로 여기서만 따로 찾는다.
-    const academyById = useMemo(() => {
+    //
+    // 키는 반드시 (구분 + 번호)여야 한다. 등록번호 N번 학원과 신고번호 N번 교습소는 서로 다른 곳인데
+    // 번호만으로 키를 잡으면 뒤에 넣은 교습소가 학원을 덮어써, 학원명을 눌렀을 때 엉뚱한 교습소가 열렸다.
+    const academyByKey = useMemo(() => {
         const m = new Map();
-        [...aActiveList, ...hActiveList].forEach(a => { if (a.id) m.set(a.id, a); });
+        aActiveList.forEach(a => { if (a.id) m.set(recordKey('학원', a.id), a); });
+        hActiveList.forEach(a => { if (a.id) m.set(recordKey('교습소', a.id), a); });
         return m;
     }, [aActiveList, hActiveList]);
 
@@ -107,11 +112,16 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
 
     // 새로 조사한 결과에는 담당자가 적어둔 값이 없다. 시트는 Apps Script 가 지켜주지만
     // 화면까지 지워지면 방금 고친 파란 값이 사라진 것처럼 보인다 — 이어 붙여 준다.
-    const keepManual = (fresh) => {
-        const prev = resultsRef.current[recordKey(fresh.category, fresh.regNo)];
-        if (!prev) return fresh;
-        return { ...fresh, 수동확인: prev.수동확인 || '', 비고: prev.비고 || '', 연락처: prev.연락처 || '' };
-    };
+    const carryOver = (fresh) => keepManual(fresh, resultsRef.current[recordKey(fresh.category, fresh.regNo)]);
+
+    // 모바일에서는 학원명 열을 왼쪽에 고정하지 않는다 — 좁은 화면에서 옆의 O/X 칸을 가린다.
+    // (헤더 위쪽 고정은 그대로 둔다)
+    const [isNarrow, setIsNarrow] = useState(() => window.innerWidth < 640);
+    useEffect(() => {
+        const onResize = () => setIsNarrow(window.innerWidth < 640);
+        window.addEventListener('resize', onResize);
+        return () => window.removeEventListener('resize', onResize);
+    }, []);
 
     // 헤더 2행의 sticky top = 1행의 실제 높이. 고정값으로 두면 글꼴·확대율에 따라 겹치거나 벌어진다.
     const headRowRef = useRef(null);
@@ -147,13 +157,21 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
         () => targets.filter(t => t.category === typeTab),
         [targets, typeTab]);
 
-    // 이미 찾아둔 플레이스 ID는 재조사 때 넘겨 검색 단계를 건너뛴다 (차단 위험·소요시간 감소)
+    // 이미 찾아둔 플레이스 ID는 재조사 때 넘겨 검색 단계를 건너뛴다 (차단 위험·소요시간 감소).
+    // 담당자가 직접 지정한 플레이스가 있으면 그쪽이 이긴다.
     const withResult = useMemo(
         () => scoped.map(t => {
             const result = results[recordKey(t.category, t.regNo)] || null;
-            return { target: result?.플레이스ID ? { ...t, placeId: result.플레이스ID } : t, result };
+            const placeId = effectivePlaceId(result);
+            const pinned = !!pinnedPlaceId(result);
+            return { target: placeId ? { ...t, placeId, placePinned: pinned } : t, result };
         }),
         [scoped, results]);
+
+    // 같은 블로그·플레이스를 함께 쓰는 학원 묶음 (학원·교습소를 가리지 않고 전체에서 찾는다)
+    const groups = useMemo(() => buildGroups(results), [results]);
+    // 같은 플레이스를 물고 있는데 묶음도 아닌 곳 — 지점을 잘못 잡았을 수 있다
+    const dupPlaces = useMemo(() => placeDuplicates(results, groups), [results, groups]);
 
     const counts = useMemo(() => {
         const c = { 전체: withResult.length, 이행: 0, 미이행: 0, 확인불가: 0, 미조사: 0 };
@@ -211,7 +229,7 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                 if (!usable.length) return;
 
                 const next = { ...resultsRef.current };
-                usable.forEach(r => { next[recordKey(r.category, r.regNo)] = keepManual(r); });
+                usable.forEach(r => { next[recordKey(r.category, r.regNo)] = carryOver(r); });
                 resultsRef.current = next;
                 setResults(next);
 
@@ -267,7 +285,7 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
             setSaveState('지금은 네이버 플레이스 상세가 제한 중이라 소개글을 읽지 못했습니다 — 기존 결과를 그대로 둡니다. 잠시 뒤 다시 눌러 주세요.');
             return;
         }
-        const next = { ...resultsRef.current, [key]: keepManual(r) };
+        const next = { ...resultsRef.current, [key]: carryOver(r) };
         resultsRef.current = next;
         setResults(next);
         try { await saveSnsChecks([resultToRecord(r)]); } catch { /* 화면 결과는 유지 */ }
@@ -277,27 +295,64 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
     // 자동값 → O → X → 자동값. 시트의 '수동확인' 칸에 남아 다시 조사해도 유지된다.
     const cycleCell = async (result, key) => {
         if (!result) return;   // 아직 조사 안 한 학원은 시트에 행이 없다
-        const manual = parseManual(result);
-        const next = nextManual(manual[key]);
-        if (next === undefined) delete manual[key]; else manual[key] = next;
-
         const rowKey = recordKey(result.category, result.regNo);
-        // 다 지웠을 때도 빈 문자열로 보내면 안 된다 — Apps Script 는 빈 값을 '안 넘어온 것'으로
-        // 보고 기존 값을 지켜주므로, 되돌리기가 영영 저장되지 않는다. 빈 객체를 명시해 보낸다.
-        const updated = { ...result, 수동확인: JSON.stringify(manual) };
+        const updated = applyManualCell(result, key);
+        const value = parseManual(updated)[key];
+
+        // 같은 블로그·플레이스를 함께 쓰는 학원은 '교습비를 올렸는가'가 한 몸이다 — 같이 반영한다.
+        // 번호는 학원마다 자기 번호가 게시돼 있어야 하므로 전파하지 않는다.
+        const shared = sharedCellTargets(resultsRef.current, result, key, groups);
         const before = resultsRef.current;
         const nextResults = { ...before, [rowKey]: updated };
+        const records = [resultToRecord(updated)];
+        shared.forEach(({ rowKey: k, result: r, key: cell }) => {
+            const u = setManualCell(r, cell, value);
+            nextResults[k] = u;
+            records.push(resultToRecord(u));
+        });
+
         resultsRef.current = nextResults;
         setResults(nextResults);
-        setSaveState('');
+        setSaveState(shared.length
+            ? `같은 채널을 쓰는 ${shared.map(s => s.name).join('·')} 에도 함께 반영했습니다 (교습비만).`
+            : '');
 
         try {
-            await saveSnsChecks([resultToRecord(updated)]);
+            await saveSnsChecks(records);
         } catch (err) {
             // 저장이 안 됐는데 화면만 바뀌어 있으면 고쳤다고 착각하게 된다 — 되돌린다
             resultsRef.current = before;
             setResults(before);
             setSaveState(`⚠ 직접 입력한 값을 저장하지 못했습니다: ${err.message}`);
+        }
+    };
+
+    // ── 같은 플레이스를 쓰는 곳을 묶음으로 확정 ──────────
+    // 지점을 잘못 잡은 것이 아니라 정말 함께 운영하는 곳(고수학·성공스토리처럼)이면 여기서 묶는다.
+    // '묶음' 열에 남으므로 다시 조사해도 유지되고, 그때부터 교습비가 함께 반영된다.
+    const confirmGroup = async (result) => {
+        const placeId = String(result?.플레이스ID || '');
+        if (!placeId) return;
+        const label = String(result.플레이스명 || result.name || '').trim() || placeId;
+        const before = resultsRef.current;
+        const next = { ...before };
+        const records = [];
+        Object.entries(before).forEach(([k, r]) => {
+            if (String(r.플레이스ID || '') !== placeId) return;
+            const u = { ...r, 묶음: label };
+            next[k] = u;
+            records.push(resultToRecord(u));
+        });
+        if (records.length < 2) return;
+        resultsRef.current = next;
+        setResults(next);
+        setSaveState(`'${label}' 묶음으로 묶었습니다 (${records.length}곳). 교습비는 이제 함께 반영됩니다.`);
+        try {
+            await saveSnsChecks(records);
+        } catch (err) {
+            resultsRef.current = before;
+            setResults(before);
+            setSaveState(`⚠ 묶음을 저장하지 못했습니다: ${err.message}`);
         }
     };
 
@@ -429,8 +484,9 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                     <thead>
                         {/* 1행: 채널 묶음 */}
                         <tr ref={headRowRef}>
-                            <Th rowSpan={2} left={0} center>#</Th>
-                            <Th rowSpan={2} left={W_NUM}>학원명</Th>
+                            {/* 좁은 화면에서는 왼쪽 고정을 풀어 옆 칸이 가려지지 않게 한다 */}
+                            <Th rowSpan={2} left={isNarrow ? undefined : 0} center>#</Th>
+                            <Th rowSpan={2} left={isNarrow ? undefined : W_NUM}>학원명</Th>
                             <Th rowSpan={2}>{numberLabel}</Th>
                             <Th colSpan={2} center>플레이스</Th>
                             {BUCKETS.map(b => <Th key={b} colSpan={2} center>{BUCKET_LABEL[b]}</Th>)}
@@ -457,13 +513,16 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                             const rowBg = i % 2 === 0 ? BG_ROW : BG_STRIPE;
                             const channels = parseChannels(result);
                             const at = assignBuckets(channels);
-                            const academy = academyById.get(target.id);
-                            const remark = snsRemark(result);
+                            const rowKey = recordKey(target.category, target.regNo);
+                            const academy = academyByKey.get(rowKey);
+                            const dup = dupPlaces.get(rowKey);
+                            const group = groups.get(rowKey);
+                            const remark = snsRemark(result, dup);
                             const cells = rowCells(result);
                             return (
-                                <tr key={recordKey(target.category, target.regNo)} style={{ background: rowBg }}>
-                                    <Td style={{ ...stickyTd(0, rowBg), color: 'var(--text-muted)', fontSize: '0.78rem', textAlign: 'center' }}>{i + 1}</Td>
-                                    <Td style={{ ...stickyTd(W_NUM, rowBg), wordBreak: 'keep-all' }}>
+                                <tr key={rowKey} style={{ background: rowBg }}>
+                                    <Td style={{ ...(isNarrow ? { background: rowBg } : stickyTd(0, rowBg)), color: 'var(--text-muted)', fontSize: '0.78rem', textAlign: 'center' }}>{i + 1}</Td>
+                                    <Td style={{ ...(isNarrow ? { background: rowBg } : stickyTd(W_NUM, rowBg)), wordBreak: 'keep-all' }}>
                                         {academy && onSelectAcademy ? (
                                             <span onClick={() => onSelectAcademy(academy, 'sns')}
                                                 style={{ fontSize: '0.9rem', fontWeight: '700', color: 'var(--primary)', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '2px' }}>
@@ -474,6 +533,12 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                                         )}
                                         {result?.플레이스명 && result.플레이스명 !== target.name && (
                                             <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>→ {result.플레이스명}</div>
+                                        )}
+                                        {group && (
+                                            <div title={`${group.names.join(' · ')} 가 같은 채널을 함께 씁니다 (교습비는 함께 반영됩니다)`}
+                                                style={{ fontSize: '0.72rem', color: '#7c3aed', fontWeight: '700', marginTop: '2px' }}>
+                                                🔗 공동운영 {group.names.length}곳{group.label ? ` · ${group.label}` : ''}
+                                            </div>
                                         )}
                                     </Td>
                                     <Td style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{target.regNo}</Td>
@@ -501,7 +566,23 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                                             {!result && <a href={blogSearchUrl(target.name, region)} target="_blank" rel="noreferrer" style={linkStyle}>블로그검색</a>}
                                         </div>
                                     </Td>
-                                    <Td style={{ fontSize: '0.8rem', color: '#ef4444', wordBreak: 'keep-all' }}>{remark}</Td>
+                                    <Td style={{ fontSize: '0.8rem', color: '#ef4444', wordBreak: 'keep-all' }}>
+                                        {remark}
+                                        {dup && result && (
+                                            <div style={{ marginTop: '4px' }}>
+                                                <button onClick={() => confirmGroup(result)}
+                                                    title="지점을 잘못 잡은 게 아니라 정말 함께 운영하는 곳이면 눌러 주세요"
+                                                    style={{
+                                                        background: 'none', border: '1px solid #7c3aed', borderRadius: '6px',
+                                                        padding: '3px 7px', color: '#7c3aed', fontSize: '0.74rem',
+                                                        fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap',
+                                                    }}>묶음으로 확정</button>
+                                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                                                    다른 학원이면 학원명을 눌러 상세에서 <b>플레이스 지정</b>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </Td>
                                     <Td style={{ whiteSpace: 'nowrap' }}>
                                         {target.contact
                                             ? <a href={`tel:${target.contact}`} style={{ ...linkStyle, fontSize: '0.84rem' }}>{target.contact}</a>

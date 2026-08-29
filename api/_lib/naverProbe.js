@@ -526,6 +526,33 @@ export async function probeChannel(link) {
     }
 }
 
+// ── 지점(호점) 구분 ─────────────────────────────────────
+// '나룰음악학원'과 '나룰음악학원(2호)'는 등록번호가 다른 별개의 학원이고 플레이스·블로그도 따로다.
+// 그런데 이름이 거의 같아 유사도만 보면 1호점이 '나룰음악학원 2호점' 플레이스에 붙어버린다.
+//
+// 반면 '○○2관학원'·'중심관'·'기백고등수학관' 같은 관·캠퍼스 이름은 본관과 플레이스·블로그를
+// 함께 쓰는 곳이 많다(shortenName 재검색이 그것을 노린 것이다). 그래서 벌점은 '호점'에만 준다.
+const BRANCH_NO = /(?:^|[^0-9])(\d{1,2})\s*호점|\(\s*(\d{1,2})\s*호\s*\)|제\s*(\d{1,2})\s*호점/;
+
+export function branchNo(name) {
+    const m = String(name || '').match(BRANCH_NO);
+    if (!m) return null;
+    const n = Number(m[1] || m[2] || m[3]);
+    return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/**
+ * 마스터 학원명과 플레이스명의 지점 번호를 견줘 점수 배수를 돌려준다.
+ * 1호점(번호 없음) 학원이 '2호점' 플레이스를 잡는 것을 막는 것이 목적이다.
+ */
+export function branchPenalty(masterName, placeName) {
+    const a = branchNo(masterName);
+    const b = branchNo(placeName);
+    if (a === b) return 1;              // 둘 다 없거나 같은 지점
+    if (a !== null && b !== null) return 0.4;   // 2호점 ↔ 3호점
+    return 0.6;                          // 한쪽에만 지점 표시가 있다
+}
+
 // 주소에서 도로명/동 토큰을 뽑아 대조 (0~1)
 export function addressScore(masterAddr, placeAddr) {
     const a = (masterAddr || '').replace(/\s+/g, ' ').trim();
@@ -696,6 +723,36 @@ const MAX_PLACE_CANDIDATES = 2;
 const MAX_PLACE_CANDIDATES_HARD = 3;
 const PLACE_GAP_MS = 1200;
 
+/**
+ * 후보 플레이스를 순서대로 훑어 가장 그럴듯한 곳을 고른다.
+ * 점수 = 이름 유사도 0.7 + 주소 일치 0.3 → 지점 어긋남 벌점 → 등록번호가 실제로 적혀 있으면 가산.
+ */
+async function pickPlace(ids, academy) {
+    const masterDigits = String(academy.regNo || '').replace(/\D/g, '');
+    let best = null, bestScore = -1, seen = 0;
+    for (const id of ids) {
+        // 앞의 두 곳 중 하나라도 그럴듯했다면 세 번째는 보지 않는다
+        if (seen >= MAX_PLACE_CANDIDATES && bestScore >= MATCH_MAYBE) break;
+        seen++;
+        const place = await probePlace(id);
+        const nScore = nameScore(academy.name, place.placeName);
+        const aScore = addressScore(academy.address, place.roadAddress);
+        // 주소를 대조할 수 없으면(둘 중 하나가 비었거나 토큰이 안 겹치면) 이름만으로 판단한다.
+        // 주소 미확보를 '불일치'로 취급해 정상 매칭을 깎아내리면 안 되기 때문.
+        let score = aScore > 0 ? nScore * 0.7 + aScore * 0.3 : nScore;
+        // 지점이 어긋나면 크게 깎는다 — 1호점 학원이 2호점 플레이스를 잡는 것을 막는다
+        score *= branchPenalty(academy.name, place.placeName);
+        // 소개글에 이 학원의 등록번호가 실제로 적혀 있으면 가장 강한 증거다 (벌점 뒤에 더한다)
+        if (masterDigits && extractRegNos(place.intro).some((r) => r.digits === masterDigits)) {
+            score = Math.min(1, score + 0.3);
+        }
+        if (score > bestScore) { bestScore = score; best = place; }
+        if (score >= MATCH_OK) break;
+        await sleep(PLACE_GAP_MS);
+    }
+    return { best, bestScore };
+}
+
 export async function probeAcademy(academy, city) {
     try {
         let ids = academy.placeId
@@ -722,27 +779,24 @@ export async function probeAcademy(academy, city) {
         }
         if (!ids.length) return buildResult({ academy, place: null });
 
-        // 상위 후보를 순회하며 가장 그럴듯한 곳을 채택 (최대 3곳)
-        // 점수 = 이름 유사도 0.7 + 주소 일치 0.3, 등록번호가 실제로 일치하면 강한 증거로 가산
-        const masterDigits = String(academy.regNo || '').replace(/\D/g, '');
-        let best = null, bestScore = -1, seen = 0;
-        for (const id of ids.slice(0, MAX_PLACE_CANDIDATES_HARD)) {
-            // 앞의 두 곳 중 하나라도 그럴듯했다면 세 번째는 보지 않는다
-            if (seen >= MAX_PLACE_CANDIDATES && bestScore >= MATCH_MAYBE) break;
-            seen++;
-            const place = await probePlace(id);
-            const nScore = nameScore(academy.name, place.placeName);
-            const aScore = addressScore(academy.address, place.roadAddress);
-            // 주소를 대조할 수 없으면(둘 중 하나가 비었거나 토큰이 안 겹치면) 이름만으로 판단한다.
-            // 주소 미확보를 '불일치'로 취급해 정상 매칭을 깎아내리면 안 되기 때문.
-            let score = aScore > 0 ? nScore * 0.7 + aScore * 0.3 : nScore;
-            if (masterDigits && extractRegNos(place.intro).some((r) => r.digits === masterDigits)) {
-                score = Math.min(1, score + 0.3);
+        let { best, bestScore } = await pickPlace(ids.slice(0, MAX_PLACE_CANDIDATES_HARD), academy);
+
+        // 저장해 둔 플레이스를 그대로 다시 쓰는 길(검색 생략)에서는 예전에 잘못 잡은 곳이 계속 굳는다.
+        // 지점이 어긋나 있으면(1호점 학원인데 '2호점' 플레이스) 그 값을 버리고 이름으로 다시 찾는다.
+        // 담당자가 직접 지정한 곳은 건드리지 않는다.
+        if (academy.placeId && !academy.placePinned && best && branchPenalty(academy.name, best.placeName) < 1) {
+            const wrong = String(academy.placeId);
+            await sleep(300);
+            const fresh = (await searchPlaceIds(academy.name, city)).filter((id) => id !== wrong);
+            if (fresh.length) {
+                const alt = await pickPlace(fresh.slice(0, MAX_PLACE_CANDIDATES), academy);
+                if (alt.best && alt.bestScore > bestScore) { best = alt.best; bestScore = alt.bestScore; }
             }
-            if (score > bestScore) { bestScore = score; best = place; }
-            if (score >= MATCH_OK) break;
-            await sleep(PLACE_GAP_MS);
         }
+
+        // 담당자가 직접 지정한 플레이스는 이름이 달라도 맞는 곳이다 (지점명·상호가 다른 경우가 흔하다).
+        // 이름 유사도로 깎아 '확인불가'로 남기면 지정한 의미가 없다.
+        if (academy.placePinned && best) bestScore = 1;
 
         // 플레이스 홈에 링크가 걸린 채널만 조사한다 (별도 검색 없음)
         // 채널은 대부분 서로 다른 호스트(블로그·인스타그램·홈페이지)라 동시에 받아도
