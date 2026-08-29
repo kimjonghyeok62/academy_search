@@ -223,7 +223,7 @@ const SEARCH_ENDPOINTS = [
 let preferredEndpoint = 0;
 
 export async function searchPlaceIds(name, city) {
-    const q = encodeURIComponent(`${city} ${name}`);
+    const q = encodeURIComponent(`${city} ${name}`.trim());
     let lastBlocked = null;
 
     for (let i = 0; i < SEARCH_ENDPOINTS.length; i++) {
@@ -248,6 +248,18 @@ export async function searchPlaceIds(name, city) {
 // '포도나무수학초중등관학원' 처럼 관·캠퍼스 이름이 붙은 곳은 그 이름으로는 플레이스가 안 잡힌다.
 // (플레이스·블로그는 본관과 같이 쓰는 경우가 많다) 검색이 빈손일 때 한 번 더 시도할 축약형을 만든다.
 const BRANCH_TOKEN = /(초중등관|중고등관|초등관|중등관|고등관|영어관|수학관|본관|분관|별관|제\d+관|\d+관|캠퍼스)/g;
+
+/**
+ * 주소에서 도로명+건물번호까지만 남긴다.
+ * '경기도 하남시 미사강변대로 216 403호' → '경기도 하남시 미사강변대로 216'
+ * 상세주소(동·호)가 붙어 있으면 검색이 오히려 안 잡힌다.
+ */
+export function addressQuery(address) {
+    // 탐욕적으로 잡아 '위례대로 21길 15-3' 처럼 뒤에 오는 길 번호까지 살린다
+    // (비탐욕이면 '위례대로 21' 에서 끊겨 엉뚱한 주소가 된다)
+    const m = String(address || '').match(/^(.*(?:로|길)\s*\d+(?:-\d+)?)/);
+    return (m ? m[1] : String(address || '')).trim();
+}
 
 export function shortenName(name) {
     const s = String(name || '').trim();
@@ -695,6 +707,17 @@ export async function probeAcademy(academy, city) {
             if (alt) {
                 await sleep(300);
                 ids = await searchPlaceIds(alt, city);
+            }
+        }
+        if (!ids.length && !academy.placeId) {
+            // 이름으로 못 찾는 곳이 꽤 있다. 마스터 상호가 두 학원을 합쳐 놓은 경우
+            // ('대치메이드세이노미사점학원' ← 플레이스는 '대치메이드학원 미사점', '대치세이노학원 미사점')
+            // 이름은 안 걸려도 주소로는 잡힌다. 실제로 플레이스가 아예 없는 학원은 드물다.
+            const addr = addressQuery(academy.address);
+            if (addr) {
+                await sleep(300);
+                // 주소는 그 자체로 지역을 담고 있어 도시명을 덧붙이지 않는다
+                ids = await searchPlaceIds(addr, '');
             }
         }
         if (!ids.length) return buildResult({ academy, place: null });

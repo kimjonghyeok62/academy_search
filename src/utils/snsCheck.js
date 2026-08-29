@@ -45,20 +45,40 @@ export function parseChannels(result) {
     }];
 }
 
-// 표의 채널 열 이름 — 인스타그램은 열이 없고 비고·링크에만 나온다
-export const BUCKET_LABEL = { blog: '블로그', homepage: '홈페이지', cafe: '카페', instagram: '인스타' };
+// 표의 채널 열 (순서가 곧 표의 열 순서다)
+export const BUCKETS = ['blog', 'homepage', 'cafe', 'youtube', 'instagram', 'etc'];
+export const BUCKET_LABEL = {
+    blog: '블로그', homepage: '홈페이지', cafe: '카페',
+    youtube: '유튜브', instagram: '인스타', etc: '기타',
+};
 
 /**
- * 채널 하나가 표의 어느 열에 들어가는지 정한다.
- * 카페는 URL 호스트로만 가려낼 수 있다 — cafe.daum.net 은 종류가 'homepage' 이고
- * 유형(라벨)은 사업주가 붙인 값(카페/홈페이지…)이라 믿을 수 없다.
+ * 채널 하나가 어느 열에 들어가는지 정한다.
+ * 카페·유튜브는 URL 호스트로만 가려낼 수 있다 — cafe.daum.net 이나 youtube.com 은
+ * 종류가 'homepage' 로 잡히고, 유형(라벨)은 사업주가 붙인 값이라 믿을 수 없다.
  */
 export function channelBucket(c) {
     if (c.종류 === 'blog') return 'blog';
     if (c.종류 === 'instagram') return 'instagram';
     let host = String(c.url || '').toLowerCase();
     try { host = new URL(c.url).hostname.toLowerCase(); } catch { /* 형식이 깨진 URL 은 문자열 그대로 본다 */ }
-    return /(^|\.)cafe\./.test(host) ? 'cafe' : 'homepage';
+    if (/(^|\.)cafe\./.test(host)) return 'cafe';
+    if (/(^|\.)youtube\.com$|(^|\.)youtu\.be$/.test(host)) return 'youtube';
+    return 'homepage';
+}
+
+/**
+ * 채널 목록 → 각 채널이 들어갈 열 (입력과 같은 순서로 돌려준다).
+ * 홈페이지가 여러 개면 첫 곳만 '홈페이지' 열에 두고 나머지는 '기타'로 모은다 —
+ * 홈페이지 칸 하나에 여러 곳을 뭉쳐 놓으면 어느 곳이 X 인지 알 수 없기 때문이다.
+ */
+export function assignBuckets(channels) {
+    let homepageSeen = 0;
+    return (channels || []).map((c) => {
+        const b = channelBucket(c);
+        if (b !== 'homepage') return b;
+        return homepageSeen++ === 0 ? 'homepage' : 'etc';
+    });
 }
 
 // 나쁜 순서 — 같은 종류 채널이 여러 개면 가장 나쁜 값 하나로 합쳐 보여준다
@@ -77,17 +97,25 @@ function worstCell(values) {
  * 링크가 없는 종류는 null 로 남겨 화면에서 '없음' 으로 표시한다.
  */
 export function bucketCells(channels) {
-    const out = { blog: null, homepage: null, cafe: null, instagram: null };
-    (channels || []).forEach((c) => {
-        const b = channelBucket(c);
-        if (!out[b]) out[b] = { 교습비: [], 번호: [], count: 0 };
+    const out = {};
+    BUCKETS.forEach((b) => { out[b] = null; });
+    const at = assignBuckets(channels);
+    (channels || []).forEach((c, i) => {
+        const b = at[i];
+        if (!out[b]) out[b] = { 교습비: [], 번호: [], count: 0, notProbed: true };
         out[b].교습비.push(c.교습비);
         out[b].번호.push(c.번호);
         out[b].count++;
+        if (c.번호대조 !== '조사안함') out[b].notProbed = false;
     });
     Object.keys(out).forEach((k) => {
         if (!out[k]) return;
-        out[k] = { 교습비: worstCell(out[k].교습비), 번호: worstCell(out[k].번호), count: out[k].count };
+        out[k] = {
+            교습비: worstCell(out[k].교습비),
+            번호: worstCell(out[k].번호),
+            count: out[k].count,
+            notProbed: out[k].notProbed,
+        };
     });
     return out;
 }
@@ -109,20 +137,20 @@ export function snsRemark(result) {
     }
 
     const channels = parseChannels(result);
+    const at = assignBuckets(channels);
     const counted = {};
-    channels.forEach((c) => {
-        const b = channelBucket(c);
+    channels.forEach((c, i) => {
+        const b = at[i];
         const name = BUCKET_LABEL[b];
         counted[b] = (counted[b] || 0) + 1;
         // 인스타그램은 자동 조사 대상이 아니다 — 링크 열에만 두고 비고에는 쓰지 않는다
         if (c.번호대조 === '조사안함') return;
         if (c.번호대조 === '확인불가') notes.push(`${name} 확인불가${c.비고 ? ` — ${c.비고}` : ''}`);
         else if (c.번호대조 === '불일치') notes.push(`${name} 번호 오기재(${c.기재번호} ≠ ${result.regNo})`);
-        // 인스타그램은 열이 없으므로 판정된 경우에만 결과를 비고에 적는다
-        if (b === 'instagram') notes.push(`인스타 번호${c.번호}`);
     });
 
     // 같은 종류가 여러 곳이면 한 칸에 합쳐 보여준다는 사실을 알려준다
+    // 한 칸에 여러 곳을 합쳐 보여주는 경우만 알려준다 (홈페이지 2번째부터는 '기타'로 따로 빠진다)
     Object.entries(counted).forEach(([b, n]) => {
         if (n > 1 && b !== 'instagram') notes.push(`${BUCKET_LABEL[b]} ${n}곳`);
     });

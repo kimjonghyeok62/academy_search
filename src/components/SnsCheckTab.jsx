@@ -3,7 +3,7 @@ import * as XLSX from 'xlsx';
 import {
     probeAll, fetchSnsChecks, saveSnsChecks, resultToRecord, recordKey, rowToResult,
     toProbeTargets, placeSearchUrl, blogSearchUrl, parseChannels, needsRecheck,
-    channelBucket, bucketCells, snsRemark, BUCKET_LABEL,
+    assignBuckets, bucketCells, snsRemark, BUCKETS, BUCKET_LABEL,
     RECHECK_DAYS, VERDICT_COLOR,
 } from '../utils/snsCheck';
 import OxBadge from './SnsOxBadge';
@@ -31,7 +31,9 @@ const Chip = ({ label, active, onClick, count, color }) => (
 // ── 표 치수 ────────────────────────────────────────────
 const W_NUM = 40;     // '#' 열 — 학원명 열의 sticky left 값이기도 하다
 const W_NAME = 168;
-const W_CH = 64;      // 채널 O/X 칸 8개 (플레이스·블로그·홈페이지·카페 × 번호·교습비)
+const W_CH = 60;      // 채널 O/X 칸 — 묶음 7개 × (번호·교습비) = 14칸
+// 표의 채널 묶음 순서: 플레이스 뒤로 blog·homepage·cafe·youtube·instagram·etc
+const CH_GROUPS = ['place', ...BUCKETS];
 // 줄무늬·헤더 배경 (--bg-main 은 어디에도 정의돼 있지 않아 투명하게 나온다.
 //  sticky 헤더가 투명하면 아래 행이 그대로 비쳐 보이므로 정의된 변수를 쓴다)
 const BG_STRIPE = 'var(--bg-light)';
@@ -50,7 +52,7 @@ const thBase = {
 const Th = ({ children, top = 0, colSpan, rowSpan, center, left, tight }) => (
     <th colSpan={colSpan} rowSpan={rowSpan} style={{
         ...thBase,
-        ...(tight ? { padding: '9px 4px' } : null),
+        ...(tight ? { padding: '9px 3px' } : null),
         textAlign: center ? 'center' : 'left',
         position: 'sticky', top,
         ...(left !== undefined ? { left, zIndex: 20 } : { zIndex: 12 }),
@@ -372,14 +374,14 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                 background: 'var(--bg-card)', borderRadius: '14px', border: '1px solid var(--border-color)',
                 overflowX: 'auto', overflowY: 'auto', maxHeight: '72vh', boxShadow: 'var(--shadow-sm)',
             }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', minWidth: '1400px' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', minWidth: '1740px' }}>
                     {/* 열 너비는 여기서 정한다 — 자동 배분에 맡기면 '비고' 가 짜부라져 행이 10줄로 늘어난다.
                         너비를 주지 않은 '비고' 가 남는 폭을 모두 가져간다. */}
                     <colgroup>
                         <col style={{ width: `${W_NUM}px` }} />
                         <col style={{ width: `${W_NAME}px` }} />
                         <col style={{ width: '76px' }} />
-                        {Array.from({ length: 8 }, (_, i) => <col key={i} style={{ width: `${W_CH}px` }} />)}
+                        {Array.from({ length: CH_GROUPS.length * 2 }, (_, i) => <col key={i} style={{ width: `${W_CH}px` }} />)}
                         <col style={{ width: '130px' }} />
                         <col />
                         <col style={{ width: '118px' }} />
@@ -392,9 +394,7 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                             <Th rowSpan={2} left={W_NUM}>학원명</Th>
                             <Th rowSpan={2}>{numberLabel}</Th>
                             <Th colSpan={2} center>플레이스</Th>
-                            <Th colSpan={2} center>블로그</Th>
-                            <Th colSpan={2} center>홈페이지</Th>
-                            <Th colSpan={2} center>카페</Th>
+                            {BUCKETS.map(b => <Th key={b} colSpan={2} center>{BUCKET_LABEL[b]}</Th>)}
                             <Th rowSpan={2}>링크</Th>
                             <Th rowSpan={2}>비고</Th>
                             <Th rowSpan={2}>전화번호</Th>
@@ -402,7 +402,7 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                         </tr>
                         {/* 2행: 묶음별 항목 */}
                         <tr>
-                            {['place', 'blog', 'homepage', 'cafe'].map(g => [
+                            {CH_GROUPS.map(g => [
                                 <Th key={`${g}-no`} top={headRowH} center tight>{numberLabel}</Th>,
                                 <Th key={`${g}-fee`} top={headRowH} center tight>교습비</Th>,
                             ])}
@@ -410,7 +410,7 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                     </thead>
                     <tbody>
                         {visible.length === 0 && (
-                            <tr><td colSpan={15} style={{ padding: '28px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
+                            <tr><td colSpan={7 + CH_GROUPS.length * 2} style={{ padding: '28px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
                                 해당하는 {typeTab}이(가) 없습니다.
                             </td></tr>
                         )}
@@ -418,11 +418,19 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                             const rowBg = i % 2 === 0 ? BG_ROW : BG_STRIPE;
                             const channels = parseChannels(result);
                             const cells = bucketCells(channels);
+                            const at = assignBuckets(channels);
                             const academy = academyById.get(target.id);
                             const remark = snsRemark(result);
                             // 아직 조사 전이면 빈 값(–), 조사했는데 그 채널 링크가 없으면 '없음'
-                            const ch = (key, field) => (!result ? '' : cells[key] ? cells[key][field] : '없음');
-                            const place = (field) => (!result ? '' : result.matchStatus === 'no_match' ? '없음' : result[field]);
+                            const ch = (key, field) => {
+                                if (!result) return '';
+                                const c = cells[key];
+                                if (!c) return '없음';
+                                return c.notProbed ? '조사안함' : c[field];
+                            };
+                            // 플레이스를 못 찾은 것은 '없다'는 뜻이 아니다 — 이름이 달라 검색에 안 걸렸을 뿐
+                            // 실제로는 거의 다 플레이스가 있으므로 '없음'이 아니라 '?'로 남긴다
+                            const place = (field) => (!result ? '' : result.matchStatus === 'no_match' ? '?' : result[field]);
                             return (
                                 <tr key={recordKey(target.category, target.regNo)} style={{ background: rowBg }}>
                                     <Td style={{ ...stickyTd(0, rowBg), color: 'var(--text-muted)', fontSize: '0.78rem', textAlign: 'center' }}>{i + 1}</Td>
@@ -443,12 +451,10 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
 
                                     <Td style={CENTER}><OxBadge value={place('플레이스_번호')} /></Td>
                                     <Td style={CENTER}><OxBadge value={place('플레이스_교습비')} /></Td>
-                                    <Td style={CENTER}><OxBadge value={ch('blog', '번호')} /></Td>
-                                    <Td style={CENTER}><OxBadge value={ch('blog', '교습비')} /></Td>
-                                    <Td style={CENTER}><OxBadge value={ch('homepage', '번호')} /></Td>
-                                    <Td style={CENTER}><OxBadge value={ch('homepage', '교습비')} /></Td>
-                                    <Td style={CENTER}><OxBadge value={ch('cafe', '번호')} /></Td>
-                                    <Td style={CENTER}><OxBadge value={ch('cafe', '교습비')} /></Td>
+                                    {BUCKETS.map(b => [
+                                        <Td key={`${b}-no`} style={CENTER}><OxBadge value={ch(b, '번호')} /></Td>,
+                                        <Td key={`${b}-fee`} style={CENTER}><OxBadge value={ch(b, '교습비')} /></Td>,
+                                    ])}
 
                                     <Td>
                                         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', fontSize: '0.8rem' }}>
@@ -458,7 +464,7 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                                             {/* 플레이스 홈에 걸린 링크들 — 실제로 조사한 대상이다 */}
                                             {channels.map((c, ci) => (
                                                 <a key={`${c.url}-${ci}`} href={c.url} target="_blank" rel="noreferrer" style={linkStyle}>
-                                                    {BUCKET_LABEL[channelBucket(c)]}
+                                                    {BUCKET_LABEL[at[ci]]}
                                                 </a>
                                             ))}
                                             {!result && <a href={blogSearchUrl(target.name, region)} target="_blank" rel="noreferrer" style={linkStyle}>블로그검색</a>}

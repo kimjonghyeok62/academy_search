@@ -6,6 +6,13 @@ export default function SnsOxBadge({ value }) {
     if (value === '없음') {
         return <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>없음</span>;
     }
+    // 링크는 있는데 자동 조사 대상이 아닌 채널 (인스타그램)
+    if (value === '조사안함') {
+        return (
+            <span title="자동 조사 대상이 아닙니다 — 링크로 직접 확인하세요"
+                style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>안함</span>
+        );
+    }
     if (value !== 'O' && value !== 'X' && value !== '?') {
         return <span style={{ fontSize: '0.9rem', color: 'var(--border-color)' }}>–</span>;
     }
