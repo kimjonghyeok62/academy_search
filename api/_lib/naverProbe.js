@@ -136,12 +136,18 @@ const RE_LABELED = /(?:등록|신고)\s*번호\s*[:：]?\s*(?:제\s*)?([가-힣]
 // '제' 없이 쓰는 형태. 주소의 호실(2층 219, 220호 / 101동 1503호)과 섞이지 않도록
 // 숫자 바로 앞에 한글 접두어가 붙어 있을 때만 인정하고, 아래 단위어는 걸러낸다.
 const RE_BARE = /([가-힣]{2,8})\s*(\d{1,6})\s*호/g;
+// 학원 이름 뒤 괄호 안에 번호를 적는 곳이 많다 — '하남정상어학원(1068호)'.
+// 괄호를 건너뛰지 않으면 이런 번호를 통째로 놓친다. 실제로 한 블로그에 8곳 번호가 다 적혀
+// 있는데 접두어가 붙은 '하남342호' 둘만 읽혀 나머지 학원이 '오기재'로 몰렸다.
+// 다만 '나룰음악학원(2호)' 처럼 괄호 안 한 자리 숫자는 지점 표시다 — 두 자리부터 번호로 본다.
+// (한 자리 등록번호는 '하남9' 처럼 지역 접두어를 달고 있어 위 RE_BARE 가 잡는다)
+const RE_PAREN = /([가-힣]{2,8})\s*[([{（［]\s*(\d{2,6})\s*호/g;
 const ADDR_UNIT = /(층|동|가|로|길|번지|아파트|빌라|빌딩|상가|타워|프라자|플라자|오피스텔|타운|관|실|룸|객실|세대)$/;
 
 export function extractRegNos(text) {
     if (!text) return [];
     const found = [];
-    for (const [re, loose] of [[RE_HO, false], [RE_LABELED, false], [RE_BARE, true]]) {
+    for (const [re, loose] of [[RE_HO, false], [RE_LABELED, false], [RE_BARE, true], [RE_PAREN, true]]) {
         re.lastIndex = 0;
         let m;
         while ((m = re.exec(text)) !== null) {
