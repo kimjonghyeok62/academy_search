@@ -629,9 +629,22 @@ export const RECHECK_DAYS = 30;
 // 그대로 두면 반쪽 판정이 30일 동안 굳어 버린다 (naverProbe.js 의 보류 사유 문구와 짝)
 const HELD_BACK_MARK = '읽지 못해 보류';
 
+// 학원 이름 뒤 괄호에 적은 번호('하남정상어학원(1068호)')를 못 읽던 때가 있었다.
+// 그때 조사한 곳은 번호를 제대로 적어뒀는데도 '번호 오기재'로 굳어 있다.
+// 전체를 다시 도는 것은 차단을 부르니, 그 시절 결과 중 '오기재'로 남은 곳만 골라 다시 본다.
+const REGNO_PARSER_FIXED_AT = Date.parse('2026-08-30T09:00:00+09:00');
+
+function staleRegNoMismatch(result) {
+    const t = Date.parse(result.checkedAt);
+    if (isNaN(t) || t >= REGNO_PARSER_FIXED_AT) return false;
+    if (result.플레이스_번호대조 === '불일치') return true;
+    return parseChannels(result).some((c) => c.번호대조 === '불일치');
+}
+
 export function needsRecheck(result, days = RECHECK_DAYS) {
     if (!result || !result.checkedAt) return true;
     if (String(result.미이행사유 || '').includes(HELD_BACK_MARK)) return true;
+    if (staleRegNoMismatch(result)) return true;
     // 시트 비고에 플레이스 주소를 적어둔 곳은 30일을 기다리지 않는다.
     // 적어두고 '조사 필요' 를 눌렀는데 대상에서 빠지면, 756곳을 통째로 돌리는 수밖에 없다.
     const hint = remarkPlaceHint(result);
