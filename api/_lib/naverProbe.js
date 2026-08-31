@@ -53,7 +53,11 @@ function naverScope(url) {
     if (!/(^|\.)naver\.com$/.test(host)) return '';
     if (host.endsWith('search.naver.com')) return 'search';
     if (host.endsWith('place.naver.com')) return 'place';
-    return 'blog';   // blog / m.blog / rss.blog
+    if (/(^|\.)blog\.naver\.com$/.test(host)) return 'blog';   // blog / m.blog / rss.blog
+    // 그 밖의 네이버 호스트(스마트스토어·예약 m.site·카페)는 데이터센터 IP 를 상시 막는다.
+    // 인스타그램과 같은 부류다 — 차단으로 보면 그 링크 하나 때문에 학원이 통째로 조사에서 빠져
+    // 결과가 아예 안 만들어지고 영영 '미조사'로 남는다. 그 채널만 확인불가로 두고 지나간다.
+    return '';
 }
 
 async function getText(url, headers, timeoutMs) {
