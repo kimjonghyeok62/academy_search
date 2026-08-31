@@ -589,8 +589,6 @@ function compareRegNos(regNos, masterDigits) {
 
 export function buildResult({ academy, place, channels = [], matchScore, error }) {
     const masterDigits = String(academy.regNo || '').replace(/\D/g, '');
-    const isGyoseupso = academy.category === '교습소';
-    const numberLabel = isGyoseupso ? '신고번호' : '등록번호';
 
     if (error) {
         return {
@@ -666,22 +664,23 @@ export function buildResult({ academy, place, channels = [], matchScore, error }
     // ── 종합 판정 ──
     // 확정 판정은 매칭이 확실할 때만. 애매하면 사람이 검수하도록 확인불가로 남긴다.
     // 채널은 플레이스에 링크가 걸린 곳만 대상 — 블로그가 없다는 사실 자체는 위반이 아니다.
+    //
+    // 판정을 가르는 것은 '교습비' 뿐이다. 등록(신고)번호 미게시·오기재는 시정명령 사항이지
+    // 과태료 사항이 아닌데, 이것까지 미이행으로 잡으면 대부분의 학원이 미이행으로 떠서
+    // 반드시 게시해야 하는 교습비 미게시가 묻혀 버린다.
+    // 번호 상태는 플레이스_번호대조·채널상세 열에 그대로 남아 표와 상세화면에 보인다.
     const 미이행사유 = [];
     if (matchStatus === 'matched') {
         if (placeFee === false) 미이행사유.push('플레이스 교습비 미게시');
-        if (플레이스_번호대조 === '미기재') 미이행사유.push(`플레이스 ${numberLabel} 미기재`);
-        if (플레이스_번호대조 === '불일치') 미이행사유.push(`플레이스 ${numberLabel} 오기재(${플레이스_기재번호} ≠ ${academy.regNo})`);
         for (const c of 채널) {
             // 열지 못한 채널도, 아예 안 본 채널도 판정하지 않는다
             if (c.번호대조 === '확인불가' || c.번호대조 === '조사안함') continue;
-            const 이름 = c.종류 === 'instagram' ? '인스타그램 소개글' : `${c.유형}(${shortUrl(c.url)})`;
             // 인스타그램 프로필 소개글은 150자 한 줄이라 교습비를 적는 자리가 아니다.
             // 표본 14곳 중 교습비를 적어둔 곳은 1곳뿐이었는데 14곳 모두 미이행이 됐다 —
             // 학원이 안 지킨 게 아니라 근거로 삼을 자리가 아니어서 생기는 오판이다.
-            // 반면 등록번호는 짧아서 실제로 36%가 적어두므로 판정에 반영한다.
-            if (c.교습비 === 'X' && c.종류 !== 'instagram') 미이행사유.push(`${이름} 교습비 미게시`);
-            if (c.번호대조 === '미기재') 미이행사유.push(`${이름} ${numberLabel} 미기재`);
-            if (c.번호대조 === '불일치') 미이행사유.push(`${이름} ${numberLabel} 오기재(${c.기재번호} ≠ ${academy.regNo})`);
+            if (c.교습비 === 'X' && c.종류 !== 'instagram') {
+                미이행사유.push(`${c.유형}(${shortUrl(c.url)}) 교습비 미게시`);
+            }
         }
     }
     const 판정 = matchStatus !== 'matched' ? '확인불가'
