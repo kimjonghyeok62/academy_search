@@ -111,6 +111,9 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
     // 비고 칸에서 플레이스 주소를 받는 행 (행키) 과 입력값
     const [pinRow, setPinRow] = useState('');
     const [pinInput, setPinInput] = useState('');
+    // 공동운영 학원을 눌러 찾아가는 행 (행키) — 잠깐 색을 입혔다 지운다
+    const [jumpKey, setJumpKey] = useState('');
+    const rowRefs = useRef(new Map());
     const stopRef = useRef(false);
     // 저장 여부를 판단할 때 최신 결과가 필요하다 (setState 갱신함수 안에서 부수효과를 내지 않으려고 ref 로 둔다)
     const resultsRef = useRef({});
@@ -203,6 +206,29 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
         if (filter === '미조사') return withResult.filter(x => !x.result);
         return withResult.filter(x => x.result && effectiveVerdict(x.result) === filter);
     }, [withResult, filter]);
+
+    // ── 공동운영 학원으로 이동 ───────────────────────────
+    // 상세화면으로 나가면 지금 보던 표(필터·스크롤)를 잃는다. 함께 운영하는 곳은
+    // 같은 표에 나란히 있으니 이 표 안에서 그 행으로 옮겨 준다.
+    const jumpToRow = (key) => {
+        const cat = key.split('|')[0];
+        const shown = visible.some(x => recordKey(x.target.category, x.target.regNo) === key);
+        // 다른 구분(학원↔교습소)이거나 지금 필터에 걸려 안 보이는 곳이면 보이도록 풀어 준다 —
+        // 눌렀는데 아무 일도 일어나지 않으면 고장으로 보인다
+        if (cat && cat !== typeTab) setTypeTab(cat);
+        if (!shown || cat !== typeTab) setFilter('전체');
+        setJumpKey(key);
+    };
+
+    // 탭·필터가 바뀌어 그 행이 그려진 뒤에 옮겨 가야 한다 (visible 이 바뀌면 다시 시도)
+    useEffect(() => {
+        if (!jumpKey) return undefined;
+        const el = rowRefs.current.get(jumpKey);
+        if (!el) return undefined;
+        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        const t = setTimeout(() => setJumpKey(''), 2500);
+        return () => clearTimeout(t);
+    }, [jumpKey, visible]);
 
     const lastCheckedAt = useMemo(() => {
         let latest = '';
@@ -447,6 +473,7 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                     <b> 자동 판정이므로 확정 위반이 아니라 안내·점검 우선순위 참고 자료</b>이며,
                     동명 학원이나 지점이 있으면 <b>확인불가</b>로 남습니다.
                     <b> 학원명을 누르면</b> 그 학원의 상세화면으로 이동합니다 (SNS 탭에서 판정 근거를 전부 볼 수 있습니다).
+                    비고의 <b style={{ color: '#7c3aed' }}>공동운영</b> 학원명을 누르면 화면을 나가지 않고 <b>이 표의 그 학원 행</b>으로 옮겨 갑니다.
                     <br /><b>직접 확인해 고치기</b> — O/X 칸을 누르면 <b>자동값 → O → X → 자동값</b> 으로 바뀝니다.
                     직접 넣은 값은 <b style={{ color: '#2563eb' }}>파란색</b> 으로 보이고, <b>다시 조사해도 덮이지 않으며</b> 미이행·이행 집계에도 반영됩니다.
                     {lastCheckedAt && <><br />최근 조사: <b>{fmtWhen(lastCheckedAt)}</b></>}
@@ -495,7 +522,8 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                 {saveState && <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '8px' }}>{saveState}</div>}
                 {!running && (
                     <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '6px', lineHeight: 1.7 }}>
-                        <b>조사 필요</b> = 한 번도 안 본 곳 + 조사한 지 {RECHECK_DAYS}일 지난 곳. 게시 상태는 자주 바뀌지 않아서,
+                        <b>조사 필요</b> = 한 번도 안 본 곳 + 조사한 지 {RECHECK_DAYS}일 지난 곳
+                        + 예전 방식으로 조사해 번호가 <b>오기재로 잘못 남은 곳</b>. 게시 상태는 자주 바뀌지 않아서,
                         최근에 본 곳까지 매번 다시 도는 것이 네이버 차단의 가장 큰 원인이었습니다.
                         {stale.length > 30 && <> 지금 대상은 약 {Math.ceil(stale.length * 10 / 60)}분 걸립니다.</>}
                         <br />네이버가 막으면 <b>화면이 알아서 기다렸다 이어서 진행</b>합니다. 지켜보실 필요 없이 탭만 열어두시면 됩니다.
@@ -550,10 +578,11 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                             </td></tr>
                         )}
                         {visible.map(({ target, result }, i) => {
-                            const rowBg = i % 2 === 0 ? BG_ROW : BG_STRIPE;
                             const channels = parseChannels(result);
                             const at = assignBuckets(channels);
                             const rowKey = recordKey(target.category, target.regNo);
+                            // 공동운영에서 눌러 찾아온 행 — 어디로 왔는지 잠깐 보여준다
+                            const rowBg = rowKey === jumpKey ? '#ede9fe' : i % 2 === 0 ? BG_ROW : BG_STRIPE;
                             const academy = academyByKey.get(rowKey);
                             const dup = dupPlaces.get(rowKey);
                             const group = groups.get(rowKey);
@@ -572,7 +601,9 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                             // 지금 이 학원의 플레이스로 쓰는 주소 — 상세화면·구글시트와 같은 값이다
                             const curUrl = result ? currentPlaceUrl(result) : '';
                             return (
-                                <tr key={rowKey} style={{ background: rowBg }}>
+                                <tr key={rowKey}
+                                    ref={(el) => { if (el) rowRefs.current.set(rowKey, el); else rowRefs.current.delete(rowKey); }}
+                                    style={{ background: rowBg }}>
                                     <Td style={{ ...(isNarrow ? { background: rowBg } : stickyTd(0, rowBg)), color: 'var(--text-muted)', fontSize: '0.78rem', textAlign: 'center' }}>{i + 1}</Td>
                                     <Td style={{ ...(isNarrow ? { background: rowBg } : stickyTd(W_NUM, rowBg)), wordBreak: 'keep-all' }}>
                                         {academy && onSelectAcademy ? (
@@ -614,14 +645,16 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                                     </Td>
                                     <Td style={{ fontSize: '0.8rem', color: '#ef4444', wordBreak: 'keep-all' }}>
                                         {/* 공동 운영(플레이스·블로그를 함께 쓰는 곳) — 어느 학원인지 이름을 다 보여주고
-                                            누르면 그 학원 상세로 간다. 학원명 칸은 좁아 이름이 잘려 보이지 않았다. */}
+                                            누르면 이 표의 그 학원 행으로 옮겨 간다 (상세화면으로 나가지 않는다).
+                                            학원명 칸은 좁아 이름이 잘려 보이지 않았다. */}
                                         {siblings.length > 0 && (
                                             <div style={{ color: '#7c3aed', fontWeight: '600', marginBottom: '4px' }}>
                                                 🔗 공동운영: {siblings.map((sib, si) => (
                                                     <span key={sib.key}>
                                                         {si > 0 && ' · '}
                                                         {sib.academy
-                                                            ? <span onClick={() => onSelectAcademy(sib.academy)}
+                                                            ? <span onClick={() => jumpToRow(sib.key)}
+                                                                title={`이 표의 ${sib.name} 행으로 이동합니다`}
                                                                 style={{ cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '2px' }}>{sib.name}</span>
                                                             : sib.name}
                                                     </span>

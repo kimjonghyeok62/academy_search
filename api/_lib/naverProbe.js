@@ -151,7 +151,7 @@ const ADDR_UNIT = /(층|동|가|로|길|번지|아파트|빌라|빌딩|상가|�
 export function extractRegNos(text) {
     if (!text) return [];
     const found = [];
-    for (const [re, loose] of [[RE_HO, false], [RE_LABELED, false], [RE_BARE, true], [RE_PAREN, true]]) {
+    for (const [re, loose, paren] of [[RE_HO, false], [RE_LABELED, false], [RE_BARE, true], [RE_PAREN, true, true]]) {
         re.lastIndex = 0;
         let m;
         while ((m = re.exec(text)) !== null) {
@@ -159,7 +159,11 @@ export function extractRegNos(text) {
             const digits = m[2];
             // 느슨한 패턴은 '3층 201호' 같은 주소 표기를 등록번호로 오인하기 쉽다
             if (loose && (!prefix || ADDR_UNIT.test(prefix))) continue;
-            found.push({ raw: (prefix ? `${prefix}${digits}호` : `제${digits}호`), prefix, digits });
+            // 괄호형은 적힌 그대로 보여준다 — 비고에 '하남정상어학원1068호' 로 붙어 나오면
+            // 무엇이 학원 이름이고 무엇이 번호인지 읽어낼 수가 없다
+            const raw = !prefix ? `제${digits}호`
+                : paren ? `${prefix}(${digits}호)` : `${prefix}${digits}호`;
+            found.push({ raw, prefix, digits });
         }
     }
     const seen = new Set();
