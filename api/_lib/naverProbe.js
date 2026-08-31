@@ -759,12 +759,41 @@ async function pickPlace(ids, academy) {
     return { best, bestScore };
 }
 
+/**
+ * 담당자가 비고에 붙여넣은 단축주소(naver.me)를 실제 플레이스 번호로 편다.
+ * 휴대폰 네이버지도의 '공유'가 이 형태를 주므로 실사용에서 가장 흔한데, 주소 안에 번호가 없다.
+ * 못 펴면 빈 값을 돌려준다 — 호출부는 평소대로 이름으로 검색한다.
+ */
+export async function resolvePlaceShortUrl(url) {
+    const s = String(url || '').trim();
+    if (!/^https?:\/\/naver\.me\/[A-Za-z0-9]+$/i.test(s)) return '';
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    try {
+        const res = await fetch(s, { headers: H_MOBILE, signal: controller.signal, redirect: 'follow' });
+        if (!res.ok) return '';
+        const fromUrl = String(res.url || '').match(/place\/(\d+)/);
+        if (fromUrl) return fromUrl[1];
+        // 중간 페이지를 거치면 최종 주소에 번호가 없다 — 본문에서 찾는다
+        const body = await res.text();
+        const m = body.match(/place\/(\d+)/) || body.match(/[?&]id=(\d{6,})/);
+        return m ? m[1] : '';
+    } catch {
+        return '';
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
 export async function probeAcademy(academy, city) {
     try {
-        let ids = academy.placeId
-            ? [String(academy.placeId)]
+        // 비고에 적어둔 단축주소는 먼저 펴서 번호로 바꾼다. 못 펴면 이름으로 찾는 평소 길로 간다.
+        const placeId = String(academy.placeId || '')
+            || (academy.placeHint ? await resolvePlaceShortUrl(academy.placeHint) : '');
+        let ids = placeId
+            ? [placeId]
             : await searchPlaceIds(academy.name, city);
-        if (!ids.length && !academy.placeId) {
+        if (!ids.length && !placeId) {
             // 본관과 플레이스·블로그를 함께 쓰는 '○○관' 학원을 위한 재시도
             const alt = shortenName(academy.name);
             if (alt) {
@@ -772,7 +801,7 @@ export async function probeAcademy(academy, city) {
                 ids = await searchPlaceIds(alt, city);
             }
         }
-        if (!ids.length && !academy.placeId) {
+        if (!ids.length && !placeId) {
             // 이름으로 못 찾는 곳이 꽤 있다. 마스터 상호가 두 학원을 합쳐 놓은 경우
             // ('대치메이드세이노미사점학원' ← 플레이스는 '대치메이드학원 미사점', '대치세이노학원 미사점')
             // 이름은 안 걸려도 주소로는 잡힌다. 실제로 플레이스가 아예 없는 학원은 드물다.
@@ -790,8 +819,8 @@ export async function probeAcademy(academy, city) {
         // 저장해 둔 플레이스를 그대로 다시 쓰는 길(검색 생략)에서는 예전에 잘못 잡은 곳이 계속 굳는다.
         // 지점이 어긋나 있으면(1호점 학원인데 '2호점' 플레이스) 그 값을 버리고 이름으로 다시 찾는다.
         // 담당자가 직접 지정한 곳은 건드리지 않는다.
-        if (academy.placeId && !academy.placePinned && best && branchPenalty(academy.name, best.placeName) < 1) {
-            const wrong = String(academy.placeId);
+        if (placeId && !academy.placePinned && best && branchPenalty(academy.name, best.placeName) < 1) {
+            const wrong = placeId;
             await sleep(300);
             const fresh = (await searchPlaceIds(academy.name, city)).filter((id) => id !== wrong);
             if (fresh.length) {

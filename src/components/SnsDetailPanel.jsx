@@ -3,6 +3,7 @@ import {
     fetchSnsCheckContext, probeAll, saveSnsChecks, resultToRecord, parseChannels,
     placeSearchUrl, VERDICT_COLOR, rowCells, cellKey, assignBuckets, effectiveVerdict,
     applyManualCell, setManualCell, keepManual, parseManual, parsePlaceId, pinnedPlaceId,
+    remarkPlaceHint, pinResolvedPlace,
     effectivePlaceId, sharedCellTargets, buildGroups, recordKey, groupTag, PIN_CLEARED,
 } from '../utils/snsCheck';
 
@@ -114,13 +115,16 @@ export default function SnsDetailPanel({ academy, region = '하남' }) {
         setRunning(true);
         setMessage('');
         const pinned = pinnedPlaceId(from);
+        // 시트 비고에 적어둔 단축주소 — 번호가 없어 서버가 펴야 한다 (지정·저장된 플레이스가 없을 때만)
+        const hintUrl = pinned ? '' : remarkPlaceHint(from).url;
         const target = {
             id: regNo, name: academy.name || '', category, regNo,
             address: academy.address || '',
             // 직접 지정한 플레이스가 있으면 그것만 본다. 지정을 푼 직후에는 저장된 플레이스도
             // 무시해야 새로 검색한다 (그대로 두면 잘못 잡은 그 플레이스를 다시 물고 온다).
-            placeId: pinned || (ignoreStoredPlace ? '' : effectivePlaceId(from)),
-            placePinned: !!pinned,
+            placeId: hintUrl ? '' : (pinned || (ignoreStoredPlace ? '' : effectivePlaceId(from))),
+            placeHint: hintUrl,
+            placePinned: !!pinned || !!hintUrl,
         };
         // 1곳짜리 조사는 막혔다고 10분씩 기다릴 게 아니라 바로 알려준다
         const { results: [r], blocked, blockedReason } = await probeAll([target], region, { autoResume: false });
@@ -130,7 +134,7 @@ export default function SnsDetailPanel({ academy, region = '하남' }) {
             return;
         }
         // 담당자가 직접 고친 값·지정·묶음은 새 조사 결과에 없다 — 이어 붙이지 않으면 화면에서 사라진다
-        const merged = keepManual(r, from);
+        const merged = pinResolvedPlace(keepManual(r, from));
         setResult(merged);
         setResults((prev) => ({ ...prev, [key]: merged }));
         try { await saveSnsChecks([resultToRecord(merged)]); setMessage('✓ 조사 결과를 저장했습니다.'); }

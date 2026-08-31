@@ -6,6 +6,7 @@ import {
     assignBuckets, snsRemark, BUCKETS, BUCKET_LABEL,
     rowCells, parseManual, effectiveVerdict, applyManualCell, setManualCell, keepManual,
     buildGroups, placeDuplicates, sharedCellTargets, effectivePlaceId, pinnedPlaceId,
+    remarkPlaceHint, pinResolvedPlace,
     RECHECK_DAYS, VERDICT_COLOR,
 } from '../utils/snsCheck';
 import OxBadge from './SnsOxBadge';
@@ -112,7 +113,9 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
 
     // 새로 조사한 결과에는 담당자가 적어둔 값이 없다. 시트는 Apps Script 가 지켜주지만
     // 화면까지 지워지면 방금 고친 파란 값이 사라진 것처럼 보인다 — 이어 붙여 준다.
-    const carryOver = (fresh) => keepManual(fresh, resultsRef.current[recordKey(fresh.category, fresh.regNo)]);
+    // 비고 단축주소로 찾아낸 플레이스는 지정 열에 굳혀 둔다 (pinResolvedPlace)
+    const carryOver = (fresh) =>
+        pinResolvedPlace(keepManual(fresh, resultsRef.current[recordKey(fresh.category, fresh.regNo)]));
 
     // 모바일에서는 학원명 열을 왼쪽에 고정하지 않는다 — 좁은 화면에서 옆의 O/X 칸을 가린다.
     // (헤더 위쪽 고정은 그대로 둔다)
@@ -162,8 +165,12 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
     const withResult = useMemo(
         () => scoped.map(t => {
             const result = results[recordKey(t.category, t.regNo)] || null;
-            const placeId = effectivePlaceId(result);
-            const pinned = !!pinnedPlaceId(result);
+            // 비고에 단축주소를 적어뒀으면 번호는 서버가 펴서 알아낸다 —
+            // 예전에 잘못 잡아둔 플레이스를 그대로 넘기면 담당자가 알려준 주소가 무시된다.
+            const hint = remarkPlaceHint(result);
+            const placeId = hint.url ? '' : effectivePlaceId(result);
+            const pinned = !!pinnedPlaceId(result) || !!hint.id;
+            if (hint.url) return { target: { ...t, placeHint: hint.url, placePinned: true }, result };
             return { target: placeId ? { ...t, placeId, placePinned: pinned } : t, result };
         }),
         [scoped, results]);
@@ -228,15 +235,18 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                 heldBack += chunk.length - usable.length;
                 if (!usable.length) return;
 
+                // 이어 붙인 값(비고 주소로 굳힌 플레이스지정 포함)을 그대로 저장해야 시트에 남는다.
+                // 조사 결과 원본만 보내면 방금 굳힌 지정이 사라져 다음 조사 때 또 단축주소를 편다.
+                const merged = usable.map(carryOver);
                 const next = { ...resultsRef.current };
-                usable.forEach(r => { next[recordKey(r.category, r.regNo)] = carryOver(r); });
+                merged.forEach(r => { next[recordKey(r.category, r.regNo)] = r; });
                 resultsRef.current = next;
                 setResults(next);
 
                 // 저장은 순차 처리(동시 쓰기로 시트 행이 꼬이지 않도록)
                 saveQueue = saveQueue.then(async () => {
                     try {
-                        await saveSnsChecks(usable.map(resultToRecord));
+                        await saveSnsChecks(merged.map(resultToRecord));
                         savedCount += usable.length;
                         setSaveState(`저장됨 ${savedCount}곳`);
                     } catch (err) {
@@ -285,10 +295,11 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
             setSaveState('지금은 네이버 플레이스 상세가 제한 중이라 소개글을 읽지 못했습니다 — 기존 결과를 그대로 둡니다. 잠시 뒤 다시 눌러 주세요.');
             return;
         }
-        const next = { ...resultsRef.current, [key]: carryOver(r) };
+        const merged = carryOver(r);
+        const next = { ...resultsRef.current, [key]: merged };
         resultsRef.current = next;
         setResults(next);
-        try { await saveSnsChecks([resultToRecord(r)]); } catch { /* 화면 결과는 유지 */ }
+        try { await saveSnsChecks([resultToRecord(merged)]); } catch { /* 화면 결과는 유지 */ }
     };
 
     // ── 칸을 눌러 직접 확인한 값 넣기 ────────────────────

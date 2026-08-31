@@ -143,6 +143,15 @@ export function snsRemark(result, dupNames) {
         notes.push(`⚠ ${dupNames.join('·')}와 같은 플레이스 — 확인 필요`);
     }
 
+    // 담당자가 비고에 적어둔 주소가 실제로 쓰였는지 — 적어놨는데 조용히 무시되면 알 길이 없다
+    const hint = remarkPlaceHint(result);
+    if (hint.id || hint.url) {
+        const wanted = hint.id || pinnedPlaceId(result);
+        notes.push(wanted && String(result.플레이스ID || '') === wanted
+            ? '📍 비고에 적은 플레이스로 조사함'
+            : '⚠ 비고에 적은 주소를 쓰지 못했습니다 — 주소 확인 필요');
+    }
+
     if (result.matchStatus === 'no_match') notes.push('네이버플레이스 못 찾음');
     else if (result.matchStatus === 'ambiguous') notes.push('동명 업체 가능성 — 직접 확인');
     else if (result.matchStatus === 'error') notes.push('조사 중 오류 — 다시 확인 필요');
@@ -288,7 +297,39 @@ export function pinnedPlaceId(result) {
 
 /** 조사에 쓸 플레이스 ID — 직접 지정한 값이 항상 이긴다 */
 export const effectivePlaceId = (result) =>
-    pinnedPlaceId(result) || String(result?.플레이스ID || '').trim();
+    pinnedPlaceId(result) || remarkPlaceHint(result).id || String(result?.플레이스ID || '').trim();
+
+// ── 비고에 적어둔 플레이스 주소 ─────────────────────────
+// 이름으로 못 찾는 곳(하남 학원 131곳이 확인불가)은 담당자가 시트 '비고' 칸에
+// 네이버플레이스 주소를 붙여넣어 알려준다. 지정 열과 달리 비고는 자유 텍스트라 주소 형태만 받는다 —
+// parsePlaceId 처럼 '6자리 이상 숫자'까지 받으면 사업자번호·전화번호가 플레이스 번호로 둔갑한다.
+// http:// 를 떼고 붙여넣는 경우가 흔해 앞머리는 요구하지 않는다.
+// 대신 'naver.com/…place/숫자' 를 통째로 요구한다 — 메모 속 숫자가 번호로 둔갑하지 않는다.
+const REMARK_PLACE_URL = /naver\.com\/[^\s,<>]*place\/(\d+)/i;
+// 휴대폰 네이버지도의 '공유'는 번호가 없는 단축주소를 준다 — 서버가 펴서 번호를 알아낸다
+const REMARK_PLACE_SHORT = /(?:https?:\/\/)?naver\.me\/[A-Za-z0-9]+/i;
+
+/** 비고에서 플레이스 주소를 뽑는다 → { id } 또는 { url }(단축주소) */
+export function remarkPlaceHint(result) {
+    const s = String(result?.비고 || '');
+    const m = s.match(REMARK_PLACE_URL);
+    if (m) return { id: m[1], url: '' };
+    const short = s.match(REMARK_PLACE_SHORT);
+    if (!short) return { id: '', url: '' };
+    // 서버가 그대로 부를 수 있게 주소 형태를 갖춰 준다
+    return { id: '', url: /^https?:/i.test(short[0]) ? short[0] : `https://${short[0]}` };
+}
+
+/**
+ * 단축주소로 찾아낸 플레이스는 지정 열에 굳혀 둔다.
+ * 그러지 않으면 조사할 때마다 단축주소를 다시 펴야 하고(요청 1건 추가),
+ * 비고에 적은 주소가 실제로 먹혔는지 화면에서 가려낼 수 없다.
+ */
+export function pinResolvedPlace(result) {
+    if (!result || !remarkPlaceHint(result).url || pinnedPlaceId(result)) return result;
+    const id = String(result.플레이스ID || '').trim();
+    return id ? { ...result, 플레이스지정: id } : result;
+}
 
 // ── 공동 운영 묶음 ──────────────────────────────────────
 // 원장이 같거나 분관이라 여러 학원이 블로그·플레이스 하나를 함께 쓰는 곳이 있다.
@@ -513,6 +554,11 @@ const HELD_BACK_MARK = '읽지 못해 보류';
 export function needsRecheck(result, days = RECHECK_DAYS) {
     if (!result || !result.checkedAt) return true;
     if (String(result.미이행사유 || '').includes(HELD_BACK_MARK)) return true;
+    // 시트 비고에 플레이스 주소를 적어둔 곳은 30일을 기다리지 않는다.
+    // 적어두고 '조사 필요' 를 눌렀는데 대상에서 빠지면, 756곳을 통째로 돌리는 수밖에 없다.
+    const hint = remarkPlaceHint(result);
+    if (hint.url && !pinnedPlaceId(result)) return true;
+    if (hint.id && String(result.플레이스ID || '') !== hint.id) return true;
     const t = new Date(result.checkedAt).getTime();
     if (isNaN(t)) return true;
     return Date.now() - t > days * 86400000;
