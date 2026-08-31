@@ -321,6 +321,21 @@ export function remarkPlaceHint(result) {
 }
 
 /**
+ * 담당자가 칸에 붙여넣은 값 → 조사에 쓸 것.
+ * 번호를 바로 알 수 있으면 { id }, 단축주소(naver.me)면 { url } — 단축주소는 서버가 펴야 한다.
+ * 비고와 달리 '여기에 주소를 넣겠다'고 작정하고 넣은 값이라 숫자만 적어도 받는다.
+ */
+export function parsePlaceInput(raw) {
+    const s = String(raw || '').trim();
+    if (!s) return { id: '', url: '' };
+    const short = s.match(REMARK_PLACE_SHORT);
+    if (short && !/place\/\d+/i.test(s)) {
+        return { id: '', url: /^https?:/i.test(short[0]) ? short[0] : `https://${short[0]}` };
+    }
+    return { id: parsePlaceId(s), url: '' };
+}
+
+/**
  * 단축주소로 찾아낸 플레이스는 지정 열에 굳혀 둔다.
  * 그러지 않으면 조사할 때마다 단축주소를 다시 펴야 하고(요청 1건 추가),
  * 비고에 적은 주소가 실제로 먹혔는지 화면에서 가려낼 수 없다.

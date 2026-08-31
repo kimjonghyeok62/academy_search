@@ -6,7 +6,7 @@ import {
     assignBuckets, snsRemark, BUCKETS, BUCKET_LABEL,
     rowCells, parseManual, effectiveVerdict, applyManualCell, setManualCell, keepManual,
     buildGroups, placeDuplicates, sharedCellTargets, effectivePlaceId, pinnedPlaceId,
-    remarkPlaceHint, pinResolvedPlace,
+    remarkPlaceHint, pinResolvedPlace, parsePlaceInput, PIN_CLEARED,
     RECHECK_DAYS, VERDICT_COLOR,
 } from '../utils/snsCheck';
 import OxBadge from './SnsOxBadge';
@@ -107,6 +107,9 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
     const [typeTab, setTypeTab] = useState('학원');
     const numberLabel = typeTab === '교습소' ? '신고번호' : '등록번호';
     const [filter, setFilter] = useState('미이행');
+    // 비고 칸에서 플레이스 주소를 받는 행 (행키) 과 입력값
+    const [pinRow, setPinRow] = useState('');
+    const [pinInput, setPinInput] = useState('');
     const stopRef = useRef(false);
     // 저장 여부를 판단할 때 최신 결과가 필요하다 (setState 갱신함수 안에서 부수효과를 내지 않으려고 ref 로 둔다)
     const resultsRef = useRef({});
@@ -281,7 +284,8 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
 
     const runStale = () => runProbe(stale.map(x => x.target), typeTab);
     const runAll = () => runProbe(withResult.map(x => x.target), `${typeTab} 전체`);
-    const runOne = async (target) => {
+    // pin: 단축주소로 조사한 경우처럼, 찾아낸 플레이스를 지정 열에 굳혀야 할 때
+    const runOne = async (target, { pin = false } = {}) => {
         setRunning(true);
         setSaveState('');
         const { results: [r], blocked, blockedReason } = await probeAll([target], region, { autoResume: false });
@@ -295,11 +299,59 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
             setSaveState('지금은 네이버 플레이스 상세가 제한 중이라 소개글을 읽지 못했습니다 — 기존 결과를 그대로 둡니다. 잠시 뒤 다시 눌러 주세요.');
             return;
         }
-        const merged = carryOver(r);
+        let merged = carryOver(r);
+        const foundId = String(r.플레이스ID || '').trim();
+        if (pin && foundId && !pinnedPlaceId(merged)) merged = { ...merged, 플레이스지정: foundId };
         const next = { ...resultsRef.current, [key]: merged };
         resultsRef.current = next;
         setResults(next);
         try { await saveSnsChecks([resultToRecord(merged)]); } catch { /* 화면 결과는 유지 */ }
+    };
+
+    // ── 비고 칸에서 플레이스 주소 지정 ───────────────────
+    // 이름으로 못 찾는 곳(확인불가)이 많아 시트를 오가지 않고 표에서 바로 넣는다.
+    // 값은 시트 '플레이스지정'(AB열)에 남는다 — 상세 패널의 '직접 지정' 과 같은 자리다.
+    const savePlacePin = async (target) => {
+        const parsed = parsePlaceInput(pinInput);
+        if (!parsed.id && !parsed.url) {
+            setSaveState('⚠ 플레이스 주소에서 번호를 찾지 못했습니다. 네이버플레이스 주소를 그대로 붙여넣어 주세요.');
+            return;
+        }
+        const key = recordKey(target.category, target.regNo);
+        setPinRow('');
+        setPinInput('');
+        setSaveState('플레이스를 지정하고 다시 조사합니다…');
+
+        // 번호를 바로 아는 경우엔 조사보다 먼저 저장한다 — 네이버가 막혀도 지정은 남는다.
+        // (단축주소는 펴 봐야 번호를 알 수 있어 조사 뒤에 굳힌다)
+        if (parsed.id) {
+            const base = resultsRef.current[key]
+                || { category: target.category, regNo: target.regNo, name: target.name, 판정: '', checkedAt: '' };
+            const updated = { ...base, 플레이스지정: parsed.id };
+            const next = { ...resultsRef.current, [key]: updated };
+            resultsRef.current = next;
+            setResults(next);
+            try { await saveSnsChecks([resultToRecord(updated)]); }
+            catch (err) { setSaveState(`⚠ 지정을 저장하지 못했습니다: ${err.message}`); return; }
+        }
+        await runOne(
+            { ...target, placeId: parsed.id, placeHint: parsed.url, placePinned: true },
+            { pin: !!parsed.url });
+    };
+
+    const clearPlacePin = async (target, result) => {
+        if (!result) return;
+        const key = recordKey(result.category, result.regNo);
+        // 빈 값으로 보내면 Apps Script 가 '안 넘어온 것'으로 보고 기존 값을 지킨다 — 해제 표시를 남긴다
+        const updated = { ...result, 플레이스지정: PIN_CLEARED };
+        const next = { ...resultsRef.current, [key]: updated };
+        resultsRef.current = next;
+        setResults(next);
+        setSaveState('지정을 풀고 이름으로 다시 찾습니다…');
+        try { await saveSnsChecks([resultToRecord(updated)]); }
+        catch (err) { setSaveState(`⚠ 해제를 저장하지 못했습니다: ${err.message}`); return; }
+        // 저장된 플레이스도 무시해야 새로 검색한다 (그대로 두면 잘못 잡은 그 곳을 다시 물고 온다)
+        await runOne({ ...target, placeId: '', placeHint: '', placePinned: false });
     };
 
     // ── 칸을 눌러 직접 확인한 값 넣기 ────────────────────
@@ -530,6 +582,7 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                             const group = groups.get(rowKey);
                             const remark = snsRemark(result, dup);
                             const cells = rowCells(result);
+                            const pinned = pinnedPlaceId(result);
                             return (
                                 <tr key={rowKey} style={{ background: rowBg }}>
                                     <Td style={{ ...(isNarrow ? { background: rowBg } : stickyTd(0, rowBg)), color: 'var(--text-muted)', fontSize: '0.78rem', textAlign: 'center' }}>{i + 1}</Td>
@@ -589,10 +642,57 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                                                         fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap',
                                                     }}>묶음으로 확정</button>
                                                 <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                                                    다른 학원이면 학원명을 눌러 상세에서 <b>플레이스 지정</b>
+                                                    다른 학원이면 아래 <b>플레이스 지정</b> 으로 바로잡아 주세요
                                                 </div>
                                             </div>
                                         )}
+                                        {/* 이름으로 못 찾거나 엉뚱한 곳을 잡았을 때 — 주소를 여기서 바로 넣는다.
+                                            값은 시트 '플레이스지정'(AB열)에 남아 다시 조사해도 유지된다. */}
+                                        <div style={{ marginTop: remark ? '5px' : 0 }}>
+                                            {pinRow === rowKey ? (
+                                                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', alignItems: 'center' }}>
+                                                    <input autoFocus value={pinInput}
+                                                        onChange={(e) => setPinInput(e.target.value)}
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === 'Enter') savePlacePin(target);
+                                                            if (e.key === 'Escape') { setPinRow(''); setPinInput(''); }
+                                                        }}
+                                                        placeholder="네이버플레이스 주소 붙여넣기"
+                                                        style={{
+                                                            flex: '1 1 150px', minWidth: 0, padding: '5px 8px', fontSize: '0.78rem',
+                                                            border: '1px solid var(--border-color)', borderRadius: '7px',
+                                                            background: 'var(--bg-card)', color: 'var(--text-main)',
+                                                        }} />
+                                                    <button onClick={() => savePlacePin(target)} disabled={running} style={{
+                                                        padding: '5px 10px', borderRadius: '7px', border: 'none',
+                                                        background: running ? 'var(--border-color)' : 'var(--primary)',
+                                                        color: 'white', fontSize: '0.76rem', fontWeight: '700',
+                                                        cursor: running ? 'default' : 'pointer', whiteSpace: 'nowrap',
+                                                    }}>지정</button>
+                                                    <button onClick={() => { setPinRow(''); setPinInput(''); }} style={{
+                                                        background: 'none', border: 'none', color: 'var(--text-muted)',
+                                                        fontSize: '0.76rem', cursor: 'pointer',
+                                                    }}>취소</button>
+                                                </div>
+                                            ) : (
+                                                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                                                    <button onClick={() => { setPinRow(rowKey); setPinInput(''); }}
+                                                        title="네이버플레이스 주소(또는 지도앱 공유주소)를 넣으면 그 플레이스로 조사합니다"
+                                                        style={{
+                                                            background: 'none', border: '1px solid var(--border-color)', borderRadius: '6px',
+                                                            padding: '3px 7px', color: '#3b82f6', fontSize: '0.74rem',
+                                                            fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap',
+                                                        }}>📍 {pinned ? '플레이스 바꾸기' : '플레이스 지정'}</button>
+                                                    {pinned && (
+                                                        <button onClick={() => clearPlacePin(target, result)} disabled={running} style={{
+                                                            background: 'none', border: 'none', color: 'var(--text-muted)',
+                                                            fontSize: '0.74rem', fontWeight: '600',
+                                                            cursor: running ? 'default' : 'pointer', textDecoration: 'underline',
+                                                        }}>지정 해제</button>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
                                     </Td>
                                     <Td style={{ whiteSpace: 'nowrap' }}>
                                         {target.contact
