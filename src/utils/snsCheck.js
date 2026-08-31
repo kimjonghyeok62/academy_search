@@ -152,8 +152,13 @@ export function snsRemark(result, dupNames) {
             : '⚠ 비고에 적은 주소를 쓰지 못했습니다 — 주소 확인 필요');
     }
 
-    if (result.matchStatus === 'no_match') notes.push('네이버플레이스 못 찾음');
-    else if (result.matchStatus === 'ambiguous') notes.push('동명 업체 가능성 — 직접 확인');
+    // 후보를 하나도 못 찾은 것과, 찾긴 했는데 이름이 달라 확정을 못 한 것은 다른 상태다.
+    // 후자를 '못 찾음'으로 적으면 담당자가 찾아볼 곳이 없다고 읽고 그냥 넘긴다.
+    if (result.matchStatus === 'no_match') {
+        notes.push(hasPlaceCandidate(result)
+            ? '이름이 달라 동일 업체 미확정 — 맞는지 확인 필요'
+            : '네이버플레이스 못 찾음');
+    } else if (result.matchStatus === 'ambiguous') notes.push('동명 업체 가능성 — 직접 확인');
     else if (result.matchStatus === 'error') notes.push('조사 중 오류 — 다시 확인 필요');
 
     if (result.플레이스_번호대조 === '불일치') {
@@ -205,7 +210,9 @@ export const cellKey = (bucket, field) => `${bucket}|${field}`;
 export function rowCells(result) {
     const manual = parseManual(result);
     const cells = bucketCells(parseChannels(result));
-    const noPlace = result && result.matchStatus === 'no_match';
+    // 후보 플레이스를 물고 온 경우에는 실제로 읽어 본 값이 있다 — '못 봤다'로 지우지 않는다.
+    // (같은 곳인지 확정되지 않았다는 사실은 판정(확인불가)과 비고가 따로 알린다)
+    const noPlace = result && result.matchStatus === 'no_match' && !hasPlaceCandidate(result);
     const out = [];
     const push = (bucket, field, auto) => {
         const key = cellKey(bucket, field);
@@ -232,21 +239,27 @@ export function nextManual(current) {
 }
 
 /**
- * 직접 고친 값을 반영한 판정.
- * 자동 판정을 다시 계산하지 않고 '남은 X 가 있는지'만 본다 — 서버 판정 규칙을
- * 화면에서 흉내 내면 두 곳이 갈라지기 때문이다.
+ * 화면에 보이는 판정 — 교습비 칸만 보고 정한다.
+ *
+ * 등록(신고)번호 미게시는 시정명령 사항이지 과태료 사항이 아니다. 번호까지 미이행으로 잡으면
+ * 대부분의 학원이 빨갛게 떠서 정작 반드시 게시해야 하는 교습비 미게시가 눈에 안 띈다.
+ * 번호 상태는 표의 번호 칸과 비고에 그대로 남아 있으므로 정보를 잃지 않는다.
+ *
+ * 저장된 칸 값에서 매번 다시 계산한다 — 예전 규칙(번호 포함)으로 저장된 행도
+ * 756곳을 다시 조사하지 않고 바로 새 기준으로 보이게 하기 위해서다.
+ * 인스타그램은 서버도 교습비 판정에서 뺀다 (소개글 150자라 교습비를 적는 자리가 아니다).
  */
 export function effectiveVerdict(result) {
     if (!result) return '미조사';
-    const manual = parseManual(result);
-    if (!Object.keys(manual).length) return result.판정;
+    if (!result.checkedAt) return result.판정 || '미조사';
     // 동일 업체인지 자체가 불확실한 건 칸을 고친다고 풀리지 않는다
-    if (result.matchStatus !== 'matched') return result.판정;
+    if (result.matchStatus !== 'matched') return '확인불가';
 
-    const hasX = rowCells(result).some((c) => c.value === 'X');
-    if (result.판정 === '미이행' && !hasX) return '이행';
-    if (result.판정 === '이행' && hasX) return '미이행';
-    return result.판정;
+    const fee = rowCells(result).filter((c) => c.field === '교습비' && c.bucket !== 'instagram');
+    if (fee.some((c) => c.value === 'X')) return '미이행';
+    // 못 본 곳이 남아 있으면 '이행'이라고 단정하지 않는다
+    if (fee.some((c) => c.value === '?')) return '확인불가';
+    return '이행';
 }
 
 /** 칸에 특정 값을 넣는다 (undefined 면 자동값으로 되돌린다). 저장은 부르는 쪽이 한다. */
@@ -290,10 +303,57 @@ export function parsePlaceId(input) {
 // 기존 값을 지켜주므로, 빈 문자열로 보내면 해제가 영영 저장되지 않는다.
 export const PIN_CLEARED = '-';
 
+/** 플레이스 번호 → 조사 결과가 쓰는 것과 같은 형식의 주소 (naverProbe.js 의 placeUrl) */
+export const placeUrlFromId = (id) => {
+    const s = String(id || '').trim();
+    return s ? `https://m.place.naver.com/place/${s}/home` : '';
+};
+
+/**
+ * 담당자가 지정해 둔 플레이스 번호.
+ * 지정 열에는 사람이 읽을 수 있게 주소를 통째로 남기지만(시트를 열어 바로 눌러볼 수 있어야 한다),
+ * 예전에 번호만 저장된 행도 있으므로 어느 쪽이든 번호를 뽑아낸다.
+ */
 export function pinnedPlaceId(result) {
     const v = String(result?.플레이스지정 || '').trim();
-    return v === PIN_CLEARED ? '' : v;
+    return v === PIN_CLEARED ? '' : parsePlaceId(v);
 }
+
+/** 지정해 둔 플레이스 주소 (번호만 저장된 예전 행은 주소로 만들어 준다) */
+export function pinnedPlaceUrl(result) {
+    const v = String(result?.플레이스지정 || '').trim();
+    if (!v || v === PIN_CLEARED) return '';
+    return /^https?:\/\//i.test(v) ? v : placeUrlFromId(parsePlaceId(v));
+}
+
+/**
+ * 지금 이 학원의 플레이스로 실제 쓰이고 있는 주소 — 표·상세화면이 같은 값을 보여주기 위한 것.
+ * 우선순위는 effectivePlaceId 와 같다: 직접 지정 → 시트 비고에 적어둔 주소 → 지난 조사에서 찾은 곳.
+ */
+export function currentPlaceUrl(result) {
+    const pinned = pinnedPlaceUrl(result);
+    if (pinned) return pinned;
+    const hint = remarkPlaceHint(result);
+    if (hint.id) return placeUrlFromId(hint.id);
+    if (hint.url) return hint.url;
+    return String(result?.플레이스URL || '').trim() || placeUrlFromId(result?.플레이스ID);
+}
+
+/** 그 주소가 어디서 온 것인지 — 화면에 한 줄로 알려 준다 */
+export function placeSource(result) {
+    if (pinnedPlaceUrl(result)) return '직접 지정함';
+    const hint = remarkPlaceHint(result);
+    if (hint.id || hint.url) return '시트 비고에 적은 주소';
+    return '이름으로 자동 검색한 결과';
+}
+
+/**
+ * 후보 플레이스를 하나라도 물고 왔는지.
+ * matchStatus 가 'no_match' 여도 두 가지가 섞여 있다 —
+ * (1) 검색에서 아무것도 못 찾음(플레이스ID 없음), (2) 찾긴 했는데 이름 유사도가 낮아 확정 보류.
+ * (2)는 조사한 값이 실제로 있으므로 화면에서 (1)과 같이 다루면 안 된다.
+ */
+export const hasPlaceCandidate = (result) => !!String(result?.플레이스ID || '').trim();
 
 /** 조사에 쓸 플레이스 ID — 직접 지정한 값이 항상 이긴다 */
 export const effectivePlaceId = (result) =>
@@ -336,14 +396,17 @@ export function parsePlaceInput(raw) {
 }
 
 /**
- * 단축주소로 찾아낸 플레이스는 지정 열에 굳혀 둔다.
- * 그러지 않으면 조사할 때마다 단축주소를 다시 펴야 하고(요청 1건 추가),
- * 비고에 적은 주소가 실제로 먹혔는지 화면에서 가려낼 수 없다.
+ * 비고에 적어둔 주소로 찾아낸 플레이스는 지정 열에 굳혀 둔다.
+ * 그러지 않으면 단축주소를 조사할 때마다 다시 펴야 하고(요청 1건 추가),
+ * 무엇보다 표·상세화면·시트가 서로 다른 값을 보여 어느 것이 맞는지 알 수 없다.
+ * 굳히고 나면 세 곳이 모두 같은 주소를 가리킨다.
  */
 export function pinResolvedPlace(result) {
-    if (!result || !remarkPlaceHint(result).url || pinnedPlaceId(result)) return result;
+    if (!result || pinnedPlaceId(result)) return result;
+    const hint = remarkPlaceHint(result);
+    if (!hint.url && !hint.id) return result;
     const id = String(result.플레이스ID || '').trim();
-    return id ? { ...result, 플레이스지정: id } : result;
+    return id ? { ...result, 플레이스지정: placeUrlFromId(id) } : result;
 }
 
 // ── 공동 운영 묶음 ──────────────────────────────────────

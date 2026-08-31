@@ -6,7 +6,8 @@ import {
     assignBuckets, snsRemark, BUCKETS, BUCKET_LABEL,
     rowCells, parseManual, effectiveVerdict, applyManualCell, setManualCell, keepManual,
     buildGroups, placeDuplicates, sharedCellTargets, effectivePlaceId, pinnedPlaceId,
-    remarkPlaceHint, pinResolvedPlace, parsePlaceInput, PIN_CLEARED,
+    remarkPlaceHint, pinResolvedPlace, parsePlaceInput, hasPlaceCandidate,
+    currentPlaceUrl, placeSource, placeUrlFromId, parsePlaceId, PIN_CLEARED,
     RECHECK_DAYS, VERDICT_COLOR,
 } from '../utils/snsCheck';
 import OxBadge from './SnsOxBadge';
@@ -301,7 +302,8 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
         }
         let merged = carryOver(r);
         const foundId = String(r.플레이스ID || '').trim();
-        if (pin && foundId && !pinnedPlaceId(merged)) merged = { ...merged, 플레이스지정: foundId };
+        // 지정 열에는 주소를 통째로 남긴다 — 시트를 열어 본 사람도 바로 눌러 확인할 수 있어야 한다
+        if (pin && foundId && !pinnedPlaceId(merged)) merged = { ...merged, 플레이스지정: placeUrlFromId(foundId) };
         const next = { ...resultsRef.current, [key]: merged };
         resultsRef.current = next;
         setResults(next);
@@ -311,8 +313,9 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
     // ── 비고 칸에서 플레이스 주소 지정 ───────────────────
     // 이름으로 못 찾는 곳(확인불가)이 많아 시트를 오가지 않고 표에서 바로 넣는다.
     // 값은 시트 '플레이스지정'(AB열)에 남는다 — 상세 패널의 '직접 지정' 과 같은 자리다.
-    const savePlacePin = async (target) => {
-        const parsed = parsePlaceInput(pinInput);
+    // raw 를 넘기면 칸에 적지 않고 바로 지정한다 ('이 플레이스 맞음' 버튼이 그렇게 쓴다)
+    const savePlacePin = async (target, raw = pinInput) => {
+        const parsed = parsePlaceInput(raw);
         if (!parsed.id && !parsed.url) {
             setSaveState('⚠ 플레이스 주소에서 번호를 찾지 못했습니다. 네이버플레이스 주소를 그대로 붙여넣어 주세요.');
             return;
@@ -327,7 +330,7 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
         if (parsed.id) {
             const base = resultsRef.current[key]
                 || { category: target.category, regNo: target.regNo, name: target.name, 판정: '', checkedAt: '' };
-            const updated = { ...base, 플레이스지정: parsed.id };
+            const updated = { ...base, 플레이스지정: placeUrlFromId(parsed.id) };
             const next = { ...resultsRef.current, [key]: updated };
             resultsRef.current = next;
             setResults(next);
@@ -390,38 +393,10 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
         }
     };
 
-    // ── 같은 플레이스를 쓰는 곳을 묶음으로 확정 ──────────
-    // 지점을 잘못 잡은 것이 아니라 정말 함께 운영하는 곳(고수학·성공스토리처럼)이면 여기서 묶는다.
-    // '묶음' 열에 남으므로 다시 조사해도 유지되고, 그때부터 교습비가 함께 반영된다.
-    const confirmGroup = async (result) => {
-        const placeId = String(result?.플레이스ID || '');
-        if (!placeId) return;
-        const label = String(result.플레이스명 || result.name || '').trim() || placeId;
-        const before = resultsRef.current;
-        const next = { ...before };
-        const records = [];
-        Object.entries(before).forEach(([k, r]) => {
-            if (String(r.플레이스ID || '') !== placeId) return;
-            const u = { ...r, 묶음: label };
-            next[k] = u;
-            records.push(resultToRecord(u));
-        });
-        if (records.length < 2) return;
-        resultsRef.current = next;
-        setResults(next);
-        setSaveState(`'${label}' 묶음으로 묶었습니다 (${records.length}곳). 교습비는 이제 함께 반영됩니다.`);
-        try {
-            await saveSnsChecks(records);
-        } catch (err) {
-            resultsRef.current = before;
-            setResults(before);
-            setSaveState(`⚠ 묶음을 저장하지 못했습니다: ${err.message}`);
-        }
-    };
-
     // ── 미이행 연락처 엑셀 ──────────────────────────────
     const downloadNonCompliantExcel = () => {
-        const items = withResult.filter(x => x.result && x.result.판정 === '미이행');
+        // 화면 집계·필터와 같은 기준(교습비 + 직접 고친 값)으로 뽑는다
+        const items = withResult.filter(x => x.result && effectiveVerdict(x.result) === '미이행');
         if (!items.length) return;
         const rows = items.map(({ target, result }, i) => ({
             '순번': i + 1,
@@ -466,10 +441,12 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                 <div style={{ fontSize: '0.95rem', fontWeight: '800', marginBottom: '6px' }}>📣 네이버 교습비·등록번호 게시점검</div>
                 <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.7 }}>
                     네이버플레이스의 가격 메뉴·가격표 이미지·소개글과, <b>플레이스 홈에 링크된 블로그·홈페이지·카페·인스타그램</b>을
-                    자동으로 조사해 교습비와 등록(신고)번호 게시 여부를 판정합니다. 링크가 없는 채널은 따로 검색하지 않습니다.
+                    자동으로 조사해 교습비와 등록(신고)번호 게시 여부를 확인합니다. 링크가 없는 채널은 따로 검색하지 않습니다.
+                    <b> 이행·미이행은 교습비만으로 판정</b>합니다 — 등록(신고)번호 미게시는 시정명령 사항이라
+                    칸에 X 로 보여주되 미이행으로는 잡지 않습니다.
                     <b> 자동 판정이므로 확정 위반이 아니라 안내·점검 우선순위 참고 자료</b>이며,
                     동명 학원이나 지점이 있으면 <b>확인불가</b>로 남습니다.
-                    <b> 학원명을 누르면</b> 그 학원의 상세 SNS 화면에서 판정 근거를 전부 볼 수 있습니다.
+                    <b> 학원명을 누르면</b> 그 학원의 상세화면으로 이동합니다 (SNS 탭에서 판정 근거를 전부 볼 수 있습니다).
                     <br /><b>직접 확인해 고치기</b> — O/X 칸을 누르면 <b>자동값 → O → X → 자동값</b> 으로 바뀝니다.
                     직접 넣은 값은 <b style={{ color: '#2563eb' }}>파란색</b> 으로 보이고, <b>다시 조사해도 덮이지 않으며</b> 미이행·이행 집계에도 반영됩니다.
                     {lastCheckedAt && <><br />최근 조사: <b>{fmtWhen(lastCheckedAt)}</b></>}
@@ -580,15 +557,26 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                             const academy = academyByKey.get(rowKey);
                             const dup = dupPlaces.get(rowKey);
                             const group = groups.get(rowKey);
+                            // 같은 플레이스·블로그를 쓰는 다른 학원 (이름 + 이동할 학원 객체)
+                            // (members 와 names 는 buildGroups 에서 같은 순서로 쌓인다)
+                            const siblings = (group?.members || [])
+                                .map((m, mi) => ({ key: m, name: group.names[mi] || m.split('|')[1], academy: academyByKey.get(m) }))
+                                .filter(x => x.key !== rowKey);
                             const remark = snsRemark(result, dup);
                             const cells = rowCells(result);
                             const pinned = pinnedPlaceId(result);
+                            // 플레이스를 물고 오긴 했는데 상호가 달라 자동 확정을 못 한 행 —
+                            // 주소를 찾아 붙여넣을 것 없이 '맞다'만 눌러 주면 된다
+                            const unconfirmedPlace = !!result && result.matchStatus !== 'matched'
+                                && hasPlaceCandidate(result) && !pinned;
+                            // 지금 이 학원의 플레이스로 쓰는 주소 — 상세화면·구글시트와 같은 값이다
+                            const curUrl = result ? currentPlaceUrl(result) : '';
                             return (
                                 <tr key={rowKey} style={{ background: rowBg }}>
                                     <Td style={{ ...(isNarrow ? { background: rowBg } : stickyTd(0, rowBg)), color: 'var(--text-muted)', fontSize: '0.78rem', textAlign: 'center' }}>{i + 1}</Td>
                                     <Td style={{ ...(isNarrow ? { background: rowBg } : stickyTd(W_NUM, rowBg)), wordBreak: 'keep-all' }}>
                                         {academy && onSelectAcademy ? (
-                                            <span onClick={() => onSelectAcademy(academy, 'sns')}
+                                            <span onClick={() => onSelectAcademy(academy)}
                                                 style={{ fontSize: '0.9rem', fontWeight: '700', color: 'var(--primary)', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '2px' }}>
                                                 {target.name}
                                             </span>
@@ -597,12 +585,6 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                                         )}
                                         {result?.플레이스명 && result.플레이스명 !== target.name && (
                                             <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>→ {result.플레이스명}</div>
-                                        )}
-                                        {group && (
-                                            <div title={`${group.names.join(' · ')} 가 같은 채널을 함께 씁니다 (교습비는 함께 반영됩니다)`}
-                                                style={{ fontSize: '0.72rem', color: '#7c3aed', fontWeight: '700', marginTop: '2px' }}>
-                                                🔗 공동운영 {group.names.length}곳{group.label ? ` · ${group.label}` : ''}
-                                            </div>
                                         )}
                                     </Td>
                                     <Td style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{target.regNo}</Td>
@@ -631,24 +613,42 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                                         </div>
                                     </Td>
                                     <Td style={{ fontSize: '0.8rem', color: '#ef4444', wordBreak: 'keep-all' }}>
+                                        {/* 공동 운영(플레이스·블로그를 함께 쓰는 곳) — 어느 학원인지 이름을 다 보여주고
+                                            누르면 그 학원 상세로 간다. 학원명 칸은 좁아 이름이 잘려 보이지 않았다. */}
+                                        {siblings.length > 0 && (
+                                            <div style={{ color: '#7c3aed', fontWeight: '600', marginBottom: '4px' }}>
+                                                🔗 공동운영: {siblings.map((sib, si) => (
+                                                    <span key={sib.key}>
+                                                        {si > 0 && ' · '}
+                                                        {sib.academy
+                                                            ? <span onClick={() => onSelectAcademy(sib.academy)}
+                                                                style={{ cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '2px' }}>{sib.name}</span>
+                                                            : sib.name}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        )}
                                         {remark}
                                         {dup && result && (
-                                            <div style={{ marginTop: '4px' }}>
-                                                <button onClick={() => confirmGroup(result)}
-                                                    title="지점을 잘못 잡은 게 아니라 정말 함께 운영하는 곳이면 눌러 주세요"
-                                                    style={{
-                                                        background: 'none', border: '1px solid #7c3aed', borderRadius: '6px',
-                                                        padding: '3px 7px', color: '#7c3aed', fontSize: '0.74rem',
-                                                        fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap',
-                                                    }}>묶음으로 확정</button>
-                                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                                                    다른 학원이면 아래 <b>플레이스 지정</b> 으로 바로잡아 주세요
-                                                </div>
+                                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                                                함께 운영하는 곳이 아니라면 아래 <b>플레이스 지정</b> 으로 바로잡아 주세요
                                             </div>
                                         )}
                                         {/* 이름으로 못 찾거나 엉뚱한 곳을 잡았을 때 — 주소를 여기서 바로 넣는다.
                                             값은 시트 '플레이스지정'(AB열)에 남아 다시 조사해도 유지된다. */}
                                         <div style={{ marginTop: remark ? '5px' : 0 }}>
+                                            {/* 지금 무엇으로 조사하고 있는지 — 이 값이 곧 상세화면·시트의 '플레이스지정' 이다 */}
+                                            {curUrl && (
+                                                <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginBottom: '3px' }}>
+                                                    📍 조사에 쓰는 플레이스{' '}
+                                                    {/* 비고 칸이 좁아 주소를 통째로 두면 번호 한가운데서 줄이 잘린다.
+                                                        전체 주소는 툴팁과, '플레이스 지정'을 눌렀을 때 입력칸에 그대로 들어 있다. */}
+                                                    <a href={curUrl} target="_blank" rel="noreferrer" title={curUrl} style={linkStyle}>
+                                                        #{parsePlaceId(curUrl)}
+                                                    </a>{' '}
+                                                    <span style={{ color: pinned ? '#2563eb' : 'var(--text-muted)' }}>({placeSource(result)})</span>
+                                                </div>
+                                            )}
                                             {pinRow === rowKey ? (
                                                 <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', alignItems: 'center' }}>
                                                     <input autoFocus value={pinInput}
@@ -676,7 +676,16 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                                                 </div>
                                             ) : (
                                                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                                                    <button onClick={() => { setPinRow(rowKey); setPinInput(''); }}
+                                                    {unconfirmedPlace && (
+                                                        <button onClick={() => savePlacePin(target, result.플레이스ID)} disabled={running}
+                                                            title={`검색된 업체: ${result.플레이스명 || result.플레이스ID} — 이 학원이 맞으면 눌러 확정하세요 (확정해야 판정이 나옵니다)`}
+                                                            style={{
+                                                                background: 'none', border: '1px solid #10b981', borderRadius: '6px',
+                                                                padding: '3px 7px', color: '#10b981', fontSize: '0.74rem',
+                                                                fontWeight: '700', cursor: running ? 'default' : 'pointer', whiteSpace: 'nowrap',
+                                                            }}>✔ 이 플레이스 맞음</button>
+                                                    )}
+                                                    <button onClick={() => { setPinRow(rowKey); setPinInput(curUrl); }}
                                                         title="네이버플레이스 주소(또는 지도앱 공유주소)를 넣으면 그 플레이스로 조사합니다"
                                                         style={{
                                                             background: 'none', border: '1px solid var(--border-color)', borderRadius: '6px',

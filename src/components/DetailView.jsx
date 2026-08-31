@@ -2190,7 +2190,10 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
                     </div>
                 );
             case 'sns':
-                return <SnsDetailPanel academy={academy} region={(academy.address || '').includes('광주') ? '광주' : '하남'} />;
+                // allAcademies·onSelectAcademy 는 공동운영(플레이스·블로그를 함께 쓰는) 학원명을 눌러
+                // 그 학원 상세로 넘어가기 위한 것이다
+                return <SnsDetailPanel academy={academy} region={(academy.address || '').includes('광주') ? '광주' : '하남'}
+                    allAcademies={allAcademies} onSelectAcademy={onSelectAcademy} />;
             case 'insurance': {
                 const isGyoseupso = (academy.category || '').includes('교습소');
                 const parseAmt = (val) => {

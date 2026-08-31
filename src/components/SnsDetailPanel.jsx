@@ -3,8 +3,9 @@ import {
     fetchSnsCheckContext, probeAll, saveSnsChecks, resultToRecord, parseChannels,
     placeSearchUrl, VERDICT_COLOR, rowCells, cellKey, assignBuckets, effectiveVerdict,
     applyManualCell, setManualCell, keepManual, parseManual, parsePlaceId, pinnedPlaceId,
-    remarkPlaceHint, pinResolvedPlace,
-    effectivePlaceId, sharedCellTargets, buildGroups, recordKey, groupTag, PIN_CLEARED,
+    remarkPlaceHint, pinResolvedPlace, hasPlaceCandidate,
+    effectivePlaceId, sharedCellTargets, buildGroups, recordKey, PIN_CLEARED,
+    currentPlaceUrl, placeSource, placeUrlFromId, pinnedPlaceUrl,
 } from '../utils/snsCheck';
 
 const CHANNEL_ICON = { blog: '✍️', instagram: '📷', homepage: '🌐' };
@@ -73,7 +74,7 @@ function ObligationRow({ label, cell, detail, detailColor, onToggle, disabled })
     );
 }
 
-export default function SnsDetailPanel({ academy, region = '하남' }) {
+export default function SnsDetailPanel({ academy, region = '하남', allAcademies = [], onSelectAcademy }) {
     const category = (academy.category || '').includes('교습소') ? '교습소' : '학원';
     const numberLabel = category === '교습소' ? '신고번호' : '등록번호';
     const regNo = academy.id || '';
@@ -87,7 +88,6 @@ export default function SnsDetailPanel({ academy, region = '하남' }) {
     const [message, setMessage] = useState('');
     const [pinOpen, setPinOpen] = useState(false);
     const [pinInput, setPinInput] = useState('');
-    const [tagInput, setTagInput] = useState('');
 
     // 다른 학원으로 바뀌면 loadedKey 가 어긋나 자동으로 로딩 상태가 된다
     const loading = loadedKey !== key;
@@ -108,7 +108,19 @@ export default function SnsDetailPanel({ academy, region = '하남' }) {
 
     const groups = buildGroups(results);
     const group = groups.get(key);
-    const siblings = group ? group.names.filter((n) => n !== (academy.name || '')) : [];
+    // 플레이스·블로그를 함께 쓰는 다른 학원 — 이름을 누르면 그 학원 상세로 간다
+    // (members 와 names 는 buildGroups 에서 같은 순서로 쌓인다)
+    const siblings = (group?.members || [])
+        .map((m, i) => {
+            const [cat, no] = m.split('|');
+            return {
+                key: m,
+                name: group.names[i] || no,
+                academy: (allAcademies || []).find((a) => a.id === no
+                    && ((a.category || '').includes('교습소') ? '교습소' : '학원') === cat),
+            };
+        })
+        .filter((x) => x.key !== key);
 
     const runCheck = async (base, { ignoreStoredPlace = false } = {}) => {
         const from = base || result;
@@ -181,7 +193,7 @@ export default function SnsDetailPanel({ academy, region = '하남' }) {
             return;
         }
         const base = result || { category, regNo, name: academy.name || '', 판정: '', checkedAt: '' };
-        const updated = { ...base, 플레이스지정: id };
+        const updated = { ...base, 플레이스지정: placeUrlFromId(id) };
         setResult(updated);
         setResults((prev) => ({ ...prev, [key]: updated }));
         setPinOpen(false);
@@ -192,22 +204,11 @@ export default function SnsDetailPanel({ academy, region = '하남' }) {
         runCheck(updated);
     };
 
-    // ── 묶음 이름 지정 ───────────────────────────────────
-    // 블로그·플레이스가 서로 다른데도 함께 운영하는 곳(예: 고수학 3곳)은 자동으로 묶이지 않는다.
-    // 같은 이름을 적어 두면 한 묶음이 되고, 다시 조사해도 시트에 남는다.
-    const saveTag = async (raw) => {
-        if (!result) return;
-        const tag = String(raw || '').trim();
-        // 빈 값으로 보내면 Apps Script 가 기존 값을 지키므로, 해제는 '-' 로 남긴다
-        const updated = { ...result, 묶음: tag || PIN_CLEARED };
-        setResult(updated);
-        setResults((prev) => ({ ...prev, [key]: updated }));
-        setMessage(tag
-            ? `'${tag}' 묶음으로 저장했습니다. 함께 운영하는 다른 학원에도 같은 이름을 적어 주세요.`
-            : '묶음을 해제했습니다.');
-        try { await saveSnsChecks([resultToRecord(updated)]); }
-        catch (err) { setMessage(`⚠ 묶음을 저장하지 못했습니다: ${err.message}`); }
-    };
+    // ── 찾아온 플레이스가 맞다고 확정 ────────────────────
+    // 상호와 간판·브랜드명이 다른 곳이 흔하다('THE영어학원' ↔ '이화더영어').
+    // 이름 유사도가 낮으면 교습비·번호를 다 읽어 놓고도 판정을 보류하는데,
+    // 담당자가 맞다고 눌러 주면 지정으로 굳혀(다시 조사해도 유지) 판정까지 낸다.
+    const confirmPlace = () => savePin(String(result?.플레이스ID || ''));
 
     const clearPin = async () => {
         if (!result) return;
@@ -230,6 +231,11 @@ export default function SnsDetailPanel({ academy, region = '하남' }) {
     const verdict = result ? effectiveVerdict(result) : '';
     const hasManual = Object.keys(parseManual(result)).length > 0;
     const pinned = pinnedPlaceId(result);
+    // 지금 조사에 쓰는 플레이스 주소 — 표·구글시트('플레이스지정')와 같은 값이다
+    const curUrl = result ? currentPlaceUrl(result) : '';
+    // 플레이스를 물고 왔는지 / 물고 왔지만 같은 곳인지 확정되지 않았는지
+    const placeFound = hasPlaceCandidate(result);
+    const placeUnconfirmed = placeFound && result.matchStatus !== 'matched';
 
     const runBtn = (
         <button onClick={() => runCheck()} disabled={running} style={{
@@ -261,41 +267,22 @@ export default function SnsDetailPanel({ academy, region = '하남' }) {
                 {message && <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '10px' }}>{message}</div>}
             </div>
 
-            {/* 공동 운영 묶음 */}
-            {result && (
-                <div style={{ ...card, borderLeft: group ? '4px solid #7c3aed' : undefined }}>
-                    <div style={{ fontSize: '0.86rem', fontWeight: '800', color: group ? '#7c3aed' : 'var(--text-main)' }}>
-                        🔗 공동 운영 묶음{group ? ` — ${group.names.length}곳` : ''}
-                    </div>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px', lineHeight: 1.6 }}>
-                        {group ? (
-                            <>
-                                {siblings.join(' · ')} 와 {group.via === 'manual' ? '같은 묶음으로 지정돼' : '블로그·플레이스를 함께 써서'} 한 묶음입니다.
-                                <br /><b>교습비</b>는 함께 반영되고, <b>{numberLabel}</b>는 학원마다 자기 번호가 게시돼 있어야 하므로 따로 봅니다.
-                            </>
-                        ) : (
-                            <>원장이 같거나 분관이라 다른 학원과 블로그·플레이스를 함께 쓴다면, 두 학원에 <b>같은 묶음 이름</b>을 적어 주세요.
-                                묶이면 교습비 O/X 가 함께 반영됩니다.</>
-                        )}
-                    </div>
-                    <div style={{ display: 'flex', gap: '6px', marginTop: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                        <input value={tagInput} onChange={(e) => setTagInput(e.target.value)}
-                            placeholder="묶음 이름 (예: 고수학)"
-                            style={{
-                                flex: '0 1 200px', minWidth: 0, padding: '6px 9px', fontSize: '0.8rem',
-                                border: '1px solid var(--border-color)', borderRadius: '8px',
-                                background: 'var(--bg-card)', color: 'var(--text-main)',
-                            }} />
-                        <button onClick={() => saveTag(tagInput)} disabled={running} style={{
-                            padding: '6px 12px', borderRadius: '8px', border: 'none', background: '#7c3aed',
-                            color: 'white', fontSize: '0.8rem', fontWeight: '700', cursor: 'pointer',
-                        }}>묶음 저장</button>
-                        {groupTag(result) && (
-                            <button onClick={() => saveTag('')} disabled={running} style={{
-                                background: 'none', border: 'none', color: 'var(--text-muted)',
-                                fontSize: '0.78rem', fontWeight: '600', cursor: 'pointer', textDecoration: 'underline',
-                            }}>묶음 해제</button>
-                        )}
+            {/* 공동 운영 — 플레이스·블로그를 함께 쓰는 학원 */}
+            {siblings.length > 0 && (
+                <div style={{ ...card, borderLeft: '4px solid #7c3aed' }}>
+                    <div style={{ fontSize: '0.84rem', color: 'var(--text-main)', lineHeight: 1.7 }}>
+                        <b style={{ color: '#7c3aed' }}>🔗 공동운영</b> — {siblings.map((sib, i) => (
+                            <span key={sib.key}>
+                                {i > 0 && ' · '}
+                                {sib.academy && onSelectAcademy
+                                    ? <span onClick={() => onSelectAcademy(sib.academy)}
+                                        style={{ color: 'var(--primary)', fontWeight: '700', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '2px' }}>{sib.name}</span>
+                                    : <b>{sib.name}</b>}
+                            </span>
+                        ))} 와(과) 플레이스·블로그를 함께 씁니다.
+                        <br /><span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                            같은 채널을 보고 판정하므로 교습비 값은 서로 같습니다. {numberLabel}는 학원마다 자기 번호가 게시돼 있어야 하므로 따로 봅니다.
+                        </span>
                     </div>
                 </div>
             )}
@@ -323,7 +310,10 @@ export default function SnsDetailPanel({ academy, region = '하남' }) {
                         )}
                         {verdict === '확인불가' && (
                             <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '8px', lineHeight: 1.6 }}>
-                                자동 매칭이 확실하지 않아 판정을 보류했습니다. 아래 링크로 직접 확인해 주세요.
+                                {placeUnconfirmed
+                                    ? <>찾아온 플레이스가 이 학원이 맞는지 확정되지 않아 판정만 보류했습니다.
+                                        아래 <b>맞습니다 — 이 플레이스로 확정</b>을 누르면 판정까지 나옵니다.</>
+                                    : '자동 매칭이 확실하지 않아 판정을 보류했습니다. 아래 링크로 직접 확인해 주세요.'}
                             </div>
                         )}
                         <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '8px' }}>
@@ -341,13 +331,34 @@ export default function SnsDetailPanel({ academy, region = '하남' }) {
                         {result.플레이스명 && (
                             <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '4px' }}>
                                 검색된 업체: {result.플레이스명}
-                                {result.matchStatus === 'ambiguous' && <span style={{ color: '#f59e0b' }}> (동일 업체인지 확인 필요)</span>}
+                                {placeUnconfirmed && <span style={{ color: '#f59e0b' }}> (동일 업체인지 확인 필요)</span>}
                                 {pinned && <span style={{ color: MANUAL_COLOR, fontWeight: '700' }}> · 직접 지정함</span>}
                             </div>
                         )}
-                        {result.matchStatus === 'no_match' ? (
+                        {/* 이름이 달라 확정을 못 했을 뿐, 아래 값은 이 플레이스를 실제로 읽은 결과다.
+                            맞다고 눌러 확정해야 판정에 반영된다. */}
+                        {placeUnconfirmed && (
+                            <div style={{
+                                background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.45)',
+                                borderRadius: '10px', padding: '10px 12px', margin: '6px 0 2px',
+                            }}>
+                                <div style={{ fontSize: '0.8rem', color: 'var(--text-main)', lineHeight: 1.6 }}>
+                                    <b>이 업체가 {academy.name || '이 학원'} 이 맞습니까?</b> 상호가 많이 달라 자동으로 확정하지 못했습니다
+                                    (간판·브랜드 이름이 등록 상호와 다른 곳이 많습니다).
+                                    <br />아래 교습비·{numberLabel} 값은 <b>이 플레이스를 실제로 읽은 결과</b>이고, 맞다고 확정해야 <b>판정</b>에 반영됩니다.
+                                </div>
+                                <div style={{ marginTop: '8px' }}>
+                                    <button onClick={confirmPlace} disabled={running} style={{
+                                        padding: '6px 12px', borderRadius: '8px', border: 'none',
+                                        background: running ? 'var(--border-color)' : '#10b981', color: 'white',
+                                        fontSize: '0.8rem', fontWeight: '700', cursor: running ? 'default' : 'pointer',
+                                    }}>맞습니다 — 이 플레이스로 확정</button>
+                                </div>
+                            </div>
+                        )}
+                        {!placeFound ? (
                             <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', paddingTop: '8px', borderTop: '1px solid var(--border-color)' }}>
-                                네이버플레이스에서 찾지 못했습니다.
+                                네이버플레이스에서 찾지 못했습니다. 아래 <b>직접 지정</b>에 플레이스 주소를 붙여넣으면 그 플레이스로 조사합니다.
                             </div>
                         ) : (
                             <>
@@ -370,8 +381,21 @@ export default function SnsDetailPanel({ academy, region = '하남' }) {
                             </>
                         )}
 
-                        {/* 다른 학원(지점)의 플레이스를 잡았을 때 바로잡는 자리 */}
+                        {/* 지금 무엇으로 조사하고 있는지 + 다른 학원(지점)의 플레이스를 잡았을 때 바로잡는 자리.
+                            여기 보이는 주소가 곧 표의 '플레이스 지정' 이고 구글시트 '플레이스지정' 열의 값이다. */}
                         <div style={{ borderTop: '1px solid var(--border-color)', marginTop: '4px', paddingTop: '8px' }}>
+                            {curUrl && (
+                                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '6px', wordBreak: 'break-all' }}>
+                                    현재 조사에 쓰는 플레이스{' '}
+                                    <a href={curUrl} target="_blank" rel="noreferrer"
+                                        style={{ color: '#3b82f6', fontWeight: '600', textDecoration: 'none' }}>
+                                        {curUrl.replace(/^https?:\/\//, '').replace(/\/home$/, '')}
+                                    </a>
+                                    <span style={{ color: pinnedPlaceUrl(result) ? MANUAL_COLOR : 'var(--text-muted)', fontWeight: pinnedPlaceUrl(result) ? '700' : '400' }}>
+                                        {' '}({placeSource(result)})
+                                    </span>
+                                </div>
+                            )}
                             {pinOpen ? (
                                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
                                     <input value={pinInput} onChange={(e) => setPinInput(e.target.value)}
@@ -392,10 +416,10 @@ export default function SnsDetailPanel({ academy, region = '하남' }) {
                                 </div>
                             ) : (
                                 <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-                                    <button onClick={() => setPinOpen(true)} style={{
+                                    <button onClick={() => { setPinOpen(true); setPinInput(curUrl); }} style={{
                                         background: 'none', border: '1px solid var(--border-color)', borderRadius: '8px',
                                         padding: '5px 10px', color: '#3b82f6', fontSize: '0.78rem', fontWeight: '700', cursor: 'pointer',
-                                    }}>이 플레이스가 아닙니다 — 직접 지정</button>
+                                    }}>이 플레이스가 아닐 경우 — 직접 지정</button>
                                     {pinned && (
                                         <button onClick={clearPin} disabled={running} style={{
                                             background: 'none', border: 'none', color: 'var(--text-muted)',
