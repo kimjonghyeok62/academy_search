@@ -742,7 +742,7 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                 background: 'var(--bg-card)', borderRadius: '14px', border: '1px solid var(--border-color)',
                 overflowX: 'auto', overflowY: 'auto', maxHeight: '72vh', boxShadow: 'var(--shadow-sm)',
             }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', minWidth: '1770px' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', minWidth: '1792px' }}>
                     {/* 열 너비는 여기서 정한다 — 자동 배분에 맡기면 '비고' 가 짜부라져 행이 10줄로 늘어난다.
                         너비를 주지 않은 '비고' 가 남는 폭을 모두 가져간다. */}
                     <colgroup>

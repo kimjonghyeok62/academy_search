@@ -4,7 +4,7 @@
 import { BUCKETS } from '../utils/snsCheck';
 
 export const W_NUM = 40;     // '#' 열 — 학원명 열의 sticky left 값이기도 하다
-export const W_NAME = 168;
+export const W_NAME = 190;   // 학원명 + 짧은 주소가 한 줄씩 들어갈 폭
 export const W_CH = 60;      // 채널 O/X 칸 — 묶음 7개 × (번호·교습비) = 14칸
 export const W_CHECK = 112;  // '확인' 열 (마감/해제 + 새로고침)
 

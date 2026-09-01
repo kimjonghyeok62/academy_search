@@ -7,7 +7,7 @@ import { memo, useCallback } from 'react';
 import {
     parseChannels, assignBuckets, rowCells, snsRemark, isDone, doneAt,
     placeSearchUrl, blogSearchUrl, pinnedPlaceId, hasPlaceCandidate,
-    currentPlaceUrl, placeSource, parsePlaceId, BUCKET_LABEL,
+    currentPlaceUrl, placeSource, parsePlaceId, shortAddress, BUCKET_LABEL,
 } from '../utils/snsCheck';
 import {
     W_NUM, BG_STRIPE, BG_ROW, DONE_COLOR, doneTint, stickyTd, linkStyle, CENTER,
@@ -43,6 +43,7 @@ function SnsCheckRow({
     const at = assignBuckets(channels);
     const cells = rowCells(result);
     const remark = snsRemark(result, dup);
+    const addr = shortAddress(target.address);
     const done = isDone(result);
     // 마감한 행은 O/X 가 아예 눌리지 않는다 — 잘못 눌러 값이 바뀌는 일을 원천적으로 막는다
     const canEdit = !!result && !done;
@@ -81,6 +82,13 @@ function SnsCheckRow({
                     </span>
                 ) : (
                     <span style={{ fontSize: '0.9rem', fontWeight: '700' }}>{target.name}</span>
+                )}
+                {/* 플레이스에 뜬 주소가 이 학원의 주소가 맞는지 링크를 열기 전에 눈으로 맞춰 본다.
+                    시·도와 뒤의 (법정동, 건물명) 은 떼고 도로명·번지·호수만 남긴다 — 두 주소를 가르는 부분이다 */}
+                {addr && (
+                    <div title={target.address} style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                        {addr}
+                    </div>
                 )}
                 {result?.플레이스명 && result.플레이스명 !== target.name && (
                     <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>→ {result.플레이스명}</div>
