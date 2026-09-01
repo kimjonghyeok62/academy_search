@@ -12,6 +12,7 @@ import {
 import {
     W_NUM, BG_STRIPE, BG_ROW, DONE_COLOR, doneTint, stickyTd, linkStyle, CENTER,
 } from '../utils/snsTableLayout';
+import { openTuitionCompare } from '../utils/tuitionCompareWindow';
 import OxBadge from './SnsOxBadge';
 
 const Td = ({ children, style, onClick, title }) => (
@@ -107,6 +108,20 @@ function SnsCheckRow({
 
             <Td>
                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', fontSize: '0.8rem' }}>
+                    {/* 신고한 교습비를 새 창에 띄운다 — 표는 '올렸는가'(O/X)만 보여주지만
+                        담당자가 알고 싶은 것은 '올린 금액이 신고액과 같은가'다.
+                        openTuitionCompare 는 리액트 상태와 무관한 함수라 새 prop 이 필요 없다 (React.memo 유지) */}
+                    <button onClick={() => openTuitionCompare(academy, result, { region })}
+                        disabled={!academy}
+                        title={academy
+                            ? '신고한 교습비를 새 창에 띄웁니다 — 네이버 창과 나란히 놓고 금액이 같은지 확인하세요'
+                            : '마스터 자료에 없는 학원이라 신고 교습비를 찾을 수 없습니다'}
+                        style={{
+                            ...linkStyle, background: 'none', border: 'none', padding: 0,
+                            fontSize: '0.8rem', fontFamily: 'inherit',
+                            color: academy ? '#0d9488' : 'var(--text-muted)',
+                            cursor: academy ? 'pointer' : 'default',
+                        }}>💰 교습비</button>
                     <a href={result?.플레이스URL || placeSearchUrl(target.name, region)} target="_blank" rel="noreferrer" style={linkStyle}>
                         {result?.플레이스URL ? '플레이스' : '플레이스검색'}
                     </a>

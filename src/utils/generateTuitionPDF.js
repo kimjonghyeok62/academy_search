@@ -5,8 +5,27 @@
  * 브라우저 print 방식으로 A4 PDF 생성 (한글 깨짐 없음, 추가 라이브러리 불필요)
  */
 
+/**
+ * 만들어 둔 HTML 을 새 탭에 띄운다.
+ * window.open 대신 Blob + 숨은 <a target="_blank"> 를 쓰는 이유는 팝업 차단에 덜 걸리기 때문이다.
+ * (게시표 내부용·외부용, 교습비 대조창이 함께 쓴다)
+ */
+export function openHtmlWindow(html) {
+    const blob = new Blob([html], { type: 'text/html; charset=utf-8' });
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    // 새 탭이 다 읽어 갈 때까지는 살려 둔다
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+}
+
 // 교습과정 정렬: 교습과정 → 레벨(유아<초등/초급<중등/중급<고등/고급<입시) → 과목기본명 자연정렬 → 주회수
-function sortCourses(courses) {
+export function sortCourses(courses) {
     const LEVEL_RANK = [
         ['유아', 0],
         ['초등', 10], ['초급', 11],
@@ -51,14 +70,14 @@ function sortCourses(courses) {
 }
 
 // 콤마 포함 문자열 → 원 단위 정수로 변환 후 천단위 콤마 포맷
-function fmtNum(val) {
+export function fmtNum(val) {
     if (!val && val !== 0) return '';
     const n = parseInt(String(val).replace(/,/g, ''), 10);
     return isNaN(n) || n === 0 ? '' : n.toLocaleString('ko-KR');
 }
 
 // 숫자 합산 (콤마 제거 후 파싱)
-function parseNum(val) {
+export function parseNum(val) {
     if (!val) return 0;
     const n = parseInt(String(val).replace(/,/g, ''), 10);
     return isNaN(n) ? 0 : n;
@@ -86,7 +105,7 @@ function getSignLabel(academy) {
 }
 
 // 변경일 파싱 → { year, month, day }
-function formatChangeDateKo(dateStr) {
+export function formatChangeDateKo(dateStr) {
     if (!dateStr) return { year: '', month: '', day: '' };
     const parts = dateStr.split(/[-./]/);
     if (parts.length < 3) return { year: dateStr, month: '', day: '' };
@@ -426,16 +445,7 @@ export function printTuitionForm(academy) {
 </body>
 </html>`;
 
-    const blob = new Blob([html], { type: 'text/html; charset=utf-8' });
-    const blobUrl = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = blobUrl;
-    a.target = '_blank';
-    a.rel = 'noopener noreferrer';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+    openHtmlWindow(html);
 }
 
 // ─────────────────────────────────────────────
@@ -443,7 +453,7 @@ export function printTuitionForm(academy) {
 // ─────────────────────────────────────────────
 
 // 주기준 문자열에서 주당 총 분수 추출 (예: "주5회, 회당100분" → 500)
-function getWeeklyTotalMinutes(weeklyStr) {
+export function getWeeklyTotalMinutes(weeklyStr) {
     if (!weeklyStr) return null;
     const sessionsMatch = weeklyStr.match(/주(\d+)회/);
     const minsMatch = weeklyStr.match(/회당(\d+)분/);
@@ -452,7 +462,17 @@ function getWeeklyTotalMinutes(weeklyStr) {
 }
 
 // 웹앱(DetailView)과 동일한 best-fit 알고리즘으로 총교습시간(분/월) → 주당 분수 계산
-function calcWeeklyMinutes(totalTimeVal) {
+export function calcWeeklyMinutes(totalTimeVal) {
+    const s = calcWeeklySchedule(totalTimeVal);
+    return s ? s.minutes * s.sessions : null;
+}
+
+/**
+ * 총교습시간(분/월) → 가장 그럴듯한 주당 시간표 { sessions, minutes }.
+ * 곱만 필요하면 calcWeeklyMinutes 를, '주3회 · 회당 100분' 처럼 나눠 보여줄 때는 이쪽을 쓴다.
+ * (교습비 대조창이 회수를 따로 보여줘야 해서 조합을 그대로 돌려주는 함수로 빼냈다)
+ */
+export function calcWeeklySchedule(totalTimeVal) {
     const total = parseInt(String(totalTimeVal || '').replace(/,/g, ''), 10);
     if (isNaN(total) || total === 0) return null;
 
@@ -477,7 +497,9 @@ function calcWeeklyMinutes(totalTimeVal) {
             ? a.diffFromTotal - b.diffFromTotal
             : b.roundScore - a.roundScore
     );
-    return combinations.length > 0 ? combinations[0].minutes * combinations[0].sessions : null;
+    return combinations.length > 0
+        ? { sessions: combinations[0].sessions, minutes: combinations[0].minutes }
+        : null;
 }
 
 // 외부용 설립운영자 표기
@@ -750,14 +772,5 @@ export function printTuitionFormExternal(academy) {
 </body>
 </html>`;
 
-    const blob = new Blob([html], { type: 'text/html; charset=utf-8' });
-    const blobUrl = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = blobUrl;
-    a.target = '_blank';
-    a.rel = 'noopener noreferrer';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+    openHtmlWindow(html);
 }
