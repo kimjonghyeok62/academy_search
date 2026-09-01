@@ -152,6 +152,8 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
     // 비고 칸에서 플레이스 주소를 받는 행 (행키) 과 입력값
     const [pinRow, setPinRow] = useState('');
     const [pinInput, setPinInput] = useState('');
+    // 붙여넣은 주소가 잘못됐을 때 입력칸 바로 밑에 띄울 안내 { message, query }
+    const [pinError, setPinError] = useState(null);
     // 입력값을 저장 함수의 의존성으로 두면 한 글자 칠 때마다 함수가 새로 만들어져
     // 표의 모든 행이 다시 그려진다 — 값은 ref 로 읽고, 화면 표시만 상태로 둔다
     const pinInputRef = useRef('');
@@ -481,11 +483,14 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
     const savePlacePin = useCallback(async (target, raw) => {
         const parsed = parsePlaceInput(raw);
         if (!parsed.id && !parsed.url) {
-            setSaveState('⚠ 플레이스 주소에서 번호를 찾지 못했습니다. 네이버플레이스 주소를 그대로 붙여넣어 주세요.');
+            // 오류를 조작부(표 한참 위)에만 띄우면, 아래쪽 행에서 누른 사람은 아무 일도 안 일어난 것처럼 보인다.
+            // 입력칸 바로 밑에 띄워 준다.
+            setPinError({ message: parsed.error, query: parsed.query || '' });
             return;
         }
         const key = recordKey(target.category, target.regNo);
         setPinRow('');
+        setPinError(null);
         pinInputRef.current = '';
         setPinInput('');
         setSaveState('플레이스를 지정하고 다시 조사합니다…');
@@ -521,7 +526,8 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
         await runOne({ ...target, placeId: '', placeHint: '', placePinned: false });
     }, [runOne, applyStructural]);
 
-    const changePin = useCallback((v) => { pinInputRef.current = v; setPinInput(v); }, []);
+    // 값을 고치는 순간 앞의 오류는 지운다 — 고쳐 놨는데 빨간 글씨가 남아 있으면 아직 틀린 줄 안다
+    const changePin = useCallback((v) => { pinInputRef.current = v; setPinInput(v); setPinError(null); }, []);
     const openPin = useCallback((rowKey, curUrl) => { setPinRow(rowKey); changePin(curUrl); }, [changePin]);
     const cancelPin = useCallback(() => { setPinRow(''); changePin(''); }, [changePin]);
 
@@ -800,6 +806,7 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                                 highlight={key === jumpKey}
                                 pinOpen={pinRow === key}
                                 pinInput={pinRow === key ? pinInput : ''}
+                                pinError={pinRow === key ? pinError : null}
                                 onSelectAcademy={onSelectAcademy}
                                 onCycle={cycleCell}
                                 onToggleDone={toggleDone}
