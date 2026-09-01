@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import {
     fetchSnsCheckContext, probeAll, saveSnsChecks, resultToRecord, parseChannels,
     placeSearchUrl, VERDICT_COLOR, rowCells, cellKey, assignBuckets, effectiveVerdict,
-    applyManualCell, setManualCell, keepManual, parseManual, manualCells, parsePlaceId, pinnedPlaceId,
+    applyManualCell, setManualCell, keepManual, parseManual, manualCells, parsePlaceId, parsePlaceInput, pinnedPlaceId,
     isDone, doneAt, setDone,
     remarkPlaceHint, pinResolvedPlace, hasPlaceCandidate,
     effectivePlaceId, sharedCellTargets, buildGroups, recordKey, PIN_CLEARED,
@@ -192,9 +192,12 @@ export default function SnsDetailPanel({ academy, region = '하남', allAcademie
 
     // ── 플레이스 직접 지정 ───────────────────────────────
     const savePin = async (raw) => {
-        const id = parsePlaceId(raw);
+        // 목록 화면과 같은 규칙으로 읽는다 — 무엇이 잘못인지도 같은 문구로 알려 준다
+        // (여기도 지도앱 공유주소를 붙여넣는 사람이 있어 naver.me 를 받는다)
+        const parsed = parsePlaceInput(raw);
+        const id = parsed.id || parsePlaceId(parsed.url);
         if (!id) {
-            setMessage('플레이스 주소에서 번호를 찾지 못했습니다. 네이버플레이스 주소를 그대로 붙여넣어 주세요.');
+            setMessage(`⚠ ${parsed.error}`);
             return;
         }
         const base = result || { category, regNo, name: academy.name || '', 판정: '', checkedAt: '' };

@@ -33,7 +33,7 @@ const fmtDay = (iso) => {
 function SnsCheckRow({
     index, rowKey, target, result, academy, group, dup,
     academyByKey, region, isNarrow, running, highlight,
-    pinOpen, pinInput,
+    pinOpen, pinInput, pinError,
     onSelectAcademy, onCycle, onToggleDone, onRefresh, onJump,
     onPinOpen, onPinChange, onPinSave, onPinCancel, onPinClear, onPinConfirm,
     registerRow,
@@ -181,7 +181,7 @@ function SnsCheckRow({
                                     if (e.key === 'Enter') onPinSave(target);
                                     if (e.key === 'Escape') onPinCancel();
                                 }}
-                                placeholder="네이버플레이스 주소 붙여넣기"
+                                placeholder="플레이스 주소 (place/숫자) 또는 naver.me 공유주소"
                                 style={{
                                     flex: '1 1 150px', minWidth: 0, padding: '5px 8px', fontSize: '0.78rem',
                                     border: '1px solid var(--border-color)', borderRadius: '7px',
@@ -197,6 +197,23 @@ function SnsCheckRow({
                                 background: 'none', border: 'none', color: 'var(--text-muted)',
                                 fontSize: '0.76rem', cursor: 'pointer',
                             }}>취소</button>
+                            {/* 주소가 잘못됐을 때 — 조작부(표 한참 위)가 아니라 누른 자리 바로 밑에 띄운다.
+                                위에만 뜨면 아래쪽 행에서 누른 사람은 아무 일도 안 일어난 줄 안다. */}
+                            {pinError && (
+                                <div style={{
+                                    flexBasis: '100%', marginTop: '4px', padding: '6px 8px',
+                                    background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '7px',
+                                    color: '#b91c1c', fontSize: '0.74rem', lineHeight: 1.6,
+                                }}>
+                                    ⚠ {pinError.message}
+                                    {pinError.query && (
+                                        <> <a href={placeSearchUrl(pinError.query, region)} target="_blank" rel="noreferrer"
+                                            style={{ ...linkStyle, fontSize: '0.74rem' }}>
+                                            ‘{pinError.query}’ 네이버에서 열기 ↗
+                                        </a></>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     ) : (
                         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>

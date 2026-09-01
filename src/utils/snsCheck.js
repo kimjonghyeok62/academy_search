@@ -461,12 +461,33 @@ function rawRemarkPlaceHint(result) {
  */
 export function parsePlaceInput(raw) {
     const s = String(raw || '').trim();
-    if (!s) return { id: '', url: '' };
+    if (!s) return { id: '', url: '', error: '플레이스 주소를 붙여넣어 주세요.' };
     const short = s.match(REMARK_PLACE_SHORT);
     if (short && !/place\/\d+/i.test(s)) {
-        return { id: '', url: /^https?:/i.test(short[0]) ? short[0] : `https://${short[0]}` };
+        return { id: '', url: /^https?:/i.test(short[0]) ? short[0] : `https://${short[0]}`, error: '' };
     }
-    return { id: parsePlaceId(s), url: '' };
+    const id = parsePlaceId(s);
+    if (id) return { id, url: '', error: '' };
+
+    // 왜 못 찾았는지를 갈라 준다. 가장 흔한 실수가 '지도에서 검색만 한 주소'인데,
+    // 그 주소에는 플레이스 번호가 아예 들어 있지 않아 여기서 아무리 뜯어봐도 나오지 않는다.
+    // '주소를 그대로 붙여넣어라'고만 하면 이미 그렇게 한 사람은 무엇이 잘못인지 알 수 없다.
+    const query = placeSearchQuery(s);
+    return {
+        id: '', url: '', query,
+        error: query
+            ? `‘${query}’ 검색 결과 주소라 플레이스 번호가 없습니다. `
+              + `검색 결과에서 그 학원을 눌러 상세가 열린 뒤의 주소를 복사해 주세요 (주소에 place/숫자 가 들어 있어야 합니다). `
+              + `지도앱이라면 공유 → 주소 복사(naver.me)도 됩니다.`
+            : `플레이스 번호를 찾지 못했습니다. 네이버플레이스 주소(place/숫자) 나 지도앱 공유주소(naver.me) 를 붙여넣어 주세요.`,
+    };
+}
+
+/** 지도 검색 주소(map.naver.com/p/search/…)에서 검색어를 되돌린다 — 없으면 빈 문자열 */
+export function placeSearchQuery(input) {
+    const m = String(input || '').match(/naver\.com\/[^\s]*\/search\/([^/?#]+)/i);
+    if (!m) return '';
+    try { return decodeURIComponent(m[1]).trim(); } catch { return m[1]; }
 }
 
 /**
