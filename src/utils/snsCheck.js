@@ -671,6 +671,29 @@ export const VERDICT_COLOR = {
     확인불가: '#94a3b8',
 };
 
+/**
+ * 표에 한 줄로 붙일 짧은 주소.
+ *   '경기도 하남시 미사강변대로 206, 301호 (망월동, 하남리더스프라자)'
+ *     → '미사강변대로 206, 301호'
+ *
+ * 플레이스에 뜬 주소와 이 학원의 주소가 같은 곳인지 눈으로 맞춰 보는 용도다.
+ * 앞의 시·도는 이 표가 어차피 한 시(市) 안만 보므로 모든 행에 똑같이 붙어 자리만 차지하고,
+ * 뒤의 (법정동, 건물명) 괄호는 도로명 주소를 이미 읽은 뒤라 판단에 보태는 것이 없다.
+ * 남는 도로명·번지·호수가 두 주소를 가르는 부분이다.
+ */
+export function shortAddress(address) {
+    const s = String(address || '').trim();
+    if (!s) return '';
+    // '경기도 하남시 ' 처럼 앞에 붙는 시·군·구까지 떼어낸다 (DetailView 의 getShortAddress 와 같은 규칙)
+    const m = s.match(/^.+?[시군구]\s+(.+)$/);
+    // 뒤에 붙은 '(망월동, 하남리더스프라자)' 를 뗀다. 괄호가 둘 이상 이어질 수도 있어 반복해 지운다
+    // (한 번에 지우는 정규식은 중첩 반복이라 주소가 길어지면 폭주한다)
+    let body = (m ? m[1] : s).trim();
+    let prev = '';
+    while (body !== prev) { prev = body; body = body.replace(/\s*\([^)]*\)$/, '').trim(); }
+    return body;
+}
+
 // ── 딥링크 (담당자가 눈으로 확인할 때) ──────────────────
 export const placeSearchUrl = (name, city) =>
     `https://m.search.naver.com/search.naver?query=${encodeURIComponent(`${city} ${name}`)}`;
