@@ -6,6 +6,22 @@
 const PROBE_BATCH = 4;    // api/sns-probe.js 의 MAX_BATCH 와 맞출 것
 const SAVE_BATCH = 60;    // 한 번에 저장할 레코드 수
 
+// ── 계산 캐시 ───────────────────────────────────────────
+// 결과 객체는 불변이다 — 값이 바뀌면 { ...result } 로 새 객체가 만들어진다.
+// 그래서 객체 자체를 키로 삼으면 무효화가 저절로 된다 (바뀐 행만 다시 계산한다).
+// 칸 하나를 눌렀을 때 750행이 통째로 JSON.parse 를 다시 돌던 것이 이 캐시로 사라진다.
+//
+// 여기 담긴 값은 여러 곳이 함께 쓴다 — 받은 쪽에서 절대 고치면 안 된다 (읽기 전용).
+const memo = new WeakMap();
+function cached(obj, field, compute) {
+    // null·문자열처럼 키로 쓸 수 없는 값은 그냥 계산한다
+    if (!obj || (typeof obj !== 'object' && typeof obj !== 'function')) return compute();
+    let box = memo.get(obj);
+    if (!box) { box = {}; memo.set(obj, box); }
+    if (!(field in box)) box[field] = compute();
+    return box[field];
+}
+
 // 시트 헤더 (Apps Script 의 SNS_HEADERS 와 순서·이름이 일치해야 함)
 // '연락처' 는 조사 결과에 없다 — Apps Script 가 마스터의 핸드폰에서 채우므로 여기서 보내지 않는다.
 export const SNS_COLUMNS = [
@@ -39,6 +55,10 @@ const PASSTHROUGH = [
  * 이 컬럼이 생기기 전에 저장된 행에는 블로그 결과만 있으므로, 그 값으로 채널 1건을 만들어 준다.
  */
 export function parseChannels(result) {
+    return cached(result, 'channels', () => rawParseChannels(result));
+}
+
+function rawParseChannels(result) {
     if (!result) return [];
     let list = [];
     try {
@@ -82,6 +102,10 @@ export function channelBucket(c) {
  * 홈페이지 칸 하나에 여러 곳을 뭉쳐 놓으면 어느 곳이 X 인지 알 수 없기 때문이다.
  */
 export function assignBuckets(channels) {
+    return cached(channels, 'assign', () => rawAssignBuckets(channels));
+}
+
+function rawAssignBuckets(channels) {
     let homepageSeen = 0;
     return (channels || []).map((c) => {
         const b = channelBucket(c);
@@ -106,6 +130,10 @@ function worstCell(values) {
  * 링크가 없는 종류는 null 로 남겨 화면에서 '없음' 으로 표시한다.
  */
 export function bucketCells(channels) {
+    return cached(channels, 'cells', () => rawBucketCells(channels));
+}
+
+function rawBucketCells(channels) {
     const out = {};
     BUCKETS.forEach((b) => { out[b] = null; });
     const at = assignBuckets(channels);
@@ -192,6 +220,10 @@ export function snsRemark(result, dupNames) {
 // 다시 조사해도 유지되게 한다. 키는 `${열}|${항목}` (예: 'place|교습비').
 
 export function parseManual(result) {
+    return cached(result, 'manual', () => rawParseManual(result));
+}
+
+function rawParseManual(result) {
     if (!result) return {};
     try {
         const v = JSON.parse(result.수동확인 || '{}');
@@ -200,6 +232,8 @@ export function parseManual(result) {
 }
 
 export const CELL_FIELDS = ['번호', '교습비'];
+// 그 채널이 아예 없다는 뜻 — 자동값으로도(링크 없음), 직접 고른 값으로도 쓴다
+export const NONE = '없음';
 export const cellKey = (bucket, field) => `${bucket}|${field}`;
 
 /**
@@ -208,6 +242,10 @@ export const cellKey = (bucket, field) => `${bucket}|${field}`;
  *   'O'/'X'/'?' 판정값 · '없음' 링크 없음 · '안함' 자동 조사 대상 아님 · '' 아직 조사 전
  */
 export function rowCells(result) {
+    return cached(result, 'rowCells', () => rawRowCells(result));
+}
+
+function rawRowCells(result) {
     const manual = parseManual(result);
     const cells = bucketCells(parseChannels(result));
     // 후보 플레이스를 물고 온 경우에는 실제로 읽어 본 값이 있다 — '못 봤다'로 지우지 않는다.
@@ -231,10 +269,14 @@ export function rowCells(result) {
     return out;
 }
 
-// 칸을 누를 때마다 자동값 → O → X → 자동값
+// 칸을 누를 때마다 자동값 → O → X → 없음 → 자동값.
+// '없음' 이 필요한 이유 — 자동 조사가 '?' 로 남긴 칸(플레이스를 못 찾았거나 글을 못 읽은 곳) 중에는
+// 실제로 그 채널이 아예 없는 곳이 있다. '없음' 으로 두면 판정에서 빠져(X 도 ? 도 아니다)
+// 멀쩡한 학원이 '확인불가' 로 계속 남지 않는다.
 export function nextManual(current) {
     if (current === undefined) return 'O';
     if (current === 'O') return 'X';
+    if (current === 'X') return NONE;
     return undefined;
 }
 
@@ -250,6 +292,10 @@ export function nextManual(current) {
  * 인스타그램은 서버도 교습비 판정에서 뺀다 (소개글 150자라 교습비를 적는 자리가 아니다).
  */
 export function effectiveVerdict(result) {
+    return cached(result, 'verdict', () => rawEffectiveVerdict(result));
+}
+
+function rawEffectiveVerdict(result) {
     if (!result) return '미조사';
     if (!result.checkedAt) return result.판정 || '미조사';
     // 동일 업체인지 자체가 불확실한 건 칸을 고친다고 풀리지 않는다
@@ -264,7 +310,8 @@ export function effectiveVerdict(result) {
 
 /** 칸에 특정 값을 넣는다 (undefined 면 자동값으로 되돌린다). 저장은 부르는 쪽이 한다. */
 export function setManualCell(result, key, value) {
-    const manual = parseManual(result);
+    // parseManual 은 캐시된 객체를 돌려준다 — 그대로 고치면 다른 곳이 보는 값까지 바뀐다
+    const manual = { ...parseManual(result) };
     if (value === undefined) delete manual[key]; else manual[key] = value;
     // 다 지웠을 때도 빈 문자열로 보내면 안 된다 — Apps Script 는 빈 값을 '안 넘어온 것'으로 보고
     // 기존 값을 지켜주므로, 되돌리기가 영영 저장되지 않는다. 빈 객체를 명시해 보낸다.
@@ -275,6 +322,29 @@ export function setManualCell(result, key, value) {
 export function applyManualCell(result, key) {
     return setManualCell(result, key, nextManual(parseManual(result)[key]));
 }
+
+// ── 확인 마감 ───────────────────────────────────────────
+// 담당자가 그 학원을 다 보고 '이제 됐다' 고 굳히는 표시.
+// 값은 새 시트 열을 만들지 않고 기존 '수동확인' JSON 안에 예약 키로 넣는다 —
+// 시트에 붙은 Apps Script 를 고치지 않아도 바로 쓸 수 있고, KEEP_KEYS 에 '수동확인' 이
+// 이미 들어 있어 다시 조사해도 마감이 지워지지 않는다.
+// 예약 키는 '__' 로 시작한다. 칸 키는 언제나 `${열}|${항목}` 형태라 서로 부딪히지 않는다.
+export const DONE_KEY = '__done';
+const RESERVED = (k) => k.startsWith('__');
+
+/** 직접 고친 '칸' 값만 (마감 같은 예약 키는 뺀다) */
+export function manualCells(result) {
+    const out = {};
+    Object.entries(parseManual(result)).forEach(([k, v]) => { if (!RESERVED(k)) out[k] = v; });
+    return out;
+}
+
+export const isDone = (result) => !!parseManual(result)[DONE_KEY];
+export const doneAt = (result) => String(parseManual(result)[DONE_KEY] || '');
+
+/** 마감/해제 — 저장은 부르는 쪽이 한다 */
+export const setDone = (result, on) =>
+    setManualCell(result, DONE_KEY, on ? new Date().toISOString() : undefined);
 
 // 자동 조사 결과에는 없는, 사람이 넣은 값 — 새 결과에 이어 붙여야 화면에서 사라지지 않는다
 const KEEP_KEYS = ['수동확인', '비고', '연락처', '플레이스지정', '묶음'];
@@ -371,6 +441,10 @@ const REMARK_PLACE_SHORT = /(?:https?:\/\/)?naver\.me\/[A-Za-z0-9]+/i;
 
 /** 비고에서 플레이스 주소를 뽑는다 → { id } 또는 { url }(단축주소) */
 export function remarkPlaceHint(result) {
+    return cached(result, 'placeHint', () => rawRemarkPlaceHint(result));
+}
+
+function rawRemarkPlaceHint(result) {
     const s = String(result?.비고 || '');
     const m = s.match(REMARK_PLACE_URL);
     if (m) return { id: m[1], url: '' };
@@ -407,6 +481,21 @@ export function pinResolvedPlace(result) {
     if (!hint.url && !hint.id) return result;
     const id = String(result.플레이스ID || '').trim();
     return id ? { ...result, 플레이스지정: placeUrlFromId(id) } : result;
+}
+
+/**
+ * 조사에 넘길 target — 이미 알고 있는 플레이스를 실어 검색 단계를 건너뛴다 (차단 위험·시간 감소).
+ * 표를 그릴 때가 아니라 실제로 조사를 시작할 때만 부른다. 렌더 때마다 부르면
+ * 행마다 새 target 객체가 생겨 React.memo 가 무력해진다.
+ */
+export function probeTargetFor(target, result) {
+    // 비고에 단축주소를 적어뒀으면 번호는 서버가 펴서 알아낸다 —
+    // 예전에 잘못 잡아둔 플레이스를 그대로 넘기면 담당자가 알려준 주소가 무시된다.
+    const hint = remarkPlaceHint(result);
+    if (hint.url) return { ...target, placeHint: hint.url, placePinned: true };
+    const placeId = effectivePlaceId(result);
+    if (!placeId) return target;
+    return { ...target, placeId, placePinned: !!pinnedPlaceId(result) || !!hint.id };
 }
 
 // ── 공동 운영 묶음 ──────────────────────────────────────

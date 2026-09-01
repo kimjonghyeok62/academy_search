@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import {
     fetchSnsCheckContext, probeAll, saveSnsChecks, resultToRecord, parseChannels,
     placeSearchUrl, VERDICT_COLOR, rowCells, cellKey, assignBuckets, effectiveVerdict,
-    applyManualCell, setManualCell, keepManual, parseManual, parsePlaceId, pinnedPlaceId,
+    applyManualCell, setManualCell, keepManual, parseManual, manualCells, parsePlaceId, pinnedPlaceId,
+    isDone, doneAt, setDone,
     remarkPlaceHint, pinResolvedPlace, hasPlaceCandidate,
     effectivePlaceId, sharedCellTargets, buildGroups, recordKey, PIN_CLEARED,
     currentPlaceUrl, placeSource, placeUrlFromId, pinnedPlaceUrl,
@@ -10,6 +11,10 @@ import {
 
 const CHANNEL_ICON = { blog: '✍️', instagram: '📷', homepage: '🌐' };
 const MANUAL_COLOR = '#2563eb';
+const DONE_COLOR = '#10b981';
+
+const CYCLE_HINT = '눌러서 직접 확인한 값으로 바꿉니다 (자동값 → O → X → 없음 → 자동값)';
+const LOCKED_HINT = '확인 완료로 마감된 학원입니다 — 고치려면 위의 ✓ 확인완료 를 눌러 해제하세요';
 
 const fmtWhen = (iso) => {
     if (!iso) return '';
@@ -30,9 +35,9 @@ const AUTO_LABEL = { O: '게시', X: '미게시', '?': '확인 못 함', 없음:
 /**
  * 게시 의무 항목 한 줄 (교습비 / 등록번호).
  * cell 은 rowCells() 가 만든 칸 — 담당자가 직접 고친 값이면 파란색으로 보이고,
- * 눌러서 자동값 → O → X → 자동값 으로 바꿀 수 있다 (목록 화면과 같은 동작).
+ * 눌러서 자동값 → O → X → 없음 → 자동값 으로 바꿀 수 있다 (목록 화면과 같은 동작).
  */
-function ObligationRow({ label, cell, detail, detailColor, onToggle, disabled }) {
+function ObligationRow({ label, cell, detail, detailColor, onToggle, disabled, lockedHint }) {
     const value = cell ? cell.value : '';
     const manual = cell && cell.manual !== undefined;
     const ok = value === 'O';
@@ -40,7 +45,7 @@ function ObligationRow({ label, cell, detail, detailColor, onToggle, disabled })
     return (
         <div
             onClick={disabled ? undefined : onToggle}
-            title={disabled ? undefined : '눌러서 직접 확인한 값으로 바꿉니다 (자동값 → O → X → 자동값)'}
+            title={disabled ? lockedHint : CYCLE_HINT}
             style={{
                 display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '8px 0',
                 borderTop: '1px solid var(--border-color)',
@@ -222,6 +227,22 @@ export default function SnsDetailPanel({ academy, region = '하남', allAcademie
         runCheck(updated, { ignoreStoredPlace: true });
     };
 
+    // ── 확인 마감 / 해제 ─────────────────────────────────
+    // 목록 화면의 '확인' 열과 같은 값이다 (시트 '수동확인' 칸에 함께 들어간다).
+    // 한쪽에서만 잠그면 잠금이 새어 나가므로 여기서도 똑같이 잠근다.
+    const toggleDone = async () => {
+        if (!result) return;
+        const on = !isDone(result);
+        const updated = setDone(result, on);
+        setResult(updated);
+        setResults((prev) => ({ ...prev, [key]: updated }));
+        setMessage(on
+            ? '✓ 확인 완료로 마감했습니다 — O/X 가 잠겨 잘못 눌러도 바뀌지 않습니다.'
+            : '마감을 해제했습니다 — 다시 고칠 수 있습니다.');
+        try { await saveSnsChecks([resultToRecord(updated)]); }
+        catch (err) { setMessage(`⚠ 마감 상태를 저장하지 못했습니다: ${err.message}`); }
+    };
+
     // 플레이스 홈에 링크가 걸린 채널만 조사 대상이다
     const channels = parseChannels(result);
     const buckets = assignBuckets(channels);
@@ -229,7 +250,10 @@ export default function SnsDetailPanel({ academy, region = '하남', allAcademie
     rowCells(result).forEach((c) => cells.set(c.key, c));
 
     const verdict = result ? effectiveVerdict(result) : '';
-    const hasManual = Object.keys(parseManual(result)).length > 0;
+    // 마감 표시는 칸 값이 아니다 — 직접 고친 칸이 있는지 셀 때 빼야 한다
+    const hasManual = Object.keys(manualCells(result)).length > 0;
+    const done = isDone(result);
+    const lockedHint = done ? LOCKED_HINT : undefined;
     const pinned = pinnedPlaceId(result);
     // 지금 조사에 쓰는 플레이스 주소 — 표·구글시트('플레이스지정')와 같은 값이다
     const curUrl = result ? currentPlaceUrl(result) : '';
@@ -243,6 +267,18 @@ export default function SnsDetailPanel({ academy, region = '하남', allAcademie
             background: running ? 'var(--border-color)' : 'var(--primary)', color: 'white',
             fontSize: '0.82rem', fontWeight: '700', cursor: running ? 'default' : 'pointer',
         }}>{running ? '조사 중…' : result ? '🔄 다시 조사' : '🔍 지금 조사'}</button>
+    );
+
+    const doneBtn = result && (
+        <button onClick={toggleDone}
+            title={done ? '눌러서 해제하면 다시 고칠 수 있습니다' : '다 확인했다면 눌러 마감하세요 (O/X 가 잠깁니다)'}
+            style={{
+                padding: '8px 12px', borderRadius: '8px', fontSize: '0.82rem', fontWeight: '700',
+                cursor: 'pointer', whiteSpace: 'nowrap',
+                border: done ? 'none' : '1px solid var(--border-color)',
+                background: done ? DONE_COLOR : 'transparent',
+                color: done ? 'white' : 'var(--text-muted)',
+            }}>{done ? '✓ 확인완료' : '마감'}</button>
     );
 
     if (loading) {
@@ -259,10 +295,14 @@ export default function SnsDetailPanel({ academy, region = '하남', allAcademie
                         <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginTop: '3px' }}>
                             네이버플레이스와, 플레이스 홈에 링크된 블로그·홈페이지·인스타그램에
                             교습비와 {numberLabel}를 게시했는지 확인합니다.
-                            {result && <><br />O/X 줄을 <b>누르면</b> 직접 확인한 값으로 바꿀 수 있습니다 (자동값 → O → X → 자동값).</>}
+                            {result && <><br />O/X 줄을 <b>누르면</b> 직접 확인한 값으로 바꿀 수 있습니다 (자동값 → O → X → 없음 → 자동값).</>}
+                            {done && <><br /><b style={{ color: DONE_COLOR }}>✓ {fmtWhen(doneAt(result))} 에 확인 완료로 마감</b> — 고치려면 마감을 해제하세요.</>}
                         </div>
                     </div>
-                    {runBtn}
+                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+                        {doneBtn}
+                        {runBtn}
+                    </div>
                 </div>
                 {message && <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '10px' }}>{message}</div>}
             </div>
@@ -365,13 +405,13 @@ export default function SnsDetailPanel({ academy, region = '하남', allAcademie
                                 <ObligationRow label="교습비 게시"
                                     cell={cells.get(cellKey('place', '교습비'))}
                                     onToggle={() => cycle(cells.get(cellKey('place', '교습비')))}
-                                    disabled={running}
+                                    disabled={running || done} lockedHint={lockedHint}
                                     detail={result.플레이스_게시형태 && result.플레이스_게시형태 !== '없음'
                                         ? `게시 형태: ${result.플레이스_게시형태}` : '가격 메뉴·가격표·소개글 어디에도 교습비가 없습니다'} />
                                 <ObligationRow label={`${numberLabel} 게시`}
                                     cell={cells.get(cellKey('place', '번호'))}
                                     onToggle={() => cycle(cells.get(cellKey('place', '번호')))}
-                                    disabled={running}
+                                    disabled={running || done} lockedHint={lockedHint}
                                     detail={result.플레이스_번호대조 === '불일치'
                                         ? `소개글 기재: ${result.플레이스_기재번호} — 실제 ${numberLabel} ${regNo} 와 다릅니다`
                                         : result.플레이스_번호대조 === '일치'
@@ -467,12 +507,12 @@ export default function SnsDetailPanel({ academy, region = '하남', allAcademie
                                 ) : (
                                     <>
                                         <ObligationRow label="교습비 게시" cell={feeCell}
-                                            onToggle={() => cycle(feeCell)} disabled={running}
+                                            onToggle={() => cycle(feeCell)} disabled={running || done} lockedHint={lockedHint}
                                             detail={c.교습비 === 'O'
                                                 ? `${c.조사범위}에서 교습비 안내를 확인했습니다`
                                                 : `${c.조사범위}에서 교습비를 찾지 못했습니다${c.종류 === 'instagram' ? '' : ' (이미지로만 올렸을 수 있음)'}`} />
                                         <ObligationRow label={`${numberLabel} 게시`} cell={noCell}
-                                            onToggle={() => cycle(noCell)} disabled={running}
+                                            onToggle={() => cycle(noCell)} disabled={running || done} lockedHint={lockedHint}
                                             detail={c.번호대조 === '불일치'
                                                 ? `기재: ${c.기재번호} — 실제 ${numberLabel} ${regNo} 와 다릅니다`
                                                 : c.번호대조 === '일치'

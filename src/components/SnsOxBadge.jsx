@@ -9,7 +9,17 @@ const MANUAL_COLOR = '#2563eb';
 
 export default function SnsOxBadge({ value, manual }) {
     if (value === '없음') {
-        return <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>없음</span>;
+        // 자동으로 '링크가 없다' 고 본 것과, 담당자가 눌러 '없음' 으로 둔 것은 다른 값이다.
+        // 직접 넣은 값은 O/X 와 똑같이 파란색·밑줄로 표시해야 다시 조사해도 남는 값임이 보인다.
+        return (
+            <span style={{
+                fontSize: '0.8rem',
+                fontWeight: manual ? '700' : '400',
+                color: manual ? MANUAL_COLOR : 'var(--text-muted)',
+                borderBottom: manual ? `2px solid ${MANUAL_COLOR}` : 'none',
+                paddingBottom: manual ? '1px' : 0,
+            }}>없음</span>
+        );
     }
     // 링크는 있는데 자동 조사 대상이 아닌 채널 (인스타그램)
     if (value === '안함') {
