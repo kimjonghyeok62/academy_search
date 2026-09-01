@@ -6,6 +6,7 @@
 import { memo, useCallback } from 'react';
 import {
     parseChannels, assignBuckets, rowCells, snsRemark, isDone, doneAt,
+    isNoPlace, noPlaceAt,
     placeSearchUrl, blogSearchUrl, pinnedPlaceId, hasPlaceCandidate,
     currentPlaceUrl, placeSource, parsePlaceId, shortAddress, BUCKET_LABEL,
 } from '../utils/snsCheck';
@@ -34,7 +35,7 @@ function SnsCheckRow({
     index, rowKey, target, result, academy, group, dup,
     academyByKey, region, isNarrow, running, highlight,
     pinOpen, pinInput, pinError,
-    onSelectAcademy, onCycle, onToggleDone, onRefresh, onJump,
+    onSelectAcademy, onCycle, onToggleDone, onToggleNoPlace, onRefresh, onJump,
     onPinOpen, onPinChange, onPinSave, onPinCancel, onPinClear, onPinConfirm,
     registerRow,
 }) {
@@ -60,12 +61,14 @@ function SnsCheckRow({
         .filter((x) => x.key !== rowKey);
 
     const pinned = pinnedPlaceId(result);
+    // 사람이 '플레이스 없음'을 확인해 준 행 — 물고 온 후보는 남의 업체이므로 더는 보여주지 않는다
+    const noPlace = isNoPlace(result);
     // 플레이스를 물고 오긴 했는데 상호가 달라 자동 확정을 못 한 행 —
     // 주소를 찾아 붙여넣을 것 없이 '맞다'만 눌러 주면 된다
-    const unconfirmedPlace = !!result && result.matchStatus !== 'matched'
+    const unconfirmedPlace = !!result && !noPlace && result.matchStatus !== 'matched'
         && hasPlaceCandidate(result) && !pinned;
     // 지금 이 학원의 플레이스로 쓰는 주소 — 상세화면·구글시트와 같은 값이다
-    const curUrl = result ? currentPlaceUrl(result) : '';
+    const curUrl = result && !noPlace ? currentPlaceUrl(result) : '';
 
     return (
         <tr ref={setRef} style={{ background: rowBg }}>
@@ -215,6 +218,18 @@ function SnsCheckRow({
                                 </div>
                             )}
                         </div>
+                    ) : noPlace ? (
+                        // 없다고 확인해 준 곳 — 지정할 대상 자체가 없으므로 지정 UI 를 치우고
+                        // 되돌릴 길만 남긴다 (잘못 눌렀을 수 있다)
+                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                            <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                                🚫 네이버플레이스 없음{noPlaceAt(result) ? ` · ${fmtDay(noPlaceAt(result))} 확인` : ''}
+                            </span>
+                            <button onClick={() => onToggleNoPlace(result)} style={{
+                                background: 'none', border: 'none', color: 'var(--text-muted)',
+                                fontSize: '0.74rem', fontWeight: '600', cursor: 'pointer', textDecoration: 'underline',
+                            }}>되돌리기</button>
+                        </div>
                     ) : (
                         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
                             {unconfirmedPlace && (
@@ -239,6 +254,17 @@ function SnsCheckRow({
                                     fontSize: '0.74rem', fontWeight: '600',
                                     cursor: running ? 'default' : 'pointer', textDecoration: 'underline',
                                 }}>지정 해제</button>
+                            )}
+                            {/* 찾아봤더니 이 학원은 플레이스를 아예 안 만든 경우 — 지정할 대상이 없다.
+                                눌러 두면 판정이 '해당없음'으로 빠지고 다시 조사하지 않는다. */}
+                            {result && (
+                                <button onClick={() => onToggleNoPlace(result)}
+                                    title="찾아봤는데 이 학원은 네이버플레이스가 아예 없을 때 누르세요 — 판정에서 빠지고 다시 조사하지 않습니다"
+                                    style={{
+                                        background: 'none', border: '1px solid var(--border-color)', borderRadius: '6px',
+                                        padding: '3px 7px', color: 'var(--text-muted)', fontSize: '0.74rem',
+                                        fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap',
+                                    }}>🚫 플레이스 없음</button>
                             )}
                         </div>
                     )}

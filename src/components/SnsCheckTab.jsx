@@ -5,7 +5,7 @@ import {
     toProbeTargets, parseChannels, needsRecheck, probeTargetFor,
     BUCKETS, BUCKET_LABEL,
     parseManual, effectiveVerdict, applyManualCell, setManualCell, keepManual,
-    isDone, setDone,
+    isDone, setDone, isNoPlace, setNoPlace,
     buildGroups, placeDuplicates, sharedCellTargets, pinnedPlaceId,
     pinResolvedPlace, parsePlaceInput, placeUrlFromId, PIN_CLEARED,
     RECHECK_DAYS, VERDICT_COLOR,
@@ -16,7 +16,7 @@ import {
 } from '../utils/snsTableLayout';
 import SnsCheckRow from './SnsCheckRow';
 
-const FILTERS = ['전체', '미이행', '이행', '확인불가', '미조사'];
+const FILTERS = ['전체', '미이행', '이행', '확인불가', '해당없음', '미조사'];
 const DONE_FILTERS = ['전체', '미확인', '확인완료'];
 
 // 한 번에 그릴 행 수. 750행을 통째로 그리면 첫 화면이 1초 넘게 멈춘다 —
@@ -278,7 +278,7 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
     const dupPlaces = useMemo(() => placeDuplicates(structResults, groups), [structResults, groups]);
 
     const counts = useMemo(() => {
-        const c = { 전체: rows.length, 이행: 0, 미이행: 0, 확인불가: 0, 미조사: 0 };
+        const c = { 전체: rows.length, 이행: 0, 미이행: 0, 확인불가: 0, 해당없음: 0, 미조사: 0 };
         rows.forEach(({ result }) => {
             if (!result) c.미조사++;
             else { const v = effectiveVerdict(result); c[v] = (c[v] || 0) + 1; }
@@ -294,7 +294,7 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
     // 확인 마감한 곳은 뺀다. 담당자가 이미 눈으로 확인해 굳힌 곳을 다시 도는 것은
     // 시간만 쓰고 네이버 차단만 부른다 (필요하면 행의 새로고침으로 하나씩 다시 볼 수 있다).
     const stale = useMemo(
-        () => rows.filter(x => !isDone(x.result) && needsRecheck(x.result)),
+        () => rows.filter(x => !isDone(x.result) && !isNoPlace(x.result) && needsRecheck(x.result)),
         [rows]);
 
     const visible = useMemo(() => {
@@ -568,6 +568,21 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
         queue.push(rowKey, resultToRecord(updated));
     }, [applyManual, queue]);
 
+    // ── 네이버플레이스가 아예 없는 학원 ──────────────────
+    // 이름이 달라 못 찾은 것과 정말 없는 것은 자동으로 못 가린다. 사람이 확인해 눌러 주면
+    // 물고 온 남의 업체를 버리고, 판정을 '해당없음'으로 빼고, 다시 조사하지 않는다.
+    const toggleNoPlace = useCallback((result) => {
+        if (!result) return;
+        const rowKey = recordKey(result.category, result.regNo);
+        const on = !isNoPlace(result);
+        const updated = setNoPlace(result, on);
+        applyManual({ ...resultsRef.current, [rowKey]: updated }, [rowKey]);
+        setSaveState(on
+            ? '네이버플레이스가 없는 곳으로 표시했습니다 — 판정에서 빠지고 다시 조사하지 않습니다.'
+            : '표시를 되돌렸습니다.');
+        queue.push(rowKey, resultToRecord(updated));
+    }, [applyManual, queue]);
+
     // ── 미이행 연락처 엑셀 ──────────────────────────────
     const downloadNonCompliantExcel = () => {
         // 화면 집계·필터와 같은 기준(교습비 + 직접 고친 값)으로 뽑는다
@@ -630,6 +645,8 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                     <br /><b>직접 확인해 고치기</b> — O/X 칸을 누르면 <b>자동값 → O → X → 없음 → 자동값</b> 으로 바뀝니다.
                     직접 넣은 값은 <b style={{ color: '#2563eb' }}>파란색</b> 으로 보이고, <b>다시 조사해도 덮이지 않으며</b> 미이행·이행 집계에도 반영됩니다.
                     자동 조사가 <b>?</b> 로 남긴 칸이 실제로는 그 채널이 아예 없는 경우라면 <b>없음</b> 으로 두세요 — 판정에서 빠집니다.
+                    <br /><b>🚫 플레이스 없음</b> — 찾아봤는데 이 학원이 네이버플레이스를 아예 만들지 않았다면 비고의 그 단추를 누르세요.
+                    판정이 <b>해당없음</b> 으로 빠지고, 이름이 비슷해 잘못 물고 온 남의 업체 값도 지워지며, 다시 조사하지 않습니다.
                     <br /><b style={{ color: DONE_COLOR }}>확인 마감</b> — 한 학원을 다 보셨으면 맨 오른쪽 <b>확인</b> 열의 <b>마감</b> 을 누르세요.
                     그 행의 O/X 가 <b>잠겨 잘못 눌러도 바뀌지 않고</b>, 어디까지 확인했는지 진행률로 남습니다. 고치려면 <b>✓ 확인완료</b> 를 눌러 해제하면 됩니다.
                     {lastCheckedAt && <><br />최근 조사: <b>{fmtWhen(lastCheckedAt)}</b></>}
@@ -810,6 +827,7 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                                 onSelectAcademy={onSelectAcademy}
                                 onCycle={cycleCell}
                                 onToggleDone={toggleDone}
+                                onToggleNoPlace={toggleNoPlace}
                                 onRefresh={runOne}
                                 onJump={jumpToRow}
                                 onPinOpen={openPin}

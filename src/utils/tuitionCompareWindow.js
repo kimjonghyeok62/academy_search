@@ -13,7 +13,7 @@ import {
     sortCourses, fmtNum, parseNum, getWeeklyTotalMinutes, calcWeeklySchedule, openHtmlWindow,
 } from './generateTuitionPDF';
 import {
-    rowCells, parseChannels, assignBuckets, effectiveVerdict, currentPlaceUrl,
+    rowCells, parseChannels, assignBuckets, effectiveVerdict, currentPlaceUrl, isNoPlace,
     placeSearchUrl, shortAddress, cellKey, BUCKETS, BUCKET_LABEL, VERDICT_COLOR,
 } from './snsCheck';
 
@@ -126,12 +126,16 @@ function channelTable(result, academyName, region) {
         byBucket[at[i]].push(c);
     });
 
-    const placeUrl = currentPlaceUrl(result);
+    // 사람이 '플레이스 없음'을 확인해 준 곳 — 물고 온 후보는 남의 업체라 주소도 게시형태도 보여주면 안 된다
+    const noPlace = isNoPlace(result);
+    const placeUrl = noPlace ? '' : currentPlaceUrl(result);
     const rows = [`<tr>
     <td><strong>플레이스</strong></td>
     <td class="mid">${oxBadge(cells.get(cellKey('place', '교습비')))}</td>
-    <td>${esc(result.플레이스_게시형태 || '') || '<span class="dim">–</span>'}</td>
-    <td>${placeUrl ? openBtn(placeUrl, '플레이스 열기') : `<span class="dim">주소 없음</span>`}</td>
+    <td>${noPlace
+            ? '<span class="dim">네이버플레이스 없음 — 담당자가 직접 확인함</span>'
+            : esc(result.플레이스_게시형태 || '') || '<span class="dim">–</span>'}</td>
+    <td>${placeUrl ? openBtn(placeUrl, '플레이스 열기') : '<span class="dim">–</span>'}</td>
   </tr>`];
 
     BUCKETS.forEach((b) => {

@@ -180,6 +180,11 @@ export function snsRemark(result, dupNames) {
             : '⚠ 비고에 적은 주소를 쓰지 못했습니다 — 주소 확인 필요');
     }
 
+    // 사람이 직접 보고 없다고 확인해 준 곳 — 자동 조사가 무엇을 물고 왔든 그 사실이 이긴다.
+    // '이름이 달라 미확정' 같은 안내는 이제 틀린 말이므로 여기서 끊는다.
+    // ('네이버플레이스 없음' 이라는 사실 자체는 바로 아래 줄이 날짜와 함께 보여주므로 여기 적지 않는다)
+    if (isNoPlace(result)) return notes.join(' / ');
+
     // 후보를 하나도 못 찾은 것과, 찾긴 했는데 이름이 달라 확정을 못 한 것은 다른 상태다.
     // 후자를 '못 찾음'으로 적으면 담당자가 찾아볼 곳이 없다고 읽고 그냥 넘긴다.
     if (result.matchStatus === 'no_match') {
@@ -250,6 +255,8 @@ function rawRowCells(result) {
     const cells = bucketCells(parseChannels(result));
     // 후보 플레이스를 물고 온 경우에는 실제로 읽어 본 값이 있다 — '못 봤다'로 지우지 않는다.
     // (같은 곳인지 확정되지 않았다는 사실은 판정(확인불가)과 비고가 따로 알린다)
+    // 사람이 '플레이스 없음'을 눌러 두었으면 물고 온 후보는 남의 업체다 — 그 값을 보여주면 안 된다
+    const marked = isNoPlace(result);
     const noPlace = result && result.matchStatus === 'no_match' && !hasPlaceCandidate(result);
     const out = [];
     const push = (bucket, field, auto) => {
@@ -257,9 +264,11 @@ function rawRowCells(result) {
         out.push({ key, bucket, field, auto, manual: manual[key], value: manual[key] ?? auto });
     };
 
-    // 플레이스를 못 찾은 것은 '없다'가 아니라 '못 봤다' — 이름이 달라 검색에 안 걸렸을 뿐이다
-    push('place', '번호', !result ? '' : noPlace ? '?' : result.플레이스_번호);
-    push('place', '교습비', !result ? '' : noPlace ? '?' : result.플레이스_교습비);
+    // 플레이스를 못 찾은 것은 '없다'가 아니라 '못 봤다' — 이름이 달라 검색에 안 걸렸을 뿐이다.
+    // 사람이 직접 보고 '없음'을 눌러 준 곳만 '없음'이다.
+    const placeAuto = (v) => (!result ? '' : marked ? '없음' : noPlace ? '?' : v);
+    push('place', '번호', placeAuto(result?.플레이스_번호));
+    push('place', '교습비', placeAuto(result?.플레이스_교습비));
     BUCKETS.forEach((b) => {
         const c = cells[b];
         CELL_FIELDS.forEach((f) => {
@@ -298,13 +307,17 @@ export function effectiveVerdict(result) {
 function rawEffectiveVerdict(result) {
     if (!result) return '미조사';
     if (!result.checkedAt) return result.판정 || '미조사';
-    // 동일 업체인지 자체가 불확실한 건 칸을 고친다고 풀리지 않는다
-    if (result.matchStatus !== 'matched') return '확인불가';
+    // 동일 업체인지 자체가 불확실한 건 칸을 고친다고 풀리지 않는다.
+    // 다만 사람이 직접 보고 '플레이스 없음'이라고 확인해 준 곳은 더 볼 것이 없으므로 예외다 —
+    // 그러지 않으면 플레이스를 만들지 않은 학원이 영영 확인불가로 남아 목록이 줄지 않는다.
+    if (!isNoPlace(result) && result.matchStatus !== 'matched') return '확인불가';
 
     const fee = rowCells(result).filter((c) => c.field === '교습비' && c.bucket !== 'instagram');
     if (fee.some((c) => c.value === 'X')) return '미이행';
     // 못 본 곳이 남아 있으면 '이행'이라고 단정하지 않는다
     if (fee.some((c) => c.value === '?')) return '확인불가';
+    // 올릴 자리가 아예 없는 곳 — 게시했다는 뜻의 '이행'과 섞으면 이행률이 실제보다 좋아 보인다
+    if (fee.every((c) => c.value === '없음')) return '해당없음';
     return '이행';
 }
 
@@ -345,6 +358,20 @@ export const doneAt = (result) => String(parseManual(result)[DONE_KEY] || '');
 /** 마감/해제 — 저장은 부르는 쪽이 한다 */
 export const setDone = (result, on) =>
     setManualCell(result, DONE_KEY, on ? new Date().toISOString() : undefined);
+
+// ── 네이버플레이스가 아예 없는 학원 ─────────────────────
+// 이름이 달라 검색에 안 걸린 것과, 정말로 플레이스를 안 만든 것은 자동으로 가릴 수 없다.
+// 앞의 것으로 보고 '확인불가'에 두면 담당자가 아무리 봐도 풀리지 않는 행이 쌓이고,
+// 30일마다 다시 조사해 매번 같은 엉뚱한 후보를 붙인다. 그래서 사람이 직접 확인한 뒤
+// 눌러 표시하게 한다. 표시해 두면 후보를 버리고, 판정을 '해당없음'으로 빼고, 다시 조사하지 않는다.
+export const NOPLACE_KEY = '__noplace';
+
+export const isNoPlace = (result) => !!parseManual(result)[NOPLACE_KEY];
+export const noPlaceAt = (result) => String(parseManual(result)[NOPLACE_KEY] || '');
+
+/** '플레이스 없음' 표시/해제 — 저장은 부르는 쪽이 한다 */
+export const setNoPlace = (result, on) =>
+    setManualCell(result, NOPLACE_KEY, on ? new Date().toISOString() : undefined);
 
 // 자동 조사 결과에는 없는, 사람이 넣은 값 — 새 결과에 이어 붙여야 화면에서 사라지지 않는다
 const KEEP_KEYS = ['수동확인', '비고', '연락처', '플레이스지정', '묶음'];
@@ -684,12 +711,14 @@ export function sharedCellTargets(results, source, key, groups) {
     return out;
 }
 
-export const VERDICTS = ['이행', '미이행', '확인불가'];
+export const VERDICTS = ['이행', '미이행', '확인불가', '해당없음'];
 
 export const VERDICT_COLOR = {
     이행: '#10b981',
     미이행: '#ef4444',
     확인불가: '#94a3b8',
+    // 네이버에 올릴 자리가 아예 없어 이 점검의 대상이 아닌 곳
+    해당없음: '#64748b',
 };
 
 /**
