@@ -5,14 +5,15 @@ import {
     toProbeTargets, parseChannels, needsRecheck, probeTargetFor,
     BUCKETS, BUCKET_LABEL,
     parseManual, effectiveVerdict, applyManualCell, setManualCell, keepManual,
-    isDone, setDone, isNoPlace, setNoPlace,
+    isDone, setDone, isNoPlace, setNoPlace, memoText, setMemo, MEMO_MAX,
     buildGroups, placeDuplicates, sharedCellTargets, pinnedPlaceId,
     pinResolvedPlace, parsePlaceInput, placeUrlFromId, PIN_CLEARED,
     RECHECK_DAYS, VERDICT_COLOR,
 } from '../utils/snsCheck';
 import { createSaveQueue } from '../utils/snsSaveQueue';
 import {
-    W_NUM, W_NAME, W_CH, W_CHECK, CH_GROUPS, BG_STRIPE, DONE_COLOR,
+    W_NUM, W_NAME, W_REGNO, W_CH, W_LINK, W_INS, W_MEMO, W_CHECK,
+    CH_GROUPS, BG_STRIPE, DONE_COLOR, INS_OK_COLOR, INS_BAD_COLOR,
 } from '../utils/snsTableLayout';
 import SnsCheckRow from './SnsCheckRow';
 
@@ -26,6 +27,9 @@ const CHUNK = 60;
 // 조회에 몇 초가 걸린다. 탭을 오갈 때마다 빈 화면을 보지 않도록 마지막 결과를 담아 둔다.
 // (App.jsx 의 학원 목록 캐시와 같은 방식)
 const CACHE_KEY = 'sns_checks_v1';
+// 안내문을 폈는지 — 표를 보려고 매번 스크롤하지 않도록 기본은 접어 두고, 사람의 선택을 기억한다.
+// (결과 캐시와 달리 취향이므로 세션을 넘겨 남는 localStorage 에 둔다)
+const INTRO_KEY = 'sns_intro_open';
 
 function readCache() {
     try {
@@ -157,6 +161,15 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
     // 입력값을 저장 함수의 의존성으로 두면 한 글자 칠 때마다 함수가 새로 만들어져
     // 표의 모든 행이 다시 그려진다 — 값은 ref 로 읽고, 화면 표시만 상태로 둔다
     const pinInputRef = useRef('');
+    // 적요를 적고 있는 행(행키)과 입력값 — 플레이스 지정 칸과 같은 방식이다.
+    // 값을 ref 로 들고 화면 표시만 상태로 두는 이유도 같다 (한 글자마다 750행이 다시 그려지지 않도록).
+    const [memoRow, setMemoRow] = useState('');
+    const [memoInput, setMemoInput] = useState('');
+    const memoInputRef = useRef('');
+    // 안내문을 폈는지
+    const [introOpen, setIntroOpen] = useState(() => {
+        try { return localStorage.getItem(INTRO_KEY) === '1'; } catch { return false; }
+    });
     // 공동운영 학원을 눌러 찾아가는 행 (행키) — 잠깐 색을 입혔다 지운다
     const [jumpKey, setJumpKey] = useState('');
     const rowRefs = useRef(new Map());
@@ -583,6 +596,34 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
         queue.push(rowKey, resultToRecord(updated));
     }, [applyManual, queue]);
 
+    // ── 적요 (담당자가 적는 진행사항) ────────────────────
+    // 마감한 행에서도 고칠 수 있다 — 마감은 O/X 만 잠근다.
+    const changeMemo = useCallback((v) => { memoInputRef.current = v; setMemoInput(v); }, []);
+    const openMemo = useCallback((rowKey, cur) => { setMemoRow(rowKey); changeMemo(cur); }, [changeMemo]);
+    const cancelMemo = useCallback(() => { setMemoRow(''); changeMemo(''); }, [changeMemo]);
+
+    const saveMemo = useCallback((result) => {
+        if (!result) return;   // 아직 조사 안 한 학원은 시트에 행이 없다
+        const next = String(memoInputRef.current || '').trim().slice(0, MEMO_MAX);
+        setMemoRow('');
+        changeMemo('');
+        // 안 바뀌었으면 보내지 않는다. 빈 칸에서 그냥 저장을 누른 것까지 요청으로 만들면
+        // 비어 있던 셀에 지움 표시('-')만 남는다.
+        if (next === memoText(result)) return;
+        const rowKey = recordKey(result.category, result.regNo);
+        const updated = setMemo(result, next);
+        applyManual({ ...resultsRef.current, [rowKey]: updated }, [rowKey]);
+        setSaveState('');
+        queue.push(rowKey, resultToRecord(updated));
+    }, [applyManual, changeMemo, queue]);
+
+    // 갱신함수 안에서 저장하지 않는다 — React 가 그 함수를 두 번 부를 수 있어 부수효과 자리가 아니다
+    const toggleIntro = useCallback(() => {
+        const next = !introOpen;
+        setIntroOpen(next);
+        try { localStorage.setItem(INTRO_KEY, next ? '1' : '0'); } catch { /* 저장 못 해도 이번 화면에서는 동작한다 */ }
+    }, [introOpen]);
+
     // ── 미이행 연락처 엑셀 ──────────────────────────────
     const downloadNonCompliantExcel = () => {
         // 화면 집계·필터와 같은 기준(교습비 + 직접 고친 값)으로 뽑는다
@@ -630,27 +671,49 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
 
     return (
         <div>
-            {/* 안내 */}
-            <div style={{ background: 'var(--bg-card)', borderRadius: '14px', padding: '14px 16px', border: '1px solid var(--border-color)', marginBottom: '12px', boxShadow: 'var(--shadow-sm)' }}>
-                <div style={{ fontSize: '0.95rem', fontWeight: '800', marginBottom: '6px' }}>📣 네이버 교습비·등록번호 게시점검</div>
-                <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.7 }}>
-                    네이버플레이스의 가격 메뉴·가격표 이미지·소개글과, <b>플레이스 홈에 링크된 블로그·홈페이지·카페·인스타그램</b>을
-                    자동으로 조사해 교습비와 등록(신고)번호 게시 여부를 확인합니다. 링크가 없는 채널은 따로 검색하지 않습니다.
-                    <b> 이행·미이행은 교습비만으로 판정</b>합니다 — 등록(신고)번호 미게시는 시정명령 사항이라
-                    칸에 X 로 보여주되 미이행으로는 잡지 않습니다.
-                    <b> 자동 판정이므로 확정 위반이 아니라 안내·점검 우선순위 참고 자료</b>이며,
-                    동명 학원이나 지점이 있으면 <b>확인불가</b>로 남습니다.
-                    <b> 학원명을 누르면</b> 그 학원의 상세화면으로 이동합니다 (SNS 탭에서 판정 근거를 전부 볼 수 있습니다).
-                    비고의 <b style={{ color: '#7c3aed' }}>공동운영</b> 학원명을 누르면 화면을 나가지 않고 <b>이 표의 그 학원 행</b>으로 옮겨 갑니다.
-                    <br /><b>직접 확인해 고치기</b> — O/X 칸을 누르면 <b>자동값 → O → X → 없음 → 자동값</b> 으로 바뀝니다.
-                    직접 넣은 값은 <b style={{ color: '#2563eb' }}>파란색</b> 으로 보이고, <b>다시 조사해도 덮이지 않으며</b> 미이행·이행 집계에도 반영됩니다.
-                    자동 조사가 <b>?</b> 로 남긴 칸이 실제로는 그 채널이 아예 없는 경우라면 <b>없음</b> 으로 두세요 — 판정에서 빠집니다.
-                    <br /><b>🚫 플레이스 없음</b> — 찾아봤는데 이 학원이 네이버플레이스를 아예 만들지 않았다면 비고의 그 단추를 누르세요.
-                    판정이 <b>해당없음</b> 으로 빠지고, 이름이 비슷해 잘못 물고 온 남의 업체 값도 지워지며, 다시 조사하지 않습니다.
-                    <br /><b style={{ color: DONE_COLOR }}>확인 마감</b> — 한 학원을 다 보셨으면 맨 오른쪽 <b>확인</b> 열의 <b>마감</b> 을 누르세요.
-                    그 행의 O/X 가 <b>잠겨 잘못 눌러도 바뀌지 않고</b>, 어디까지 확인했는지 진행률로 남습니다. 고치려면 <b>✓ 확인완료</b> 를 눌러 해제하면 됩니다.
-                    {lastCheckedAt && <><br />최근 조사: <b>{fmtWhen(lastCheckedAt)}</b></>}
+            {/* 안내 — 15줄짜리 설명이 표를 화면 밖으로 밀어냈다.
+                제목 줄만 남기고 접어 두되, 편 상태는 기억한다 */}
+            <div style={{ background: 'var(--bg-card)', borderRadius: '14px', padding: '12px 16px', border: '1px solid var(--border-color)', marginBottom: '12px', boxShadow: 'var(--shadow-sm)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '0.95rem', fontWeight: '800' }}>📣 네이버 교습비·등록번호 게시점검</span>
+                    <button onClick={toggleIntro} style={{
+                        background: 'none', border: '1px solid var(--border-color)', borderRadius: '999px',
+                        padding: '3px 10px', color: 'var(--text-muted)', fontSize: '0.76rem',
+                        fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap',
+                    }}>{introOpen ? '사용법 접기 ▴' : '사용법 보기 ▾'}</button>
+                    {lastCheckedAt && (
+                        <span style={{ marginLeft: 'auto', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                            최근 조사: <b>{fmtWhen(lastCheckedAt)}</b>
+                        </span>
+                    )}
                 </div>
+
+                {introOpen && (
+                    <ol style={{ margin: '10px 0 0', paddingInlineStart: '20px', fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.75 }}>
+                        <li><b>무엇을 보나</b> — 네이버플레이스의 가격 메뉴·가격표 이미지·소개글과,
+                            플레이스 홈에 링크된 블로그·홈페이지·카페·인스타그램. 링크가 없는 채널은 따로 검색하지 않습니다.</li>
+                        <li><b>표 읽는 법</b> — 채널마다 <b>번호</b>(= 등록·신고번호)와 <b>교습비</b> 두 칸입니다.
+                            <b> 이행·미이행은 교습비만으로 판정</b>합니다 — 번호 미게시는 시정명령 사항이라 X 로 보여주되 미이행으로 잡지 않습니다.</li>
+                        <li><b>확정 위반이 아닙니다</b> — 자동 판정이라 안내·점검 우선순위 참고 자료입니다.
+                            동명 학원이나 지점이 있으면 <b>확인불가</b>로 남습니다.
+                            <b> 학원명</b>을 누르면 상세화면(SNS 탭에 판정 근거 전부),
+                            비고의 <b style={{ color: '#7c3aed' }}>공동운영</b> 학원명을 누르면 이 표의 그 학원 행으로 옮겨 갑니다.</li>
+                        <li><b>주소를 누르면 네이버지도</b>가 열립니다 — ‘이 주소의 장소’를 펼치면 그 건물 업체가 다 보여,
+                            이름이 달라 자동으로 못 찾은 플레이스를 찾아 <b>플레이스 지정</b>에 넣을 수 있습니다.</li>
+                        <li><b>직접 확인해 고치기</b> — O/X 칸을 누르면 <b>자동값 → O → X → 없음 → 자동값</b>.
+                            직접 넣은 값은 <b style={{ color: '#2563eb' }}>파란색</b>이고 <b>다시 조사해도 덮이지 않으며</b> 집계에도 반영됩니다.
+                            자동 조사가 <b>?</b> 로 남긴 칸이 실제로는 그 채널이 없는 경우라면 <b>없음</b>으로 두세요 — 판정에서 빠집니다.</li>
+                        <li><b>🚫 플레이스 없음</b> — 찾아봤는데 이 학원이 플레이스를 아예 만들지 않았다면 비고의 그 단추를 누르세요.
+                            판정이 <b>해당없음</b>으로 빠지고, 잘못 물고 온 남의 업체 값도 지워지며, 다시 조사하지 않습니다.</li>
+                        <li><b style={{ color: INS_OK_COLOR }}>보험</b> 열 — 배상책임보험 만료일입니다.
+                            <b style={{ color: INS_OK_COLOR }}> 파란색</b>이면 유효, <b style={{ color: INS_BAD_COLOR }}>빨간색 ⚠</b>이면 만료·미가입입니다.
+                            마스터 자료에서 읽어오는 값이라 이 화면에서는 고칠 수 없습니다 (검토 탭의 ‘보험 만료·미가입’과 같은 기준).</li>
+                        <li><b>📝 적요</b> — 진행사항·특이사항을 50자까지 적는 칸입니다. 칸을 눌러 적으면 구글시트 <b>적요</b> 열에 남고
+                            다시 조사해도 지워지지 않습니다. <b>마감한 뒤에도 고칠 수 있습니다.</b></li>
+                        <li><b style={{ color: DONE_COLOR }}>확인 마감</b> — 한 학원을 다 보셨으면 맨 오른쪽 <b>확인</b> 열의 <b>마감</b>.
+                            그 행의 O/X 가 <b>잠겨 잘못 눌러도 바뀌지 않고</b> 진행률로 남습니다. 고치려면 <b>✓ 완료</b>를 눌러 해제하세요.</li>
+                    </ol>
+                )}
             </div>
 
             {/* 조작부 */}
@@ -771,11 +834,12 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                     <colgroup>
                         <col style={{ width: `${W_NUM}px` }} />
                         <col style={{ width: `${W_NAME}px` }} />
-                        <col style={{ width: '76px' }} />
+                        <col style={{ width: `${W_REGNO}px` }} />
                         {Array.from({ length: CH_GROUPS.length * 2 }, (_, i) => <col key={i} style={{ width: `${W_CH}px` }} />)}
-                        <col style={{ width: '130px' }} />
+                        <col style={{ width: `${W_LINK}px` }} />
                         <col />
-                        <col style={{ width: '118px' }} />
+                        <col style={{ width: `${W_INS}px` }} />
+                        <col style={{ width: `${W_MEMO}px` }} />
                         <col style={{ width: `${W_CHECK}px` }} />
                     </colgroup>
                     <thead>
@@ -789,20 +853,23 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                             {BUCKETS.map(b => <Th key={b} colSpan={2} center>{BUCKET_LABEL[b]}</Th>)}
                             <Th rowSpan={2}>링크</Th>
                             <Th rowSpan={2}>비고</Th>
-                            <Th rowSpan={2}>전화번호</Th>
+                            <Th rowSpan={2} center>보험</Th>
+                            <Th rowSpan={2}>적요</Th>
                             <Th rowSpan={2} center>확인</Th>
                         </tr>
                         {/* 2행: 묶음별 항목 */}
                         <tr>
+                            {/* '등록번호' 를 7묶음에 14번 되풀이하면 칸마다 76px 이 필요하다.
+                                무슨 번호인지는 안내문과 왼쪽 '등록번호' 열이 이미 말해 준다 */}
                             {CH_GROUPS.map(g => [
-                                <Th key={`${g}-no`} top={headRowH} center tight>{numberLabel}</Th>,
+                                <Th key={`${g}-no`} top={headRowH} center tight>번호</Th>,
                                 <Th key={`${g}-fee`} top={headRowH} center tight>교습비</Th>,
                             ])}
                         </tr>
                     </thead>
                     <tbody>
                         {visible.length === 0 && (
-                            <tr><td colSpan={7 + CH_GROUPS.length * 2} style={{ padding: '28px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
+                            <tr><td colSpan={8 + CH_GROUPS.length * 2} style={{ padding: '28px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
                                 {search.trim() ? `'${search.trim()}' 에 해당하는 ${typeTab}이(가) 없습니다.` : `해당하는 ${typeTab}이(가) 없습니다.`}
                             </td></tr>
                         )}
@@ -824,6 +891,8 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                                 pinOpen={pinRow === key}
                                 pinInput={pinRow === key ? pinInput : ''}
                                 pinError={pinRow === key ? pinError : null}
+                                memoOpen={memoRow === key}
+                                memoInput={memoRow === key ? memoInput : ''}
                                 onSelectAcademy={onSelectAcademy}
                                 onCycle={cycleCell}
                                 onToggleDone={toggleDone}
@@ -836,13 +905,17 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                                 onPinCancel={cancelPin}
                                 onPinClear={clearPlacePin}
                                 onPinConfirm={confirmPlace}
+                                onMemoOpen={openMemo}
+                                onMemoChange={changeMemo}
+                                onMemoSave={saveMemo}
+                                onMemoCancel={cancelMemo}
                                 registerRow={registerRow}
                             />
                         ))}
                         {/* 표 끝에 닿으면 다음 묶음을 이어 붙인다 (한 번에 다 그리면 첫 화면이 멈춘다) */}
                         {more > 0 && (
                             <tr ref={sentinelRef}>
-                                <td colSpan={7 + CH_GROUPS.length * 2} style={{ padding: '18px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
+                                <td colSpan={8 + CH_GROUPS.length * 2} style={{ padding: '18px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
                                     남은 {more}곳을 불러오는 중…
                                 </td>
                             </tr>

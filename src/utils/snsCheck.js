@@ -38,6 +38,8 @@ export const SNS_COLUMNS = [
     '플레이스지정',
     // 여러 학원이 블로그·플레이스 하나를 함께 쓰는 곳의 묶음 이름 (예: '페르마')
     '묶음',
+    // 담당자가 진행사항·특이사항을 적는 칸 (MEMO_MAX 자). 지우기는 MEMO_CLEARED 로 보낸다
+    '적요',
 ];
 
 // 결과·시트 행 양쪽에서 같은 키를 그대로 옮기는 항목
@@ -47,7 +49,7 @@ const PASSTHROUGH = [
     '블로그_번호', '블로그_기재번호', '블로그_번호대조', '판정', '미이행사유', '채널수', '채널상세',
     // 조사 결과에는 없다. 화면에서 고친 값을 그대로 실어 보내야 시트에 남는다
     // (빈 값으로 가면 Apps Script 가 기존 값을 지키므로 자동 조사가 덮어쓰지 않는다)
-    '수동확인', '플레이스지정', '묶음',
+    '수동확인', '플레이스지정', '묶음', '적요',
 ];
 
 /**
@@ -191,6 +193,10 @@ export function snsRemark(result, dupNames) {
         notes.push(hasPlaceCandidate(result)
             ? '이름이 달라 동일 업체 미확정 — 맞는지 확인 필요'
             : '네이버플레이스 못 찾음');
+    } else if (result.matchStatus === 'address') {
+        // 이름으로는 못 찾고 주소(같은 건물 업체 목록)로 골라온 곳 — 자동으로 확정하지 않는다.
+        // 어떤 근거로 고른 것인지 적어 줘야 담당자가 '맞음'을 누를지 판단할 수 있다.
+        notes.push(`📍 주소로 찾은 후보${result.플레이스명 ? ` — ${result.플레이스명}` : ''} — 맞는지 확인 필요`);
     } else if (result.matchStatus === 'ambiguous') notes.push('동명 업체 가능성 — 직접 확인');
     else if (result.matchStatus === 'error') notes.push('조사 중 오류 — 다시 확인 필요');
 
@@ -374,7 +380,7 @@ export const setNoPlace = (result, on) =>
     setManualCell(result, NOPLACE_KEY, on ? new Date().toISOString() : undefined);
 
 // 자동 조사 결과에는 없는, 사람이 넣은 값 — 새 결과에 이어 붙여야 화면에서 사라지지 않는다
-const KEEP_KEYS = ['수동확인', '비고', '연락처', '플레이스지정', '묶음'];
+const KEEP_KEYS = ['수동확인', '비고', '연락처', '플레이스지정', '묶음', '적요'];
 
 /** 새로 조사한 결과(fresh)에 이전 행(prev)의 사람이 넣은 값을 이어 붙인다 */
 export function keepManual(fresh, prev) {
@@ -382,6 +388,31 @@ export function keepManual(fresh, prev) {
     const out = { ...fresh };
     KEEP_KEYS.forEach((k) => { out[k] = prev[k] || ''; });
     return out;
+}
+
+// ── 적요 (담당자가 적는 진행사항) ───────────────────────
+// 한 학원을 보다가 알게 된 것 — '전화했더니 다음 주에 올린다더라', '원장이 바뀜' —
+// 을 적어 두는 칸. 시트 '적요' 열(AD)에 그대로 남는다.
+//
+// 마감(__done)과 달리 수동확인 JSON 이 아니라 진짜 시트 열을 쓴다. 사람이 시트를 열어
+// 읽고 고칠 수 있어야 하는 값이기 때문이다 (JSON 안에 넣으면 시트에서는 못 읽는다).
+
+export const MEMO_MAX = 50;
+
+// 지운 자리는 빈 값이 아니라 '-' 로 남긴다 — Apps Script 는 빈 값을 '안 넘어온 것'으로 보고
+// 기존 값을 지켜주므로, 빈 문자열로 보내면 지우기가 영영 저장되지 않는다 (PIN_CLEARED 와 같은 규약).
+export const MEMO_CLEARED = '-';
+
+/** 시트에 저장된 적요 → 화면에 보일 글자 (지움 표시는 빈 문자열로) */
+export function memoText(result) {
+    const v = String(result?.적요 || '').trim();
+    return v === MEMO_CLEARED ? '' : v;
+}
+
+/** 적요를 고친 결과 — 저장은 부르는 쪽이 한다 */
+export function setMemo(result, text) {
+    const v = String(text || '').trim().slice(0, MEMO_MAX);
+    return { ...result, 적요: v || MEMO_CLEARED };
 }
 
 // ── 플레이스 직접 지정 ──────────────────────────────────
@@ -745,6 +776,31 @@ export function shortAddress(address) {
 }
 
 // ── 딥링크 (담당자가 눈으로 확인할 때) ──────────────────
+
+/**
+ * 주소에서 도로명+건물번호까지만 남긴다 ('경기도 하남시 감일백제로 109 , 403호~405호'
+ * → '경기도 하남시 감일백제로 109'). 호수를 붙이면 지도 검색이 오히려 안 잡힌다.
+ *
+ * 서버의 api/_lib/naverProbe.js 의 addressQuery 와 같은 규칙이다 —
+ * api/ 는 Vercel 함수, src/ 는 브라우저 번들이라 모듈을 공유하지 않아 양쪽에 둔다.
+ * 한쪽을 고치면 다른 쪽도 함께 고칠 것.
+ */
+export function roadAddressQuery(address) {
+    // 탐욕적으로 잡아 '위례대로 21길 15-3' 처럼 뒤에 오는 길 번호까지 살린다
+    const m = String(address || '').match(/^(.*(?:로|길)\s*\d+(?:-\d+)?)/);
+    return (m ? m[1] : String(address || '')).trim();
+}
+
+/**
+ * 네이버지도에서 이 주소를 여는 주소.
+ * 지도 화면의 '이 주소의 장소' 목록을 펼치면 그 건물에 든 업체가 다 보여,
+ * 이름이 달라 자동으로 못 찾은 플레이스를 눈으로 찾아 지정할 수 있다.
+ */
+export function mapSearchUrl(address) {
+    const q = roadAddressQuery(address);
+    return q ? `https://map.naver.com/p/search/${encodeURIComponent(q)}` : '';
+}
+
 export const placeSearchUrl = (name, city) =>
     `https://m.search.naver.com/search.naver?query=${encodeURIComponent(`${city} ${name}`)}`;
 

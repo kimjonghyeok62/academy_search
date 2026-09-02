@@ -284,6 +284,115 @@ export function shortenName(name) {
     return cut + tail;
 }
 
+// ── 1-b) 주소로 그 건물의 업체 목록 ─────────────────────
+// 이름으로 검색해 앞의 두세 곳만 열어 보는 방식은, 마스터 상호와 간판이 다른 학원에서
+// 전혀 다른 업체를 물고 왔다 ('유투엠감일캠퍼스학원' → '프랭크버거 감일단샘점').
+//
+// 사람이 하는 방법은 다르다 — 네이버지도에 주소를 넣고 '이 주소의 장소'를 펼쳐
+// 그 건물에 든 업체 이름을 훑어 학원명과 맞는 것을 고른다. 그 길을 그대로 옮긴다.
+//
+// 실측: pcmap 목록은 화면에서만 '더보기'로 나뉘고, 이 경로는 display 하나로 결정된다.
+// 기본 50 → 70 → 100 까지 동작하고 150 이상은 빈 응답이며 page·start 는 무시된다.
+// 즉 한 번의 요청으로 100곳까지 전부 받는다 (페이지를 넘길 필요가 없다).
+const PLACE_LIST_MAX = 100;
+
+/**
+ * 도로명 주소로 그 건물의 업체를 받는다.
+ * 후보를 고르는 데 이름·주소·업종이 목록에 이미 들어 있어, 상세(probePlace)를 열 필요가 없다 —
+ * 예전처럼 후보 2~3곳을 각각 열어 보는 것보다 요청이 오히려 적다.
+ */
+export async function listPlacesAtAddress(address) {
+    const q = addressQuery(address);
+    if (!q) return { items: [], truncated: false };
+
+    const html = await getText(
+        `https://pcmap.place.naver.com/place/list?query=${encodeURIComponent(q)}&display=${PLACE_LIST_MAX}`,
+        H_PCMAP);
+    const state = extractApolloState(html) || {};
+
+    const all = Object.entries(state)
+        .filter(([k]) => k.startsWith('PlaceListBusinessesItem:'))
+        .map(([, v]) => ({
+            id: String(v.id || ''),
+            name: v.name || '',
+            roadAddress: v.roadAddress || '',
+            address: v.address || '',
+            category: v.category || '',
+            phone: v.virtualPhone || v.phone || '',
+        }))
+        .filter((x) => x.id && x.name);
+
+    // 관련도순이라 옆 건물이 섞여 들어온다 — 조회한 도로명+번호로 시작하는 것만 남긴다
+    const items = all.filter((x) => sameRoadAddress(q, x.roadAddress));
+    // 걸러낸 뒤에도 상한을 채웠다면 그 건물 업체가 더 있는데 잘렸다는 뜻이다.
+    // (거른 앞의 all 로 재면, 옆 건물이 100개를 채운 흔한 경우까지 잘렸다고 잘못 알린다)
+    return { items, truncated: items.length >= PLACE_LIST_MAX };
+}
+
+/** 두 주소가 같은 도로명+건물번호인가 — 시·군·구가 붙어 있든 없든 맞춰 본다 */
+function sameRoadAddress(query, roadAddress) {
+    const tail = addressQuery(roadAddress);   // 업체 주소에서도 도로명+번호까지만
+    if (!tail) return false;
+    const a = query.replace(/\s+/g, ''), b = tail.replace(/\s+/g, '');
+    return a.endsWith(b) || b.endsWith(a);
+}
+
+// 같은 건물에 치과·치킨·미용실이 잔뜩 섞여 있다. 업종이 교육이면 그만큼 더 그럴듯하다
+const EDU_CATEGORY = /학원|교습|교육|어학|공부방|스터디|과외|입시|보습/;
+
+// 주소 문자열에서 호수·층 숫자를 뽑는다. 마스터는 '403호~405호', 플레이스는 '엠타워 감일 4층'
+// 처럼 적는 곳이 흔해 둘 다 필요하다 (403호 → 4층).
+function roomNos(address) {
+    return [...String(address || '').matchAll(/(\d{1,4})\s*호/g)].map((m) => m[1]);
+}
+
+function floorNos(address) {
+    return [...String(address || '').matchAll(/(\d{1,3})\s*층/g)].map((m) => m[1]);
+}
+
+/** 호수에서 층을 유도한다 — '403' → '4' (한 자리 호수는 층을 알 수 없다) */
+const floorOfRoom = (room) => (room.length >= 3 ? room.slice(0, -2) : '');
+
+/**
+ * 같은 건물 업체 중 학원명과 가장 비슷한 곳을 고른다.
+ * 이름 유사도를 바탕에 두고, 호수·층·업종·전화번호가 맞으면 더한다.
+ *
+ * 호수는 감점에 쓰지 않는다 — 마스터가 '403호~405호' 인데 플레이스는 '엠타워 감일 4층'
+ * 이라고만 적어둔 곳이 흔해서, 어긋난다고 깎으면 정답이 밀려난다.
+ */
+export function pickByAddressList(academy, items) {
+    const rooms = roomNos(academy.address);
+    const floors = rooms.map(floorOfRoom).filter(Boolean);
+    const myPhone = String(academy.contact || '').replace(/\D/g, '');
+
+    const scored = (items || []).map((item) => {
+        let score = nameScore(academy.name, item.name);
+        // 1호점 학원이 2호점 플레이스를 무는 것을 막는다 (이름 검색 쪽과 같은 규칙)
+        score *= branchPenalty(academy.name, item.name);
+
+        // 호수가 그대로 맞으면 가장 강한 증거다. 안 맞으면 층이라도 맞는지 본다.
+        const where = `${item.roadAddress} ${item.address}`;
+        const theirRooms = roomNos(where);
+        const theirFloors = floorNos(where).concat(theirRooms.map(floorOfRoom).filter(Boolean));
+        if (rooms.some((r) => theirRooms.includes(r))) score += 0.25;
+        else if (floors.some((f) => theirFloors.includes(f))) score += 0.10;
+
+        if (EDU_CATEGORY.test(item.category)) score += 0.10;
+
+        const theirPhone = String(item.phone || '').replace(/\D/g, '');
+        if (myPhone && theirPhone && myPhone === theirPhone) score += 0.15;
+
+        return { item, score: Math.min(1, score) };
+    }).sort((a, b) => b.score - a.score);
+
+    return {
+        best: scored[0] ? scored[0].item : null,
+        bestScore: scored[0] ? scored[0].score : -1,
+        runnerUp: scored[1] ? scored[1].item : null,
+        runnerUpScore: scored[1] ? scored[1].score : -1,
+    };
+}
+
 // ── 링크 분류 ───────────────────────────────────────────
 // 플레이스 홈에 걸린 링크만 대상으로 한다. type 은 사업주가 고른 라벨이라 믿을 수 없어서
 // (블로그를 '홈페이지'로 등록해 둔 사례가 흔하다) URL 을 보고 다시 판정한다.
@@ -591,7 +700,15 @@ function compareRegNos(regNos, masterDigits) {
     return regNos.some((r) => r.digits === masterDigits) ? '일치' : '불일치';
 }
 
-export function buildResult({ academy, place, channels = [], matchScore, error }) {
+/** 주소로 골라왔다는 사실과 그 근거 — 담당자가 '맞음'을 누를지 판단할 재료다 */
+function addressMatchNote(viaAddress) {
+    const parts = [`주소로 찾은 후보 — 같은 건물 ${viaAddress.total}곳 중 이름이 가장 비슷`];
+    if (viaAddress.runnerUp) parts.push(`다음 후보 '${viaAddress.runnerUp}' 와 점수가 비슷하니 함께 확인`);
+    if (viaAddress.truncated) parts.push(`업체가 ${PLACE_LIST_MAX}곳을 넘어 목록이 잘렸을 수 있음`);
+    return parts.join(' / ');
+}
+
+export function buildResult({ academy, place, channels = [], matchScore, error, viaAddress = null }) {
     const masterDigits = String(academy.regNo || '').replace(/\D/g, '');
 
     if (error) {
@@ -609,7 +726,12 @@ export function buildResult({ academy, place, channels = [], matchScore, error }
         };
     }
 
-    const matchStatus = matchScore >= MATCH_OK ? 'matched' : matchScore >= MATCH_MAYBE ? 'ambiguous' : 'no_match';
+    // 주소(같은 건물 업체 목록)로 골라온 곳은 점수가 아무리 높아도 확정하지 않는다.
+    // 같은 건물에 비슷한 이름의 다른 학원이 있을 수 있고, 잘못 확정하면 남의 업체 값이
+    // 이행·미이행 집계에 그대로 섞인다. 표에 '✔ 이 플레이스 맞음' 단추가 떠서,
+    // 담당자가 눌러 주면 그때 확정된다 (지정 → placePinned → matched).
+    const matchStatus = viaAddress ? 'address'
+        : matchScore >= MATCH_OK ? 'matched' : matchScore >= MATCH_MAYBE ? 'ambiguous' : 'no_match';
 
     // ── 플레이스: 교습비 / 등록(신고)번호 각각 판정 ──
     // pcmap 이 막혀 m.place 로 받아온 경우 소개글이 없다.
@@ -717,7 +839,8 @@ export function buildResult({ academy, place, channels = [], matchScore, error }
         채널상세: JSON.stringify(채널),
         판정,
         미이행사유: 미이행사유.join(' / ')
-            || (introUnknown ? '플레이스 소개글을 읽지 못해 보류 — 잠시 뒤 다시 확인' : ''),
+            || (viaAddress ? addressMatchNote(viaAddress)
+                : introUnknown ? '플레이스 소개글을 읽지 못해 보류 — 잠시 뒤 다시 확인' : ''),
         checkedAt: new Date().toISOString(),
         // 소개글을 못 봐 반쪽만 본 결과. 시트에는 저장되지 않고(resultToRecord 가 아는 키만 옮긴다)
         // 이미 제대로 조사해 둔 행을 덮어쓰지 않도록 프론트가 판단하는 데 쓴다.
@@ -767,6 +890,30 @@ async function pickPlace(ids, academy) {
 }
 
 /**
+ * 주소로 그 건물 업체를 훑어 학원명과 가장 비슷한 곳을 고른다 (담당자가 손으로 하던 방법).
+ * 고른 1곳만 상세를 연다 — 목록에 이름·주소·업종이 이미 들어 있어 후보마다 열어 볼 필요가 없다.
+ * 그럴듯한 곳이 없으면 null 을 돌려주고, 부르는 쪽은 평소대로 진행한다.
+ */
+async function matchByAddress(academy) {
+    const { items, truncated } = await listPlacesAtAddress(academy.address);
+    if (!items.length) return null;
+
+    const { best, bestScore, runnerUp, runnerUpScore } = pickByAddressList(academy, items);
+    // 같은 건물이라는 것 말고는 근거가 없는 곳까지 물고 오면, 남의 업체 값으로 판정이 오염된다
+    if (!best || bestScore < MATCH_MAYBE) return null;
+
+    await sleep(PLACE_GAP_MS);
+    return {
+        place: await probePlace(best.id),
+        score: bestScore,
+        total: items.length,
+        truncated,
+        // 1등과 2등이 붙어 있으면 담당자가 둘을 견줘 봐야 한다
+        runnerUp: runnerUp && bestScore - runnerUpScore < 0.15 ? runnerUp.name : '',
+    };
+}
+
+/**
  * 담당자가 비고에 붙여넣은 단축주소(naver.me)를 실제 플레이스 번호로 편다.
  * 휴대폰 네이버지도의 '공유'가 이 형태를 주므로 실사용에서 가장 흔한데, 주소 안에 번호가 없다.
  * 못 펴면 빈 값을 돌려준다 — 호출부는 평소대로 이름으로 검색한다.
@@ -808,37 +955,43 @@ export async function probeAcademy(academy, city) {
                 ids = await searchPlaceIds(alt, city);
             }
         }
-        if (!ids.length && !placeId) {
-            // 이름으로 못 찾는 곳이 꽤 있다. 마스터 상호가 두 학원을 합쳐 놓은 경우
-            // ('대치메이드세이노미사점학원' ← 플레이스는 '대치메이드학원 미사점', '대치세이노학원 미사점')
-            // 이름은 안 걸려도 주소로는 잡힌다. 실제로 플레이스가 아예 없는 학원은 드물다.
-            const addr = addressQuery(academy.address);
-            if (addr) {
+        let best = null, bestScore = -1;
+        if (ids.length) {
+            ({ best, bestScore } = await pickPlace(ids.slice(0, MAX_PLACE_CANDIDATES_HARD), academy));
+
+            // 저장해 둔 플레이스를 그대로 다시 쓰는 길(검색 생략)에서는 예전에 잘못 잡은 곳이 계속 굳는다.
+            // 지점이 어긋나 있으면(1호점 학원인데 '2호점' 플레이스) 그 값을 버리고 이름으로 다시 찾는다.
+            // 담당자가 직접 지정한 곳은 건드리지 않는다.
+            if (placeId && !academy.placePinned && best && branchPenalty(academy.name, best.placeName) < 1) {
+                const wrong = placeId;
                 await sleep(300);
-                // 주소는 그 자체로 지역을 담고 있어 도시명을 덧붙이지 않는다
-                ids = await searchPlaceIds(addr, '');
+                const fresh = (await searchPlaceIds(academy.name, city)).filter((id) => id !== wrong);
+                if (fresh.length) {
+                    const alt = await pickPlace(fresh.slice(0, MAX_PLACE_CANDIDATES), academy);
+                    if (alt.best && alt.bestScore > bestScore) { best = alt.best; bestScore = alt.bestScore; }
+                }
             }
+
+            // 담당자가 직접 지정한 플레이스는 이름이 달라도 맞는 곳이다 (지점명·상호가 다른 경우가 흔하다).
+            // 이름 유사도로 깎아 '확인불가'로 남기면 지정한 의미가 없다.
+            if (academy.placePinned && best) bestScore = 1;
         }
-        if (!ids.length) return buildResult({ academy, place: null });
 
-        let { best, bestScore } = await pickPlace(ids.slice(0, MAX_PLACE_CANDIDATES_HARD), academy);
-
-        // 저장해 둔 플레이스를 그대로 다시 쓰는 길(검색 생략)에서는 예전에 잘못 잡은 곳이 계속 굳는다.
-        // 지점이 어긋나 있으면(1호점 학원인데 '2호점' 플레이스) 그 값을 버리고 이름으로 다시 찾는다.
+        // 이름으로 하나도 못 찾았거나, 찾긴 했는데 영 안 맞는 곳을 물고 왔을 때 — 주소로 다시 본다.
+        // ('유투엠감일캠퍼스학원' 이 '프랭크버거 감일단샘점' 을 물고 있던 것이 후자다)
         // 담당자가 직접 지정한 곳은 건드리지 않는다.
-        if (placeId && !academy.placePinned && best && branchPenalty(academy.name, best.placeName) < 1) {
-            const wrong = placeId;
+        let viaAddress = null;
+        if (!academy.placePinned && bestScore < MATCH_MAYBE) {
             await sleep(300);
-            const fresh = (await searchPlaceIds(academy.name, city)).filter((id) => id !== wrong);
-            if (fresh.length) {
-                const alt = await pickPlace(fresh.slice(0, MAX_PLACE_CANDIDATES), academy);
-                if (alt.best && alt.bestScore > bestScore) { best = alt.best; bestScore = alt.bestScore; }
+            const byAddr = await matchByAddress(academy);
+            if (byAddr && byAddr.score > bestScore) {
+                viaAddress = byAddr;
+                best = byAddr.place;
+                bestScore = byAddr.score;
             }
         }
 
-        // 담당자가 직접 지정한 플레이스는 이름이 달라도 맞는 곳이다 (지점명·상호가 다른 경우가 흔하다).
-        // 이름 유사도로 깎아 '확인불가'로 남기면 지정한 의미가 없다.
-        if (academy.placePinned && best) bestScore = 1;
+        if (!best) return buildResult({ academy, place: null });
 
         // 플레이스 홈에 링크가 걸린 채널만 조사한다 (별도 검색 없음)
         // 채널은 대부분 서로 다른 호스트(블로그·인스타그램·홈페이지)라 동시에 받아도
@@ -868,7 +1021,7 @@ export async function probeAcademy(academy, city) {
         }
         const probed = channels.filter(Boolean);
         const skipped = skipList.map((l) => ({ ...l, notProbed: true, scope: '조사 안 함' }));
-        return buildResult({ academy, place: best, channels: [...probed, ...skipped], matchScore: bestScore });
+        return buildResult({ academy, place: best, channels: [...probed, ...skipped], matchScore: bestScore, viaAddress });
     } catch (err) {
         // 차단은 이 학원의 문제가 아니라 배치 전체의 문제 — 호출부가 중단하도록 그대로 올린다.
         // (여기서 '확인불가'로 삼키면 멀쩡한 기존 결과를 차단 결과로 덮어쓰게 된다)

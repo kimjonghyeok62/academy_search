@@ -6,12 +6,14 @@
 import { memo, useCallback } from 'react';
 import {
     parseChannels, assignBuckets, rowCells, snsRemark, isDone, doneAt,
-    isNoPlace, noPlaceAt,
-    placeSearchUrl, blogSearchUrl, pinnedPlaceId, hasPlaceCandidate,
+    isNoPlace, noPlaceAt, memoText, MEMO_MAX,
+    placeSearchUrl, blogSearchUrl, mapSearchUrl, pinnedPlaceId, hasPlaceCandidate,
     currentPlaceUrl, placeSource, parsePlaceId, shortAddress, BUCKET_LABEL,
 } from '../utils/snsCheck';
+import { insuranceStatus } from '../utils/insurance';
 import {
     W_NUM, BG_STRIPE, BG_ROW, DONE_COLOR, doneTint, stickyTd, linkStyle, CENTER,
+    CELL_PAD, CHECK_PAD, INS_OK_COLOR, INS_BAD_COLOR,
 } from '../utils/snsTableLayout';
 import { openTuitionCompare } from '../utils/tuitionCompareWindow';
 import OxBadge from './SnsOxBadge';
@@ -34,9 +36,10 @@ const fmtDay = (iso) => {
 function SnsCheckRow({
     index, rowKey, target, result, academy, group, dup,
     academyByKey, region, isNarrow, running, highlight,
-    pinOpen, pinInput, pinError,
+    pinOpen, pinInput, pinError, memoOpen, memoInput,
     onSelectAcademy, onCycle, onToggleDone, onToggleNoPlace, onRefresh, onJump,
     onPinOpen, onPinChange, onPinSave, onPinCancel, onPinClear, onPinConfirm,
+    onMemoOpen, onMemoChange, onMemoSave, onMemoCancel,
     registerRow,
 }) {
     const setRef = useCallback((el) => registerRow(rowKey, el), [registerRow, rowKey]);
@@ -46,7 +49,10 @@ function SnsCheckRow({
     const cells = rowCells(result);
     const remark = snsRemark(result, dup);
     const addr = shortAddress(target.address);
+    const mapUrl = mapSearchUrl(target.address);
     const done = isDone(result);
+    const ins = insuranceStatus(academy);
+    const memo = memoText(result);
     // 마감한 행은 O/X 가 아예 눌리지 않는다 — 잘못 눌러 값이 바뀌는 일을 원천적으로 막는다
     const canEdit = !!result && !done;
 
@@ -88,21 +94,35 @@ function SnsCheckRow({
                     <span style={{ fontSize: '0.9rem', fontWeight: '700' }}>{target.name}</span>
                 )}
                 {/* 플레이스에 뜬 주소가 이 학원의 주소가 맞는지 링크를 열기 전에 눈으로 맞춰 본다.
-                    시·도와 뒤의 (법정동, 건물명) 은 떼고 도로명·번지·호수만 남긴다 — 두 주소를 가르는 부분이다 */}
+                    시·도와 뒤의 (법정동, 건물명) 은 떼고 도로명·번지·호수만 남긴다 — 두 주소를 가르는 부분이다.
+                    누르면 네이버지도가 열린다 — 거기 '이 주소의 장소' 를 펼치면 그 건물 업체가 다 보여
+                    이름이 달라 자동으로 못 찾은 플레이스를 눈으로 찾아 지정할 수 있다. */}
                 {addr && (
-                    <div title={target.address} style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                    <a href={mapUrl} target="_blank" rel="noreferrer"
+                        title={`${target.address}
+눌러서 네이버지도에서 열기 — ‘이 주소의 장소’ 로 이 건물 업체를 볼 수 있습니다`}
+                        style={{
+                            display: 'block', marginTop: '2px', fontSize: '0.72rem',
+                            color: 'var(--text-muted)', textDecoration: 'underline dotted',
+                            textUnderlineOffset: '2px', cursor: 'pointer',
+                        }}>
                         {addr}
-                    </div>
+                    </a>
                 )}
                 {result?.플레이스명 && result.플레이스명 !== target.name && (
                     <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>→ {result.플레이스명}</div>
                 )}
+                {/* 전화번호를 따로 열로 두면 표가 화면을 넘어간다. 미이행 학원에 전화를 걸 때
+                    어차피 이름과 함께 보게 되는 값이라 이 칸에 붙여 둔다. */}
+                {target.contact
+                    ? <a href={`tel:${target.contact}`} style={{ ...linkStyle, display: 'block', fontSize: '0.78rem' }}>☎ {target.contact}</a>
+                    : <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>☎ –</div>}
             </Td>
             <Td style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{target.regNo}</Td>
 
             {cells.map((c) => (
                 <Td key={c.key}
-                    style={{ ...CENTER, cursor: canEdit ? 'pointer' : 'default', userSelect: 'none' }}
+                    style={{ ...CENTER, padding: CELL_PAD, cursor: canEdit ? 'pointer' : 'default', userSelect: 'none' }}
                     onClick={canEdit ? () => onCycle(result, c.key) : undefined}
                     title={!result ? undefined : done ? LOCKED_HINT : CYCLE_HINT}>
                     <OxBadge value={c.value} manual={c.manual !== undefined} />
@@ -270,14 +290,69 @@ function SnsCheckRow({
                     )}
                 </div>
             </Td>
-            <Td style={{ whiteSpace: 'nowrap' }}>
-                {target.contact
-                    ? <a href={`tel:${target.contact}`} style={{ ...linkStyle, fontSize: '0.84rem' }}>{target.contact}</a>
-                    : <span style={{ color: 'var(--text-muted)' }}>–</span>}
+            {/* 보험 — 마스터 자료에서 계산한 값이라 이 화면에서는 고칠 수 없다.
+                점검하러 가기 전에 보험이 끊긴 곳인지 함께 보라고 여기 둔다 (검토 탭과 같은 기준) */}
+            <Td title={ins.title} style={{
+                ...CENTER, whiteSpace: 'nowrap', fontSize: '0.78rem', fontWeight: '700',
+                color: ins.unknown ? 'var(--border-color)' : ins.expired || ins.missing ? INS_BAD_COLOR : INS_OK_COLOR,
+            }}>
+                {/* 색만으로 알리지 않는다 — 만료·미가입에는 표시를 붙인다 */}
+                {ins.expired || ins.missing ? `⚠ ${ins.label}` : ins.label}
+            </Td>
+
+            {/* 적요 — 담당자가 진행사항을 적는 칸. 마감한 행에서도 고칠 수 있다
+                (마감은 O/X 만 잠근다. '다음 주에 올린다더라' 같은 것은 마감 뒤에도 적을 일이 생긴다) */}
+            <Td style={{ fontSize: '0.78rem', lineHeight: 1.45, wordBreak: 'keep-all' }}>
+                {memoOpen ? (
+                    <div>
+                        <input autoFocus value={memoInput} maxLength={MEMO_MAX}
+                            onChange={(e) => onMemoChange(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') onMemoSave(result);
+                                if (e.key === 'Escape') onMemoCancel();
+                            }}
+                            placeholder="진행사항·특이사항"
+                            style={{
+                                width: '100%', boxSizing: 'border-box', padding: '4px 6px', fontSize: '0.76rem',
+                                border: '1px solid var(--border-color)', borderRadius: '6px',
+                                background: 'var(--bg-card)', color: 'var(--text-main)',
+                            }} />
+                        <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '4px' }}>
+                            <button onClick={() => onMemoSave(result)} style={{
+                                padding: '3px 8px', borderRadius: '6px', border: 'none',
+                                background: 'var(--primary)', color: 'white',
+                                fontSize: '0.72rem', fontWeight: '700', cursor: 'pointer',
+                            }}>저장</button>
+                            <button onClick={onMemoCancel} style={{
+                                background: 'none', border: 'none', color: 'var(--text-muted)',
+                                fontSize: '0.72rem', cursor: 'pointer',
+                            }}>취소</button>
+                            <span style={{ marginLeft: 'auto', fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                                {memoInput.length}/{MEMO_MAX}
+                            </span>
+                        </div>
+                    </div>
+                ) : memo ? (
+                    <span onClick={() => result && onMemoOpen(rowKey, memo)} title={`${memo}
+
+눌러서 고칩니다`}
+                        style={{ cursor: result ? 'pointer' : 'default', color: '#2563eb', fontWeight: '600' }}>
+                        {memo}
+                    </span>
+                ) : (
+                    <button onClick={() => onMemoOpen(rowKey, '')} disabled={!result}
+                        title={result ? `진행사항을 ${MEMO_MAX}자까지 적어 둡니다 (시트 '적요' 열에 남습니다)`
+                            : '아직 조사하지 않은 학원입니다 — 먼저 조사해야 적을 수 있습니다'}
+                        style={{
+                            background: 'none', border: 'none', padding: 0, fontFamily: 'inherit',
+                            color: result ? 'var(--text-muted)' : 'var(--border-color)',
+                            fontSize: '0.76rem', cursor: result ? 'pointer' : 'default',
+                        }}>＋ 적요</button>
+                )}
             </Td>
 
             {/* 확인 열 — 다 본 학원을 마감해 굳히고(오조작 방지), 필요하면 여기서 다시 조사한다 */}
-            <Td style={CENTER}>
+            <Td style={{ ...CENTER, padding: CHECK_PAD }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'stretch' }}>
                     <button onClick={() => onToggleDone(result)} disabled={!result}
                         title={!result ? '아직 조사하지 않은 학원입니다 — 먼저 새로고침으로 조사하세요'
@@ -289,18 +364,21 @@ function SnsCheckRow({
                             border: done ? 'none' : '1px solid var(--border-color)',
                             background: done ? DONE_COLOR : 'none',
                             color: done ? 'white' : result ? 'var(--text-muted)' : 'var(--border-color)',
-                        }}>{done ? '✓ 확인완료' : '마감'}</button>
+                        }}>{done ? '✓ 완료' : '마감'}</button>
+                    {/* '눌러 해제' 는 위 단추의 툴팁이 이미 말한다 — 좁은 열에 두 번 적지 않는다 */}
                     {done && (
                         <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)' }}>
-                            {fmtDay(doneAt(result))} · 눌러 해제
+                            {fmtDay(doneAt(result))}
                         </div>
                     )}
-                    <button onClick={() => onRefresh(target)} disabled={running} style={{
-                        background: 'none', border: '1px solid var(--border-color)', borderRadius: '6px',
-                        padding: '4px 6px', color: running ? 'var(--text-muted)' : '#0ea5e9',
-                        fontSize: '0.74rem', fontWeight: '600', whiteSpace: 'nowrap',
-                        cursor: running ? 'default' : 'pointer',
-                    }}>↻ 새로고침</button>
+                    <button onClick={() => onRefresh(target)} disabled={running}
+                        title="이 학원만 다시 조사합니다"
+                        style={{
+                            background: 'none', border: '1px solid var(--border-color)', borderRadius: '6px',
+                            padding: '4px 6px', color: running ? 'var(--text-muted)' : '#0ea5e9',
+                            fontSize: '0.8rem', fontWeight: '700', whiteSpace: 'nowrap',
+                            cursor: running ? 'default' : 'pointer',
+                        }}>↻</button>
                 </div>
             </Td>
         </tr>

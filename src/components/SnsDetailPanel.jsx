@@ -386,8 +386,12 @@ export default function SnsDetailPanel({ academy, region = '하남', allAcademie
                                 borderRadius: '10px', padding: '10px 12px', margin: '6px 0 2px',
                             }}>
                                 <div style={{ fontSize: '0.8rem', color: 'var(--text-main)', lineHeight: 1.6 }}>
-                                    <b>이 업체가 {academy.name || '이 학원'} 이 맞습니까?</b> 상호가 많이 달라 자동으로 확정하지 못했습니다
-                                    (간판·브랜드 이름이 등록 상호와 다른 곳이 많습니다).
+                                    <b>이 업체가 {academy.name || '이 학원'} 이 맞습니까?</b>{' '}
+                                    {result.matchStatus === 'address'
+                                        ? <>이름으로는 찾지 못해 <b>등록 주소로 그 건물 업체를 훑어</b> 이름이 가장 비슷한 곳을 골라온 것입니다
+                                            (같은 건물에 다른 학원이 있을 수 있어 자동으로 확정하지 않습니다).</>
+                                        : <>상호가 많이 달라 자동으로 확정하지 못했습니다
+                                            (간판·브랜드 이름이 등록 상호와 다른 곳이 많습니다).</>}
                                     <br />아래 교습비·{numberLabel} 값은 <b>이 플레이스를 실제로 읽은 결과</b>이고, 맞다고 확정해야 <b>판정</b>에 반영됩니다.
                                 </div>
                                 <div style={{ marginTop: '8px' }}>
