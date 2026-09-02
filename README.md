@@ -1,3 +1,17 @@
+# 학원 지도점검 도우미
+
+하남시 학원·교습소 지도점검 업무를 돕는 화면. React + Vite, Vercel 서버리스(`api/`)로 돈다.
+
+- **[docs/구글시트-연동.md](docs/구글시트-연동.md)** — 데이터가 어디서 오고 어디에 저장되는지,
+  그리고 **SNS게시점검 시트에 열을 늘릴 때의 절차**. Apps Script 소스는 이 저장소에 없으므로
+  시트 구조를 건드리기 전에 반드시 읽을 것.
+
+```bash
+npm run dev
+```
+
+---
+
 # React + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
