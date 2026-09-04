@@ -1,15 +1,16 @@
 import { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback, useDeferredValue } from 'react';
-import * as XLSX from 'xlsx';
 import {
     probeAll, fetchSnsChecks, saveSnsChecks, resultToRecord, recordKey, rowToResult,
-    toProbeTargets, parseChannels, needsRecheck, probeTargetFor,
+    toProbeTargets, needsRecheck, probeTargetFor,
     BUCKETS, BUCKET_LABEL,
     parseManual, effectiveVerdict, applyManualCell, setManualCell, keepManual,
     isDone, setDone, isNoPlace, setNoPlace, memoText, setMemo, MEMO_MAX,
     buildGroups, placeDuplicates, sharedCellTargets, pinnedPlaceId,
     pinResolvedPlace, parsePlaceInput, placeUrlFromId, PIN_CLEARED,
-    RECHECK_DAYS, VERDICT_COLOR,
+    RECHECK_DAYS, VERDICT_COLOR, matchesSnsFilter,
 } from '../utils/snsCheck';
+import { downloadSnsWorkbook } from '../utils/snsWorkbookExcel';
+import { readNoticeSettings, writeNoticeSettings, noticeDeadline } from '../utils/snsNoticeText';
 import { createSaveQueue } from '../utils/snsSaveQueue';
 import {
     W_NUM, W_NAME, W_REGNO, W_CH, W_LINK, W_INS, W_MEMO, W_CHECK,
@@ -19,6 +20,10 @@ import SnsCheckRow from './SnsCheckRow';
 
 const FILTERS = ['전체', '미이행', '이행', '확인불가', '해당없음', '미조사'];
 const DONE_FILTERS = ['전체', '미확인', '확인완료'];
+
+// 점검표 엑셀에서 빼는 판정 — 전화로 할 말이 없는 곳이라 종이만 두꺼워진다.
+// 그 칩을 직접 골라 둔 경우에는 일부러 보려는 것이므로 빼지 않는다.
+const OFF_PAPER = ['확인불가', '해당없음'];
 
 // 한 번에 그릴 행 수. 750행을 통째로 그리면 첫 화면이 1초 넘게 멈춘다 —
 // 보이는 만큼만 그리고 표 끝에 닿으면 이어서 붙인다.
@@ -100,6 +105,14 @@ const SAVE_LABEL = {
     failed: '⚠ 저장하지 못했습니다 — 화면 값은 그대로 두었습니다',
 };
 const SAVE_COLOR = { retrying: '#f59e0b', failed: '#ef4444' };
+
+const noticeInput = (w) => ({
+    // box-sizing 을 주지 않으면 padding·border 만큼 카드 밖으로 삐져나온다
+    width: w ? `${w}px` : '100%', boxSizing: 'border-box', padding: '5px 8px', fontSize: '0.8rem',
+    border: '1px solid var(--border-color)', borderRadius: '7px',
+    background: 'var(--bg-card)', color: 'var(--text-main)', fontFamily: 'inherit',
+});
+const noticeField = { display: 'flex', flexDirection: 'column', gap: '3px' };
 
 export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
     const city = region.endsWith('시') ? region : region + '시';
@@ -273,17 +286,21 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
         };
     }, [queue]);
 
-    const scoped = useMemo(
-        () => targets.filter(t => t.category === typeTab),
-        [targets, typeTab]);
-
-    // 표에 그릴 목록. target 은 원본 그대로 둔다 —
-    // 여기서 플레이스ID 를 붙여 새 객체를 만들면 행마다 참조가 바뀌어 React.memo 가 무력해진다.
-    // 조사에 넘길 target 은 실제로 조사를 시작할 때 probeTargetFor 로 만든다.
-    const rows = useMemo(() => scoped.map(t => {
+    // 학원·교습소를 함께 담은 목록. 표는 한 탭만 보여주지만 점검표 엑셀은 두 탭을 한 파일로
+    // 뽑으므로, 양쪽을 다 들고 있는 자리가 하나 필요하다.
+    //
+    // target 은 원본 그대로 둔다 — 여기서 플레이스ID 를 붙여 새 객체를 만들면 행마다 참조가
+    // 바뀌어 React.memo 가 무력해진다. 조사에 넘길 target 은 실제로 조사를 시작할 때
+    // probeTargetFor 로 만든다.
+    const allRows = useMemo(() => targets.map(t => {
         const key = recordKey(t.category, t.regNo);
         return { key, target: t, result: results[key] || null };
-    }), [scoped, results]);
+    }), [targets, results]);
+
+    // 표에 그릴 목록 (지금 보고 있는 탭)
+    const rows = useMemo(
+        () => allRows.filter(x => x.target.category === typeTab),
+        [allRows, typeTab]);
 
     // 같은 블로그·플레이스를 함께 쓰는 학원 묶음 (학원·교습소를 가리지 않고 전체에서 찾는다)
     const groups = useMemo(() => buildGroups(structResults), [structResults]);
@@ -310,18 +327,14 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
         () => rows.filter(x => !isDone(x.result) && !isNoPlace(x.result) && needsRecheck(x.result)),
         [rows]);
 
-    const visible = useMemo(() => {
-        const q = search.trim().toLowerCase();
-        return rows.filter(({ target, result }) => {
-            if (filter === '미조사') { if (result) return false; }
-            else if (filter !== '전체') { if (!result || effectiveVerdict(result) !== filter) return false; }
-            if (doneFilter === '확인완료' && !isDone(result)) return false;
-            if (doneFilter === '미확인' && isDone(result)) return false;
-            if (!q) return true;
-            // 플레이스명까지 훑는다 — 학원명과 간판이 다른 곳을 찾을 때 필요하다
-            return `${target.name} ${target.regNo} ${result?.플레이스명 || ''}`.toLowerCase().includes(q);
-        });
-    }, [rows, filter, doneFilter, search]);
+    // 표와 점검표 엑셀이 같은 조건을 보도록 한 곳에 모아 둔다
+    const filterQuery = useMemo(
+        () => ({ filter, doneFilter, q: search.trim().toLowerCase() }),
+        [filter, doneFilter, search]);
+
+    const visible = useMemo(
+        () => rows.filter(x => matchesSnsFilter(x, filterQuery)),
+        [rows, filterQuery]);
 
     const filterKey = `${typeTab}|${filter}|${doneFilter}|${search}`;
 
@@ -624,43 +637,34 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
         try { localStorage.setItem(INTRO_KEY, next ? '1' : '0'); } catch { /* 저장 못 해도 이번 화면에서는 동작한다 */ }
     }, [introOpen]);
 
-    // ── 미이행 연락처 엑셀 ──────────────────────────────
-    const downloadNonCompliantExcel = () => {
-        // 화면 집계·필터와 같은 기준(교습비 + 직접 고친 값)으로 뽑는다
-        const items = rows.filter(x => x.result && effectiveVerdict(x.result) === '미이행');
-        if (!items.length) return;
-        const list = items.map(({ target, result }, i) => ({
-            '순번': i + 1,
-            '학원명': target.name,
-            [numberLabel]: target.regNo,
-            '설립자': target.founderName,
-            '연락처': target.contact,
-            '확인마감': isDone(result) ? '완료' : '',
-            '미이행사유': result.미이행사유 || '',
-            '플레이스 교습비': result.플레이스_교습비 || '',
-            '플레이스 게시형태': result.플레이스_게시형태 || '',
-            [`플레이스 ${numberLabel}`]: result.플레이스_번호 || '',
-            '플레이스 기재번호': result.플레이스_기재번호 || '',
-            '블로그': result.블로그 || '',
-            '블로그 교습비': result.블로그_교습비 || '',
-            [`블로그 ${numberLabel}`]: result.블로그_번호 || '',
-            '블로그 기재번호': result.블로그_기재번호 || '',
-            // 플레이스 홈에 걸린 링크 전체 (블로그·홈페이지·인스타그램…)
-            '연결채널': parseChannels(result)
-                .map(c => `${c.유형} 교습비${c.교습비}/번호${c.번호} ${c.url}`).join('\n'),
-            '플레이스URL': result.플레이스URL || '',
-            '확인일시': fmtWhen(result.checkedAt),
-        }));
-        const ws = XLSX.utils.json_to_sheet(list);
-        ws['!cols'] = [{ wch: 5 }, { wch: 28 }, { wch: 10 }, { wch: 12 }, { wch: 15 }, { wch: 9 }, { wch: 40 },
-        { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 8 }, { wch: 12 }, { wch: 12 },
-        { wch: 14 }, { wch: 50 }, { wch: 40 }, { wch: 16 }];
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, typeTab);
-        const d = new Date();
-        const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
-        XLSX.writeFile(wb, `SNS미이행_${region}_${typeTab}_${ymd}.xlsx`);
+    // ── 점검표 엑셀 ──────────────────────────────────────
+    // 보조요원은 화면이 아니라 종이를 보며 전화를 돈다. 화면의 거르개는 그대로 쓰되
+    // 탭만 풀어 학원·교습소를 두 시트에 담는다 — 종이 묶음이 하나여야 잃어버리지 않는다.
+    const paperRows = useMemo(() => {
+        const off = filterQuery.filter === '전체' ? OFF_PAPER : [];
+        return allRows.filter(x => matchesSnsFilter(x, filterQuery)
+            && !(x.result && off.includes(effectiveVerdict(x.result))));
+    }, [allRows, filterQuery]);
+
+    const downloadWorksheet = () => {
+        const sheet = (category, label) => ({
+            name: category,
+            numberLabel: label,
+            rows: paperRows
+                .filter(x => x.target.category === category)
+                .map(x => ({ ...x, academy: academyByKey.get(x.key), dup: dupPlaces.get(x.key) })),
+        });
+        downloadSnsWorkbook({ region, sheets: [sheet('학원', '등록번호'), sheet('교습소', '신고번호')] })
+            .catch(() => setSaveState('⚠ 점검표 엑셀을 만들지 못했습니다.'));
     };
+
+    // ── 문자 설정 ────────────────────────────────────────
+    // 문의 전화·기한·안내 링크는 학원별 값이 아니라 담당자별 값이다. 시트에 넣을 것이 아니고,
+    // 행마다 prop 으로 실어 나르면 750행의 참조가 흔들려 표가 무거워진다 —
+    // 그래서 브라우저에만 두고 snsNoticeText 가 직접 읽는다.
+    const [notice, setNotice] = useState(readNoticeSettings);
+    const [noticeOpen, setNoticeOpen] = useState(false);
+    const changeNotice = (patch) => setNotice(writeNoticeSettings(patch));
 
     if (loading) {
         return <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>저장된 점검 결과를 불러오는 중…</div>;
@@ -787,10 +791,54 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                         <button onClick={runStale} disabled={!stale.length} style={btnStyle(stale.length ? 'var(--primary)' : 'var(--border-color)')}>
                             🔍 조사 필요 {stale.length}곳
                         </button>
-                        <button onClick={runAll} style={btnStyle('#64748b')}>전체 다시 조사 ({scoped.length}곳)</button>
-                        {counts.미이행 > 0 && <button onClick={downloadNonCompliantExcel} style={btnStyle('#ef4444')}>📥 미이행 연락처 ({counts.미이행})</button>}
+                        <button onClick={runAll} style={btnStyle('#64748b')}>전체 다시 조사 ({rows.length}곳)</button>
+                        {paperRows.length > 0 && (
+                            <button onClick={downloadWorksheet} style={btnStyle('#0d9488')}
+                                title="지금 화면에 걸린 조건 그대로, 학원·교습소를 두 시트에 담아 내려받습니다 (확인불가·해당없음 제외)">
+                                📋 점검표 엑셀 ({paperRows.length}곳)
+                            </button>
+                        )}
                     </div>
                 )}
+
+                {/* 문자 문구에 들어가는 값. 한 번 정해 두면 이 브라우저에 남는다 */}
+                <div style={{ marginTop: '10px' }}>
+                    <button onClick={() => setNoticeOpen(!noticeOpen)} style={{
+                        background: 'none', border: '1px solid var(--border-color)', borderRadius: '999px',
+                        padding: '3px 10px', color: 'var(--text-muted)', fontSize: '0.76rem',
+                        fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit',
+                    }}>{noticeOpen ? '⚙ 문자 설정 접기 ▴' : '⚙ 문자 설정 ▾'}</button>
+
+                    {noticeOpen && (
+                        <div style={{
+                            marginTop: '8px', display: 'flex', gap: '10px', flexWrap: 'wrap',
+                            alignItems: 'flex-end', fontSize: '0.78rem', color: 'var(--text-muted)',
+                        }}>
+                            <label style={noticeField}>
+                                문의 전화
+                                <input value={notice.tel} onChange={e => changeNotice({ tel: e.target.value })}
+                                    style={noticeInput(140)} />
+                            </label>
+                            <label style={noticeField}>
+                                수정 기한 (오늘부터 며칠)
+                                <input type="number" min="0" max="60" value={notice.days}
+                                    onChange={e => changeNotice({ days: Math.min(60, Math.max(0, Number(e.target.value) || 0)) })}
+                                    style={noticeInput(72)} />
+                            </label>
+                            <span style={{ paddingBottom: '7px' }}>→ <b>{noticeDeadline(notice.days)}</b>까지</span>
+                            <label style={{ ...noticeField, flex: '1 1 260px', minWidth: 0 }}>
+                                교육지원청 게시 안내 링크
+                                <input value={notice.guideUrl} onChange={e => changeNotice({ guideUrl: e.target.value })}
+                                    style={noticeInput()} />
+                            </label>
+                            <div style={{ flexBasis: '100%', fontSize: '0.76rem', lineHeight: 1.6 }}>
+                                표의 <b>✉ 문자</b> 를 누르면 이 값들이 든 문구가 복사됩니다 — 문자마당 창에 붙여넣으세요.
+                                문구에는 그 학원에서 <b>X 인 칸만</b> 들어가고, 판정과 달리 <b>번호도 함께</b> 안내합니다.
+                                (값은 이 브라우저에만 남습니다)
+                            </div>
+                        </div>
+                    )}
+                </div>
 
                 {/* 직접 고친 값의 저장 상태 — 예전에는 실패해도 아무 말 없이 값만 되돌아갔다 */}
                 {saveLabel && (

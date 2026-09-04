@@ -753,6 +753,22 @@ export const VERDICT_COLOR = {
 };
 
 /**
+ * 화면의 세 가지 거르개(판정 칩 · 확인 칩 · 검색어)를 한 행에 적용한다.
+ *
+ * 표와 엑셀이 같은 함수를 써야 한다 — 종이로 뽑은 목록이 화면에서 본 목록과 다르면
+ * 어느 쪽을 믿어야 하는지 알 수 없다. q 는 이미 소문자로 다듬어 넘긴다.
+ */
+export function matchesSnsFilter({ target, result }, { filter, doneFilter, q }) {
+    if (filter === '미조사') { if (result) return false; }
+    else if (filter !== '전체') { if (!result || effectiveVerdict(result) !== filter) return false; }
+    if (doneFilter === '확인완료' && !isDone(result)) return false;
+    if (doneFilter === '미확인' && isDone(result)) return false;
+    if (!q) return true;
+    // 플레이스명까지 훑는다 — 학원명과 간판이 다른 곳을 찾을 때 필요하다
+    return `${target.name} ${target.regNo} ${result?.플레이스명 || ''}`.toLowerCase().includes(q);
+}
+
+/**
  * 표에 한 줄로 붙일 짧은 주소.
  *   '경기도 하남시 미사강변대로 206, 301호 (망월동, 하남리더스프라자)'
  *     → '미사강변대로 206, 301호'
