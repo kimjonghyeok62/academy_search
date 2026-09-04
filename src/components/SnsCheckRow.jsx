@@ -3,7 +3,7 @@
 // 따로 떼어 React.memo 로 감싼 이유: 칸 하나를 눌렀을 때 750행이 통째로 다시 그려지면서
 // 마우스가 버벅였다. 이제 값이 바뀐 행만 다시 그려진다. 그러려면 여기로 넘어오는 props 가
 // 부모가 다시 그려져도 같은 참조여야 한다 (SnsCheckTab 의 useCallback·structVer 참고).
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useState } from 'react';
 import {
     parseChannels, assignBuckets, rowCells, snsRemark, isDone, doneAt,
     isNoPlace, noPlaceAt, memoText, MEMO_MAX,
@@ -16,6 +16,7 @@ import {
     CELL_PAD, CHECK_PAD, INS_OK_COLOR, INS_BAD_COLOR,
 } from '../utils/snsTableLayout';
 import { openTuitionCompare } from '../utils/tuitionCompareWindow';
+import { buildNoticeSms, copyNoticeSms, noticeItems, smsBytes, LMS_LIMIT } from '../utils/snsNoticeText';
 import OxBadge from './SnsOxBadge';
 
 const Td = ({ children, style, onClick, title }) => (
@@ -55,6 +56,28 @@ function SnsCheckRow({
     const memo = memoText(result);
     // 마감한 행은 O/X 가 아예 눌리지 않는다 — 잘못 눌러 값이 바뀌는 일을 원천적으로 막는다
     const canEdit = !!result && !done;
+
+    // 이 학원에서 빠진 칸의 수 — 문자를 보낼 것이 있는지, 몇 가지인지.
+    // rowCells 가 WeakMap 에 캐시돼 있어 행을 그릴 때마다 세도 값이 싸다.
+    const noticeCount = noticeItems(result).length;
+    const [flash, setFlash] = useState(null);
+
+    // 문구 자체는 누를 때·마우스를 올릴 때만 만든다. 그리는 김에 750개를 만들어 두면
+    // 표가 멎는다 (openTuitionCompare 와 같은 이유로 prop 도 늘리지 않는다 —
+    // 문의 전화·기한은 snsNoticeText 가 localStorage 에서 직접 읽는다).
+    const previewSms = (e) => { e.currentTarget.title = buildNoticeSms(target, result, academy); };
+
+    const copySms = () => {
+        const text = buildNoticeSms(target, result, academy);
+        if (!text) return;
+        const n = smsBytes(text);
+        const show = (v) => { setFlash(v); setTimeout(() => setFlash(null), 2200); };
+        copyNoticeSms(text).then(
+            // 바이트 수를 함께 보여준다 — LMS 한도를 넘으면 문자마당이 받아 주지 않는데,
+            // 붙여넣고 보내기를 누른 뒤에 알면 그 학원은 통째로 다시 해야 한다.
+            () => show({ text: `✓ ${n.toLocaleString('ko-KR')}B`, warn: n > LMS_LIMIT }),
+            () => show({ text: '복사 실패', warn: true }));
+    };
 
     // 공동운영에서 눌러 찾아온 행 — 어디로 왔는지 잠깐 보여준다
     const base = highlight ? '#ede9fe' : index % 2 === 1 ? BG_ROW : BG_STRIPE;
@@ -114,9 +137,33 @@ function SnsCheckRow({
                 )}
                 {/* 전화번호를 따로 열로 두면 표가 화면을 넘어간다. 미이행 학원에 전화를 걸 때
                     어차피 이름과 함께 보게 되는 값이라 이 칸에 붙여 둔다. */}
-                {target.contact
-                    ? <a href={`tel:${target.contact}`} style={{ ...linkStyle, display: 'block', fontSize: '0.78rem' }}>☎ {target.contact}</a>
-                    : <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>☎ –</div>}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
+                    {target.contact
+                        ? <a href={`tel:${target.contact}`} style={{ ...linkStyle, fontSize: '0.78rem' }}>☎ {target.contact}</a>
+                        : <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>☎ –</span>}
+                    {/* 학원마다 빠진 것이 달라 일괄 문구를 쓸 수 없다 — 이 학원의 X 칸만 넣어
+                        만든 문구를 클립보드에 담는다. 문자마당 창에 붙여넣으면 끝난다. */}
+                    {noticeCount > 0 && (
+                        <button
+                            onClick={target.contact ? copySms : undefined}
+                            onMouseEnter={target.contact ? previewSms : undefined}
+                            disabled={!target.contact}
+                            title={target.contact
+                                ? '빠진 것만 넣은 안내 문자를 복사합니다 — 마우스를 올리면 문구가 보입니다'
+                                : '연락처가 없어 문자를 보낼 수 없습니다'}
+                            style={{
+                                background: 'none', fontFamily: 'inherit', whiteSpace: 'nowrap',
+                                border: '1px solid', borderRadius: '999px', padding: '1px 7px',
+                                fontSize: '0.72rem', fontWeight: '700',
+                                borderColor: flash?.warn ? '#ef4444' : 'var(--border-color)',
+                                color: !target.contact ? 'var(--border-color)'
+                                    : flash ? (flash.warn ? '#ef4444' : DONE_COLOR) : '#7c3aed',
+                                cursor: target.contact ? 'pointer' : 'default',
+                            }}>
+                            {flash ? flash.text : `✉ 문자 ${noticeCount}`}
+                        </button>
+                    )}
+                </div>
             </Td>
             <Td style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{target.regNo}</Td>
 
