@@ -10,7 +10,7 @@
 // 신고 금액을 펼쳐 보이고, 어느 채널의 어디를 열어야 하는지 짚어 주고, 그 링크를 바로 연다.
 
 import {
-    sortCourses, fmtNum, parseNum, getWeeklyTotalMinutes, calcWeeklySchedule, openHtmlWindow,
+    sortCourses, fmtNum, parseNum, getWeeklyTotalMinutes, calcWeeklySchedule, openHtmlPopup,
 } from './generateTuitionPDF';
 import {
     rowCells, parseChannels, assignBuckets, effectiveVerdict, currentPlaceUrl, isNoPlace,
@@ -115,6 +115,8 @@ const oxBadge = (cell) => {
         + (manual ? '<span class="tag">직접 확인함</span>' : '');
 };
 
+// href·target 은 그대로 둔다 — 아래 SPLIT_SCRIPT 가 클릭을 가로채 반반으로 붙이지만,
+// 스크립트가 못 뜨거나 Ctrl+클릭으로 새 탭에 열려는 사람에게는 링크가 링크대로 동작해야 한다.
 const openBtn = (url, label) =>
     `<a class="open" href="${esc(url)}" target="_blank" rel="noreferrer">${esc(label)} ↗</a>`;
 
@@ -197,6 +199,79 @@ function channelTable(result, academyName, region, label) {
 }
 
 /**
+ * 반반 붙이기 — 대조창 안에서 도는 스크립트다.
+ *
+ * 왜 창이 스스로 움직여야 하는가: 이 창이 하는 일은 '두 금액을 눈으로 맞추는 것' 하나뿐인데,
+ * 지금까지 그 일의 절반은 사람이 창 두 개를 끌어다 크기를 맞추는 데 들었다. 학원 한 곳에
+ * 채널이 서넛이면 그 끌어다 놓기를 서너 번 되풀이한다.
+ *
+ * 규칙 하나만 알면 된다 — 브라우저는 스크립트가 window.open 으로 연 창에만
+ * moveTo/resizeTo 를 허용한다. 그래서 이 창은 openHtmlPopup 으로 열려야 하고(탭이면 못 움직인다),
+ * 채널 창도 window.open 으로 열어야 자리를 지정할 수 있다.
+ *
+ * 상대 창은 남의 출처(naver.com 등)라 열어 준 뒤에는 closed 밖에 못 본다 —
+ * 그래서 크기는 열 때 features 로 정하고, 닫혔는지는 짧은 간격으로 되물어 본다.
+ */
+const SPLIT_SCRIPT = `<script>
+(function () {
+  // 이 창이 여는 채널 창은 늘 같은 창 하나다 — 다른 채널을 누르면 그 창이 갈아탄다.
+  // 이름에 난수를 붙이는 이유: 대조창을 두 개 띄웠을 때 서로의 채널 창을 빼앗지 않게.
+  var RIGHT = 'academySplit_' + Math.random().toString(36).slice(2);
+  var right = null, timer = null, home = null;
+
+  function screenBox() {
+    var s = window.screen;
+    return {
+      left: s.availLeft || 0, top: s.availTop || 0,
+      w: s.availWidth, h: s.availHeight,
+    };
+  }
+
+  // 반반으로 붙기 전 자리를 적어 둔다 — 돌아올 곳이다 (이미 적어 뒀으면 덮어쓰지 않는다)
+  function goLeft() {
+    var b = screenBox();
+    var half = Math.floor(b.w / 2);
+    if (!home) home = { x: window.screenX, y: window.screenY, w: window.outerWidth, h: window.outerHeight };
+    try { window.moveTo(b.left, b.top); window.resizeTo(half, b.h); } catch (e) { /* 탭이면 안 움직인다 */ }
+    return { left: b.left + half, top: b.top, w: b.w - half, h: b.h };
+  }
+
+  function goHome() {
+    if (!home) return;
+    try { window.moveTo(home.x, home.y); window.resizeTo(home.w, home.h); } catch (e) { /* 무시 */ }
+    home = null;
+  }
+
+  // 남의 출처 창은 closed 만 읽을 수 있다 — 닫힘을 알려 주는 이벤트가 없으니 되물어 본다
+  function watch() {
+    if (timer) clearInterval(timer);
+    timer = setInterval(function () {
+      if (right && !right.closed) return;
+      clearInterval(timer); timer = null; right = null;
+      goHome();
+    }, 400);
+  }
+
+  document.addEventListener('click', function (ev) {
+    if (ev.button !== 0 || ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.altKey) return;  // 새 탭으로 열려는 사람은 그대로 둔다
+    var a = ev.target && ev.target.closest && ev.target.closest('a.open');
+    if (!a || !a.href) return;
+    ev.preventDefault();
+
+    var box = goLeft();
+    var w = window.open(a.href, RIGHT,
+      'popup=yes,left=' + box.left + ',top=' + box.top + ',width=' + box.w + ',height=' + box.h);
+    if (!w) { goHome(); window.open(a.href, '_blank'); return; }   // 팝업 차단 — 자리는 못 잡아도 열기는 열어야 한다
+    right = w;
+    try { w.focus(); } catch (e) { /* 무시 */ }
+    watch();
+  });
+
+  window.addEventListener('pagehide', function () { if (timer) clearInterval(timer); });
+})();
+</script>`;
+
+/**
  * 대조창 HTML 을 만든다 (열지는 않는다).
  * 여는 일과 나눠 둔 이유: 브라우저 없이도 값·이스케이프를 확인할 수 있어야 한다.
  */
@@ -260,6 +335,7 @@ export function buildTuitionCompareHtml(academy, result, { region = '', numberLa
            text-decoration: none; border: 1px solid #bfdbfe; border-radius: 6px;
            padding: 2px 8px; margin-right: 4px; white-space: nowrap; }
   .howto { background: #fffbeb; border-color: #fde68a; font-size: 0.84rem; color: #78350f; }
+  .kbd { border: 1px solid #d6bd8a; border-radius: 5px; padding: 0 5px; background: #fff; font-size: 0.8rem; }
   .bar { position: fixed; top: 14px; right: 14px; display: flex; gap: 8px; }
   .bar button { padding: 7px 13px; border: none; border-radius: 8px; font-size: 0.84rem;
                 font-weight: 700; cursor: pointer; }
@@ -290,10 +366,11 @@ export function buildTuitionCompareHtml(academy, result, { region = '', numberLa
   </div>
 
   <div class="card howto">
-    <b>이 창을 네이버 창과 나란히 놓고 금액이 같은지 확인하세요.</b>
+    <b>오른쪽 <span class="kbd">열기</span>를 누르면 이 창이 화면 왼쪽 절반, 그 채널이 오른쪽 절반으로 붙습니다.</b>
     자동 조사는 교습비를 <b>올렸는지</b>만 보고 <b>얼마인지</b>는 읽지 않습니다 —
-    금액이 맞는지는 사람이 봐야 합니다. 오른쪽 <b>열기</b>를 눌러 그 채널을 띄운 뒤
-    왼쪽 표의 금액과 맞춰 보세요.
+    금액이 맞는지는 사람이 봐야 합니다. 나란히 놓인 두 화면의 금액을 맞춰 보고,
+    다 봤으면 오른쪽 창을 닫으세요 — 이 창은 저절로 제자리로 돌아옵니다.
+    <span class="dim">(플레이스·블로그·홈페이지·인스타·카페 모두 같습니다. Ctrl+클릭은 예전처럼 새 탭입니다.)</span>
   </div>
 
   <div class="cols">
@@ -310,11 +387,16 @@ export function buildTuitionCompareHtml(academy, result, { region = '', numberLa
     </div>
   </div>
 </div>
+${SPLIT_SCRIPT}
 </body>
 </html>`;
 }
 
-/** 대조창을 새 탭에 띄운다 */
+/**
+ * 대조창을 새 '창' 으로 띄운다 (탭이 아니다).
+ * 탭으로 열면 채널을 눌렀을 때 왼쪽 절반으로 물러설 수가 없다 — 브라우저가 탭의
+ * 자리·크기는 스크립트에 내주지 않기 때문이다 (openHtmlPopup 주석).
+ */
 export function openTuitionCompare(academy, result, opts) {
-    openHtmlWindow(buildTuitionCompareHtml(academy, result, opts));
+    openHtmlPopup(buildTuitionCompareHtml(academy, result, opts), { width: 1240 });
 }
