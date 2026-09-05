@@ -205,9 +205,17 @@ function channelTable(result, academyName, region, label) {
  * 지금까지 그 일의 절반은 사람이 창 두 개를 끌어다 크기를 맞추는 데 들었다. 학원 한 곳에
  * 채널이 서넛이면 그 끌어다 놓기를 서너 번 되풀이한다.
  *
- * 규칙 하나만 알면 된다 — 브라우저는 스크립트가 window.open 으로 연 창에만
- * moveTo/resizeTo 를 허용한다. 그래서 이 창은 openHtmlPopup 으로 열려야 하고(탭이면 못 움직인다),
- * 채널 창도 window.open 으로 열어야 자리를 지정할 수 있다.
+ * 규칙 둘만 알면 된다.
+ *  1) 브라우저는 스크립트가 window.open 으로 연 '창' 에만 moveTo/resizeTo 를 허용한다.
+ *     탭으로 열리면 그 화면은 아무리 불러도 자리를 옮기지 못한다.
+ *  2) 팝업 차단이 걸린 사이트에서는 window.open 이 null 을 돌려준다. 그때 이 창은 탭으로
+ *     열리고(openHtmlPopup 의 대비책), 1) 때문에 반반 붙이기가 통째로 죽는다.
+ *
+ * 그래서 이 스크립트는 자기가 창인지 탭인지부터 확인한다 (팝업 창은 도구모음이 없다 —
+ * window.toolbar.visible === false). 탭이면 반반을 시도하는 대신 왜 안 되는지를 띄우고,
+ * '새 창으로 열기' 한 번으로 자기 자신을 창에 복제한다. 복제본은 창이라 그때부터 다 된다.
+ * (막힌 것은 사이트의 팝업 권한인데, 같은 사이트라도 blob: 문서에서 여는 팝업은 통과한다 —
+ *  이 창 자신이 blob: 문서라 복제가 먹힌다.)
  *
  * 상대 창은 남의 출처(naver.com 등)라 열어 준 뒤에는 closed 밖에 못 본다 —
  * 그래서 크기는 열 때 features 로 정하고, 닫혔는지는 짧은 간격으로 되물어 본다.
@@ -219,11 +227,17 @@ const SPLIT_SCRIPT = `<script>
   var RIGHT = 'academySplit_' + Math.random().toString(36).slice(2);
   var right = null, timer = null, home = null;
 
+  // 창인가 탭인가 — 팝업 창에는 도구모음이 없다. 탭이면 자리를 못 옮긴다.
+  var IS_WINDOW = (function () {
+    try { return window.toolbar.visible === false; } catch (e) { return true; }
+  })();
+
+  // availWidth 가 0 으로 오는 환경(임베드된 미리보기 등)이 있다 — 0 으로 나누면 창이 사라진다
   function screenBox() {
     var s = window.screen;
     return {
       left: s.availLeft || 0, top: s.availTop || 0,
-      w: s.availWidth, h: s.availHeight,
+      w: s.availWidth || s.width || 1280, h: s.availHeight || s.height || 800,
     };
   }
 
@@ -232,7 +246,7 @@ const SPLIT_SCRIPT = `<script>
     var b = screenBox();
     var half = Math.floor(b.w / 2);
     if (!home) home = { x: window.screenX, y: window.screenY, w: window.outerWidth, h: window.outerHeight };
-    try { window.moveTo(b.left, b.top); window.resizeTo(half, b.h); } catch (e) { /* 탭이면 안 움직인다 */ }
+    try { window.moveTo(b.left, b.top); window.resizeTo(half, b.h); } catch (e) { /* 무시 */ }
     return { left: b.left + half, top: b.top, w: b.w - half, h: b.h };
   }
 
@@ -252,22 +266,70 @@ const SPLIT_SCRIPT = `<script>
     }, 400);
   }
 
+  // ── 탭으로 열렸을 때: 왜 안 되는지 띄우고, 한 번에 창으로 옮겨 준다 ──────────
+  function promote() {
+    var b = screenBox();
+    var w = Math.min(1240, b.w);
+    // 지금 화면을 그대로 복제한다 — DOCTYPE 을 빼면 복제본이 옛날 방식으로 그려져 표가 무너진다.
+    // 아래 경고칸도 같이 복제되지만, 복제본은 '창' 이라 스스로 지운다 (맨 끝 IS_WINDOW 분기).
+    var html = '<!DOCTYPE html>\\n' + document.documentElement.outerHTML;
+    var url = URL.createObjectURL(new Blob([html], { type: 'text/html; charset=utf-8' }));
+    var win = window.open(url, '_blank', 'popup=yes,width=' + w + ',height=' + b.h
+      + ',left=' + (b.left + Math.floor((b.w - w) / 2)) + ',top=' + b.top);
+    if (!win) {
+      URL.revokeObjectURL(url);
+      alert('브라우저가 새 창을 막았습니다.\\n주소창 오른쪽의 팝업 차단 아이콘에서 이 사이트의 팝업을 허용해 주세요.');
+      return;
+    }
+    setTimeout(function () { URL.revokeObjectURL(url); }, 30000);
+    window.close();   // 남겨 두면 같은 화면이 둘이 된다
+  }
+
+  function warnTab() {
+    var wrap = document.querySelector('.wrap');
+    if (!wrap || document.getElementById('tabwarn')) return;
+    var bar = document.createElement('div');
+    bar.id = 'tabwarn';
+    bar.className = 'card tabwarn';
+    bar.innerHTML = '<div><b>이 화면이 새 창이 아니라 탭으로 열렸습니다.</b> 탭은 스스로 자리를 못 옮겨 '
+      + '반반 붙이기가 되지 않습니다.<div class="why">브라우저가 이 사이트의 팝업을 막고 있습니다 — '
+      + '주소창 오른쪽의 팝업 차단 아이콘에서 <b>항상 허용</b>을 눌러 두면 다음부터는 바로 새 창으로 열립니다.</div></div>';
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = '🗗 새 창으로 열기';
+    btn.onclick = promote;
+    bar.appendChild(btn);
+    wrap.insertBefore(bar, wrap.firstChild);
+  }
+
   document.addEventListener('click', function (ev) {
     if (ev.button !== 0 || ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.altKey) return;  // 새 탭으로 열려는 사람은 그대로 둔다
     var a = ev.target && ev.target.closest && ev.target.closest('a.open');
     if (!a || !a.href) return;
     ev.preventDefault();
 
-    var box = goLeft();
+    // 탭이면 왼쪽으로 물러나 봐야 소용없다 — 채널만 띄우고 경고칸을 다시 보여 준다
+    var box = IS_WINDOW ? goLeft() : (function () {
+      var b = screenBox(), half = Math.floor(b.w / 2);
+      return { left: b.left + half, top: b.top, w: b.w - half, h: b.h };
+    })();
+
     var w = window.open(a.href, RIGHT,
       'popup=yes,left=' + box.left + ',top=' + box.top + ',width=' + box.w + ',height=' + box.h);
     if (!w) { goHome(); window.open(a.href, '_blank'); return; }   // 팝업 차단 — 자리는 못 잡아도 열기는 열어야 한다
     right = w;
     try { w.focus(); } catch (e) { /* 무시 */ }
-    watch();
+    if (IS_WINDOW) watch();
   });
 
   window.addEventListener('pagehide', function () { if (timer) clearInterval(timer); });
+
+  if (IS_WINDOW) {
+    var old = document.getElementById('tabwarn');   // 탭에서 복제돼 온 경고칸 — 창에서는 필요 없다
+    if (old) old.remove();
+  } else {
+    warnTab();
+  }
 })();
 </script>`;
 
@@ -336,13 +398,18 @@ export function buildTuitionCompareHtml(academy, result, { region = '', numberLa
            padding: 2px 8px; margin-right: 4px; white-space: nowrap; }
   .howto { background: #fffbeb; border-color: #fde68a; font-size: 0.84rem; color: #78350f; }
   .kbd { border: 1px solid #d6bd8a; border-radius: 5px; padding: 0 5px; background: #fff; font-size: 0.8rem; }
+  .tabwarn { background: #fef2f2; border-color: #fecaca; color: #991b1b; font-size: 0.86rem;
+             display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+  .tabwarn button { background: #dc2626; color: #fff; border: none; border-radius: 8px;
+                    padding: 8px 14px; font-size: 0.84rem; font-weight: 700; cursor: pointer; white-space: nowrap; }
+  .tabwarn .why { color: #b45309; font-size: 0.78rem; margin-top: 4px; }
   .bar { position: fixed; top: 14px; right: 14px; display: flex; gap: 8px; }
   .bar button { padding: 7px 13px; border: none; border-radius: 8px; font-size: 0.84rem;
                 font-weight: 700; cursor: pointer; }
   .bar .p { background: #2563eb; color: #fff; } .bar .c { background: #e2e8f0; color: #334155; }
   @media print {
     body { background: #fff; padding: 0; }
-    .bar { display: none !important; }
+    .bar, .tabwarn { display: none !important; }
     .card { border-color: #cbd5e1; break-inside: avoid; }
     a.open { border: none; padding: 0; }
   }
