@@ -24,6 +24,34 @@ export function openHtmlWindow(html) {
     setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
 }
 
+/**
+ * 만들어 둔 HTML 을 탭이 아니라 '창' 으로 띄운다.
+ *
+ * 탭과의 차이는 하나다 — 브라우저는 스크립트가 window.open 으로 연 창에만
+ * moveTo/resizeTo 를 허용한다. 교습비 대조창이 네이버 창과 화면을 반씩 나눠 갖는 일이
+ * 이래서 가능하다 (탭으로 열리면 그 창은 제 자리를 못 옮긴다).
+ * 팝업 차단에 걸리면 조용히 새 탭으로 물러난다 — 나란히 놓기는 못 해도 내용은 봐야 한다.
+ */
+export function openHtmlPopup(html, { width, height } = {}) {
+    const blob = new Blob([html], { type: 'text/html; charset=utf-8' });
+    const blobUrl = URL.createObjectURL(blob);
+    const s = window.screen;
+    const availLeft = s.availLeft ?? 0;
+    const availTop = s.availTop ?? 0;
+    const w = Math.min(width || 1240, s.availWidth);
+    const h = Math.min(height || s.availHeight, s.availHeight);
+    const left = Math.round(availLeft + (s.availWidth - w) / 2);
+    const win = window.open(blobUrl, '_blank',
+        `popup=yes,width=${w},height=${h},left=${left},top=${availTop}`);
+    if (!win) {
+        URL.revokeObjectURL(blobUrl);
+        openHtmlWindow(html);
+        return null;
+    }
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+    return win;
+}
+
 // 교습과정 정렬: 교습과정 → 레벨(유아<초등/초급<중등/중급<고등/고급<입시) → 과목기본명 자연정렬 → 주회수
 export function sortCourses(courses) {
     const LEVEL_RANK = [
