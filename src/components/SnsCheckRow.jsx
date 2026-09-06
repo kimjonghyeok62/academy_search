@@ -5,7 +5,8 @@
 // 부모가 다시 그려져도 같은 참조여야 한다 (SnsCheckTab 의 useCallback·structVer 참고).
 import { memo, useCallback, useState } from 'react';
 import {
-    parseChannels, assignBuckets, rowCells, snsRemark, isDone, doneAt,
+    parseChannels, assignBuckets, rowCells, snsRemark, isDone, doneAt, noticeItems,
+    sentAt, repliedAt, replyText, isReplied, isOverdue,
     isNoPlace, noPlaceAt, memoText, MEMO_MAX,
     placeSearchUrl, blogSearchUrl, mapSearchUrl, pinnedPlaceId, hasPlaceCandidate,
     currentPlaceUrl, placeSource, parsePlaceId, shortAddress, BUCKET_LABEL,
@@ -13,10 +14,10 @@ import {
 import { insuranceStatus } from '../utils/insurance';
 import {
     W_NUM, BG_STRIPE, BG_ROW, DONE_COLOR, doneTint, stickyTd, linkStyle, CENTER,
-    CELL_PAD, CHECK_PAD, INS_OK_COLOR, INS_BAD_COLOR,
+    CELL_PAD, CHECK_PAD, INS_OK_COLOR, INS_BAD_COLOR, REPLY_COLOR, OVERDUE_COLOR,
 } from '../utils/snsTableLayout';
 import { openTuitionCompare } from '../utils/tuitionCompareWindow';
-import { buildNoticeSms, copyNoticeSms, noticeItems, smsBytes, LMS_LIMIT } from '../utils/snsNoticeText';
+import { buildNoticeSms, copyNoticeSms, smsBytes, LMS_LIMIT } from '../utils/snsNoticeText';
 import OxBadge from './SnsOxBadge';
 
 const Td = ({ children, style, onClick, title }) => (
@@ -37,8 +38,8 @@ const fmtDay = (iso) => {
 function SnsCheckRow({
     index, rowKey, target, result, academy, group, dup,
     academyByKey, region, isNarrow, running, highlight,
-    pinOpen, pinInput, pinError, memoOpen, memoInput,
-    onSelectAcademy, onCycle, onToggleDone, onToggleNoPlace, onRefresh, onJump,
+    pinOpen, pinInput, pinError, memoOpen, memoInput, replyUrl, days,
+    onSelectAcademy, onCycle, onToggleDone, onToggleNoPlace, onRefresh, onJump, onSent,
     onPinOpen, onPinChange, onPinSave, onPinCancel, onPinClear, onPinConfirm,
     onMemoOpen, onMemoChange, onMemoSave, onMemoCancel,
     registerRow,
@@ -65,17 +66,22 @@ function SnsCheckRow({
     // 문구 자체는 누를 때·마우스를 올릴 때만 만든다. 그리는 김에 750개를 만들어 두면
     // 표가 멎는다 (openTuitionCompare 와 같은 이유로 prop 도 늘리지 않는다 —
     // 문의 전화·기한은 snsNoticeText 가 localStorage 에서 직접 읽는다).
-    const previewSms = (e) => { e.currentTarget.title = buildNoticeSms(target, result, academy); };
+    const previewSms = (e) => { e.currentTarget.title = buildNoticeSms(target, result, academy, { replyUrl }); };
 
     const copySms = () => {
-        const text = buildNoticeSms(target, result, academy);
+        const text = buildNoticeSms(target, result, academy, { replyUrl });
         if (!text) return;
         const n = smsBytes(text);
         const show = (v) => { setFlash(v); setTimeout(() => setFlash(null), 2200); };
         copyNoticeSms(text).then(
             // 바이트 수를 함께 보여준다 — LMS 한도를 넘으면 문자마당이 받아 주지 않는데,
             // 붙여넣고 보내기를 누른 뒤에 알면 그 학원은 통째로 다시 해야 한다.
-            () => show({ text: `✓ ${n.toLocaleString('ko-KR')}B`, warn: n > LMS_LIMIT }),
+            () => {
+                show({ text: `✓ ${n.toLocaleString('ko-KR')}B`, warn: n > LMS_LIMIT });
+                // 복사한 때를 '보낸 때'로 남긴다. 같은 것은 아니지만, 이것이 없으면
+                // '기한이 지나도록 회신이 없는 곳'을 셀 방법이 없다 (회신 열의 툴팁이 그렇게 적는다).
+                onSent?.(result);
+            },
             () => show({ text: '복사 실패', warn: true }));
     };
 
@@ -395,6 +401,31 @@ function SnsCheckRow({
                             color: result ? 'var(--text-muted)' : 'var(--border-color)',
                             fontSize: '0.76rem', cursor: result ? 'pointer' : 'default',
                         }}>＋ 적요</button>
+                )}
+            </Td>
+
+            {/* 회신 — 학원이 스스로 알려 온 것. 판정을 바꾸지 않는다 (이행 여부는 다시 조사해야 안다).
+                여기 초록이 뜬 곳만 골라 다시 조사하면 750곳을 도는 일이 수십 곳을 도는 일이 된다. */}
+            <Td style={{ ...CENTER, padding: CHECK_PAD, fontSize: '0.74rem', lineHeight: 1.4 }}>
+                {isReplied(result) ? (
+                    <span title={`${replyText(result) || '(내용 없음)'}
+
+학원이 알려 온 내용입니다 — 실제로 고쳐졌는지는 다시 조사해 확인하세요`}
+                        style={{ color: REPLY_COLOR, fontWeight: '700', cursor: 'help' }}>
+                        ↩ {fmtDay(repliedAt(result))}
+                    </span>
+                ) : sentAt(result) ? (
+                    <span title={`안내 문자를 만든 날입니다 (복사한 때이지 실제 발송 시각은 아닙니다).
+기한 ${days}일이 지나도록 회신이 없으면 붉게 표시합니다.`}
+                        style={{
+                            color: isOverdue(result, days) ? OVERDUE_COLOR : 'var(--text-muted)',
+                            fontWeight: isOverdue(result, days) ? '700' : '500', cursor: 'help',
+                        }}>
+                        ✉ {fmtDay(sentAt(result))}
+                        <br />{isOverdue(result, days) ? '기한 넘김' : '기다리는 중'}
+                    </span>
+                ) : (
+                    <span style={{ color: 'var(--border-color)' }}>—</span>
                 )}
             </Td>
 

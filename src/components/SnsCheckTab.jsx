@@ -8,18 +8,22 @@ import {
     buildGroups, placeDuplicates, sharedCellTargets, pinnedPlaceId,
     pinResolvedPlace, parsePlaceInput, placeUrlFromId, PIN_CLEARED,
     RECHECK_DAYS, VERDICT_COLOR, matchesSnsFilter,
+    REPLY_FILTERS, replyStage, fetchReplyLinks,
 } from '../utils/snsCheck';
 import { downloadSnsWorkbook } from '../utils/snsWorkbookExcel';
 import { readNoticeSettings, writeNoticeSettings, noticeDeadline, COURSE_LINES, LMS_LIMIT } from '../utils/snsNoticeText';
 import { createSaveQueue } from '../utils/snsSaveQueue';
 import {
-    W_NUM, W_NAME, W_REGNO, W_CH, W_LINK, W_INS, W_MEMO, W_CHECK,
+    W_NUM, W_NAME, W_REGNO, W_CH, W_LINK, W_INS, W_MEMO, W_CHECK, W_REPLY,
     CH_GROUPS, BG_STRIPE, DONE_COLOR, INS_OK_COLOR, INS_BAD_COLOR,
 } from '../utils/snsTableLayout';
 import SnsCheckRow from './SnsCheckRow';
 
 const FILTERS = ['전체', '미이행', '이행', '확인불가', '해당없음', '미조사'];
 const DONE_FILTERS = ['전체', '미확인', '확인완료'];
+
+// 회신 칩 색 — 기다리는 중은 조용히, 회신은 초록, 기한을 넘긴 곳은 빨강(확인서·처분으로 갈 곳이다)
+const REPLY_COLOR = { 회신옴: '#10b981', 기한초과: '#ef4444', 대기중: '#f59e0b' };
 
 // 점검표 엑셀에서 빼는 판정 — 전화로 할 말이 없는 곳이라 종이만 두꺼워진다.
 // 그 칩을 직접 골라 둔 경우에는 일부러 보려는 것이므로 빼지 않는다.
@@ -161,6 +165,18 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
     const numberLabel = typeTab === '교습소' ? '신고번호' : '등록번호';
     const [filter, setFilter] = useState('미이행');
     const [doneFilter, setDoneFilter] = useState('전체');
+    // 회신 축 — 미발송 → 대기중 → 회신옴 / 기한초과. 판정·확인과 겹치지 않는 별개의 축이다
+    const [replyFilter, setReplyFilter] = useState('전체');
+    // ── 문자 설정 ────────────────────────────────────────
+    // 문의 전화·기한·안내 링크는 학원별 값이 아니라 담당자별 값이다. 시트에 넣을 것이 아니고,
+    // 행마다 prop 으로 실어 나르면 750행의 참조가 흔들려 표가 무거워진다 —
+    // 그래서 브라우저에만 두고 snsNoticeText 가 직접 읽는다.
+    // (거르개가 '기한이 지났는가'를 재려면 days 가 필요해 상태 선언이 여기 위에 있다)
+    const [notice, setNotice] = useState(readNoticeSettings);
+    const [noticeOpen, setNoticeOpen] = useState(false);
+    // 학원별 회신 주소 — 서명이 서버에만 있어 받아와야 한다. 행마다 부르면 750번 왕복하므로
+    // 한 번에 받아 Map 으로 들고 있는다 (문자를 지을 때만 꺼내 쓴다)
+    const [replyLinks, setReplyLinks] = useState(null);
     const [query, setQuery] = useState('');
     // 입력할 때마다 750행을 다시 거르면 글자가 밀린다 — 한 박자 늦게 반영한다
     const search = useDeferredValue(query);
@@ -264,6 +280,16 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
         return () => { alive = false; };
     }, [applyStructural, cachedBoot]);
 
+    // 회신 주소는 학원마다 하나씩이고 바뀌지 않는다 — 목록이 준비되면 한 번만 받아 둔다.
+    // 못 받아와도 문자는 나간다 (그 경우 문자에 회신 안내 블록이 빠질 뿐이다).
+    useEffect(() => {
+        if (!targets.length) return undefined;
+        let alive = true;
+        fetchReplyLinks(targets.map(t => ({ category: t.category, regNo: t.regNo })))
+            .then(links => { if (alive) setReplyLinks(links); });
+        return () => { alive = false; };
+    }, [targets]);
+
     // 캐시 쓰기는 무겁다(수백 행 직렬화) — 조작이 멎고, 브라우저도 한가할 때 한 번만 한다
     useEffect(() => {
         if (loading) return undefined;
@@ -316,6 +342,13 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
         return c;
     }, [rows]);
 
+    // 회신 칩에 붙일 숫자 — 네 자리가 겹치지 않고 합이 전체라, 이 줄이 곧 진행 상황이다
+    const replyCounts = useMemo(() => {
+        const c = { 전체: rows.length, 미발송: 0, 대기중: 0, 회신옴: 0, 기한초과: 0 };
+        rows.forEach(({ result }) => { c[replyStage(result, notice.days)]++; });
+        return c;
+    }, [rows, notice.days]);
+
     const doneCount = useMemo(
         () => rows.reduce((n, x) => n + (isDone(x.result) ? 1 : 0), 0),
         [rows]);
@@ -329,14 +362,14 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
 
     // 표와 점검표 엑셀이 같은 조건을 보도록 한 곳에 모아 둔다
     const filterQuery = useMemo(
-        () => ({ filter, doneFilter, q: search.trim().toLowerCase() }),
-        [filter, doneFilter, search]);
+        () => ({ filter, doneFilter, replyFilter, days: notice.days, q: search.trim().toLowerCase() }),
+        [filter, doneFilter, replyFilter, notice.days, search]);
 
     const visible = useMemo(
         () => rows.filter(x => matchesSnsFilter(x, filterQuery)),
         [rows, filterQuery]);
 
-    const filterKey = `${typeTab}|${filter}|${doneFilter}|${search}`;
+    const filterKey = `${typeTab}|${filter}|${doneFilter}|${replyFilter}|${search}`;
 
     // 거르는 조건이 바뀌면 처음부터 다시 그린다 — 얼마나 그릴지를 조건과 함께 들고 있으면
     // 조건이 바뀌는 순간 저절로 CHUNK 로 돌아간다 (되돌리는 효과를 따로 두지 않아도 된다).
@@ -594,6 +627,18 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
         queue.push(rowKey, resultToRecord(updated));
     }, [applyManual, queue]);
 
+    // ── 안내 문자를 만든 때 ──────────────────────────────
+    // 복사한 때이지 실제 발송 시각은 아니다. 그래도 어딘가 남겨야 한다 —
+    // 이 값이 없으면 '보냈는데 기한이 지나도록 회신이 없는 곳'을 셀 방법이 없다.
+    // 다시 복사하면 덮어쓴다 (재안내한 날부터 다시 센다).
+    const markSent = useCallback((result) => {
+        if (!result) return;   // 아직 조사 안 한 학원은 시트에 행이 없다
+        const rowKey = recordKey(result.category, result.regNo);
+        const updated = { ...result, 발송일시: new Date().toISOString() };
+        applyManual({ ...resultsRef.current, [rowKey]: updated }, [rowKey]);
+        queue.push(rowKey, resultToRecord(updated));
+    }, [applyManual, queue]);
+
     // ── 네이버플레이스가 아예 없는 학원 ──────────────────
     // 이름이 달라 못 찾은 것과 정말 없는 것은 자동으로 못 가린다. 사람이 확인해 눌러 주면
     // 물고 온 남의 업체를 버리고, 판정을 '해당없음'으로 빼고, 다시 조사하지 않는다.
@@ -658,12 +703,7 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
             .catch(() => setSaveState('⚠ 점검표 엑셀을 만들지 못했습니다.'));
     };
 
-    // ── 문자 설정 ────────────────────────────────────────
-    // 문의 전화·기한·안내 링크는 학원별 값이 아니라 담당자별 값이다. 시트에 넣을 것이 아니고,
-    // 행마다 prop 으로 실어 나르면 750행의 참조가 흔들려 표가 무거워진다 —
-    // 그래서 브라우저에만 두고 snsNoticeText 가 직접 읽는다.
-    const [notice, setNotice] = useState(readNoticeSettings);
-    const [noticeOpen, setNoticeOpen] = useState(false);
+    // ── 문자 설정 (상태 선언은 위쪽 거르개 옆에 있다) ────
     const changeNotice = (patch) => setNotice(writeNoticeSettings(patch));
 
     if (loading) {
@@ -774,6 +814,20 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                             <div style={{ height: '100%', width: `${donePct}%`, background: DONE_COLOR, transition: 'width .3s' }} />
                         </div>
                     </div>
+                </div>
+
+                {/* 학원이 스스로 알려 온 것 — 이 줄이 이 화면의 결론이다.
+                    '회신옴' 은 지금 다시 조사해 마감할 곳, '기한초과' 는 확인서·처분으로 넘길 곳이다.
+                    네 자리가 겹치지 않고 합이 전체라, 칩에 붙은 숫자가 곧 진행 상황이 된다. */}
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '10px' }}>
+                    <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: '700' }}>회신</span>
+                    {REPLY_FILTERS.map(f => (
+                        <Chip key={f} label={f} count={replyCounts[f] || 0} active={replyFilter === f}
+                            onClick={() => setReplyFilter(f)} color={REPLY_COLOR[f]} />
+                    ))}
+                    <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                        문자를 만든 날부터 {notice.days}일이 지나도록 회신이 없으면 <b>기한초과</b>
+                    </span>
                 </div>
 
                 {running ? (
@@ -906,6 +960,7 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                         <col />
                         <col style={{ width: `${W_INS}px` }} />
                         <col style={{ width: `${W_MEMO}px` }} />
+                        <col style={{ width: `${W_REPLY}px` }} />
                         <col style={{ width: `${W_CHECK}px` }} />
                     </colgroup>
                     <thead>
@@ -921,6 +976,7 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                             <Th rowSpan={2}>비고</Th>
                             <Th rowSpan={2} center>보험</Th>
                             <Th rowSpan={2}>적요</Th>
+                            <Th rowSpan={2} center>회신</Th>
                             <Th rowSpan={2} center>확인</Th>
                         </tr>
                         {/* 2행: 묶음별 항목 */}
@@ -935,7 +991,7 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                     </thead>
                     <tbody>
                         {visible.length === 0 && (
-                            <tr><td colSpan={8 + CH_GROUPS.length * 2} style={{ padding: '28px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
+                            <tr><td colSpan={9 + CH_GROUPS.length * 2} style={{ padding: '28px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
                                 {search.trim() ? `'${search.trim()}' 에 해당하는 ${typeTab}이(가) 없습니다.` : `해당하는 ${typeTab}이(가) 없습니다.`}
                             </td></tr>
                         )}
@@ -959,12 +1015,15 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                                 pinError={pinRow === key ? pinError : null}
                                 memoOpen={memoRow === key}
                                 memoInput={memoRow === key ? memoInput : ''}
+                                replyUrl={replyLinks ? replyLinks[key] || '' : ''}
+                                days={notice.days}
                                 onSelectAcademy={onSelectAcademy}
                                 onCycle={cycleCell}
                                 onToggleDone={toggleDone}
                                 onToggleNoPlace={toggleNoPlace}
                                 onRefresh={runOne}
                                 onJump={jumpToRow}
+                                onSent={markSent}
                                 onPinOpen={openPin}
                                 onPinChange={changePin}
                                 onPinSave={savePinFromInput}
@@ -981,7 +1040,7 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                         {/* 표 끝에 닿으면 다음 묶음을 이어 붙인다 (한 번에 다 그리면 첫 화면이 멈춘다) */}
                         {more > 0 && (
                             <tr ref={sentinelRef}>
-                                <td colSpan={8 + CH_GROUPS.length * 2} style={{ padding: '18px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
+                                <td colSpan={9 + CH_GROUPS.length * 2} style={{ padding: '18px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
                                     남은 {more}곳을 불러오는 중…
                                 </td>
                             </tr>

@@ -12,7 +12,7 @@
 // 화면에서 O 로 바꾼 칸이 문자에 '빠졌다'고 나가는 일이 없다.
 
 import {
-    rowCells, parseChannels, assignBuckets, currentPlaceUrl, DIFFERS,
+    rowCells, parseChannels, assignBuckets, currentPlaceUrl, noticeItems, DIFFERS,
 } from './snsCheck';
 import { sortCourses, parseNum } from './generateTuitionPDF';
 import { feeRange } from './tuitionCompareWindow';
@@ -36,6 +36,12 @@ export const LEGAL_LINE =
 const fill = (text, numberLabel) => String(text).split('{번호}').join(numberLabel);
 
 export const TAIL_LINE = '이 외에도, 다른 모든 인터넷 매체(인스타그램, 카페 등)도 살펴보시기 바랍니다.';
+
+// 회신 창구 안내. 주소(replyUrl)는 그 학원만 여는 것이라 부르는 쪽이 실어 준다.
+// 길이가 넘쳐 덜어낼 때도 이 블록은 남긴다 — 이 문자를 보내는 목적이 여기에 있다.
+// 없으면 담당자가 750곳을 다시 조사해야 누가 고쳤는지 알 수 있다.
+export const REPLY_HEAD = '[수정하셨으면 알려 주세요]';
+export const REPLY_LINE = '아래를 눌러 고치신 항목만 표시해 주시면 됩니다 (1분, 로그인 없음).';
 
 // 길이가 넘쳐 매체를 몇 개 덜어냈을 때만 붙인다
 export const TRIMMED_LINE = '그 밖의 매체는 직접 확인 부탁드립니다.';
@@ -142,23 +148,6 @@ export function smsBytes(text) {
     let n = 0;
     for (const ch of String(text || '')) n += ch.charCodeAt(0) > 0x7f ? 2 : 1;
     return n;
-}
-
-/**
- * 그 학원에서 고쳐야 할 칸 — [{ bucket, field, differs }], 표의 열 순서 그대로.
- *
- * 빠진 것(X)과 다른 것(△)을 함께 싣되 구분해 둔다. 학원 입장에서는 전혀 다른 말이다 —
- * 없는 것은 올리라는 말이고, 다른 것은 이미 올린 것을 고치라는 말이다. 이걸 뭉뚱그려
- * '확인되지 않았습니다' 라고 보내면, 올려 둔 학원은 무슨 소린가 하고 되묻는다.
- *
- * 인스타그램을 따로 빼지 않는다. 자동 조사는 인스타를 '안함' 으로 두므로 여기 걸릴 일이
- * 없고, 담당자가 직접 X 로 바꿔 둔 곳은 눈으로 보고 판단한 것이라 알려야 한다.
- */
-export function noticeItems(result) {
-    if (!result) return [];
-    return rowCells(result)
-        .filter((c) => c.value === 'X' || c.value === DIFFERS)
-        .map((c) => ({ bucket: c.bucket, field: c.field, differs: c.value === DIFFERS }));
 }
 
 /** 오늘 + days → '2026. 9. 10.' */
@@ -291,7 +280,7 @@ function adBlock(result) {
  * withCourses 가 거짓이면 교습과정 목록을 뺀다 (담당자가 꺼 두었거나, 그래도 길이가 넘칠 때).
  */
 function compose(target, result, academy, opts, keep, withCourses) {
-    const { tel, days, guideUrl } = opts;
+    const { tel, days, guideUrl, replyUrl } = opts;
     const isHagwonso = String(target.category || '').includes('교습소');
     const numberLabel = isHagwonso ? '신고번호' : '등록번호';
     const regLabel = `${isHagwonso ? '신고' : '등록'} 제${target.regNo}호`;
@@ -347,6 +336,9 @@ function compose(target, result, academy, opts, keep, withCourses) {
 
     L.push(`${noticeDeadline(days)}까지 수정 부탁드리며, 이후 담당자가 다시 확인합니다.`);
     L.push(TAIL_LINE, '');
+
+    // 주소를 못 받아왔으면 블록을 통째로 뺀다 — 안내는 나가야 하고, 빈 링크는 없느니만 못하다
+    if (replyUrl) L.push(REPLY_HEAD, REPLY_LINE, replyUrl, '');
 
     L.push('[관련링크]');
     shown.forEach((b) => {

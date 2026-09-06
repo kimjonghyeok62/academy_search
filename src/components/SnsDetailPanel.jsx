@@ -7,9 +7,10 @@ import {
     remarkPlaceHint, pinResolvedPlace, hasPlaceCandidate,
     effectivePlaceId, sharedCellTargets, buildGroups, recordKey, PIN_CLEARED,
     currentPlaceUrl, placeSource, placeUrlFromId, pinnedPlaceUrl, declaredFees, toProbeTargets,
+    noticeItems, fetchReplyLinks, isReplied, repliedAt, replyText, sentAt,
 } from '../utils/snsCheck';
 import { openTuitionCompare } from '../utils/tuitionCompareWindow';
-import { buildNoticeSms, copyNoticeSms, noticeItems, smsBytes, LMS_LIMIT } from '../utils/snsNoticeText';
+import { buildNoticeSms, copyNoticeSms, smsBytes, LMS_LIMIT } from '../utils/snsNoticeText';
 
 const CHANNEL_ICON = { blog: '✍️', instagram: '📷', homepage: '🌐' };
 const MANUAL_COLOR = '#2563eb';
@@ -103,6 +104,8 @@ export default function SnsDetailPanel({ academy, region = '하남', allAcademie
     const [pinInput, setPinInput] = useState('');
     const [smsOpen, setSmsOpen] = useState(false);
     const [smsFlash, setSmsFlash] = useState(null);
+    // 이 학원만 여는 회신 주소 — 서명이 서버에만 있어 받아와야 한다 (점검표는 한꺼번에 받는다)
+    const [replyUrl, setReplyUrl] = useState('');
 
     // 다른 학원으로 바뀌면 loadedKey 가 어긋나 자동으로 로딩 상태가 된다
     const loading = loadedKey !== key;
@@ -123,6 +126,13 @@ export default function SnsDetailPanel({ academy, region = '하남', allAcademie
             })
             // 조회 실패도 로딩을 풀어야 한다 (결과 없음으로 표시하고 '지금 조사' 를 쓸 수 있게)
             .catch(() => { if (alive) setLoadedKey(key); });
+        return () => { alive = false; };
+    }, [category, regNo, key]);
+
+    useEffect(() => {
+        let alive = true;
+        fetchReplyLinks([{ category, regNo }])
+            .then(links => { if (alive) setReplyUrl(links[key] || ''); });
         return () => { alive = false; };
     }, [category, regNo, key]);
 
@@ -285,8 +295,8 @@ export default function SnsDetailPanel({ academy, region = '하남', allAcademie
     const noticeCount = noticeItems(result).length;
     // 문구는 펼쳤을 때만 만든다 (표가 750행 때문에 지킨 규칙이지만, 여기서도 안 볼 문구를 지을 이유가 없다)
     const smsText = useMemo(
-        () => (smsOpen ? buildNoticeSms(target, result, academy) : ''),
-        [smsOpen, target, result, academy]);
+        () => (smsOpen ? buildNoticeSms(target, result, academy, { replyUrl }) : ''),
+        [smsOpen, target, result, academy, replyUrl]);
     const smsSize = smsText ? smsBytes(smsText) : 0;
     const smsOver = smsSize > LMS_LIMIT;
 
@@ -294,8 +304,18 @@ export default function SnsDetailPanel({ academy, region = '하남', allAcademie
         if (!smsText) return;
         const show = (v) => { setSmsFlash(v); setTimeout(() => setSmsFlash(null), 2200); };
         copyNoticeSms(smsText).then(
-            () => show({ text: '✓ 복사했습니다' }),
+            () => { show({ text: '✓ 복사했습니다' }); markSent(); },
             () => show({ text: '복사 실패 — 아래 글을 직접 긁어 복사하세요', warn: true }));
+    };
+
+    // 복사한 때를 '보낸 때' 로 남긴다 — 이 값이 없으면 기한이 지난 무응답을 셀 수 없다.
+    // 점검표(markSent)와 같은 규칙이고, 저장에 실패해도 복사는 이미 끝났으므로 조용히 넘긴다.
+    const markSent = async () => {
+        if (!result) return;
+        const updated = { ...result, 발송일시: new Date().toISOString() };
+        setResult(updated);
+        setResults((prev) => ({ ...prev, [key]: updated }));
+        try { await saveSnsChecks([resultToRecord(updated)]); } catch { /* 다음 저장 때 함께 올라간다 */ }
     };
 
     // 표의 '💰 교습비' 와 같은 창이다. 아직 조사하지 않은 학원도 열 수 있다 —
@@ -309,6 +329,20 @@ export default function SnsDetailPanel({ academy, region = '하남', allAcademie
                 fontSize: '0.82rem', fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap',
             }}>💰 교습비 대조</button>
     );
+
+    // 문자를 다른 경로(전화·방문)로 안내할 때도 주소만 따로 건네줄 수 있어야 한다
+    const replyBtn = replyUrl ? (
+        <button onClick={() => copyNoticeSms(replyUrl).then(
+            () => { setSmsFlash({ text: '✓ 회신 주소를 복사했습니다' }); setTimeout(() => setSmsFlash(null), 2200); },
+            () => { setSmsFlash({ text: '복사 실패', warn: true }); setTimeout(() => setSmsFlash(null), 2200); })}
+            title={`이 학원만 여는 회신 주소입니다 (로그인 없이 열립니다)
+${replyUrl}`}
+            style={{
+                padding: '8px 12px', borderRadius: '8px', border: '1px solid #0ea5e9',
+                background: 'transparent', color: '#0ea5e9',
+                fontSize: '0.82rem', fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap',
+            }}>🔗 회신 주소</button>
+    ) : null;
 
     const smsBtn = (
         <button onClick={() => setSmsOpen((v) => !v)} disabled={noticeCount === 0}
@@ -366,10 +400,25 @@ export default function SnsDetailPanel({ academy, region = '하남', allAcademie
                     <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
                         {compareBtn}
                         {smsBtn}
+                        {replyBtn}
                         {doneBtn}
                         {runBtn}
                     </div>
                 </div>
+                {/* 학원이 알려 온 것. 판정을 바꾸지 않는다 — 실제로 고쳐졌는지는 다시 조사해야 안다
+                    (표의 '회신' 열과 같은 말을 해야 한다) */}
+                {isReplied(result) ? (
+                    <div style={{ fontSize: '0.8rem', color: DONE_COLOR, marginTop: '10px', lineHeight: 1.6 }}>
+                        ↩ <b>{fmtWhen(repliedAt(result))}</b> 학원이 알려 왔습니다 — {replyText(result) || '(내용 없음)'}
+                        <br /><span style={{ color: 'var(--text-muted)' }}>
+                            학원이 말한 것입니다. ↻ 다시 조사해 실제로 게시됐는지 확인한 뒤 마감하세요.
+                        </span>
+                    </div>
+                ) : sentAt(result) ? (
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '10px' }}>
+                        ✉ {fmtWhen(sentAt(result))} 안내 문자를 만들었습니다 — 아직 회신이 없습니다.
+                    </div>
+                ) : null}
                 {message && <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '10px' }}>{message}</div>}
             </div>
 
