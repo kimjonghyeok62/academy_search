@@ -2,7 +2,8 @@
   "functions": {
     "api/sns-probe.js": { "maxDuration": 60 },
     "api/tuition-read.js": { "maxDuration": 60 },
-    "api/analyze.js": { "maxDuration": 60 }
+    "api/analyze.js": { "maxDuration": 60 },
+    "api/reply.js": { "maxDuration": 60 }
   },
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" },

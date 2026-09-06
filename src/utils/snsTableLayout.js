@@ -3,8 +3,8 @@
 //
 // 폭을 정할 때의 원칙: 글자 크기는 줄이지 않는다. 대신 같은 말이 여러 번 반복되는 자리
 // (채널 14칸의 '등록번호' → '번호', 확인 열의 '↻ 새로고침' → '↻')를 덜어내 자리를 얻는다.
-// 고정폭 합 1514px < 표의 minWidth 1792px 이라 가로 스크롤은 생기지 않고,
-// 폭을 주지 않은 '비고' 가 남는 278px 을 가져간다.
+// 고정폭 합 1592px < 표의 minWidth 1792px 이라 가로 스크롤은 생기지 않고,
+// 폭을 주지 않은 '비고' 가 남는 200px 을 가져간다.
 
 import { BUCKETS } from '../utils/snsCheck';
 
@@ -15,6 +15,7 @@ export const W_CH = 55;      // 채널 O/X 칸 — 묶음 7개 × (번호·교�
 export const W_LINK = 120;   // 링크 묶음
 export const W_INS = 84;     // 보험 만료일
 export const W_MEMO = 145;   // 적요 (담당자가 적는 칸)
+export const W_REPLY = 78;   // '회신' 열 (학원이 알려 온 것 / 문자 보낸 날)
 export const W_CHECK = 84;   // '확인' 열 (마감/해제 + 새로고침)
 
 // 표의 채널 묶음 순서: 플레이스 뒤로 blog·homepage·cafe·youtube·instagram·etc
@@ -32,6 +33,10 @@ export const BG_STRIPE = 'var(--bg-light)';
 export const BG_ROW = 'var(--bg-card)';
 
 export const DONE_COLOR = '#10b981';
+// 회신 열 — 학원이 알려 온 곳은 초록, 기한을 넘기도록 아무 말이 없는 곳은 빨강
+// (그 빨강이 곧 확인서·처분으로 넘어갈 목록이다)
+export const REPLY_COLOR = '#10b981';
+export const OVERDUE_COLOR = '#ef4444';
 // 보험: 유효는 파랑, 만료·미가입은 빨강 (색만으로 알리지 않도록 만료 쪽에는 ⚠ 를 붙인다)
 export const INS_OK_COLOR = '#2563eb';
 export const INS_BAD_COLOR = '#ef4444';

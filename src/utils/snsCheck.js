@@ -40,6 +40,10 @@ export const SNS_COLUMNS = [
     '묶음',
     // 담당자가 진행사항·특이사항을 적는 칸 (MEMO_MAX 자). 지우기는 MEMO_CLEARED 로 보낸다
     '적요',
+    // 담당자가 안내 문자를 만든 시각 — 이것이 있어야 '기한이 지나도록 회신이 없는 곳'을 셀 수 있다
+    '발송일시',
+    // 학원이 회신 페이지에서 보낸 시각·내용 (아래 '학원 회신' 절 참고)
+    '회신일시', '회신내용',
 ];
 
 // 결과·시트 행 양쪽에서 같은 키를 그대로 옮기는 항목
@@ -50,6 +54,9 @@ const PASSTHROUGH = [
     // 조사 결과에는 없다. 화면에서 고친 값을 그대로 실어 보내야 시트에 남는다
     // (빈 값으로 가면 Apps Script 가 기존 값을 지키므로 자동 조사가 덮어쓰지 않는다)
     '수동확인', '플레이스지정', '묶음', '적요',
+    // 문자를 복사할 때 화면이 넣는 값. 회신 두 칸은 여기 넣지 않는다 —
+    // 화면이 들고 있는 옛 값이 방금 들어온 학원 회신을 덮어쓰기 때문이다 (보존은 Apps Script 가 한다)
+    '발송일시',
 ];
 
 /**
@@ -298,6 +305,27 @@ function rawRowCells(result) {
     return out;
 }
 
+/**
+ * 그 학원에서 고쳐야 할 칸 — [{ bucket, field, differs }], 표의 열 순서 그대로.
+ *
+ * 빠진 것(X)과 다른 것(△)을 함께 싣되 구분해 둔다. 학원 입장에서는 전혀 다른 말이다 —
+ * 없는 것은 올리라는 말이고, 다른 것은 이미 올린 것을 고치라는 말이다. 이걸 뭉뚱그려
+ * '확인되지 않았습니다' 라고 보내면, 올려 둔 학원은 무슨 소린가 하고 되묻는다.
+ *
+ * 인스타그램을 따로 빼지 않는다. 자동 조사는 인스타를 '안함' 으로 두므로 여기 걸릴 일이
+ * 없고, 담당자가 직접 X 로 바꿔 둔 곳은 눈으로 보고 판단한 것이라 알려야 한다.
+ *
+ * 안내 문자(snsNoticeText)와 학원 회신 화면(ReplyPage)이 함께 쓴다 — 두 곳이 같은 목록을
+ * 말해야 한다. 문구를 짓는 모듈이 아니라 여기 두는 이유는, 회신 화면이 휴대폰에서 열리는
+ * 자리라 문자 조립 코드(대조창·게시표까지 딸려온다)를 함께 내려받게 할 수 없어서다.
+ */
+export function noticeItems(result) {
+    if (!result) return [];
+    return rowCells(result)
+        .filter((c) => c.value === 'X' || c.value === DIFFERS)
+        .map((c) => ({ bucket: c.bucket, field: c.field, differs: c.value === DIFFERS }));
+}
+
 // 칸을 누를 때마다 자동값 → O → △ → X → 없음 → 자동값.
 // △ 가 O 바로 뒤에 오는 이유: 대조창에서 금액이 다른 것을 보고 오는 길이라, 그때 누르는
 // 횟수가 가장 적어야 한다 (O 한 번 → △).
@@ -399,7 +427,8 @@ export const setNoPlace = (result, on) =>
     setManualCell(result, NOPLACE_KEY, on ? new Date().toISOString() : undefined);
 
 // 자동 조사 결과에는 없는, 사람이 넣은 값 — 새 결과에 이어 붙여야 화면에서 사라지지 않는다
-const KEEP_KEYS = ['수동확인', '비고', '연락처', '플레이스지정', '묶음', '적요'];
+const KEEP_KEYS = ['수동확인', '비고', '연락처', '플레이스지정', '묶음', '적요',
+    '발송일시', '회신일시', '회신내용'];
 
 /** 새로 조사한 결과(fresh)에 이전 행(prev)의 사람이 넣은 값을 이어 붙인다 */
 export function keepManual(fresh, prev) {
@@ -432,6 +461,46 @@ export function memoText(result) {
 export function setMemo(result, text) {
     const v = String(text || '').trim().slice(0, MEMO_MAX);
     return { ...result, 적요: v || MEMO_CLEARED };
+}
+
+// ── 학원 회신 ───────────────────────────────────────────
+// 안내 문자 끝에 그 학원만 여는 주소를 한 줄 넣는다. 학원이 눌러 '고쳤습니다' 를 표시하면
+// 시트의 회신일시·회신내용에 남고, 담당자는 1,000곳을 다시 도는 대신 회신이 온 곳만 본다.
+//
+// 이 두 칸은 화면에서 고치지 않는다 — 읽기만 하고 실어 보내지 않는다 (PASSTHROUGH 주석 참고).
+// 판정을 바꾸지도 않는다. 회신은 '학원이 그렇게 말했다' 는 사실일 뿐이고,
+// 이행 여부를 정하는 것은 언제나 다시 조사한 결과다.
+export const REPLY_COLUMNS = ['회신일시', '회신내용'];
+
+/** 담당자가 안내 문자를 만든 시각 (ISO). 없으면 빈 문자열 */
+export const sentAt = (result) => String(result?.발송일시 || '').trim();
+
+/** 학원이 회신한 시각 (ISO). 없으면 빈 문자열 */
+export const repliedAt = (result) => String(result?.회신일시 || '').trim();
+
+/** 학원이 표시한 내용 — 사람이 읽는 한 줄 */
+export const replyText = (result) => String(result?.회신내용 || '').trim();
+
+export const isReplied = (result) => !!repliedAt(result);
+
+/** 보냈는데 기한이 지나도록 회신이 없는가 — 확인서·처분으로 넘어갈 곳이다 */
+export function isOverdue(result, days) {
+    if (!sentAt(result) || isReplied(result)) return false;
+    const t = Date.parse(sentAt(result));
+    if (isNaN(t)) return false;
+    return Date.now() - t > (Number(days) || 0) * 86400000;
+}
+
+/**
+ * 한 학원이 지금 어느 자리에 있는가 — 업무가 흐르는 차례 그대로다.
+ * 네 값이 서로 겹치지 않고 합이 전체라, 칩에 붙는 숫자가 곧 진행 상황이 된다.
+ */
+export const REPLY_FILTERS = ['전체', '미발송', '대기중', '회신옴', '기한초과'];
+
+export function replyStage(result, days) {
+    if (isReplied(result)) return '회신옴';
+    if (!sentAt(result)) return '미발송';
+    return isOverdue(result, days) ? '기한초과' : '대기중';
 }
 
 // ── 플레이스 직접 지정 ──────────────────────────────────
@@ -772,16 +841,17 @@ export const VERDICT_COLOR = {
 };
 
 /**
- * 화면의 세 가지 거르개(판정 칩 · 확인 칩 · 검색어)를 한 행에 적용한다.
+ * 화면의 네 가지 거르개(판정 칩 · 확인 칩 · 회신 칩 · 검색어)를 한 행에 적용한다.
  *
  * 표와 엑셀이 같은 함수를 써야 한다 — 종이로 뽑은 목록이 화면에서 본 목록과 다르면
  * 어느 쪽을 믿어야 하는지 알 수 없다. q 는 이미 소문자로 다듬어 넘긴다.
  */
-export function matchesSnsFilter({ target, result }, { filter, doneFilter, q }) {
+export function matchesSnsFilter({ target, result }, { filter, doneFilter, replyFilter, days, q }) {
     if (filter === '미조사') { if (result) return false; }
     else if (filter !== '전체') { if (!result || effectiveVerdict(result) !== filter) return false; }
     if (doneFilter === '확인완료' && !isDone(result)) return false;
     if (doneFilter === '미확인' && isDone(result)) return false;
+    if (replyFilter && replyFilter !== '전체' && replyStage(result, days) !== replyFilter) return false;
     if (!q) return true;
     // 플레이스명까지 훑는다 — 학원명과 간판이 다른 곳을 찾을 때 필요하다
     return `${target.name} ${target.regNo} ${result?.플레이스명 || ''}`.toLowerCase().includes(q);
@@ -936,7 +1006,7 @@ export function rowToResult(row) {
         matchScore: row['매칭점수'] === '' ? null : Number(row['매칭점수']),
         checkedAt: row['확인일시'] || '',
     };
-    [...PASSTHROUGH, '비고'].forEach((k) => { r[k] = row[k] || ''; });
+    [...PASSTHROUGH, ...REPLY_COLUMNS, '비고'].forEach((k) => { r[k] = row[k] || ''; });
     return r;
 }
 
@@ -1086,6 +1156,28 @@ export async function fetchSnsChecks() {
         return json.ok ? (json.rows || []) : [];
     } catch {
         return [];
+    }
+}
+
+/**
+ * 학원별 회신 주소를 한꺼번에 받아온다 → { '학원|1003': 'https://…/r/a1003-7k2xq9' }.
+ *
+ * 서명이 서버(SNS_REPLY_SECRET)에만 있어 화면에서는 만들 수 없다. 행마다 물어보면
+ * 750번 왕복하므로 한 번에 받아 들고 있다가 문자를 지을 때 꺼내 쓴다.
+ * 실패하면 빈 객체 — 주소 없이도 문자는 나가야 한다 (snsNoticeText 가 블록을 뺀다).
+ */
+export async function fetchReplyLinks(items) {
+    if (!items || !items.length) return {};
+    try {
+        const res = await fetch('/api/reply-link', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ items }),
+        });
+        const json = await res.json();
+        return json.ok ? (json.links || {}) : {};
+    } catch {
+        return {};
     }
 }
 

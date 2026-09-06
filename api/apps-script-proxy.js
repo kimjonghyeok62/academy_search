@@ -1,6 +1,8 @@
 // Vercel 서버리스 프록시 — CORS 우회용
 // 클라이언트가 /api/apps-script-proxy?... 로 요청하면 서버 측에서 Apps Script 호출
-const APPS_SCRIPT_URL =
+// api/reply.js 도 이 주소를 쓴다 (그쪽은 프록시를 거치지 않고 직접 부른다).
+// 배포 URL 이 바뀌면 여기와 src/utils/inspectionSheets.js 두 곳을 함께 고칠 것.
+export const APPS_SCRIPT_URL =
   'https://script.google.com/macros/s/AKfycbyv393nKJ_S_a-Odi5omfTuU29WVu4qIeg6ScUyPsOMmJ3gz0rpbhBkaAfxwIa1g0lg/exec';
 
 export default async function handler(req, res) {
