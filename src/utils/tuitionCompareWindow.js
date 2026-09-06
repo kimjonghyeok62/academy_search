@@ -317,14 +317,9 @@ const READ_SCRIPT = `<script>
 
     blog = d['블로그'];
     if (blog && blog.found) {
-      var got = (d.ai && d.ai['블로그읽음']) || [];
-      if (got.length) {
-        got.forEach(function (r) { aiUsed = true; rows.push(row('블로그', r.label, r.condition, Number(r.amount), '')); });
-      } else {
-        (blog['금액'] || []).forEach(function (m) {
-          rows.push(row('블로그', '', m['문맥'], Number(m['금액']), ''));
-        });
-      }
+      (blog['금액'] || []).forEach(function (m) {
+        rows.push(row('블로그 ' + (blog['어디'] || ''), '', m['문맥'], Number(m['금액']), ''));
+      });
     }
 
     (d['비고'] || []).forEach(function (n) { notes.push(n); });
@@ -335,14 +330,21 @@ const READ_SCRIPT = `<script>
         + '<th>금액</th><th>신고와 대조</th></tr></thead><tbody>' + rows.join('') + '</tbody></table>';
     }
 
+    var ai = d.ai || {};
     var says = [];
-    if (!rows.length) says.push('네이버에서 금액을 찾지 못했습니다.');
-    if (blog && blog.found && !(blog['금액'] || []).length && !(d.ai && (d.ai['블로그읽음'] || []).length)) {
-      says.push('블로그 교습비 글은 찾았지만 <b>본문에 금액이 글로 적혀 있지 않습니다</b> — 가격표가 이미지일 수 있습니다.');
+    if (!rows.length) says.push('네이버에서 글로 적힌 금액을 찾지 못했습니다.');
+    if (blog && blog.found && !(blog['금액'] || []).length) {
+      says.push('블로그 교습비 글은 찾았지만 <b>글로 적힌 금액이 없습니다</b> — 가격표가 이미지일 수 있습니다.');
     }
     if (blog && blog.found === false) says.push('블로그에서 교습비 글을 찾지 못했습니다.');
-    if (d.ai && d.ai['오류']) says.push('가격표 이미지를 읽지 못했습니다 — ' + esc(d.ai['오류']));
-    if (d.ai && d.ai['읽음'] === false) says.push('가격표 이미지가 흐려 다 읽지 못했습니다 — 원본을 여세요.');
+    if (ai['건너뜀']) says.push(esc(ai['건너뜀']) + '.');
+    if (ai['남은이미지']) {
+      says.push('가격표 이미지 ' + ai['남은이미지'] + '장은 읽지 않았습니다 — <b>원본</b>으로 확인하세요.');
+    }
+    if (ai['오류']) says.push('가격표 이미지를 읽지 못했습니다 — ' + esc(ai['오류']));
+    if (ai['읽음'] === false) {
+      says.push('가격표에서 금액을 읽어내지 못했습니다 — <b>원본</b>을 눌러 직접 보세요. (표가 아니거나 사진이 흐린 경우입니다)');
+    }
     (d['오류'] || []).forEach(function (e) { says.push(esc(e)); });
 
     var links = [];
@@ -370,13 +372,12 @@ const READ_SCRIPT = `<script>
         .concat(imgRows.map(function (r) { return Number(r.amount); }))
     );
     var hasImage = ((d['플레이스'] && d['플레이스']['이미지']) || []).length > 0;
-    fee('place', placeAmounts, hasImage && !imgRows.length ? '금액이 가격표 이미지 안에 있습니다' : '');
+    fee('place', placeAmounts, hasImage && !imgRows.length ? '금액은 가격표 이미지 안에 — 아래 원본' : '');
 
     var blogAmounts = uniq(
       (blog && blog.found ? (blog['금액'] || []) : []).map(function (m) { return Number(m['금액']); })
-        .concat(((d.ai && d.ai['블로그읽음']) || []).map(function (r) { return Number(r.amount); }))
     );
-    if (blog && blog.found) fee('blog', blogAmounts, '글로 적힌 금액 없음');
+    if (blog) fee('blog', blogAmounts, blog.found ? '글로 적힌 금액 없음' : '교습비 글을 못 찾음');
   }
 
   waiting();

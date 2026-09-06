@@ -6,7 +6,8 @@
 // 키를 서버에만 두면 브라우저로는 사진만 오가고 키는 나가지 않는다.
 import Anthropic from '@anthropic-ai/sdk';
 
-const MODEL = 'claude-opus-5';
+// 간판에 큼직하게 적힌 상호 한 줄을 읽는 일이다 — 가장 싼 모델로 충분하다
+const MODEL = 'claude-haiku-4-5';
 // 사진 한 장은 400KB 로 줄여서 온다(클라이언트 compressToJpeg). base64 는 약 4/3 이므로
 // 1MB 면 충분히 넉넉하다 — 그보다 크면 줄이지 않고 보낸 것이라 되돌려보낸다.
 const MAX_BASE64 = 1_400_000;
@@ -46,11 +47,9 @@ export default async function handler(req, res) {
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
     const resp = await client.messages.create({
       model: MODEL,
-      // 간판 한 줄을 읽는 일이라 깊이 생각할 것이 없다. 다만 이 모델은 생각이 기본으로 켜져
-      // 있고 그 몫도 max_tokens 에서 나가므로, 예전의 80 을 그대로 두면 이름을 쓰기 전에
-      // 잘려 빈 답이 온다.
-      max_tokens: 1000,
-      output_config: { effort: 'low' },
+      // 이 모델은 생각을 켜지 않으면 답만 쓴다 (effort 는 이 모델에서 못 쓴다).
+      // 이름 한 줄이라 200 이면 넉넉하다.
+      max_tokens: 200,
       messages: [{
         role: 'user',
         content: [

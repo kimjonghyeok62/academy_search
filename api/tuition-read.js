@@ -9,16 +9,22 @@
 // 보는 몇 곳에서만 필요하다. 미리 다 읽으면 그만큼의 요청·비용이 통째로 낭비되고,
 // 시트에도 열을 늘려야 한다(Apps Script 까지). 열 때 읽으면 둘 다 없다.
 //
-// 세 갈래로 읽는다.
-//   1) 플레이스 가격메뉴  — 네이버가 글자로 준다. 그대로 옮긴다 (AI 없음).
-//   2) 플레이스 가격표 이미지 — 사람이 사진으로 올린 표. Claude 가 읽는다.
-//   3) 블로그 교습비 글   — 본문 글자에서 '…원' 을 찾는다. 금액이 사진으로만 있으면
-//                          찾지 못하는데, '글로는 안 적혀 있다' 는 사실 자체가 정보다.
+// 세 갈래로 읽되, 값싼 순서로 읽고 얻으면 멈춘다.
+//   1) 플레이스 가격메뉴  — 네이버가 글자로 준다. 그대로 옮긴다 (공짜).
+//   2) 블로그 소개글·교습비 글 — 글자에서 '…원' 을 찾는다 (공짜).
+//   3) 가격표 이미지      — 위 둘이 아무것도 못 얻었을 때만, 한 장만 Claude 에게 읽힌다.
+//
+// 3번을 마지막에 두고 조건을 붙인 이유는 돈 때문만이 아니다. 글자로 받은 값이 사진에서
+// 읽어낸 값보다 언제나 정확하다 — 사람이 찍어 올린 사진을 기계가 읽는 일에는 틀릴 여지가
+// 있고, 그 틀린 값으로 학원을 부르면 안 된다. 그래서 글자가 있으면 사진은 아예 읽지 않고
+// 원본 링크만 건넨다 — 사진이 복잡하면 사람이 직접 보는 편이 빠르고 확실하다.
 import Anthropic from '@anthropic-ai/sdk';
 import { probePlace, readBlogFeeText, isBlocked } from './_lib/naverProbe.js';
 
-const MODEL = 'claude-opus-5';
-const MAX_IMAGES = 3;             // 가격표를 네 장 이상 올린 곳은 드물다
+// 표를 옮겨 적는 일이라 가장 비싼 모델까지 갈 것 없다 (Opus 대비 입력 2.5배 저렴).
+const MODEL = 'claude-sonnet-5';
+const MAX_IMAGES = 3;             // 링크로 건넬 상한. 실제로 읽는 것은 아래 READ_IMAGES 장뿐이다
+const READ_IMAGES = 1;            // 여러 장이면 첫 장만 읽고 나머지는 원본 링크로 넘긴다
 const MAX_IMAGE_BYTES = 4_000_000;
 const IMAGE_TIMEOUT_MS = 8000;
 
@@ -38,11 +44,10 @@ const SCHEMA = {
     type: 'object',
     properties: {
         image_rows: { type: 'array', items: ROW },
-        blog_rows: { type: 'array', items: ROW },
         notes: { type: 'array', items: { type: 'string' } },
         readable: { type: 'boolean' },
     },
-    required: ['image_rows', 'blog_rows', 'notes', 'readable'],
+    required: ['image_rows', 'notes', 'readable'],
     additionalProperties: false,
 };
 
@@ -56,7 +61,8 @@ const PROMPT = [
     '- amount 는 숫자만 씁니다 (140,000원 → 140000).',
     '- period 는 그 금액의 기준입니다. 월/주/회/기간 중 자료에 적힌 것을 쓰고, 안 적혀 있으면 "모름" 이라고 쓰세요.',
     '- 교재비 포함, 형제 할인, 적용 시작월 같은 단서는 notes 에 한 줄씩 옮깁니다.',
-    '- 이미지에서 읽은 것은 image_rows, 블로그 글에서 읽은 것은 blog_rows 에 넣습니다. 없으면 빈 배열.',
+    '- 읽은 줄은 image_rows 에 넣습니다. 표가 아니거나 금액을 못 찾겠으면 빈 배열로 두고 readable 을 false 로 하세요 —',
+    '  그때는 담당자가 원본 사진을 직접 봅니다. 억지로 지어내는 것보다 그편이 낫습니다.',
     '- 교습비가 아닌 금액(교재비·재료비·현금영수증 안내 등)은 넣지 말고 notes 로만 남기세요.',
 ].join('\n');
 
@@ -83,7 +89,7 @@ async function fetchImage(url) {
 }
 
 /** Claude 에게 가격표를 읽힌다. 실패는 던지지 않는다 — 읽은 만큼은 보여줘야 한다. */
-async function readWithClaude({ images, blogText, academyName }) {
+async function readWithClaude({ images, academyName }) {
     if (!process.env.ANTHROPIC_API_KEY) {
         return { error: '아직 켜지지 않았습니다 — Vercel 환경변수에 ANTHROPIC_API_KEY 를 넣어야 이미지를 읽습니다' };
     }
@@ -93,8 +99,7 @@ async function readWithClaude({ images, blogText, academyName }) {
     }
     const bits = [PROMPT];
     if (academyName) bits.push(`\n학원명: ${academyName}`);
-    if (images.length) bits.push(`\n위 이미지 ${images.length}장은 이 학원이 네이버플레이스에 올린 가격표입니다.`);
-    if (blogText) bits.push(`\n아래는 이 학원의 블로그 교습비 글 본문입니다.\n---\n${blogText}\n---`);
+    bits.push(`\n위 사진은 이 학원이 네이버플레이스에 올린 가격표입니다.`);
     content.push({ type: 'text', text: bits.join('\n') });
 
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -117,16 +122,20 @@ async function readWithClaude({ images, blogText, academyName }) {
         });
         if (resp.stop_reason === 'refusal') throw new Error('모델이 응답을 거부했습니다');
         const text = (resp.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('');
-        return JSON.parse(structured ? text : text.replace(/^[\s\S]*?\{/, '{').replace(/\}[^}]*$/, '}'));
+        const u = resp.usage || {};
+        return {
+            data: JSON.parse(structured ? text : text.replace(/^[\s\S]*?\{/, '{').replace(/\}[^}]*$/, '}')),
+            토큰: { 입력: u.input_tokens || 0, 출력: u.output_tokens || 0 },
+        };
     };
 
     try {
-        return { data: await ask(true), model: MODEL };
+        return { ...(await ask(true)), model: MODEL };
     } catch (err) {
         // 스키마를 붙인 요청이 거절되는 경우(구버전 SDK·API 변경)에도 읽기는 되어야 한다.
         // 한 번만 평범한 요청으로 다시 물어보고, 그것마저 실패하면 그때 사실대로 알린다.
         try {
-            return { data: await ask(false), model: MODEL, 형식보정: true };
+            return { ...(await ask(false)), model: MODEL, 형식보정: true };
         } catch (err2) {
             return { error: String((err2 && err2.message) || (err && err.message) || err) };
         }
@@ -136,7 +145,13 @@ async function readWithClaude({ images, blogText, academyName }) {
 // 스키마 없이 물어볼 때 보여줄 예시 모양
 const SHAPE = {
     image_rows: [{ label: '바이엘', condition: '주2회 60분', amount: 140000, period: '월' }],
-    blog_rows: [], notes: ['교재비 포함'], readable: true,
+    notes: ['교재비 포함'], readable: true,
+};
+
+/** '370000' · '월 15만원' 같은 표기에서 숫자만 */
+const won = (v) => {
+    const m = String(v == null ? '' : v).replace(/,/g, '').match(/[1-9][0-9]{3,7}/);
+    return m ? Number(m[0]) : 0;
 };
 
 const rows = (list) => (Array.isArray(list) ? list : []).filter((r) => r && Number(r.amount) > 0);
@@ -175,32 +190,41 @@ export default async function handler(req, res) {
         out.오류.push(`블로그: ${errText(blogRes.reason)}`);
     }
 
-    // AI 는 사람이 사진으로 올려 글자로는 못 읽는 것에만 쓴다.
-    // 블로그 본문은 글자가 어수선할 때만(금액이 네 개 넘게 흩어져 있을 때) 함께 넘긴다 —
-    // 두세 개면 문맥까지 그대로 보여주는 편이 사람 눈에 더 정확하다.
-    const images = [];
-    for (const url of out.플레이스.이미지) {
-        const img = await fetchImage(url);
-        if (img) images.push(img);
-    }
-    const messyBlog = out.블로그 && out.블로그.found && (out.블로그.금액 || []).length > 4
-        ? out.블로그.본문 : '';
+    // ── 사진을 읽을 것인가 ────────────────────────────────────────────
+    // 글자로 이미 금액을 얻었으면 읽지 않는다. 돈 때문만이 아니라, 글자로 받은 값이 사진에서
+    // 읽어낸 값보다 언제나 정확해서다. 사진은 원본 링크로 건네고 사람이 보면 된다.
+    const 글자금액 = out.플레이스.가격메뉴.filter((m) => won(m.금액)).length
+        + ((out.블로그 && out.블로그.금액) || []).length;
 
-    if (images.length || messyBlog) {
-        const r = await readWithClaude({ images, blogText: messyBlog, academyName: name });
-        out.ai = { 사용함: true, 모델: r.model || MODEL, 이미지수: images.length };
-        if (r.형식보정) out.ai.형식보정 = true;   // 스키마 없이 다시 물어 얻은 답 (진단용)
-        if (r.error) {
-            out.ai.오류 = r.error;
-        } else if (r.data) {
-            out.플레이스.이미지읽음 = rows(r.data.image_rows);
-            out.ai.블로그읽음 = rows(r.data.blog_rows);
-            out.비고 = (r.data.notes || []).slice(0, 6);
-            out.ai.읽음 = r.data.readable !== false;
+    if (글자금액 > 0) {
+        out.ai = {
+            사용함: false,
+            건너뜀: out.플레이스.이미지.length
+                ? '글로 적힌 금액이 있어 가격표 이미지는 읽지 않았습니다 — 원본 링크로 확인하세요'
+                : '',
+        };
+    } else if (out.플레이스.이미지.length) {
+        // 여러 장이면 첫 장만 읽는다. 가격표를 여러 장으로 나눠 올린 곳은 대개 사람이
+        // 직접 넘겨 보는 편이 빠르고, 장수만큼 값이 곱절로 든다.
+        const img = await fetchImage(out.플레이스.이미지[0]);
+        if (!img) {
+            out.오류.push('가격표 이미지를 내려받지 못했습니다 — 링크로 직접 확인하세요');
+        } else {
+            const r = await readWithClaude({ images: [img], academyName: name });
+            out.ai = { 사용함: true, 모델: r.model || MODEL, 읽은이미지: READ_IMAGES };
+            if (out.플레이스.이미지.length > READ_IMAGES) {
+                out.ai.남은이미지 = out.플레이스.이미지.length - READ_IMAGES;
+            }
+            if (r.토큰) out.ai.토큰 = r.토큰;
+            if (r.형식보정) out.ai.형식보정 = true;   // 스키마 없이 다시 물어 얻은 답 (진단용)
+            if (r.error) {
+                out.ai.오류 = r.error;
+            } else if (r.data) {
+                out.플레이스.이미지읽음 = rows(r.data.image_rows);
+                out.비고 = (r.data.notes || []).slice(0, 6);
+                out.ai.읽음 = r.data.readable !== false && out.플레이스.이미지읽음.length > 0;
+            }
         }
-    }
-    if (out.플레이스.이미지.length && !images.length) {
-        out.오류.push('가격표 이미지를 내려받지 못했습니다 — 링크로 직접 확인하세요');
     }
 
     return res.json(out);
