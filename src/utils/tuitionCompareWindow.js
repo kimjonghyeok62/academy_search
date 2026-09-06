@@ -474,7 +474,10 @@ const SPLIT_SCRIPT = `<script>
   // 그 창을 이름으로 되찾는다 (adopt) — 되찾아야 '닫으면 제자리' 가 첫 채널부터 된다.
   var PROMOTED = HTML.getAttribute('data-promoted') === '1';
   var RIGHT = HTML.getAttribute('data-right') || ('academySplit_' + Math.random().toString(36).slice(2));
+  // 옮겨 오면서 물려받은 '열려던 채널' — 옮겨 온 창이 대신 연다 (아래 promote 주석)
+  var OPEN_URL = HTML.getAttribute('data-open') || '';
   HTML.removeAttribute('data-promoted');   // 이 창이 또 복제될 때 딸려가지 않게
+  HTML.removeAttribute('data-open');
 
   var right = null, timer = null, home = null;
 
@@ -519,32 +522,78 @@ const SPLIT_SCRIPT = `<script>
     }, 400);
   }
 
+  /** 이 탭을 닫지 못했을 때 — 옮겨 간 창을 쓰라고 알려 준다 (두 벌을 나란히 두면 헷갈린다) */
+  function markMoved() {
+    if (document.getElementById('moved')) return;
+    var d = document.createElement('div');
+    d.id = 'moved';
+    d.textContent = '이 대조창은 왼쪽 창으로 옮겨졌습니다 — 이 탭은 닫으셔도 됩니다.';
+    d.setAttribute('style', 'position:fixed;left:0;right:0;top:0;z-index:9999;padding:10px 14px;'
+      + 'background:#1e293b;color:#fff;font-weight:700;text-align:center');
+    document.body.appendChild(d);
+  }
+
   /**
-   * 탭이었던 이 화면을 왼쪽 절반 창으로 옮긴다.
+   * 탭이었던 이 화면을 왼쪽 절반 창으로 옮긴다. 열려던 채널 주소를 함께 실어 보낸다.
    *
    * 브라우저는 스크립트가 window.open 으로 연 창에만 자리·크기를 내준다. 이 사이트는
    * 팝업이 막혀 있어 대조창이 탭으로 열리는데(openHtmlPopup 의 대비책), 탭은 아무리 불러도
    * 왼쪽으로 물러나지 못한다. 같은 사이트라도 blob: 문서에서 여는 팝업은 통과하므로,
    * 지금 화면을 그대로 복제해 창으로 띄우고 이 탭은 닫는다 — 사람이 누를 것은 없다.
+   *
+   * 채널을 여기서 먼저 열지 않는 이유: 크롬은 한 번의 클릭으로 팝업을 하나만 내준다
+   * (window.open 이 그 클릭의 '사용자 동작' 을 써 버린다). 채널을 먼저 열면 이 화면을
+   * 옮길 창이 열리지 않아, 채널만 오른쪽에 붙고 대조창은 탭인 채로 남는다 — 실제로 그랬다.
+   * 그래서 클릭 한 번은 '옮기기' 에 쓰고, 채널은 옮겨 간 창이 이어서 연다.
    */
-  function promote() {
+  function promote(openUrl) {
     HTML.setAttribute('data-promoted', '1');
     HTML.setAttribute('data-right', RIGHT);
+    if (openUrl) HTML.setAttribute('data-open', openUrl);
     var html = '<!DOCTYPE html>\\n' + HTML.outerHTML;
-    HTML.removeAttribute('data-promoted');   // 옮기지 못했을 때 이 화면에 흔적을 남기지 않는다
+    // 옮기지 못했을 때 이 화면에 흔적을 남기지 않는다
+    HTML.removeAttribute('data-promoted');
+    HTML.removeAttribute('data-open');
     var url = URL.createObjectURL(new Blob([html], { type: 'text/html; charset=utf-8' }));
     var box = leftHalf();
     var win = window.open(url, '_blank', feat(box));
-    if (!win) { URL.revokeObjectURL(url); return; }
+    if (!win) { URL.revokeObjectURL(url); return false; }
     // 복제본이 다 읽기 전에 이 탭이 닫히면 blob 주소가 함께 사라진다 — 다 읽은 것을 보고 닫는다
-    var t = setInterval(function () {
-      var done = false;
-      try { done = win.closed || (win.document && win.document.readyState === 'complete'); }
-      catch (e) { done = true; }
-      if (!done) return;
-      clearInterval(t); URL.revokeObjectURL(url); window.close();
+    var t = null, giveUp = null;
+    var done = function () {
+      if (t) { clearInterval(t); t = null; }
+      if (giveUp) { clearTimeout(giveUp); giveUp = null; }
+      URL.revokeObjectURL(url);
+      try { window.close(); } catch (e) { /* 스크립트가 연 탭이 아니면 못 닫는다 */ }
+      setTimeout(markMoved, 300);   // 닫혔으면 이 줄은 실행되지 않는다
+    };
+    t = setInterval(function () {
+      var ready = false;
+      try { ready = win.closed || (win.document && win.document.readyState === 'complete'); }
+      catch (e) { ready = true; }
+      if (ready) done();
     }, 120);
-    setTimeout(function () { clearInterval(t); URL.revokeObjectURL(url); window.close(); }, 6000);
+    giveUp = setTimeout(done, 6000);
+    return true;
+  }
+
+  /** 채널을 오른쪽 절반에 띄운다 (이 창은 이미 왼쪽에 있다) */
+  function openChannel(url) {
+    var w = window.open(url, RIGHT, feat(rightHalf()));
+    if (!w) return false;
+    try { w.focus(); } catch (e) { /* 무시 */ }
+    right = w; watch();
+    return true;
+  }
+
+  /** 옮겨 온 직후 채널을 자동으로 못 열었을 때 — 한 번만 더 누르면 된다고 알려 준다 */
+  function nudge() {
+    var el = document.querySelector('.howto');
+    if (!el) return;
+    var d = document.createElement('div');
+    d.textContent = '↑ 왼쪽 절반으로 붙었습니다. 오른쪽 열기를 한 번만 더 눌러 주세요 — 이제부터는 한 번에 붙습니다.';
+    d.setAttribute('style', 'margin-top:8px;font-weight:800;color:#b45309');
+    el.appendChild(d);
   }
 
   /** 탭이 먼저 열어 둔 채널 창을 이름으로 넘겨받는다 (새 창을 여는 것이 아니다) */
@@ -565,13 +614,18 @@ const SPLIT_SCRIPT = `<script>
     if (!a || !a.href) return;
     ev.preventDefault();
 
-    // 창이면 먼저 왼쪽으로 물러난다. 탭이면 물러나 봐야 소용없으니 채널부터 띄우고 옮긴다.
-    var box = IS_WINDOW ? goLeft() : rightHalf();
-    var w = window.open(a.href, RIGHT, feat(box));
-    if (!w) { goHome(); window.open(a.href, '_blank'); return; }   // 팝업 차단 — 자리는 못 잡아도 열기는 열어야 한다
-    try { w.focus(); } catch (e) { /* 무시 */ }
-    if (IS_WINDOW) { right = w; watch(); return; }
-    promote();
+    if (IS_WINDOW) {
+      // 창이다 — 먼저 왼쪽으로 물러나고 (moveTo 는 팝업이 아니라 클릭을 쓰지 않는다) 채널을 연다
+      goLeft();
+      if (openChannel(a.href)) return;
+      goHome();
+      window.open(a.href, '_blank');   // 팝업 차단 — 자리는 못 잡아도 열기는 열어야 한다
+      return;
+    }
+    // 탭이다 — 이 클릭은 '이 화면을 창으로 옮기는 데' 쓴다. 채널은 옮겨 간 창이 잇는다.
+    if (promote(a.href)) return;
+    // 옮기지 못했다 (팝업이 아예 막힌 경우) — 적어도 채널은 열어 준다
+    if (!openChannel(a.href)) window.open(a.href, '_blank');
   });
 
   window.addEventListener('pagehide', function () { if (timer) clearInterval(timer); });
@@ -580,7 +634,12 @@ const SPLIT_SCRIPT = `<script>
     // 닫으면 돌아갈 자리는 '원래 대조창이 뜨던 크기' 다 — 옮겨 오기 전 탭의 크기가 아니라.
     var b = screenBox(), w0 = Math.min(1240, b.w);
     home = { x: b.left + Math.floor((b.w - w0) / 2), y: b.top, w: w0, h: b.h };
+    // 열릴 때 준 자리를 브라우저가 다 듣지 않는 경우가 있다 (최소 너비 등) — 한 번 더 맞춘다
+    var lb = leftHalf();
+    try { window.moveTo(lb.left, lb.top); window.resizeTo(lb.w, lb.h); } catch (e) { /* 무시 */ }
     adopt();
+    // 탭에서 누른 그 채널을 이어서 연다. 막히면(사용자 동작 없이 여는 팝업) 한 번 더 누르면 된다.
+    if (OPEN_URL && !right && !openChannel(OPEN_URL)) nudge();
   }
 })();
 </script>`;
@@ -701,8 +760,8 @@ export function buildTuitionCompareHtml(academy, result, { region = '', numberLa
 
   <div class="card howto">
     <b>오른쪽 <span class="kbd">열기</span>를 누르면 이 창이 화면 왼쪽 절반, 그 채널이 오른쪽 절반으로 붙습니다.</b>
-    자동 조사는 교습비를 <b>올렸는지</b>만 보고 <b>얼마인지</b>는 읽지 않습니다 —
-    금액이 맞는지는 사람이 봐야 합니다. 나란히 놓인 두 화면의 금액을 맞춰 보고,
+    자동 조사는 <b>글자로 적힌 금액</b>만 신고 금액과 맞춰 봅니다 —
+    가격표가 <b>이미지</b>인 곳은 여기서 사람이 봐야 합니다. 나란히 놓인 두 화면의 금액을 맞춰 보고,
     다 봤으면 오른쪽 창을 닫으세요 — 이 창은 저절로 제자리로 돌아옵니다.
     <span class="dim">(플레이스·블로그·홈페이지·인스타·카페 모두 같습니다. Ctrl+클릭은 예전처럼 새 탭입니다.)</span>
   </div>
