@@ -214,12 +214,12 @@ function readCard(placeId, blogUrl) {
 }
 
 /** 읽어올 곳과 대조할 신고 금액을 창 안으로 넘긴다 */
-function readConfig(placeId, blogUrl, courses) {
+function readConfig(placeId, blogUrl, courses, name) {
     if (!placeId && !blogUrl) return '';
     const declared = [...new Set(courses.map((c) => parseNum(c.tuitionFee || c.totalFee))
         .filter((n) => n > 0))].sort((x, y) => x - y);
     const origin = typeof location !== 'undefined' ? location.origin : '';
-    const cfg = { api: `${origin}/api/tuition-read`, placeId, blogUrl, declared };
+    const cfg = { api: `${origin}/api/tuition-read`, placeId, blogUrl, declared, name };
     // '<' 를 그대로 두면 문자열 안의 '</script>' 하나로 문서가 끊긴다
     return `<script>var READ_CFG = ${JSON.stringify(cfg).replace(/</g, '\u003c')};</script>`;
 }
@@ -337,7 +337,7 @@ const READ_SCRIPT = `<script>
   fetch(READ_CFG.api, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ placeId: READ_CFG.placeId, blogUrl: READ_CFG.blogUrl, name: document.title }),
+    body: JSON.stringify({ placeId: READ_CFG.placeId, blogUrl: READ_CFG.blogUrl, name: READ_CFG.name }),
   }).then(function (r) {
     if (!r.ok) throw new Error('서버가 ' + r.status + ' 로 답했습니다');
     return r.json();
@@ -620,7 +620,7 @@ export function buildTuitionCompareHtml(academy, result, { region = '', numberLa
   </div>
   ${readCard(placeId, blogUrl)}
 </div>
-${readConfig(placeId, blogUrl, courses)}
+${readConfig(placeId, blogUrl, courses, name)}
 ${SPLIT_SCRIPT}
 ${READ_SCRIPT}
 </body>

@@ -85,7 +85,7 @@ async function fetchImage(url) {
 /** Claude 에게 가격표를 읽힌다. 실패는 던지지 않는다 — 읽은 만큼은 보여줘야 한다. */
 async function readWithClaude({ images, blogText, academyName }) {
     if (!process.env.ANTHROPIC_API_KEY) {
-        return { error: 'ANTHROPIC_API_KEY 가 설정되지 않았습니다' };
+        return { error: '아직 켜지지 않았습니다 — Vercel 환경변수에 ANTHROPIC_API_KEY 를 넣어야 이미지를 읽습니다' };
     }
     const content = [];
     for (const img of images) {
