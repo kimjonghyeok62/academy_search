@@ -31,14 +31,17 @@ export default function SnsOxBadge({ value, manual }) {
     if (value !== 'O' && value !== 'X' && value !== '?' && value !== '△') {
         return <span style={{ fontSize: '0.9rem', color: 'var(--border-color)' }}>–</span>;
     }
-    // △ 는 담당자만 넣을 수 있는 값이라 늘 '직접 확인한 값' 이다. 그래도 O·X 와 한눈에
-    // 갈라져 보여야 해서, 파란색(직접 넣음) 대신 제 색(주황)을 쓰고 밑줄로 직접 넣었음을 알린다.
+    // △ 는 O·X 와 한눈에 갈라져 보여야 하므로, 직접 넣은 값이어도 파란색 대신 제 색(주황)을 쓴다.
+    // 대신 밑줄로 '직접 넣은 값' 임을 알린다 — 자동 조사가 금액을 대조해 붙인 △ 와 구분된다.
     if (value === '△') {
         return (
-            <span title="올렸으나 신고 내용과 다릅니다 (허위기재) — 수정 안내 대상입니다"
+            <span title={manual
+                ? '올렸으나 신고 내용과 다릅니다 (허위기재) — 직접 확인한 값입니다'
+                : '올린 금액 중에 신고한 교습비와 같은 금액이 하나도 없습니다 (허위기재) — 대조창에서 확인 후 O 로 바꿀 수 있습니다'}
                 style={{
                     fontWeight: '800', fontSize: '0.95rem', color: '#d97706',
-                    borderBottom: '2px solid #d97706', paddingBottom: '1px',
+                    borderBottom: manual ? '2px solid #d97706' : 'none',
+                    paddingBottom: manual ? '1px' : 0,
                 }}>△</span>
         );
     }
