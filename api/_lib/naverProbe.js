@@ -198,14 +198,18 @@ export const FEE_KEYWORD = /교습비|수강료|수업료|학원비|원비/;
 // 교습비가 아닌 돈 — 같은 줄에 이 낱말이 있으면 대조에서 뺀다
 const NOT_FEE = /교재|재료|급식|간식|차량|셔틀|버스|기숙|식비|보증금|위약|환불|할인|상품권|경품|사은품|택배|배송|장학|벌금|대관|주차/;
 
+// 낱말 없이 값만 죽 적어 둔 곳을 '교습비를 올렸다' 고 보려면 몇 개부터인가.
+// 하나뿐인 금액은 무엇의 값인지 알 수 없다 (체험비 한 줄일 수도 있다). 둘부터는
+// 값의 '목록' 이고, 학원이 목록으로 적는 값은 교습비다.
+const FEE_LIST_MIN = 2;
+
 /**
- * 교습비로 볼 만한 금액만 뽑는다.
- * 글 전체에 교습비 이야기가 있을 때만 본다 — 소개글은 '<교습비>' 한 줄 아래에 항목만
- * 죽 적는 형태가 흔해서, 줄마다 낱말을 요구하면 정작 금액 줄이 전부 걸러진다.
+ * 교습비로 볼 만한 금액을 뽑는다 — 교재·차량비 같은 다른 돈이 적힌 줄은 뺀다.
+ * 낱말('교습비')을 요구하지 않는다: 실제로 '초등 수학 1개월 240,000원' 처럼
+ * 값만 죽 적어 두고 낱말은 한 번도 안 쓰는 홈페이지가 있다 (위드학원).
  */
 export function feeAmounts(text, limit = 30) {
     const s = String(text || '');
-    if (!FEE_KEYWORD.test(s)) return [];
     const out = [];
     const seen = new Set();
     for (const line of s.split(/[\r\n]+/)) {
@@ -218,6 +222,22 @@ export function feeAmounts(text, limit = 30) {
         }
     }
     return out;
+}
+
+/**
+ * 이 글에 교습비가 올라와 있는가 — 뽑아낸 금액과 함께 돌려준다.
+ *
+ * 두 가지 중 하나면 올린 것으로 본다.
+ *   1) '교습비·수강료' 같은 낱말이 있다 (금액이 이미지 안에 있어도 게시는 게시다)
+ *   2) 낱말은 없어도 값이 둘 이상 적혀 있다
+ *
+ * 2)가 필요한 이유: 법이 요구하는 것은 '교습비등을 표시' 하는 것이지 '교습비라는
+ * 낱말을 쓰는' 것이 아니다. 낱말만 찾으면, 값을 또박또박 적어 둔 학원이 미게시로
+ * 몰린다 — 실제로 위드학원 홈페이지가 그랬다 (금액 8개, 낱말 0개).
+ */
+export function feeShown(text) {
+    const amounts = feeAmounts(text);
+    return { amounts, shown: FEE_KEYWORD.test(String(text || '')) || amounts.length >= FEE_LIST_MIN };
 }
 
 /** 가격메뉴의 금액 문자열 → 숫자 ('26만원' · '260,000원' · '월 260000' 모두) */
@@ -634,7 +654,8 @@ async function probeBlogChannel(link) {
     // 신고 목록에 없는 금액이 늘 하나쯤 나오고, 그러면 전부 △ 가 된다.
     const intro = settled[0].status === 'fulfilled' ? (settled[0].value || '') : '';
 
-    let feeMentioned = FEE_KEYWORD.test(parts.join(' '));
+    var introFee = feeShown(intro);
+    let feeMentioned = FEE_KEYWORD.test(parts.join(' ')) || introFee.shown;
     let regNos = extractRegNos(parts.join(' '));
 
     // 소개·최근 글에서 못 찾았을 때만 검색한다 (요청 수를 아끼기 위해)
@@ -656,7 +677,7 @@ async function probeBlogChannel(link) {
         if (hit) regNos = extractRegNos(hit.text);
     }
 
-    return { feeMentioned, regNos, 적힌금액: feeAmounts(intro), scope: '소개·최근 글·블로그 내 검색' };
+    return { feeMentioned, regNos, 적힌금액: introFee.amounts, scope: '소개·최근 글·블로그 내 검색' };
 }
 
 // ── 대조용: '적혀 있는 금액' 을 그대로 꺼내온다 ────────────────────────
@@ -799,8 +820,10 @@ async function probeInstagramChannel(link) {
 async function probeHomepageChannel(link) {
     const html = await getText(link.url, H_DESKTOP);
     const text = htmlToText(html).slice(0, 200000);
+    const fee = feeShown(text);
     return {
-        feeMentioned: FEE_KEYWORD.test(text),
+        feeMentioned: fee.shown,
+        적힌금액: fee.amounts,
         regNos: extractRegNos(text),
         scope: '첫 페이지',
     };
@@ -909,7 +932,9 @@ export function buildResult({ academy, place, channels = [], matchScore, error, 
     // 소개글에만 교습비를 적어둔 곳도, 등록번호를 적어둔 곳도 있으므로
     // '못 봤다'를 '없다'로 바꿔 읽으면 멀쩡한 학원을 미이행으로 몰게 된다. 보류한다.
     const introUnknown = !!place.introUnavailable;
-    const introHasFee = FEE_KEYWORD.test(place.intro);
+    // 소개글도 낱말 없이 값만 적어 두는 곳이 있다 — 홈페이지와 같은 잣대로 본다
+    const introFee = feeShown(place.intro);
+    const introHasFee = introFee.shown;
     const hasMenu = place.menus.length > 0;
     const hasPriceImage = place.priceImageCount > 0;
     // 메뉴·가격표가 있으면 소개글을 못 봐도 게시가 확실하다. 없을 때만 판정을 보류한다.
@@ -933,7 +958,7 @@ export function buildResult({ academy, place, channels = [], matchScore, error, 
         .map((n) => Number(n)).filter((n) => n >= MONEY_MIN && n <= MONEY_MAX))];
     const 플레이스_적힌금액 = [...new Set([
         ...place.menus.map((m) => menuPrice(m.price)).filter(Boolean),
-        ...(introUnknown ? [] : feeAmounts(place.intro)),
+        ...(introUnknown ? [] : introFee.amounts),
     ])];
     const 플레이스_금액대조 = compareFees(플레이스_적힌금액, declared);
     const 플레이스_금액다름 = 플레이스_금액대조 === '불일치';

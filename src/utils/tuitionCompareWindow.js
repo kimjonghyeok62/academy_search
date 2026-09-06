@@ -147,6 +147,22 @@ function regNoCell(cell, listed, cmp) {
 }
 
 /** 네이버에 무엇이 어떻게 올라와 있는지 — 대조할 상대편 */
+/**
+ * 조사할 때 그 채널에서 읽어 둔 금액 (채널상세의 기재금액).
+ *
+ * 창이 뜬 뒤 다시 읽어 오는 ③ 과 달리 이건 이미 손에 있는 값이라 곧바로 보인다.
+ * 블로그는 나중에 READ_SCRIPT 가 더 자세한 값으로 갈아 끼운다.
+ */
+function feeChips(list) {
+    const nums = [...new Set((list || [])
+        .flatMap((c) => String(c.기재금액 || '').split(',').map((n) => Number(n)))
+        .filter((n) => n > 0))].sort((x, y) => x - y);
+    if (!nums.length) return '';
+    const shown = nums.slice(0, 6);
+    return `적힌 교습비 ${shown.map((n) => `<b>${fmtNum(n)}</b>`).join(' · ')}원`
+        + (nums.length > shown.length ? ` 외 ${nums.length - shown.length}건` : '');
+}
+
 function channelTable(result, academyName, region, label) {
     if (!result) {
         return `<p class="empty">아직 자동 조사를 하지 않은 학원입니다.
@@ -184,7 +200,8 @@ function channelTable(result, academyName, region, label) {
         rows.push(`<tr>
       <td class="ch"><strong>${esc(BUCKET_LABEL[b])}</strong>${list.length > 1 ? ` (${list.length}곳)` : ''}
         ${where ? `<div class="sub">${esc(where)}</div>` : ''}</td>
-      <td class="mid">${oxBadge(cells.get(cellKey(b, '교습비')))}<div class="sub fee" data-fee="${esc(b)}"></div></td>
+      <td class="mid">${oxBadge(cells.get(cellKey(b, '교습비')))}
+        <div class="sub fee" data-fee="${esc(b)}">${feeChips(list)}</div></td>
       <td>${regNoCell(cells.get(cellKey(b, '번호')),
             list.map((c) => c.기재번호), worstCmp(list.map((c) => c.번호대조)))}</td>
       <td class="mid">${list.map((c, i) => openBtn(c.url, list.length > 1 ? `열기 ${i + 1}` : '열기')).join(' ')}</td>
