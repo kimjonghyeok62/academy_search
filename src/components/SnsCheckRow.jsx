@@ -26,7 +26,7 @@ const Td = ({ children, style, onClick, title }) => (
     }}>{children}</td>
 );
 
-const CYCLE_HINT = '눌러서 직접 확인한 값으로 바꿉니다 (자동값 → O → X → 없음 → 자동값)';
+const CYCLE_HINT = '눌러서 직접 확인한 값으로 바꿉니다 (자동값 → O → △ → X → 없음 → 자동값). △ = 올렸으나 신고 내용과 다름';
 const LOCKED_HINT = '마감된 행입니다 — 고치려면 확인 열의 ✓ 확인완료 를 눌러 해제하세요';
 
 const fmtDay = (iso) => {
