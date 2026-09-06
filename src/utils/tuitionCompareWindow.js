@@ -169,7 +169,7 @@ function channelTable(result, academyName, region, label) {
     <td class="ch"><strong>플레이스</strong>${noPlace
             ? '<div class="sub">네이버플레이스 없음 — 담당자가 직접 확인함</div>'
             : result.플레이스_게시형태 ? `<div class="sub">${esc(result.플레이스_게시형태)}</div>` : ''}</td>
-    <td class="mid">${oxBadge(cells.get(cellKey('place', '교습비')))}</td>
+    <td class="mid">${oxBadge(cells.get(cellKey('place', '교습비')))}<div class="sub fee" data-fee="place"></div></td>
     <td>${noPlace ? '<span class="dim">–</span>'
             : regNoCell(cells.get(cellKey('place', '번호')), [result.플레이스_기재번호], result.플레이스_번호대조)}</td>
     <td class="mid">${placeUrl ? openBtn(placeUrl, '열기') : '<span class="dim">–</span>'}</td>
@@ -183,7 +183,7 @@ function channelTable(result, academyName, region, label) {
         rows.push(`<tr>
       <td class="ch"><strong>${esc(BUCKET_LABEL[b])}</strong>${list.length > 1 ? ` (${list.length}곳)` : ''}
         ${where ? `<div class="sub">${esc(where)}</div>` : ''}</td>
-      <td class="mid">${oxBadge(cells.get(cellKey(b, '교습비')))}</td>
+      <td class="mid">${oxBadge(cells.get(cellKey(b, '교습비')))}<div class="sub fee" data-fee="${esc(b)}"></div></td>
       <td>${regNoCell(cells.get(cellKey(b, '번호')),
             list.map((c) => c.기재번호), worstCmp(list.map((c) => c.번호대조)))}</td>
       <td class="mid">${list.map((c, i) => openBtn(c.url, list.length > 1 ? `열기 ${i + 1}` : '열기')).join(' ')}</td>
@@ -208,7 +208,7 @@ function channelTable(result, academyName, region, label) {
 function readCard(placeId, blogUrl) {
     if (!placeId && !blogUrl) return '';
     return `<div class="card" id="readcard">
-    <h2>③ 네이버에 적힌 금액 <span class="ai">자동으로 읽음</span></h2>
+    <h2>③ 적힌 금액 — 어느 항목이 얼마인가 <span class="ai">자동으로 읽음</span></h2>
     <div id="readbody" class="reading">네이버에서 금액을 읽는 중입니다… (10초쯤 걸립니다)</div>
   </div>`;
 }
@@ -271,21 +271,51 @@ const READ_SCRIPT = `<script>
       + '<td class="mid">' + cmp(amount) + '</td></tr>';
   }
 
+  // ② 표의 교습비 칸 — 등록번호 칸의 '적힌 번호' 와 같은 자리, 같은 꼴.
+  // 담당자의 눈은 이미 그 표에 가 있다. 답(얼마가 적혀 있나)은 거기서 끝나야 하고,
+  // ③ 은 그 답의 근거(어느 항목·어느 조건에서 나온 값인가)를 받쳐 준다.
+  function fee(bucket, amounts, empty) {
+    var el = document.querySelector('[data-fee="' + bucket + '"]');
+    if (!el) return;
+    if (!amounts.length) { el.innerHTML = empty ? '<span class="dim">' + empty + '</span>' : ''; return; }
+    var shown = amounts.slice(0, 6);
+    el.innerHTML = '적힌 교습비 ' + shown.map(function (n) {
+      var cls = DSET[n] ? '' : (n < DMIN || n > DMAX ? 'cmp-bad' : 'cmp-warn');
+      return '<b class="' + cls + '">' + Number(n).toLocaleString('ko-KR') + '</b>';
+    }).join(' · ') + '원'
+      + (amounts.length > shown.length ? ' 외 ' + (amounts.length - shown.length) + '건' : '');
+  }
+  function uniq(list) {
+    var seen = {}, out = [];
+    list.forEach(function (n) { if (n > 0 && !seen[n]) { seen[n] = 1; out.push(n); } });
+    return out.sort(function (a, b) { return a - b; });
+  }
+  function waiting() {
+    [].forEach.call(document.querySelectorAll('[data-fee]'), function (el) {
+      el.innerHTML = '<span class="dim">금액 읽는 중…</span>';
+    });
+  }
+  function clearWaiting() {
+    [].forEach.call(document.querySelectorAll('[data-fee]'), function (el) {
+      if (/읽는 중/.test(el.textContent)) el.innerHTML = '';
+    });
+  }
+
   function render(d) {
-    var rows = [], notes = [], aiUsed = false;
+    var rows = [], notes = [], aiUsed = false, imgRows = [], blog = null;
 
     (d['플레이스'] && d['플레이스']['가격메뉴'] || []).forEach(function (m) {
       rows.push(row('가격메뉴', m['이름'], '', num(m['금액']), m['금액']));
     });
 
-    var imgRows = (d['플레이스'] && d['플레이스']['이미지읽음']) || [];
+    imgRows = (d['플레이스'] && d['플레이스']['이미지읽음']) || [];
     imgRows.forEach(function (r) {
       aiUsed = true;
       var cond = [r.condition, r.period && r.period !== '모름' ? r.period + ' 기준' : ''].filter(Boolean).join(' · ');
       rows.push(row('가격표 이미지', r.label, cond, Number(r.amount), ''));
     });
 
-    var blog = d['블로그'];
+    blog = d['블로그'];
     if (blog && blog.found) {
       var got = (d.ai && d.ai['블로그읽음']) || [];
       if (got.length) {
@@ -332,8 +362,24 @@ const READ_SCRIPT = `<script>
     }
     body.className = '';
     body.innerHTML = html;
+
+    // ② 표로 올려 보낸다 — 플레이스는 가격메뉴+가격표이미지, 블로그는 본문에서 읽은 값
+    clearWaiting();
+    var placeAmounts = uniq(
+      ((d['플레이스'] && d['플레이스']['가격메뉴']) || []).map(function (m) { return num(m['금액']); })
+        .concat(imgRows.map(function (r) { return Number(r.amount); }))
+    );
+    var hasImage = ((d['플레이스'] && d['플레이스']['이미지']) || []).length > 0;
+    fee('place', placeAmounts, hasImage && !imgRows.length ? '금액이 가격표 이미지 안에 있습니다' : '');
+
+    var blogAmounts = uniq(
+      (blog && blog.found ? (blog['금액'] || []) : []).map(function (m) { return Number(m['금액']); })
+        .concat(((d.ai && d.ai['블로그읽음']) || []).map(function (r) { return Number(r.amount); }))
+    );
+    if (blog && blog.found) fee('blog', blogAmounts, '글로 적힌 금액 없음');
   }
 
+  waiting();
   fetch(READ_CFG.api, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -342,6 +388,7 @@ const READ_SCRIPT = `<script>
     if (!r.ok) throw new Error('서버가 ' + r.status + ' 로 답했습니다');
     return r.json();
   }).then(render).catch(function (e) {
+    clearWaiting();
     body.innerHTML = '<span class="dim">금액을 읽어오지 못했습니다 — ' + esc(e.message)
       + '. 오른쪽 <b>열기</b>로 직접 확인하세요.</span>';
   });
@@ -362,25 +409,31 @@ const READ_SCRIPT = `<script>
  *     열리고(openHtmlPopup 의 대비책), 1) 때문에 반반 붙이기가 통째로 죽는다.
  *
  * 그래서 이 스크립트는 자기가 창인지 탭인지부터 확인한다 (팝업 창은 도구모음이 없다 —
- * window.toolbar.visible === false). 탭이면 반반을 시도하는 대신 왜 안 되는지를 띄우고,
- * '새 창으로 열기' 한 번으로 자기 자신을 창에 복제한다. 복제본은 창이라 그때부터 다 된다.
+ * window.toolbar.visible === false). 탭이면, 열기를 누른 그 한 번의 클릭으로 채널을 띄우고
+ * 자기 자신을 왼쪽 절반 창에 복제한 뒤 탭은 닫는다. 사람이 따로 누를 것은 없다.
  * (막힌 것은 사이트의 팝업 권한인데, 같은 사이트라도 blob: 문서에서 여는 팝업은 통과한다 —
- *  이 창 자신이 blob: 문서라 복제가 먹힌다.)
+ *  이 창 자신이 blob: 문서라 복제가 먹힌다. 사이트의 팝업을 허용해 두면 대조창이 처음부터
+ *  창으로 떠서 이 복제 자체가 없다.)
  *
  * 상대 창은 남의 출처(naver.com 등)라 열어 준 뒤에는 closed 밖에 못 본다 —
  * 그래서 크기는 열 때 features 로 정하고, 닫혔는지는 짧은 간격으로 되물어 본다.
  */
 const SPLIT_SCRIPT = `<script>
 (function () {
-  // 이 창이 여는 채널 창은 늘 같은 창 하나다 — 다른 채널을 누르면 그 창이 갈아탄다.
-  // 이름에 난수를 붙이는 이유: 대조창을 두 개 띄웠을 때 서로의 채널 창을 빼앗지 않게.
-  var RIGHT = 'academySplit_' + Math.random().toString(36).slice(2);
-  var right = null, timer = null, home = null;
+  var HTML = document.documentElement;
 
   // 창인가 탭인가 — 팝업 창에는 도구모음이 없다. 탭이면 자리를 못 옮긴다.
   var IS_WINDOW = (function () {
     try { return window.toolbar.visible === false; } catch (e) { return true; }
   })();
+
+  // 탭에서 옮겨 온 복제본인가. 옮겨 올 때 채널 창 이름도 함께 물려받아, 먼저 열려 있던
+  // 그 창을 이름으로 되찾는다 (adopt) — 되찾아야 '닫으면 제자리' 가 첫 채널부터 된다.
+  var PROMOTED = HTML.getAttribute('data-promoted') === '1';
+  var RIGHT = HTML.getAttribute('data-right') || ('academySplit_' + Math.random().toString(36).slice(2));
+  HTML.removeAttribute('data-promoted');   // 이 창이 또 복제될 때 딸려가지 않게
+
+  var right = null, timer = null, home = null;
 
   // availWidth 가 0 으로 오는 환경(임베드된 미리보기 등)이 있다 — 0 으로 나누면 창이 사라진다
   function screenBox() {
@@ -390,14 +443,21 @@ const SPLIT_SCRIPT = `<script>
       w: s.availWidth || s.width || 1280, h: s.availHeight || s.height || 800,
     };
   }
+  function leftHalf() { var b = screenBox(); return { left: b.left, top: b.top, w: Math.floor(b.w / 2), h: b.h }; }
+  function rightHalf() {
+    var b = screenBox(), half = Math.floor(b.w / 2);
+    return { left: b.left + half, top: b.top, w: b.w - half, h: b.h };
+  }
+  function feat(box) {
+    return 'popup=yes,left=' + box.left + ',top=' + box.top + ',width=' + box.w + ',height=' + box.h;
+  }
 
   // 반반으로 붙기 전 자리를 적어 둔다 — 돌아올 곳이다 (이미 적어 뒀으면 덮어쓰지 않는다)
   function goLeft() {
-    var b = screenBox();
-    var half = Math.floor(b.w / 2);
+    var box = leftHalf();
     if (!home) home = { x: window.screenX, y: window.screenY, w: window.outerWidth, h: window.outerHeight };
-    try { window.moveTo(b.left, b.top); window.resizeTo(half, b.h); } catch (e) { /* 무시 */ }
-    return { left: b.left + half, top: b.top, w: b.w - half, h: b.h };
+    try { window.moveTo(box.left, box.top); window.resizeTo(box.w, box.h); } catch (e) { /* 무시 */ }
+    return rightHalf();
   }
 
   function goHome() {
@@ -416,40 +476,44 @@ const SPLIT_SCRIPT = `<script>
     }, 400);
   }
 
-  // ── 탭으로 열렸을 때: 왜 안 되는지 띄우고, 한 번에 창으로 옮겨 준다 ──────────
+  /**
+   * 탭이었던 이 화면을 왼쪽 절반 창으로 옮긴다.
+   *
+   * 브라우저는 스크립트가 window.open 으로 연 창에만 자리·크기를 내준다. 이 사이트는
+   * 팝업이 막혀 있어 대조창이 탭으로 열리는데(openHtmlPopup 의 대비책), 탭은 아무리 불러도
+   * 왼쪽으로 물러나지 못한다. 같은 사이트라도 blob: 문서에서 여는 팝업은 통과하므로,
+   * 지금 화면을 그대로 복제해 창으로 띄우고 이 탭은 닫는다 — 사람이 누를 것은 없다.
+   */
   function promote() {
-    var b = screenBox();
-    var w = Math.min(1240, b.w);
-    // 지금 화면을 그대로 복제한다 — DOCTYPE 을 빼면 복제본이 옛날 방식으로 그려져 표가 무너진다.
-    // 아래 경고칸도 같이 복제되지만, 복제본은 '창' 이라 스스로 지운다 (맨 끝 IS_WINDOW 분기).
-    var html = '<!DOCTYPE html>\\n' + document.documentElement.outerHTML;
+    HTML.setAttribute('data-promoted', '1');
+    HTML.setAttribute('data-right', RIGHT);
+    var html = '<!DOCTYPE html>\\n' + HTML.outerHTML;
+    HTML.removeAttribute('data-promoted');   // 옮기지 못했을 때 이 화면에 흔적을 남기지 않는다
     var url = URL.createObjectURL(new Blob([html], { type: 'text/html; charset=utf-8' }));
-    var win = window.open(url, '_blank', 'popup=yes,width=' + w + ',height=' + b.h
-      + ',left=' + (b.left + Math.floor((b.w - w) / 2)) + ',top=' + b.top);
-    if (!win) {
-      URL.revokeObjectURL(url);
-      alert('브라우저가 새 창을 막았습니다.\\n주소창 오른쪽의 팝업 차단 아이콘에서 이 사이트의 팝업을 허용해 주세요.');
-      return;
-    }
-    setTimeout(function () { URL.revokeObjectURL(url); }, 30000);
-    window.close();   // 남겨 두면 같은 화면이 둘이 된다
+    var box = leftHalf();
+    var win = window.open(url, '_blank', feat(box));
+    if (!win) { URL.revokeObjectURL(url); return; }
+    // 복제본이 다 읽기 전에 이 탭이 닫히면 blob 주소가 함께 사라진다 — 다 읽은 것을 보고 닫는다
+    var t = setInterval(function () {
+      var done = false;
+      try { done = win.closed || (win.document && win.document.readyState === 'complete'); }
+      catch (e) { done = true; }
+      if (!done) return;
+      clearInterval(t); URL.revokeObjectURL(url); window.close();
+    }, 120);
+    setTimeout(function () { clearInterval(t); URL.revokeObjectURL(url); window.close(); }, 6000);
   }
 
-  function warnTab() {
-    var wrap = document.querySelector('.wrap');
-    if (!wrap || document.getElementById('tabwarn')) return;
-    var bar = document.createElement('div');
-    bar.id = 'tabwarn';
-    bar.className = 'card tabwarn';
-    bar.innerHTML = '<div><b>이 화면이 새 창이 아니라 탭으로 열렸습니다.</b> 탭은 스스로 자리를 못 옮겨 '
-      + '반반 붙이기가 되지 않습니다.<div class="why">브라우저가 이 사이트의 팝업을 막고 있습니다 — '
-      + '주소창 오른쪽의 팝업 차단 아이콘에서 <b>항상 허용</b>을 눌러 두면 다음부터는 바로 새 창으로 열립니다.</div></div>';
-    var btn = document.createElement('button');
-    btn.type = 'button';
-    btn.textContent = '🗗 새 창으로 열기';
-    btn.onclick = promote;
-    bar.appendChild(btn);
-    wrap.insertBefore(bar, wrap.firstChild);
+  /** 탭이 먼저 열어 둔 채널 창을 이름으로 넘겨받는다 (새 창을 여는 것이 아니다) */
+  function adopt() {
+    var w = null;
+    try { w = window.open('', RIGHT); } catch (e) { return; }
+    if (!w) return;
+    var mine = true;
+    try { void w.location.href; } catch (e) { mine = false; }   // 남의 출처 = 그 채널 창이 맞다
+    if (mine) { try { w.close(); } catch (e) { /* 이름이 없어 새로 열린 빈 창 */ } return; }
+    right = w;
+    watch();
   }
 
   document.addEventListener('click', function (ev) {
@@ -458,27 +522,22 @@ const SPLIT_SCRIPT = `<script>
     if (!a || !a.href) return;
     ev.preventDefault();
 
-    // 탭이면 왼쪽으로 물러나 봐야 소용없다 — 채널만 띄우고 경고칸을 다시 보여 준다
-    var box = IS_WINDOW ? goLeft() : (function () {
-      var b = screenBox(), half = Math.floor(b.w / 2);
-      return { left: b.left + half, top: b.top, w: b.w - half, h: b.h };
-    })();
-
-    var w = window.open(a.href, RIGHT,
-      'popup=yes,left=' + box.left + ',top=' + box.top + ',width=' + box.w + ',height=' + box.h);
+    // 창이면 먼저 왼쪽으로 물러난다. 탭이면 물러나 봐야 소용없으니 채널부터 띄우고 옮긴다.
+    var box = IS_WINDOW ? goLeft() : rightHalf();
+    var w = window.open(a.href, RIGHT, feat(box));
     if (!w) { goHome(); window.open(a.href, '_blank'); return; }   // 팝업 차단 — 자리는 못 잡아도 열기는 열어야 한다
-    right = w;
     try { w.focus(); } catch (e) { /* 무시 */ }
-    if (IS_WINDOW) watch();
+    if (IS_WINDOW) { right = w; watch(); return; }
+    promote();
   });
 
   window.addEventListener('pagehide', function () { if (timer) clearInterval(timer); });
 
-  if (IS_WINDOW) {
-    var old = document.getElementById('tabwarn');   // 탭에서 복제돼 온 경고칸 — 창에서는 필요 없다
-    if (old) old.remove();
-  } else {
-    warnTab();
+  if (PROMOTED) {
+    // 닫으면 돌아갈 자리는 '원래 대조창이 뜨던 크기' 다 — 옮겨 오기 전 탭의 크기가 아니라.
+    var b = screenBox(), w0 = Math.min(1240, b.w);
+    home = { x: b.left + Math.floor((b.w - w0) / 2), y: b.top, w: w0, h: b.h };
+    adopt();
   }
 })();
 </script>`;
@@ -553,12 +612,8 @@ export function buildTuitionCompareHtml(academy, result, { region = '', numberLa
            padding: 2px 8px; margin-right: 4px; white-space: nowrap; }
   .howto { background: #fffbeb; border-color: #fde68a; font-size: 0.84rem; color: #78350f; }
   .kbd { border: 1px solid #d6bd8a; border-radius: 5px; padding: 0 5px; background: #fff; font-size: 0.8rem; }
-  .tabwarn { background: #fef2f2; border-color: #fecaca; color: #991b1b; font-size: 0.86rem;
-             display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
-  .tabwarn button { background: #dc2626; color: #fff; border: none; border-radius: 8px;
-                    padding: 8px 14px; font-size: 0.84rem; font-weight: 700; cursor: pointer; white-space: nowrap; }
-  .tabwarn .why { color: #b45309; font-size: 0.78rem; margin-top: 4px; }
   .src { font-size: 0.78rem; font-weight: 700; color: #475569; white-space: nowrap; }
+  .grid td.mid .fee { white-space: normal; text-align: center; line-height: 1.35; }
   .ctx { font-size: 0.76rem; color: #64748b; }
   .cmp-ok { color: #059669; font-weight: 700; }
   .cmp-warn { color: #b45309; font-weight: 700; }
@@ -574,7 +629,7 @@ export function buildTuitionCompareHtml(academy, result, { region = '', numberLa
   .bar .p { background: #2563eb; color: #fff; } .bar .c { background: #e2e8f0; color: #334155; }
   @media print {
     body { background: #fff; padding: 0; }
-    .bar, .tabwarn { display: none !important; }
+    .bar { display: none !important; }
     .card { border-color: #cbd5e1; break-inside: avoid; }
     a.open { border: none; padding: 0; }
   }
