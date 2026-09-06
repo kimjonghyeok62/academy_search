@@ -13,7 +13,7 @@ const CHANNEL_ICON = { blog: '✍️', instagram: '📷', homepage: '🌐' };
 const MANUAL_COLOR = '#2563eb';
 const DONE_COLOR = '#10b981';
 
-const CYCLE_HINT = '눌러서 직접 확인한 값으로 바꿉니다 (자동값 → O → X → 없음 → 자동값)';
+const CYCLE_HINT = '눌러서 직접 확인한 값으로 바꿉니다 (자동값 → O → △ → X → 없음 → 자동값). △ = 올렸으나 신고 내용과 다름';
 const LOCKED_HINT = '확인 완료로 마감된 학원입니다 — 고치려면 위의 ✓ 확인완료 를 눌러 해제하세요';
 
 const fmtWhen = (iso) => {

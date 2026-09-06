@@ -117,7 +117,7 @@ function rawAssignBuckets(channels) {
 }
 
 // 나쁜 순서 — 같은 종류 채널이 여러 개면 가장 나쁜 값 하나로 합쳐 보여준다
-const CELL_RANK = { X: 0, '?': 1, O: 2 };
+const CELL_RANK = { X: 0, '△': 1, '?': 2, O: 3 };
 function worstCell(values) {
     let worst = null;
     for (const v of values) {
@@ -245,6 +245,16 @@ function rawParseManual(result) {
 export const CELL_FIELDS = ['번호', '교습비'];
 // 그 채널이 아예 없다는 뜻 — 자동값으로도(링크 없음), 직접 고른 값으로도 쓴다
 export const NONE = '없음';
+
+/**
+ * 올려는 놨는데 내용이 신고와 다른 것 — 허위기재.
+ *
+ * O 도 X 도 아니다. X 로 두면 문자가 '교습비가 확인되지 않았습니다' 라고 나가는데, 학원은
+ * 올려 뒀으니 무슨 소린가 하고 되묻는다. O 로 두면 금액이 다른 채로 이행으로 집계된다.
+ * 자동 조사는 금액을 읽지 않으므로(게시 여부만 본다) 이 값은 담당자가 대조창에서 금액을
+ * 맞춰 보고 직접 넣는다 — 칸을 눌러 O 다음에 나온다.
+ */
+export const DIFFERS = '△';
 export const cellKey = (bucket, field) => `${bucket}|${field}`;
 
 /**
@@ -284,13 +294,16 @@ function rawRowCells(result) {
     return out;
 }
 
-// 칸을 누를 때마다 자동값 → O → X → 없음 → 자동값.
+// 칸을 누를 때마다 자동값 → O → △ → X → 없음 → 자동값.
+// △ 가 O 바로 뒤에 오는 이유: 대조창에서 금액이 다른 것을 보고 오는 길이라, 그때 누르는
+// 횟수가 가장 적어야 한다 (O 한 번 → △).
 // '없음' 이 필요한 이유 — 자동 조사가 '?' 로 남긴 칸(플레이스를 못 찾았거나 글을 못 읽은 곳) 중에는
 // 실제로 그 채널이 아예 없는 곳이 있다. '없음' 으로 두면 판정에서 빠져(X 도 ? 도 아니다)
 // 멀쩡한 학원이 '확인불가' 로 계속 남지 않는다.
 export function nextManual(current) {
     if (current === undefined) return 'O';
-    if (current === 'O') return 'X';
+    if (current === 'O') return DIFFERS;
+    if (current === DIFFERS) return 'X';
     if (current === 'X') return NONE;
     return undefined;
 }
@@ -319,7 +332,9 @@ function rawEffectiveVerdict(result) {
     if (!isNoPlace(result) && result.matchStatus !== 'matched') return '확인불가';
 
     const fee = rowCells(result).filter((c) => c.field === '교습비' && c.bucket !== 'instagram');
-    if (fee.some((c) => c.value === 'X')) return '미이행';
+    // 금액이 다른 것(△)도 미이행이다 — 교습비를 '표시' 하라는 것은 신고한 금액을 표시하라는
+    // 뜻이지 아무 금액이나 걸어 두라는 뜻이 아니다. 이행으로 세면 허위기재가 통계에서 사라진다.
+    if (fee.some((c) => c.value === 'X' || c.value === DIFFERS)) return '미이행';
     // 못 본 곳이 남아 있으면 '이행'이라고 단정하지 않는다
     if (fee.some((c) => c.value === '?')) return '확인불가';
     // 올릴 자리가 아예 없는 곳 — 게시했다는 뜻의 '이행'과 섞으면 이행률이 실제보다 좋아 보인다

@@ -1,6 +1,6 @@
-// 게시 여부 한 칸 — O / X / ? 만 보여준다.
+// 게시 여부 한 칸 — O / △ / X / ? 만 보여준다.
 // 왜 X 인지(미기재·오기재)는 옆의 '비고' 열과 학원 상세 SNS 탭이 맡는다.
-//   'O' 게시  ·  'X' 미게시  ·  '?' 열지 못해 판정 보류
+//   'O' 게시  ·  '△' 올렸으나 신고 내용과 다름(허위기재)  ·  'X' 미게시  ·  '?' 열지 못해 판정 보류
 //   '없음' 그 채널 링크가 아예 없음  ·  '안함' 자동 조사 대상 아님  ·  빈 값 아직 조사 안 함
 //
 // manual 이 true 면 담당자가 직접 보고 고친 값이다. 자동 판정과 한눈에 구분되도록
@@ -28,8 +28,19 @@ export default function SnsOxBadge({ value, manual }) {
                 style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>안함</span>
         );
     }
-    if (value !== 'O' && value !== 'X' && value !== '?') {
+    if (value !== 'O' && value !== 'X' && value !== '?' && value !== '△') {
         return <span style={{ fontSize: '0.9rem', color: 'var(--border-color)' }}>–</span>;
+    }
+    // △ 는 담당자만 넣을 수 있는 값이라 늘 '직접 확인한 값' 이다. 그래도 O·X 와 한눈에
+    // 갈라져 보여야 해서, 파란색(직접 넣음) 대신 제 색(주황)을 쓰고 밑줄로 직접 넣었음을 알린다.
+    if (value === '△') {
+        return (
+            <span title="올렸으나 신고 내용과 다릅니다 (허위기재) — 수정 안내 대상입니다"
+                style={{
+                    fontWeight: '800', fontSize: '0.95rem', color: '#d97706',
+                    borderBottom: '2px solid #d97706', paddingBottom: '1px',
+                }}>△</span>
+        );
     }
     return (
         <span style={{

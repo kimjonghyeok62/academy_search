@@ -263,11 +263,33 @@ const READ_SCRIPT = `<script>
     return '<span class="cmp-warn">신고 목록에 없는 금액</span>';
   }
 
+  // 혼자 동떨어진 금액을 골라낸다.
+  //
+  // 왜 필요한가: 학원이 '50만원' 을 '5만원' 으로 적어 두는 일이 실제로 있다. 신고 범위와
+  // 견주는 것만으로는 이걸 '범위 밖' 이라고만 말하게 되는데, 담당자가 알아야 하는 것은
+  // '이 줄 하나가 다른 줄들과 자릿수가 다르다' 는 사실이다. 그래야 학원에 물어볼 말이
+  // '왜 범위 밖이냐' 가 아니라 '이거 0 하나 빠진 것 아니냐' 가 된다.
+  //
+  // 판정하지 않는다 — 다른 값들의 가운데값에 견줘 세 배 넘게 벗어난 것만 표시한다.
+  // 값이 셋도 안 되면 무엇이 예외인지 말할 근거가 없으므로 아무것도 하지 않는다.
+  var ODD = {};
+  function markOdd(list) {
+    var a = list.filter(function (n) { return n > 0; }).sort(function (x, y) { return x - y; });
+    if (a.length < 3) return;
+    var mid = a.length % 2 ? a[(a.length - 1) / 2] : (a[a.length / 2 - 1] + a[a.length / 2]) / 2;
+    a.forEach(function (n) {
+      if (n * 3 < mid) ODD[n] = '다른 항목보다 유난히 낮습니다 — 0 이 빠지지 않았는지 확인하세요';
+      else if (n > mid * 3) ODD[n] = '다른 항목보다 유난히 높습니다 — 0 이 더 붙지 않았는지 확인하세요';
+    });
+  }
+
   function row(src, label, cond, amount, raw) {
-    return '<tr><td class="src">' + esc(src) + '</td>'
+    var odd = amount && ODD[amount];
+    return '<tr' + (odd ? ' class="odd"' : '') + '><td class="src">' + esc(src) + '</td>'
       + '<td>' + (label ? esc(label) : '<span class="dim">–</span>') + '</td>'
       + '<td class="ctx">' + esc(cond || '') + '</td>'
-      + '<td class="num"><strong>' + (amount ? won(amount) : esc(raw || '–')) + '</strong></td>'
+      + '<td class="num"><strong>' + (amount ? won(amount) : esc(raw || '–')) + '</strong>'
+      + (odd ? '<div class="oddnote">⚠ ' + esc(odd) + '</div>' : '') + '</td>'
       + '<td class="mid">' + cmp(amount) + '</td></tr>';
   }
 
@@ -281,7 +303,10 @@ const READ_SCRIPT = `<script>
     var shown = amounts.slice(0, 6);
     el.innerHTML = '적힌 교습비 ' + shown.map(function (n) {
       var cls = DSET[n] ? '' : (n < DMIN || n > DMAX ? 'cmp-bad' : 'cmp-warn');
-      return '<b class="' + cls + '">' + Number(n).toLocaleString('ko-KR') + '</b>';
+      var odd = ODD[n];
+      return '<b class="' + cls + (odd ? ' oddmark' : '') + '"'
+        + (odd ? ' title="' + esc(odd) + '"' : '') + '>'
+        + Number(n).toLocaleString('ko-KR') + (odd ? '⚠' : '') + '</b>';
     }).join(' · ') + '원'
       + (amounts.length > shown.length ? ' 외 ' + (amounts.length - shown.length) + '건' : '');
   }
@@ -303,6 +328,16 @@ const READ_SCRIPT = `<script>
 
   function render(d) {
     var rows = [], notes = [], aiUsed = false, imgRows = [], introRows = [], blog = null;
+
+    // 표를 그리기 전에 먼저 전체를 훑어 동떨어진 값을 골라 둔다 (row 가 그 결과를 쓴다)
+    var menus0 = (d['플레이스'] && d['플레이스']['가격메뉴']) || [];
+    var intro0 = (d['플레이스'] && d['플레이스']['소개글']) || [];
+    var img0 = (d['플레이스'] && d['플레이스']['이미지읽음']) || [];
+    var blog0 = (d['블로그'] && d['블로그']['금액']) || [];
+    markOdd(menus0.map(function (m) { return num(m['금액']); })
+      .concat(intro0.map(function (m) { return Number(m['금액']); }))
+      .concat(img0.map(function (r) { return Number(r.amount); }))
+      .concat(blog0.map(function (m) { return Number(m['금액']); })));
 
     (d['플레이스'] && d['플레이스']['가격메뉴'] || []).forEach(function (m) {
       rows.push(row('가격메뉴', m['이름'], '', num(m['금액']), m['금액']));
@@ -629,6 +664,10 @@ export function buildTuitionCompareHtml(academy, result, { region = '', numberLa
   .ai { margin-left: 6px; font-size: 0.68rem; font-weight: 700; color: #4338ca;
         background: #e0e7ff; border-radius: 999px; padding: 1px 7px; }
   .reading { font-size: 0.86rem; color: #64748b; padding: 10px 2px; }
+  .grid tr.odd td { background: #fff7ed !important; }
+  .oddnote { font-size: 0.72rem; font-weight: 600; color: #b45309; margin-top: 3px;
+             white-space: normal; text-align: right; }
+  .oddmark { background: #fef08a; border-radius: 4px; padding: 0 3px; }
   .caution { margin-top: 10px; font-size: 0.78rem; color: #92400e;
              background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 8px 10px; }
   .bar { position: fixed; top: 14px; right: 14px; display: flex; gap: 8px; }

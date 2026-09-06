@@ -12,7 +12,7 @@
 // 화면에서 O 로 바꾼 칸이 문자에 '빠졌다'고 나가는 일이 없다.
 
 import {
-    rowCells, parseChannels, assignBuckets, currentPlaceUrl,
+    rowCells, parseChannels, assignBuckets, currentPlaceUrl, DIFFERS,
 } from './snsCheck';
 import { sortCourses } from './generateTuitionPDF';
 import { feeRange } from './tuitionCompareWindow';
@@ -135,7 +135,11 @@ export function smsBytes(text) {
 }
 
 /**
- * 그 학원에서 실제로 빠진 칸 — [{ bucket, field }], 표의 열 순서 그대로.
+ * 그 학원에서 고쳐야 할 칸 — [{ bucket, field, differs }], 표의 열 순서 그대로.
+ *
+ * 빠진 것(X)과 다른 것(△)을 함께 싣되 구분해 둔다. 학원 입장에서는 전혀 다른 말이다 —
+ * 없는 것은 올리라는 말이고, 다른 것은 이미 올린 것을 고치라는 말이다. 이걸 뭉뚱그려
+ * '확인되지 않았습니다' 라고 보내면, 올려 둔 학원은 무슨 소린가 하고 되묻는다.
  *
  * 인스타그램을 따로 빼지 않는다. 자동 조사는 인스타를 '안함' 으로 두므로 여기 걸릴 일이
  * 없고, 담당자가 직접 X 로 바꿔 둔 곳은 눈으로 보고 판단한 것이라 알려야 한다.
@@ -143,8 +147,8 @@ export function smsBytes(text) {
 export function noticeItems(result) {
     if (!result) return [];
     return rowCells(result)
-        .filter((c) => c.value === 'X')
-        .map((c) => ({ bucket: c.bucket, field: c.field }));
+        .filter((c) => c.value === 'X' || c.value === DIFFERS)
+        .map((c) => ({ bucket: c.bucket, field: c.field, differs: c.value === DIFFERS }));
 }
 
 /** 오늘 + days → '2026. 9. 10.' */
@@ -204,9 +208,15 @@ function compose(target, result, academy, opts, keep) {
     L.push(`[${SENDER}] ${SUBJECT}`, '');
     L.push(`${target.name} (${regLabel})`, '');
 
-    L.push('아래 광고물에서 다음이 확인되지 않았습니다.');
-    items.forEach(({ bucket, field }, i) => {
-        L.push(`${i + 1}. ${CHANNEL_NAME[bucket]} : ${field === '번호' ? numberLabel : field}`);
+    // 다른 것이 하나라도 있으면 머리말도 그렇게 말해야 한다 — 올려 둔 것을 두고
+    // '확인되지 않았다' 고 하면 학원은 되묻고, 담당자가 전화를 한 번 더 받는다.
+    L.push(items.some((it) => it.differs)
+        ? '아래 광고물에서 다음이 확인되지 않았거나, 신고하신 내용과 다릅니다.'
+        : '아래 광고물에서 다음이 확인되지 않았습니다.');
+    items.forEach(({ bucket, field, differs }, i) => {
+        const what = field === '번호' ? numberLabel : field;
+        const tail = differs ? (field === '번호' ? ' (적힌 번호가 다름)' : ' (교습비 금액이 다름)') : '';
+        L.push(`${i + 1}. ${CHANNEL_NAME[bucket]} : ${what}${tail}`);
     });
     L.push('');
 
