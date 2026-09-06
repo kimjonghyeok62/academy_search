@@ -60,7 +60,7 @@ function naverScope(url) {
     return '';
 }
 
-async function getText(url, headers, timeoutMs) {
+export async function getText(url, headers, timeoutMs) {
     const scope = naverScope(url);
     const controller = new AbortController();
     const timer = setTimeout(
@@ -203,7 +203,7 @@ export function extractApolloState(html) {
 }
 
 // Apollo 캐시 키는 인자가 붙어 있어서(예: description({"source":[...]})) 이름만으로 찾는다
-function fieldByName(node, name) {
+export function fieldByName(node, name) {
     if (!node) return undefined;
     const key = Object.keys(node).find((k) => k === name || k.startsWith(`${name}(`));
     return key === undefined ? undefined : node[key];
@@ -456,10 +456,17 @@ export async function probePlace(placeId) {
         imageCount: Array.isArray(v && v.images) ? v.images.length : 0,
     }));
 
-    // "가격표 이미지로 보기" — 이미지로만 올린 교습비도 게시로 본다
+    // "가격표 이미지로 보기" — 이미지로만 올린 교습비도 게시로 본다.
+    // 개수뿐 아니라 주소도 남긴다: 판정(O/X)에는 개수면 되지만, 교습비 대조창은
+    // 그 이미지를 실제로 읽어(api/tuition-read.js) 금액을 꺼내야 한다.
     const menuImages = fieldByName(detail, 'menuImages');
     const priceImageCount = (Array.isArray(menuImages) ? menuImages.length : 0)
         + menus.reduce((a, m) => a + m.imageCount, 0);
+    const priceImages = [...new Set([
+        ...(Array.isArray(menuImages) ? menuImages : []).map((v) => v && (v.imageUrl || v.url)),
+        ...menuList.flatMap((v) => (Array.isArray(v && v.images) ? v.images : [])
+            .map((im) => im && (im.imageUrl || im.url || im))),
+    ].filter((u) => typeof u === 'string' && /^https?:/.test(u)))];
 
     const intro = fieldByName(detail, 'description') || deepFindDescription(state) || '';
 
@@ -494,6 +501,7 @@ export async function probePlace(placeId) {
         introUnavailable: introUnavailable && !intro,
         menus,
         priceImageCount,
+        priceImages,
         links,
         placeUrl: `https://m.place.naver.com/place/${placeId}/home`,
     };
@@ -521,8 +529,8 @@ export function htmlToText(html) {
 //   2) RSS           — 최근 글 본문. PostList 는 본문을 iframe 으로 따로 불러와 껍데기뿐이다.
 //   3) 블로그 내 검색 — 오래된 '교습비' 글은 최근 글에도 사이드바에도 안 잡힌다.
 //                      블로그 자체 검색이 이런 글을 정확히 찾아준다.
-async function fetchTextOrNull(url, headers) {
-    try { return htmlToText(await getText(url, headers)); }
+async function fetchTextOrNull(url, headers, raw = false) {
+    try { const html = await getText(url, headers); return raw ? html : htmlToText(html); }
     catch (err) { if (isBlocked(err)) throw err; return null; }
 }
 
@@ -572,6 +580,76 @@ async function probeBlogChannel(link) {
     }
 
     return { feeMentioned, regNos, scope: '소개·최근 글·블로그 내 검색' };
+}
+
+// ── 대조용: '적혀 있는 금액' 을 그대로 꺼내온다 ────────────────────────
+// 판정(O/X)과는 목적이 다르다. 판정은 '올렸는가' 만 보면 되지만, 대조창은 담당자가
+// 신고액과 눈으로 맞출 '숫자' 를 필요로 한다. 그래서 이쪽은 아무것도 판정하지 않고
+// 찾은 것을 찾은 자리(문장·출처)와 함께 그대로 돌려준다 — 틀렸을 때 사람이 짚어낼 수 있게.
+
+// 금액으로 읽을 것: '150,000원' 과 '15만원' 두 가지. 전화번호·등록번호가 섞이지 않도록
+// '원' 이 붙은 것만 인정한다.
+const MONEY = /([1-9][0-9,]{2,})\s*원|([1-9][0-9]?)\s*만\s*원?/g;
+const MONEY_MIN = 10000, MONEY_MAX = 5000000;
+
+/** 본문에서 금액과 그 금액이 나온 문맥을 뽑는다 */
+export function extractAmounts(text, limit = 20) {
+    const out = [];
+    const seen = new Set();
+    for (const m of String(text || '').matchAll(MONEY)) {
+        const won = m[1] ? Number(m[1].replace(/,/g, '')) : Number(m[2]) * 10000;
+        if (!(won >= MONEY_MIN && won <= MONEY_MAX)) continue;
+        const key = `${won}@${Math.floor(m.index / 40)}`;   // 같은 자리의 같은 금액은 한 번만
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push({
+            금액: won,
+            문맥: text.slice(Math.max(0, m.index - 55), m.index + m[0].length + 45).trim(),
+        });
+        if (out.length >= limit) break;
+    }
+    return out;
+}
+
+/**
+ * 블로그에서 교습비 글 하나를 찾아 본문을 가져온다.
+ *
+ * 블로그 안 검색(PostSearchList)은 글 목록만 주고 본문은 iframe 으로 따로 불러오므로,
+ * 검색으로 글 번호(logNo)만 얻고 본문은 m.blog 로 다시 받는다.
+ * 금액이 이미지로만 올라와 있는 글이 흔하다 — 그때는 amounts 가 비고, 그 사실 자체가
+ * 담당자에게 필요한 정보다 ('글로는 안 적혀 있음').
+ */
+export async function readBlogFeeText(blogId) {
+    const id = String(blogId || '').trim();
+    if (!id) return null;
+    let hit = null;
+    for (const kw of ['교습비', '수강료', '학원비', '원비']) {
+        const html = await fetchTextOrNull(
+            `https://blog.naver.com/PostSearchList.naver?blogId=${encodeURIComponent(id)}&SearchText=${encodeURIComponent(kw)}`,
+            H_DESKTOP, true
+        );
+        if (html === null) continue;
+        const no = (html.match(/logNo=(\d{6,})/) || [])[1];
+        if (no) { hit = { no, kw }; break; }
+    }
+    if (!hit) return { found: false };
+
+    const url = `https://m.blog.naver.com/${encodeURIComponent(id)}/${hit.no}`;
+    const text = await fetchTextOrNull(url, H_MOBILE);
+    if (text === null) return { found: false, url };
+
+    // 앞쪽은 블로그 껍데기(메뉴·글꼴 조절 따위)다. 교습비 이야기가 처음 나오는 데서 자른다.
+    const at = text.search(FEE_KEYWORD);
+    // 글 끝에는 블로그가 붙인 메타데이터({"title":…,"logNo":…})가 딸려온다 — 금액이 아니다
+    const clean = text.split(/\{&#0?34;title&#0?34;|\{"title":/)[0];
+    const body = (at > 0 ? clean.slice(Math.max(0, at - 200)) : clean).slice(0, 4000);
+    return {
+        found: true,
+        url,
+        검색어: hit.kw,
+        본문: body,
+        금액: extractAmounts(body),
+    };
 }
 
 // 인스타그램은 로그인 없이 게시물 본문을 볼 수 없다. 첫 화면 소개글(bio)만 판정 대상으로 삼는다.

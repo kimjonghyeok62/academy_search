@@ -199,6 +199,156 @@ function channelTable(result, academyName, region, label) {
 }
 
 /**
+ * ③ 네이버에 적힌 금액 — 자리만 만들어 둔다. 채우는 것은 창이 뜬 뒤 READ_SCRIPT 다.
+ *
+ * 왜 미리 담아 두지 않는가: 금액은 서버가 네이버를 다시 열어야 알 수 있고(가격표가 사진이면
+ * Claude 까지 거친다) 10초쯤 걸린다. 그동안 창이 안 뜨면, 정작 급할 때 못 쓴다.
+ * 창은 곧바로 띄우고 금액은 도착하는 대로 채운다.
+ */
+function readCard(placeId, blogUrl) {
+    if (!placeId && !blogUrl) return '';
+    return `<div class="card" id="readcard">
+    <h2>③ 네이버에 적힌 금액 <span class="ai">자동으로 읽음</span></h2>
+    <div id="readbody" class="reading">네이버에서 금액을 읽는 중입니다… (10초쯤 걸립니다)</div>
+  </div>`;
+}
+
+/** 읽어올 곳과 대조할 신고 금액을 창 안으로 넘긴다 */
+function readConfig(placeId, blogUrl, courses) {
+    if (!placeId && !blogUrl) return '';
+    const declared = [...new Set(courses.map((c) => parseNum(c.tuitionFee || c.totalFee))
+        .filter((n) => n > 0))].sort((x, y) => x - y);
+    const origin = typeof location !== 'undefined' ? location.origin : '';
+    const cfg = { api: `${origin}/api/tuition-read`, placeId, blogUrl, declared };
+    // '<' 를 그대로 두면 문자열 안의 '</script>' 하나로 문서가 끊긴다
+    return `<script>var READ_CFG = ${JSON.stringify(cfg).replace(/</g, '\u003c')};</script>`;
+}
+
+/**
+ * 읽어와 신고 금액과 맞춰 보여 준다.
+ *
+ * 판정하지 않는다 — 세 갈래(가격메뉴·가격표 이미지·블로그)에서 '적혀 있던 값' 을 적혀 있던
+ * 자리와 함께 늘어놓고, 신고 금액과 같은지만 옆에 붙인다. 특히 가격표 이미지에서 온 값은
+ * 사람이 사진을 찍어 올린 것을 기계가 읽은 것이라 틀릴 수 있으므로, 원본을 여는 단추를
+ * 같은 줄에 둔다 — 지적은 원본을 보고 해야 한다.
+ */
+const READ_SCRIPT = `<script>
+(function () {
+  if (typeof READ_CFG === 'undefined') return;
+  var body = document.getElementById('readbody');
+  if (!body) return;
+
+  var D = READ_CFG.declared || [];
+  var DSET = {}, DMIN = D.length ? D[0] : 0, DMAX = D.length ? D[D.length - 1] : 0;
+  D.forEach(function (n) { DSET[n] = true; });
+
+  function esc(v) {
+    return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function won(n) { return Number(n).toLocaleString('ko-KR') + '원'; }
+  function num(v) {
+    var m = String(v == null ? '' : v).replace(/,/g, '').match(/[1-9][0-9]{3,7}/);
+    return m ? Number(m[0]) : 0;
+  }
+
+  // 신고 금액과의 관계. 없는 금액이라고 곧장 위반은 아니다 — 신고 안 한 과정일 수도,
+  // 기간·횟수가 다른 값일 수도 있다. 그래서 '다르다' 까지만 말하고 판단은 사람에게 남긴다.
+  function cmp(amount) {
+    if (!amount) return '';
+    if (!D.length) return '<span class="dim">신고 자료 없음</span>';
+    if (DSET[amount]) return '<span class="cmp-ok">✓ 신고금액과 같음</span>';
+    if (amount < DMIN || amount > DMAX) return '<span class="cmp-bad">⚠ 신고 범위 밖</span>';
+    return '<span class="cmp-warn">신고 목록에 없는 금액</span>';
+  }
+
+  function row(src, label, cond, amount, raw) {
+    return '<tr><td class="src">' + esc(src) + '</td>'
+      + '<td>' + (label ? esc(label) : '<span class="dim">–</span>') + '</td>'
+      + '<td class="ctx">' + esc(cond || '') + '</td>'
+      + '<td class="num"><strong>' + (amount ? won(amount) : esc(raw || '–')) + '</strong></td>'
+      + '<td class="mid">' + cmp(amount) + '</td></tr>';
+  }
+
+  function render(d) {
+    var rows = [], notes = [], aiUsed = false;
+
+    (d['플레이스'] && d['플레이스']['가격메뉴'] || []).forEach(function (m) {
+      rows.push(row('가격메뉴', m['이름'], '', num(m['금액']), m['금액']));
+    });
+
+    var imgRows = (d['플레이스'] && d['플레이스']['이미지읽음']) || [];
+    imgRows.forEach(function (r) {
+      aiUsed = true;
+      var cond = [r.condition, r.period && r.period !== '모름' ? r.period + ' 기준' : ''].filter(Boolean).join(' · ');
+      rows.push(row('가격표 이미지', r.label, cond, Number(r.amount), ''));
+    });
+
+    var blog = d['블로그'];
+    if (blog && blog.found) {
+      var got = (d.ai && d.ai['블로그읽음']) || [];
+      if (got.length) {
+        got.forEach(function (r) { aiUsed = true; rows.push(row('블로그', r.label, r.condition, Number(r.amount), '')); });
+      } else {
+        (blog['금액'] || []).forEach(function (m) {
+          rows.push(row('블로그', '', m['문맥'], Number(m['금액']), ''));
+        });
+      }
+    }
+
+    (d['비고'] || []).forEach(function (n) { notes.push(n); });
+
+    var html = '';
+    if (rows.length) {
+      html += '<table class="grid"><thead><tr><th>어디에서</th><th>항목</th><th>조건 · 적힌 자리</th>'
+        + '<th>금액</th><th>신고와 대조</th></tr></thead><tbody>' + rows.join('') + '</tbody></table>';
+    }
+
+    var says = [];
+    if (!rows.length) says.push('네이버에서 금액을 찾지 못했습니다.');
+    if (blog && blog.found && !(blog['금액'] || []).length && !(d.ai && (d.ai['블로그읽음'] || []).length)) {
+      says.push('블로그 교습비 글은 찾았지만 <b>본문에 금액이 글로 적혀 있지 않습니다</b> — 가격표가 이미지일 수 있습니다.');
+    }
+    if (blog && blog.found === false) says.push('블로그에서 교습비 글을 찾지 못했습니다.');
+    if (d.ai && d.ai['오류']) says.push('가격표 이미지를 읽지 못했습니다 — ' + esc(d.ai['오류']));
+    if (d.ai && d.ai['읽음'] === false) says.push('가격표 이미지가 흐려 다 읽지 못했습니다 — 원본을 여세요.');
+    (d['오류'] || []).forEach(function (e) { says.push(esc(e)); });
+
+    var links = [];
+    if (blog && blog.url) links.push('<a class="open" href="' + esc(blog.url) + '" target="_blank" rel="noreferrer">블로그 글 열기 ↗</a>');
+    ((d['플레이스'] && d['플레이스']['이미지']) || []).forEach(function (u, i) {
+      links.push('<a class="open" href="' + esc(u) + '" target="_blank" rel="noreferrer">가격표 원본'
+        + (i ? ' ' + (i + 1) : '') + ' ↗</a>');
+    });
+
+    if (says.length) html += '<p class="note">' + says.join('<br>') + '</p>';
+    if (notes.length) html += '<p class="note">덧붙은 안내: ' + notes.map(esc).join(' · ') + '</p>';
+    if (links.length) html += '<p style="margin-top:10px">' + links.join(' ') + '</p>';
+    if (aiUsed) {
+      html += '<div class="caution"><b>가격표 이미지는 Claude 가 읽은 값입니다.</b> 사람이 찍어 올린 사진이라'
+        + ' 잘못 읽었을 수 있습니다 — 지적하기 전에 <b>가격표 원본</b>을 눌러 눈으로 확인하세요.'
+        + ' 신고 금액과 다르다고 곧장 위반은 아닙니다: 신고하지 않은 과정이거나, 횟수·기간이 다른 값일 수 있습니다.</div>';
+    }
+    body.className = '';
+    body.innerHTML = html;
+  }
+
+  fetch(READ_CFG.api, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ placeId: READ_CFG.placeId, blogUrl: READ_CFG.blogUrl, name: document.title }),
+  }).then(function (r) {
+    if (!r.ok) throw new Error('서버가 ' + r.status + ' 로 답했습니다');
+    return r.json();
+  }).then(render).catch(function (e) {
+    body.innerHTML = '<span class="dim">금액을 읽어오지 못했습니다 — ' + esc(e.message)
+      + '. 오른쪽 <b>열기</b>로 직접 확인하세요.</span>';
+  });
+})();
+</script>`;
+
+/**
  * 반반 붙이기 — 대조창 안에서 도는 스크립트다.
  *
  * 왜 창이 스스로 움직여야 하는가: 이 창이 하는 일은 '두 금액을 눈으로 맞추는 것' 하나뿐인데,
@@ -348,6 +498,11 @@ export function buildTuitionCompareHtml(academy, result, { region = '', numberLa
     const baseDate = a.changeDate || a.regDate || '';
     const verdict = result ? effectiveVerdict(result) : '미조사';
     const addr = shortAddress(a.address);
+    // '적힌 금액' 을 읽어올 곳 — 플레이스(가격메뉴·가격표 이미지)와 대표 블로그.
+    // 사람이 '플레이스 없음' 이라고 확인해 준 곳은 읽지 않는다 (물고 온 후보는 남의 업체다).
+    const placeId = result && !isNoPlace(result) ? String(result.플레이스ID || '') : '';
+    const blogUrl = result ? (parseChannels(result).find((c) => c.종류 === 'blog') || {}).url
+        || result.블로그URL || '' : '';
 
     return `<!DOCTYPE html>
 <html lang="ko">
@@ -403,6 +558,16 @@ export function buildTuitionCompareHtml(academy, result, { region = '', numberLa
   .tabwarn button { background: #dc2626; color: #fff; border: none; border-radius: 8px;
                     padding: 8px 14px; font-size: 0.84rem; font-weight: 700; cursor: pointer; white-space: nowrap; }
   .tabwarn .why { color: #b45309; font-size: 0.78rem; margin-top: 4px; }
+  .src { font-size: 0.78rem; font-weight: 700; color: #475569; white-space: nowrap; }
+  .ctx { font-size: 0.76rem; color: #64748b; }
+  .cmp-ok { color: #059669; font-weight: 700; }
+  .cmp-warn { color: #b45309; font-weight: 700; }
+  .cmp-bad { color: #b91c1c; font-weight: 800; }
+  .ai { margin-left: 6px; font-size: 0.68rem; font-weight: 700; color: #4338ca;
+        background: #e0e7ff; border-radius: 999px; padding: 1px 7px; }
+  .reading { font-size: 0.86rem; color: #64748b; padding: 10px 2px; }
+  .caution { margin-top: 10px; font-size: 0.78rem; color: #92400e;
+             background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 8px 10px; }
   .bar { position: fixed; top: 14px; right: 14px; display: flex; gap: 8px; }
   .bar button { padding: 7px 13px; border: none; border-radius: 8px; font-size: 0.84rem;
                 font-weight: 700; cursor: pointer; }
@@ -453,8 +618,11 @@ export function buildTuitionCompareHtml(academy, result, { region = '', numberLa
       ${channelTable(result, name, region, label)}
     </div>
   </div>
+  ${readCard(placeId, blogUrl)}
 </div>
+${readConfig(placeId, blogUrl, courses)}
 ${SPLIT_SCRIPT}
+${READ_SCRIPT}
 </body>
 </html>`;
 }
