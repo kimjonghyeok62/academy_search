@@ -445,11 +445,16 @@ export async function probePlace(placeId) {
     const detail = fieldByName(state.ROOT_QUERY || {}, 'placeDetail') || {};
 
     // 가격 메뉴 (구형 Menu 노드 / placeDetail.menus 둘 다 지원)
+    //
+    // placeDetail.menus 는 값이 아니라 참조만 담고 온다 — [{__ref:'Menu:1220610970_0'}, …].
+    // 그걸 그대로 읽으면 개수는 맞고 이름·금액은 빈 문자열이라, '가격메뉴 있음(O)' 까지는
+    // 맞게 판정하면서 정작 얼마인지는 통째로 잃는다. 참조는 state 에서 되찾아 풀어야 한다.
+    const deref = (v) => (v && v.__ref && state[v.__ref]) ? state[v.__ref] : v;
     const menuNodes = Object.entries(state)
         .filter(([k]) => k.startsWith(`Menu:${placeId}`))
         .map(([, v]) => v);
     const menusField = fieldByName(detail, 'menus');
-    const menuList = Array.isArray(menusField) ? menusField : menuNodes;
+    const menuList = (Array.isArray(menusField) ? menusField : menuNodes).map(deref);
     const menus = menuList.map((v) => ({
         name: (v && v.name) || '',
         price: (v && v.price) || '',
@@ -463,9 +468,9 @@ export async function probePlace(placeId) {
     const priceImageCount = (Array.isArray(menuImages) ? menuImages.length : 0)
         + menus.reduce((a, m) => a + m.imageCount, 0);
     const priceImages = [...new Set([
-        ...(Array.isArray(menuImages) ? menuImages : []).map((v) => v && (v.imageUrl || v.url)),
+        ...(Array.isArray(menuImages) ? menuImages : []).map(deref).map((v) => v && (v.imageUrl || v.url)),
         ...menuList.flatMap((v) => (Array.isArray(v && v.images) ? v.images : [])
-            .map((im) => im && (im.imageUrl || im.url || im))),
+            .map(deref).map((im) => im && (im.imageUrl || im.url || im))),
     ].filter((u) => typeof u === 'string' && /^https?:/.test(u)))];
 
     const intro = fieldByName(detail, 'description') || deepFindDescription(state) || '';
@@ -612,16 +617,31 @@ export function extractAmounts(text, limit = 20) {
 }
 
 /**
- * 블로그에서 교습비 글 하나를 찾아 본문을 가져온다.
+ * 블로그에 적힌 교습비를 찾는다 — 소개글 먼저, 없으면 글.
  *
- * 블로그 안 검색(PostSearchList)은 글 목록만 주고 본문은 iframe 으로 따로 불러오므로,
- * 검색으로 글 번호(logNo)만 얻고 본문은 m.blog 로 다시 받는다.
- * 금액이 이미지로만 올라와 있는 글이 흔하다 — 그때는 amounts 가 비고, 그 사실 자체가
- * 담당자에게 필요한 정보다 ('글로는 안 적혀 있음').
+ * 어디에 적어두는지가 제각각이라 순서가 중요하다.
+ *  1) 소개글(사이드바) — '[수강료] 중등영어 A 290,000원' 처럼 아예 프로필에 붙여둔 곳이 많다.
+ *     한 번만 받으면 되고 가장 정확하다. 예전에는 이걸 아예 안 보고 글부터 뒤져서,
+ *     화면에는 금액이 뻔히 보이는데 '글로 적힌 금액 없음' 이라고 답했다.
+ *  2) 교습비 글 — 소개글에 없을 때만 찾는다. 블로그 안 검색은 글 목록만 주고 본문은
+ *     따로 불러야 하므로, 검색으로 글 번호(logNo)만 얻고 본문은 m.blog 로 다시 받는다.
+ *
+ * 둘 다 금액이 이미지로만 올라와 있으면 못 찾는데, '글로는 안 적혀 있다' 는 사실 자체가
+ * 담당자에게 필요한 정보다.
  */
 export async function readBlogFeeText(blogId) {
     const id = String(blogId || '').trim();
     if (!id) return null;
+    const home = `https://m.blog.naver.com/${encodeURIComponent(id)}`;
+
+    // 1) 소개글
+    const introText = await fetchTextOrNull(home, H_MOBILE);
+    const intro = introText ? extractAmounts(introText) : [];
+    if (intro.length) {
+        return { found: true, url: home, 어디: '소개글', 금액: intro, 본문: introText.slice(0, 2000) };
+    }
+
+    // 2) 교습비 글
     let hit = null;
     for (const kw of ['교습비', '수강료', '학원비', '원비']) {
         const html = await fetchTextOrNull(
@@ -632,11 +652,11 @@ export async function readBlogFeeText(blogId) {
         const no = (html.match(/logNo=(\d{6,})/) || [])[1];
         if (no) { hit = { no, kw }; break; }
     }
-    if (!hit) return { found: false };
+    if (!hit) return { found: false, url: home, 어디: '소개글·블로그 내 검색' };
 
-    const url = `https://m.blog.naver.com/${encodeURIComponent(id)}/${hit.no}`;
+    const url = `${home}/${hit.no}`;
     const text = await fetchTextOrNull(url, H_MOBILE);
-    if (text === null) return { found: false, url };
+    if (text === null) return { found: false, url, 어디: '교습비 글' };
 
     // 앞쪽은 블로그 껍데기(메뉴·글꼴 조절 따위)다. 교습비 이야기가 처음 나오는 데서 자른다.
     const at = text.search(FEE_KEYWORD);
@@ -646,6 +666,7 @@ export async function readBlogFeeText(blogId) {
     return {
         found: true,
         url,
+        어디: '교습비 글',
         검색어: hit.kw,
         본문: body,
         금액: extractAmounts(body),
