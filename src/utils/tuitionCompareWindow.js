@@ -302,10 +302,16 @@ const READ_SCRIPT = `<script>
   }
 
   function render(d) {
-    var rows = [], notes = [], aiUsed = false, imgRows = [], blog = null;
+    var rows = [], notes = [], aiUsed = false, imgRows = [], introRows = [], blog = null;
 
     (d['플레이스'] && d['플레이스']['가격메뉴'] || []).forEach(function (m) {
       rows.push(row('가격메뉴', m['이름'], '', num(m['금액']), m['금액']));
+    });
+
+    // 플레이스 '정보' 탭 소개글에 '<교습비> 초등영어A : 26만원' 처럼 적어둔 곳
+    introRows = (d['플레이스'] && d['플레이스']['소개글']) || [];
+    introRows.forEach(function (m) {
+      rows.push(row('플레이스 소개글', m['이름'], m['이름'] ? '' : m['문맥'], Number(m['금액']), ''));
     });
 
     imgRows = (d['플레이스'] && d['플레이스']['이미지읽음']) || [];
@@ -369,6 +375,7 @@ const READ_SCRIPT = `<script>
     clearWaiting();
     var placeAmounts = uniq(
       ((d['플레이스'] && d['플레이스']['가격메뉴']) || []).map(function (m) { return num(m['금액']); })
+        .concat(introRows.map(function (m) { return Number(m['금액']); }))
         .concat(imgRows.map(function (r) { return Number(r.amount); }))
     );
     var hasImage = ((d['플레이스'] && d['플레이스']['이미지']) || []).length > 0;
