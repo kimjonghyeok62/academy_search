@@ -465,11 +465,6 @@ const SPLIT_SCRIPT = `<script>
 (function () {
   var HTML = document.documentElement;
 
-  // 창인가 탭인가 — 팝업 창에는 도구모음이 없다. 탭이면 자리를 못 옮긴다.
-  var IS_WINDOW = (function () {
-    try { return window.toolbar.visible === false; } catch (e) { return true; }
-  })();
-
   // 탭에서 옮겨 온 복제본인가. 채널 창 이름(RIGHT)도 함께 물려받는다 — 이름이 같아야
   // 채널을 연달아 눌러도 창이 늘어나지 않고 같은 자리에서 갈아 끼워진다.
   var PROMOTED = HTML.getAttribute('data-promoted') === '1';
@@ -478,6 +473,13 @@ const SPLIT_SCRIPT = `<script>
   var OPEN_URL = HTML.getAttribute('data-open') || '';
   HTML.removeAttribute('data-promoted');   // 이 창이 또 복제될 때 딸려가지 않게
   HTML.removeAttribute('data-open');
+
+  // 창인가 탭인가 — 팝업 창에는 도구모음이 없다. 탭이면 자리를 못 옮긴다.
+  // 옮겨 온 복제본은 무조건 창이다. 도구모음 판정에만 맡기면, 그 판정이 어긋나는 브라우저에서
+  // 옮겨 온 창이 저를 또 옮기려 들어 복제본이 끝없이 늘어난다.
+  var IS_WINDOW = PROMOTED || (function () {
+    try { return window.toolbar.visible === false; } catch (e) { return true; }
+  })();
 
   var right = null, timer = null, home = null;
 
@@ -593,8 +595,10 @@ const SPLIT_SCRIPT = `<script>
     var d = document.createElement('div');
     d.id = 'nudge';
     d.innerHTML = '왼쪽 절반으로 붙었습니다 — <b>이 창 아무 곳이나 한 번 누르면</b> 오른쪽이 열립니다.'
-      + '<br><span style="font-weight:600">이 한 번도 없애려면: 주소창 왼쪽 아이콘 → 사이트 설정 → '
-      + '<b>팝업 및 리디렉션</b> → 허용. 그러면 대조창이 처음부터 창으로 떠서 열기 한 번에 두 화면이 붙습니다.</span>';
+      + '<br><span style="font-weight:600">이 한 번도 없애려면 <b>학원 목록 화면</b>의 주소창 왼쪽 아이콘 → 사이트 설정 → '
+      + '<b>팝업 및 리디렉션 → 허용</b> 한 뒤, 교습비 링크를 <b>다시</b> 누르세요. 그때 뜨는 대조창은 '
+      + '처음부터 창이라 열기 한 번에 두 화면이 붙습니다. (허용은 이 창에는 소급되지 않습니다 — '
+      + '이 창은 주소가 blob: 으로 시작하는 옮겨 온 창이라 그 설정의 대상이 아닙니다.)</span>';
     d.setAttribute('style', 'margin-top:8px;font-weight:800;color:#b45309;line-height:1.7');
     el.appendChild(d);
   }
