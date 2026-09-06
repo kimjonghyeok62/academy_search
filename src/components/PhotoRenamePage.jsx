@@ -3,19 +3,6 @@ import { createPortal } from 'react-dom';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 
-const _raw = import.meta.env.VITE_CLAUDE_API_KEY || '';
-const ENV_API_KEY = _raw.startsWith('sk-ant') ? _raw : '';
-
-const PROMPT = [
-  '이 사진에서 학원, 교습소, 개인과외교습소의 공식 상호명을 찾아주세요.',
-  '규칙:',
-  '- 간판이나 현수막에 적힌 공식 명칭만 추출',
-  "- '학원', '교습소' 등 기관 종류명 포함",
-  '- 이름만 한 줄로 답변 (예: 하남수학학원)',
-  '- 파일명으로 쓸 수 없는 특수문자(/ \\ : * ? " < > |)는 제외',
-  "- 확인 불가능하면 '알수없음' 으로만 답변",
-].join('\n');
-
 const DOC_W = 630;
 const DOC_H = 472;
 const MAX_BYTES = 400 * 1024;
@@ -394,39 +381,18 @@ export default function PhotoRenamePage({ onBack, embedded = false }) {
     setAnalyzing(true);
 
     try {
-      if (!ENV_API_KEY) {
-        setAiStatus('⚠️ VITE_CLAUDE_API_KEY 환경변수가 설정되지 않았습니다.');
-        setAiStatusColor('#f56565');
-        setAnalyzing(false);
-        return;
-      }
+      // 사진만 우리 서버로 보낸다. 앤쓰로픽 키는 서버에만 있어 브라우저로 나오지 않는다
+      // (예전에는 여기서 앤쓰로픽을 직접 불러, 키가 배포된 자바스크립트에 박혀 있었다).
       const compressed = await compressToJpeg(img.blob);
       const b64 = await blobToBase64(compressed);
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
+      const res = await fetch('/api/analyze', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': ENV_API_KEY,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true',
-        },
-        body: JSON.stringify({
-          model: 'claude-opus-4-5',
-          max_tokens: 80,
-          messages: [{ role: 'user', content: [
-            { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } },
-            { type: 'text', text: PROMPT },
-          ]}],
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64: b64, mimeType: 'image/jpeg' }),
       });
-      if (!res.ok) {
-        const e = await res.json().catch(() => ({}));
-        throw new Error(e.error?.message || `API 오류 (${res.status})`);
-      }
-      const data = await res.json();
-      const raw = data.content[0]?.text?.trim() || '';
-      const recognized = raw.replace(/[\\/:*?"<>|]/g, '');
-      const name = recognized === '알수없음' ? '' : recognized;
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `서버 오류 (${res.status})`);
+      const name = (data.name || '').trim();
       if (name) {
         setNameInput(name);
         setAiStatus('✅ 인식 완료 — 수정 후 [저장] 버튼을 누르세요.');
