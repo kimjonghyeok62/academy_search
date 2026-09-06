@@ -14,7 +14,7 @@
 import {
     rowCells, parseChannels, assignBuckets, currentPlaceUrl, DIFFERS,
 } from './snsCheck';
-import { sortCourses } from './generateTuitionPDF';
+import { sortCourses, parseNum } from './generateTuitionPDF';
 import { feeRange } from './tuitionCompareWindow';
 
 // ── 담당자가 고치는 자리 ────────────────────────────────
@@ -48,6 +48,10 @@ export const DEFAULT_GUIDE_URL =
 // LMS 한도. 넘으면 문자마당이 받아 주지 않는다.
 export const LMS_LIMIT = 2000;
 
+// 문자에 싣는 교습과정 줄 수 상한. 과정이 스무 개인 학원 하나 때문에 문자가 통째로
+// 잘리면 안 된다 — 넘는 만큼은 '외 N개 과정' 한 줄로 접는다.
+export const COURSE_LINES = 8;
+
 // ── 담당자가 화면에서 정하는 값 ─────────────────────────
 // 문의 전화·기한·안내 링크는 사람마다·시기마다 달라진다. 시트에 넣을 값은 아니고
 // (학원별 값이 아니다) 행마다 prop 으로 실어 나르면 750행의 참조가 흔들려 표가 무거워진다.
@@ -66,6 +70,9 @@ export function readNoticeSettings() {
         days: Number.isFinite(days) && days >= 0 ? days : DEFAULT_DAYS,
         // 빈 문자열은 '링크를 빼겠다' 는 뜻이다 — 기본값으로 되돌리면 안 된다
         guideUrl: saved.guideUrl ?? DEFAULT_GUIDE_URL,
+        // 교습과정 목록을 넣을지 — 기본은 넣는다. guideUrl 과 같은 이유로 !== false 로 읽는다
+        // (?? 나 || 로 읽으면 담당자가 꺼 둔 false 가 기본값으로 되살아난다)
+        courses: saved.courses !== false,
     };
     return cached;
 }
@@ -187,10 +194,39 @@ function bucketsByWeight(items) {
 }
 
 /**
+ * [신고하신 교습과정] 블록 — '· 보통교과 / 초등수학 : 월 250,000원'.
+ *
+ * 범위 한 줄('25만원 ~ 35만원')만 보내면 학원은 어느 과정을 얼마로 신고했는지 몰라
+ * 게시할 금액을 정하지 못한다. 앱은 통째로 로그인 뒤에 있어 학원에 링크를 걸어 줄 수
+ * 없으므로 문자 본문에 적어 보낸다.
+ *
+ * 금액은 대조창·게시표와 같은 함수(parseNum)로 읽는다 — 같은 학원에 대고 화면과 문자가
+ * 다른 금액을 말하면 어느 쪽이 맞는지 알 수 없다 (feeRange 를 함께 쓰는 이유와 같다).
+ */
+function courseBlock(academy) {
+    const rows = sortCourses(academy?.courses || [])
+        .map((c) => ({
+            name: [c.process, c.subject].filter(Boolean).join(' / '),
+            fee: parseNum(c.tuitionFee || c.totalFee),
+        }))
+        .filter((r) => r.name);
+    if (!rows.length) return [];
+
+    const L = ['[신고하신 교습과정]'];
+    rows.slice(0, COURSE_LINES).forEach((r) => {
+        // 금액을 빈칸으로 두면 무료로 읽는다 — 모르면 모른다고 적는다
+        L.push(`· ${r.name} : ${r.fee > 0 ? `월 ${r.fee.toLocaleString('ko-KR')}원` : '월 금액 미상'}`);
+    });
+    if (rows.length > COURSE_LINES) L.push(`· 외 ${rows.length - COURSE_LINES}개 과정`);
+    return L;
+}
+
+/**
  * 문구를 조립한다. keep 이 있으면 그 매체들만 [수정 방법]·[관련링크] 에 싣는다
  * (길이가 넘쳐 덜어낸 경우 — buildNoticeSms 가 두 번째로 부를 때 쓴다).
+ * withCourses 가 거짓이면 교습과정 목록을 뺀다 (담당자가 꺼 두었거나, 그래도 길이가 넘칠 때).
  */
-function compose(target, result, academy, opts, keep) {
+function compose(target, result, academy, opts, keep, withCourses) {
     const { tel, days, guideUrl } = opts;
     const isHagwonso = String(target.category || '').includes('교습소');
     const numberLabel = isHagwonso ? '신고번호' : '등록번호';
@@ -232,6 +268,13 @@ function compose(target, result, academy, opts, keep) {
         L.push('게시하신 금액이 이와 같은지도 함께 확인해 주세요.', '');
     }
 
+    // 범위 뒤에 과정별 금액을 붙인다. 범위는 요약이고 이 목록은 명세라 쓰임이 다르다 —
+    // 학원이 무엇을 얼마로 올려야 하는지는 이 목록을 봐야 안다.
+    if (withCourses) {
+        const block = courseBlock(academy);
+        if (block.length) L.push(...block, '');
+    }
+
     L.push(`${noticeDeadline(days)}까지 수정 부탁드리며, 이후 담당자가 다시 확인합니다.`);
     L.push(TAIL_LINE, '');
 
@@ -251,16 +294,23 @@ function compose(target, result, academy, opts, keep) {
 /**
  * 그 학원에 보낼 문자 문구. 빠진 것이 없으면 빈 문자열.
  *
- * LMS 한도를 넘으면 빠진 항목이 많은 매체 3곳만 [수정 방법]·[관련링크] 에 남기고
- * 나머지는 덜어낸다 — 목록(무엇이 빠졌는지)은 그대로 둔다. 그건 이 문자의 본론이라
- * 줄이면 학원이 무엇을 고쳐야 하는지 알 수 없게 된다.
+ * LMS 한도를 넘으면 두 번에 걸쳐 덜어낸다.
+ *   ① 빠진 항목이 많은 매체 3곳만 [수정 방법]·[관련링크] 에 남긴다
+ *   ② 그래도 넘치면 교습과정 목록까지 뺀다
+ * 덜어내는 차례는 급한 것을 뒤에 둔 것이다 — 교습과정은 참고 자료이지만 '무엇을 고쳐야
+ * 하는지'는 이 문자의 본론이라, 목록(무엇이 빠졌는지)은 어느 단계에서도 줄이지 않는다.
  */
 export function buildNoticeSms(target, result, academy, opts) {
     if (!target || !noticeItems(result).length) return '';
     const o = { ...readNoticeSettings(), ...(opts || {}) };
-    const full = compose(target, result, academy, o, null);
+    const withCourses = o.courses !== false;
+
+    const full = compose(target, result, academy, o, null, withCourses);
     if (smsBytes(full) <= LMS_LIMIT) return full;
 
     const keep = bucketsByWeight(noticeItems(result)).slice(0, TRIM_KEEP);
-    return compose(target, result, academy, o, keep);
+    const trimmed = compose(target, result, academy, o, keep, withCourses);
+    if (!withCourses || smsBytes(trimmed) <= LMS_LIMIT) return trimmed;
+
+    return compose(target, result, academy, o, keep, false);
 }

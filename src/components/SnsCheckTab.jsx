@@ -10,7 +10,7 @@ import {
     RECHECK_DAYS, VERDICT_COLOR, matchesSnsFilter,
 } from '../utils/snsCheck';
 import { downloadSnsWorkbook } from '../utils/snsWorkbookExcel';
-import { readNoticeSettings, writeNoticeSettings, noticeDeadline } from '../utils/snsNoticeText';
+import { readNoticeSettings, writeNoticeSettings, noticeDeadline, COURSE_LINES, LMS_LIMIT } from '../utils/snsNoticeText';
 import { createSaveQueue } from '../utils/snsSaveQueue';
 import {
     W_NUM, W_NAME, W_REGNO, W_CH, W_LINK, W_INS, W_MEMO, W_CHECK,
@@ -837,10 +837,22 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                                 <input value={notice.guideUrl} onChange={e => changeNotice({ guideUrl: e.target.value })}
                                     style={noticeInput()} />
                             </label>
+                            {/* 학원은 '25만원 ~ 35만원' 이라는 범위만으로는 어느 과정을 얼마로
+                                신고했는지 몰라 게시할 금액을 정하지 못한다 — 과정별 금액을 함께 보낸다.
+                                문자가 길어지므로 끌 수 있게 둔다. */}
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', paddingBottom: '7px', cursor: 'pointer' }}>
+                                <input type="checkbox" checked={notice.courses}
+                                    onChange={e => changeNotice({ courses: e.target.checked })}
+                                    style={{ cursor: 'pointer' }} />
+                                신고한 교습과정 목록 넣기
+                            </label>
                             <div style={{ flexBasis: '100%', fontSize: '0.76rem', lineHeight: 1.6 }}>
                                 표의 <b>✉ 문자</b> 를 누르면 이 값들이 든 문구가 복사됩니다 — 문자마당 창에 붙여넣으세요.
                                 문구에는 그 학원에서 <b>X 인 칸만</b> 들어가고, 판정과 달리 <b>번호도 함께</b> 안내합니다.
                                 (값은 이 브라우저에만 남습니다)
+                                <br /><b>교습과정 목록</b>은 과정별 월 교습비를 {COURSE_LINES}개까지 싣고 나머지는
+                                ‘외 N개 과정’ 으로 접습니다 — 문자가 길어지므로, LMS 한도({LMS_LIMIT.toLocaleString('ko-KR')}바이트)를
+                                넘으면 이 목록부터 빠집니다.
                             </div>
                         </div>
                     )}
