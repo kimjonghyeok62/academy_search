@@ -10,7 +10,8 @@
 // 신고 금액을 펼쳐 보이고, 어느 채널의 어디를 열어야 하는지 짚어 주고, 그 링크를 바로 연다.
 
 import {
-    sortCourses, fmtNum, parseNum, getWeeklyTotalMinutes, calcWeeklySchedule, openHtmlPopup,
+    sortCourses, fmtNum, parseNum, getWeeklyTotalMinutes, calcWeeklySchedule,
+    openHtmlPopup, openHtmlWindow,
 } from './generateTuitionPDF';
 import {
     rowCells, parseChannels, assignBuckets, effectiveVerdict, currentPlaceUrl, isNoPlace,
@@ -480,6 +481,9 @@ const SPLIT_SCRIPT = `<script>
   var IS_WINDOW = PROMOTED || (function () {
     try { return window.toolbar.visible === false; } catch (e) { return true; }
   })();
+  // 목록 화면이 창으로 띄우려다 팝업 차단에 막혀 탭으로 물러난 경우 (openTuitionCompare)
+  var BLOCKED = HTML.getAttribute('data-popupblocked') === '1';
+  HTML.removeAttribute('data-popupblocked');
 
   var right = null, timer = null, home = null;
 
@@ -552,10 +556,15 @@ const SPLIT_SCRIPT = `<script>
     HTML.setAttribute('data-promoted', '1');
     HTML.setAttribute('data-right', RIGHT);
     if (openUrl) HTML.setAttribute('data-open', openUrl);
+    // '탭으로 열렸습니다' 안내는 창이 될 복제본에 딸려가면 거짓말이 된다
+    var hint = document.getElementById('tabhint');
+    var hintAt = hint && hint.parentNode;
+    if (hintAt) hintAt.removeChild(hint);
     var html = '<!DOCTYPE html>\\n' + HTML.outerHTML;
     // 옮기지 못했을 때 이 화면에 흔적을 남기지 않는다
     HTML.removeAttribute('data-promoted');
     HTML.removeAttribute('data-open');
+    if (hintAt) hintAt.appendChild(hint);
     var url = URL.createObjectURL(new Blob([html], { type: 'text/html; charset=utf-8' }));
     var box = leftHalf();
     var win = window.open(url, '_blank', feat(box));
@@ -647,6 +656,25 @@ const SPLIT_SCRIPT = `<script>
   });
 
   window.addEventListener('pagehide', function () { if (timer) clearInterval(timer); });
+
+  // 탭으로 열렸으면 누르기 전에 미리 알려 준다 — 눌러 보고 나서야 알면 늦다.
+  // 여기 적힌 대로 한 번만 해 두면 이 뒤로는 열기 한 번에 두 화면이 붙는다.
+  if (!IS_WINDOW) {
+    var el = document.querySelector('.howto');
+    if (el) {
+      var d = document.createElement('div');
+      d.id = 'tabhint';   // 창으로 옮겨 갈 때는 복제본에 딸려가지 않게 떼어낸다 (promote)
+      d.setAttribute('style', 'margin-top:8px;font-weight:700;color:#b45309;line-height:1.7');
+      d.innerHTML = (BLOCKED
+        ? '이 대조창은 <b>팝업이 막혀 탭으로</b> 열렸습니다.'
+        : '이 대조창은 <b>탭으로</b> 열렸습니다.')
+        + ' 탭은 스스로 자리를 못 옮겨, 열기를 누르면 한 번 더 손이 갑니다.'
+        + '<br><span style="font-weight:600">한 번만 해 두면 됩니다 — <b>학원 목록 화면</b>에서 주소창 왼쪽 아이콘 → '
+        + '사이트 설정 → <b>팝업 및 리디렉션 → 허용</b> → 그 목록 화면을 <b>새로고침(F5)</b> → 교습비를 다시 누르기. '
+        + '설정만 바꾸고 새로고침하지 않으면 그 탭에는 아직 적용되지 않습니다.</span>';
+      el.appendChild(d);
+    }
+  }
 
   if (PROMOTED) {
     // 닫으면 돌아갈 자리는 '원래 대조창이 뜨던 크기' 다 — 옮겨 오기 전 탭의 크기가 아니라.
@@ -815,5 +843,10 @@ ${READ_SCRIPT}
  * 자리·크기는 스크립트에 내주지 않기 때문이다 (openHtmlPopup 주석).
  */
 export function openTuitionCompare(academy, result, opts) {
-    openHtmlPopup(buildTuitionCompareHtml(academy, result, opts), { width: 1240 });
+    const html = buildTuitionCompareHtml(academy, result, opts);
+    if (openHtmlPopup(html, { width: 1240, fallback: false })) return;
+    // 창으로 못 떴다 — 탭으로 물러나되 '왜 탭인지' 를 화면이 스스로 말하게 한다.
+    // 이걸 적어 두지 않으면, 반반으로 안 붙는 이유가 브라우저 설정이라는 것을
+    // 쓰는 사람은 알 길이 없다 (실제로 여기서 한참 헤맸다).
+    openHtmlWindow(html.replace('<html ', '<html data-popupblocked="1" '));
 }
