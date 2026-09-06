@@ -9,20 +9,22 @@
 // 보는 몇 곳에서만 필요하다. 미리 다 읽으면 그만큼의 요청·비용이 통째로 낭비되고,
 // 시트에도 열을 늘려야 한다(Apps Script 까지). 열 때 읽으면 둘 다 없다.
 //
-// 세 갈래로 읽되, 값싼 순서로 읽고 얻으면 멈춘다.
+// 네 갈래로 읽되, 값싼 순서로 읽고 얻으면 멈춘다.
 //   1) 플레이스 가격메뉴  — 네이버가 글자로 준다. 그대로 옮긴다 (공짜).
-//   2) 블로그 소개글·교습비 글 — 글자에서 '…원' 을 찾는다 (공짜).
-//   3) 가격표 이미지      — 위 둘이 아무것도 못 얻었을 때만, 한 장만 Claude 에게 읽힌다.
+//   2) 플레이스 소개글    — '정보' 탭에 '<교습비> 초등영어A : 26만원' 처럼 적어둔 곳이 많다 (공짜).
+//   3) 블로그 소개글·교습비 글 — 글자에서 '…원' 을 찾는다 (공짜).
+//   4) 가격표 이미지      — 위 셋이 아무것도 못 얻었을 때만, 한 장만 Claude 에게 읽힌다.
 //
 // 3번을 마지막에 두고 조건을 붙인 이유는 돈 때문만이 아니다. 글자로 받은 값이 사진에서
 // 읽어낸 값보다 언제나 정확하다 — 사람이 찍어 올린 사진을 기계가 읽는 일에는 틀릴 여지가
 // 있고, 그 틀린 값으로 학원을 부르면 안 된다. 그래서 글자가 있으면 사진은 아예 읽지 않고
 // 원본 링크만 건넨다 — 사진이 복잡하면 사람이 직접 보는 편이 빠르고 확실하다.
 import Anthropic from '@anthropic-ai/sdk';
-import { probePlace, readBlogFeeText, isBlocked } from './_lib/naverProbe.js';
+import { probePlace, readBlogFeeText, extractAmounts, isBlocked } from './_lib/naverProbe.js';
 
-// 표를 옮겨 적는 일이라 가장 비싼 모델까지 갈 것 없다 (Opus 대비 입력 2.5배 저렴).
-const MODEL = 'claude-sonnet-5';
+// 표를 옮겨 적는 일이라 가장 싼 모델로 간다 (Opus 대비 입력 5배 저렴).
+// 이 모델은 effort 를 받지 않으므로 output_config 에는 형식만 넣는다.
+const MODEL = 'claude-haiku-4-5';
 const MAX_IMAGES = 3;             // 링크로 건넬 상한. 실제로 읽는 것은 아래 READ_IMAGES 장뿐이다
 const READ_IMAGES = 1;            // 여러 장이면 첫 장만 읽고 나머지는 원본 링크로 넘긴다
 const MAX_IMAGE_BYTES = 4_000_000;
@@ -108,9 +110,7 @@ async function readWithClaude({ images, academyName }) {
             model: MODEL,
             max_tokens: 4000,
             // 표를 옮겨 적는 일이라 깊이 생각할 것이 없다 — 낮은 노력으로 빠르고 싸게.
-            ...(structured
-                ? { output_config: { effort: 'low', format: { type: 'json_schema', schema: SCHEMA } } }
-                : { output_config: { effort: 'low' } }),
+            ...(structured ? { output_config: { format: { type: 'json_schema', schema: SCHEMA } } } : {}),
             messages: [{
                 role: 'user',
                 content: structured ? content
@@ -154,6 +154,27 @@ const won = (v) => {
     return m ? Number(m[0]) : 0;
 };
 
+/**
+ * 플레이스 소개글에서 '항목 : 금액' 을 줄 단위로 뽑는다.
+ *
+ * 소개글은 사람이 줄바꿈해 적은 글이라 줄이 곧 한 항목이다 ('초등영어A : 26만원').
+ * 그래서 블로그처럼 앞뒤 문맥을 통째로 보여주는 대신 항목 이름을 그대로 세울 수 있다 —
+ * 담당자가 신고서의 과정명과 눈으로 맞추기 좋다.
+ */
+function introRows(intro) {
+    const out = [];
+    for (const line of String(intro || '').split(/[\r\n]+/)) {
+        const found = extractAmounts(line, 4);
+        if (!found.length) continue;
+        // '초등영어A : 26만원' → '초등영어A'. 콜론이 없으면 금액 앞부분을 이름으로 본다.
+        const head = line.split(/[:：]/)[0].trim();
+        const name = (head && !/[0-9]/.test(head) ? head : '').slice(0, 40);
+        for (const f of found) out.push({ 이름: name, 금액: f.금액, 문맥: line.trim().slice(0, 120) });
+        if (out.length >= 40) return out;
+    }
+    return out;
+}
+
 const rows = (list) => (Array.isArray(list) ? list : []).filter((r) => r && Number(r.amount) > 0);
 
 export default async function handler(req, res) {
@@ -161,7 +182,7 @@ export default async function handler(req, res) {
 
     const { placeId, blogUrl, name } = req.body || {};
     const out = {
-        플레이스: { 가격메뉴: [], 이미지: [], 이미지읽음: [] },
+        플레이스: { 가격메뉴: [], 소개글: [], 이미지: [], 이미지읽음: [] },
         블로그: null,
         비고: [],
         ai: { 사용함: false },
@@ -180,6 +201,9 @@ export default async function handler(req, res) {
             .filter((m) => m.name || m.price)
             .map((m) => ({ 이름: m.name || '', 금액: m.price || '' }));
         out.플레이스.이미지 = (p.priceImages || []).slice(0, MAX_IMAGES);
+        // pcmap 이 막혀 m.place 로 받아온 경우 소개글이 통째로 없다 — 없는 것과 구분해 둔다
+        out.플레이스.소개글 = p.introUnavailable ? [] : introRows(p.intro);
+        if (p.introUnavailable) out.오류.push('플레이스 소개글을 받지 못했습니다 — 링크로 직접 확인하세요');
     } else if (placeRes.status === 'rejected') {
         out.오류.push(`플레이스: ${errText(placeRes.reason)}`);
     }
@@ -194,6 +218,7 @@ export default async function handler(req, res) {
     // 글자로 이미 금액을 얻었으면 읽지 않는다. 돈 때문만이 아니라, 글자로 받은 값이 사진에서
     // 읽어낸 값보다 언제나 정확해서다. 사진은 원본 링크로 건네고 사람이 보면 된다.
     const 글자금액 = out.플레이스.가격메뉴.filter((m) => won(m.금액)).length
+        + out.플레이스.소개글.length
         + ((out.블로그 && out.블로그.금액) || []).length;
 
     if (글자금액 > 0) {
