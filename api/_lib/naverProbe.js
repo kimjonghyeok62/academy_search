@@ -177,6 +177,73 @@ export function extractRegNos(text) {
 
 export const FEE_KEYWORD = /교습비|수강료|수업료|학원비|원비/;
 
+// ── 적힌 금액이 신고한 금액과 같은가 ────────────────────
+//
+// 여태 교습비 판정은 '교습비 이야기가 있는가' 하나였다. 그래서 신고한 26만원을 5만원으로
+// 적어 둔 학원도 O 였다 — 올리기는 올렸으니까. 그런데 게시하라는 것은 신고한 금액을
+// 게시하라는 뜻이지 아무 금액이나 걸어 두라는 뜻이 아니다.
+//
+// 그래서 '글자로 적힌 금액' 을 신고 금액과 맞춰 보고, 하나도 안 맞으면 △(허위기재)로 낸다.
+// 다만 아무 데서나 하지 않는다 — 아래 두 가지를 지킨다.
+//
+//  1) 학원이 값을 적어 넣은 자리에서만 본다 (플레이스 가격메뉴·소개글, 블로그 사이드바 소개글).
+//     광고 글 본문이나 홈페이지 첫 화면은 특강·교재비·이벤트 금액이 뒤섞여 있어,
+//     대조하면 멀쩡한 학원을 허위기재로 몰게 된다. 그런 곳은 지금처럼 O 로 두고 사람이 본다.
+//  2) '하나도 안 맞을 때' 만 △ 다. 여러 개 중 하나가 어긋난 것은 형제할인·묶음 수강처럼
+//     설명이 붙는 경우가 많아 자동으로 단정하지 않는다 — 그건 대조창의 ⚠ 가 짚어 준다.
+//
+// 사람이 칸을 눌러 넣은 값은 언제나 이것을 이긴다 (수동확인). 잘못 잡힌 △ 는 O 로 눌러 두면
+// 다시 조사해도 되살아나지 않는다.
+
+// 교습비가 아닌 돈 — 같은 줄에 이 낱말이 있으면 대조에서 뺀다
+const NOT_FEE = /교재|재료|급식|간식|차량|셔틀|버스|기숙|식비|보증금|위약|환불|할인|상품권|경품|사은품|택배|배송|장학|벌금|대관|주차/;
+
+/**
+ * 교습비로 볼 만한 금액만 뽑는다.
+ * 글 전체에 교습비 이야기가 있을 때만 본다 — 소개글은 '<교습비>' 한 줄 아래에 항목만
+ * 죽 적는 형태가 흔해서, 줄마다 낱말을 요구하면 정작 금액 줄이 전부 걸러진다.
+ */
+export function feeAmounts(text, limit = 30) {
+    const s = String(text || '');
+    if (!FEE_KEYWORD.test(s)) return [];
+    const out = [];
+    const seen = new Set();
+    for (const line of s.split(/[\r\n]+/)) {
+        if (NOT_FEE.test(line)) continue;
+        for (const f of extractAmounts(line, 8)) {
+            if (seen.has(f.금액)) continue;
+            seen.add(f.금액);
+            out.push(f.금액);
+            if (out.length >= limit) return out;
+        }
+    }
+    return out;
+}
+
+/** 가격메뉴의 금액 문자열 → 숫자 ('26만원' · '260,000원' · '월 260000' 모두) */
+export function menuPrice(raw) {
+    const s = String(raw || '').trim();
+    const man = s.match(/([1-9][0-9]?(?:\.[0-9])?)\s*만/);
+    const n = man ? Math.round(Number(man[1]) * 10000) : Number(s.replace(/[^0-9]/g, ''));
+    return Number.isFinite(n) && n >= MONEY_MIN && n <= MONEY_MAX ? n : 0;
+}
+
+/**
+ * 적힌 금액 ↔ 신고 금액.
+ *   '조사안함' 신고된 교습과정이 없어 견줄 것이 없다
+ *   '미기재'   글자로 적힌 금액을 못 봤다 (가격표가 이미지뿐인 곳)
+ *   '일치'     적힌 것 중 하나라도 신고 금액과 같다
+ *   '불일치'   적힌 것이 있는데 하나도 신고 금액과 같지 않다  → △
+ */
+export function compareFees(amounts, declared) {
+    if (!declared || !declared.length) return '조사안함';
+    if (!amounts || !amounts.length) return '미기재';
+    const set = new Set(declared);
+    return amounts.some((n) => set.has(n)) ? '일치' : '불일치';
+}
+
+const wonList = (list) => (list || []).slice(0, 4).map((n) => Number(n).toLocaleString('ko-KR')).join('·');
+
 // ── APOLLO_STATE 추출 ───────────────────────────────────
 export function extractApolloState(html) {
     const i = html.indexOf('window.__APOLLO_STATE__');
@@ -562,6 +629,11 @@ async function probeBlogChannel(link) {
     const parts = settled.filter((s) => s.status === 'fulfilled' && s.value).map((s) => s.value);
     if (!parts.length) throw new Error('블로그를 열지 못했습니다');
 
+    // 금액 대조는 사이드바 소개글에서만 한다 — 학원이 직접 적어 둔 짧은 글이라 교습비가
+    // 거기 있으면 그게 교습비다. RSS(최근 글)까지 끌어오면 특강·이벤트 금액이 섞여
+    // 신고 목록에 없는 금액이 늘 하나쯤 나오고, 그러면 전부 △ 가 된다.
+    const intro = settled[0].status === 'fulfilled' ? (settled[0].value || '') : '';
+
     let feeMentioned = FEE_KEYWORD.test(parts.join(' '));
     let regNos = extractRegNos(parts.join(' '));
 
@@ -584,7 +656,7 @@ async function probeBlogChannel(link) {
         if (hit) regNos = extractRegNos(hit.text);
     }
 
-    return { feeMentioned, regNos, scope: '소개·최근 글·블로그 내 검색' };
+    return { feeMentioned, regNos, 적힌금액: feeAmounts(intro), scope: '소개·최근 글·블로그 내 검색' };
 }
 
 // ── 대조용: '적혀 있는 금액' 을 그대로 꺼내온다 ────────────────────────
@@ -844,7 +916,7 @@ export function buildResult({ academy, place, channels = [], matchScore, error, 
     const feeConfirmed = hasMenu || hasPriceImage || introHasFee;
     const placeFee = feeConfirmed || (introUnknown ? null : false);
 
-    const 플레이스_게시형태 = hasMenu && hasPriceImage ? '가격메뉴+가격표이미지'
+    const 게시형태 = hasMenu && hasPriceImage ? '가격메뉴+가격표이미지'
         : hasMenu ? '가격메뉴'
             : hasPriceImage ? '가격표이미지'
                 : introHasFee ? '소개글텍스트'
@@ -854,6 +926,22 @@ export function buildResult({ academy, place, channels = [], matchScore, error, 
     const introRegs = extractRegNos(place.intro);
     const 플레이스_기재번호 = introUnknown ? '' : [...new Set(introRegs.map((r) => r.raw))].join(',');
     const 플레이스_번호대조 = introUnknown ? '확인불가' : compareRegNos(introRegs, masterDigits);
+
+    // ── 금액 대조 ──
+    // 신고한 월 교습비. 마스터에 교습과정이 없는 학원은 빈 배열로 오고, 그러면 대조하지 않는다.
+    const declared = [...new Set((academy.declaredFees || [])
+        .map((n) => Number(n)).filter((n) => n >= MONEY_MIN && n <= MONEY_MAX))];
+    const 플레이스_적힌금액 = [...new Set([
+        ...place.menus.map((m) => menuPrice(m.price)).filter(Boolean),
+        ...(introUnknown ? [] : feeAmounts(place.intro)),
+    ])];
+    const 플레이스_금액대조 = compareFees(플레이스_적힌금액, declared);
+    const 플레이스_금액다름 = 플레이스_금액대조 === '불일치';
+
+    // 읽어낸 금액은 게시형태에 붙여 남긴다 — 새 시트 열을 만들지 않고도
+    // 상세화면과 시트에서 '얼마로 올려 뒀는지'가 그대로 보인다.
+    const 플레이스_게시형태 = 게시형태
+        + (플레이스_적힌금액.length ? ` · 적힌 금액 ${wonList(플레이스_적힌금액)}` : '');
 
     // ── 연결 채널별 판정 ──
     const 채널 = channels.map((c) => {
@@ -869,14 +957,20 @@ export function buildResult({ academy, place, channels = [], matchScore, error, 
             };
         }
         const 대조 = c.unavailable ? '확인불가' : compareRegNos(c.regNos, masterDigits);
+        const 금액 = c.unavailable ? [] : (c.적힌금액 || []);
+        const 금액대조 = c.unavailable ? '확인불가' : compareFees(금액, declared);
         return {
             유형: c.label,
             종류: c.kind,
             url: c.url,
-            교습비: c.unavailable ? '?' : c.feeMentioned ? 'O' : 'X',
+            교습비: c.unavailable ? '?' : !c.feeMentioned ? 'X' : 금액대조 === '불일치' ? '△' : 'O',
             번호: c.unavailable ? '?' : 대조 === '일치' ? 'O' : 'X',
             번호대조: 대조,
             기재번호: c.unavailable ? '' : [...new Set((c.regNos || []).map((r) => r.raw))].join(','),
+            // 새 열을 만들지 않아도 되도록 채널상세 JSON 안에 함께 넣는다 —
+            // 상세화면이 '왜 △ 인지'를 숫자로 보여줄 수 있어야 한다
+            기재금액: 금액.join(','),
+            금액대조,
             조사범위: c.scope || '',
             비고: c.note || '',
             소개글: c.excerpt || '',
@@ -897,14 +991,21 @@ export function buildResult({ academy, place, channels = [], matchScore, error, 
     const 미이행사유 = [];
     if (matchStatus === 'matched') {
         if (placeFee === false) 미이행사유.push('플레이스 교습비 미게시');
+        // 미게시와 금액 다름은 학원이 해야 할 일이 다르다 (올려라 / 고쳐라).
+        // 사유에 적힌 금액을 함께 남겨, 담당자가 대조창을 열기 전에도 무엇이 어긋났는지 본다.
+        else if (플레이스_금액다름) {
+            미이행사유.push(`플레이스 교습비 금액 다름 (적힘 ${wonList(플레이스_적힌금액)} / 신고 ${wonList(declared)})`);
+        }
         for (const c of 채널) {
             // 열지 못한 채널도, 아예 안 본 채널도 판정하지 않는다
             if (c.번호대조 === '확인불가' || c.번호대조 === '조사안함') continue;
             // 인스타그램 프로필 소개글은 150자 한 줄이라 교습비를 적는 자리가 아니다.
             // 표본 14곳 중 교습비를 적어둔 곳은 1곳뿐이었는데 14곳 모두 미이행이 됐다 —
             // 학원이 안 지킨 게 아니라 근거로 삼을 자리가 아니어서 생기는 오판이다.
-            if (c.교습비 === 'X' && c.종류 !== 'instagram') {
-                미이행사유.push(`${c.유형}(${shortUrl(c.url)}) 교습비 미게시`);
+            if (c.종류 === 'instagram') continue;
+            if (c.교습비 === 'X') 미이행사유.push(`${c.유형}(${shortUrl(c.url)}) 교습비 미게시`);
+            else if (c.교습비 === '△') {
+                미이행사유.push(`${c.유형}(${shortUrl(c.url)}) 교습비 금액 다름 (적힘 ${wonList(c.기재금액.split(',').filter(Boolean))})`);
             }
         }
     }
@@ -922,7 +1023,7 @@ export function buildResult({ academy, place, channels = [], matchScore, error, 
         플레이스ID: place.placeId,
         플레이스명: place.placeName,
         플레이스URL: place.placeUrl,
-        플레이스_교습비: placeFee === null ? '?' : placeFee ? 'O' : 'X',
+        플레이스_교습비: placeFee === null ? '?' : !placeFee ? 'X' : 플레이스_금액다름 ? '△' : 'O',
         플레이스_게시형태,
         플레이스_번호: 플레이스_번호대조 === '확인불가' ? '?'
             : 플레이스_번호대조 === '일치' ? 'O' : 'X',

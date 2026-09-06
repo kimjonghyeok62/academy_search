@@ -6,7 +6,7 @@ import {
     isDone, doneAt, setDone,
     remarkPlaceHint, pinResolvedPlace, hasPlaceCandidate,
     effectivePlaceId, sharedCellTargets, buildGroups, recordKey, PIN_CLEARED,
-    currentPlaceUrl, placeSource, placeUrlFromId, pinnedPlaceUrl,
+    currentPlaceUrl, placeSource, placeUrlFromId, pinnedPlaceUrl, declaredFees,
 } from '../utils/snsCheck';
 
 const CHANNEL_ICON = { blog: '✍️', instagram: '📷', homepage: '🌐' };
@@ -30,6 +30,10 @@ const card = {
 
 const shortUrl = (u) => String(u || '').replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '');
 
+/** 채널상세에 실려 온 '적힌 금액' (쉼표로 이어진 숫자) → '260,000 · 300,000' */
+const wonList = (csv) => String(csv || '').split(',').filter(Boolean)
+    .map((n) => Number(n).toLocaleString('ko-KR')).join(' · ');
+
 const AUTO_LABEL = { O: '게시', X: '미게시', '?': '확인 못 함', 없음: '링크 없음', 안함: '자동 조사 안 함' };
 
 /**
@@ -41,7 +45,9 @@ function ObligationRow({ label, cell, detail, detailColor, onToggle, disabled, l
     const value = cell ? cell.value : '';
     const manual = cell && cell.manual !== undefined;
     const ok = value === 'O';
-    const unknown = value !== 'O' && value !== 'X';
+    // 올렸으나 신고와 다름 — 자동 조사도 붙인다(금액 대조). ✓ 도 ✕ 도 아니므로 따로 그린다.
+    const differs = value === '△';
+    const unknown = !ok && !differs && value !== 'X';
     return (
         <div
             onClick={disabled ? undefined : onToggle}
@@ -53,9 +59,9 @@ function ObligationRow({ label, cell, detail, detailColor, onToggle, disabled, l
             }}>
             <span style={{
                 flexShrink: 0, width: '22px', textAlign: 'center', fontWeight: '800', fontSize: '0.95rem',
-                color: manual ? MANUAL_COLOR : unknown ? 'var(--text-muted)' : ok ? '#10b981' : '#ef4444',
+                color: manual ? MANUAL_COLOR : unknown ? 'var(--text-muted)' : differs ? '#d97706' : ok ? '#10b981' : '#ef4444',
                 borderBottom: manual ? `2px solid ${MANUAL_COLOR}` : 'none',
-            }}>{manual ? value : unknown ? '–' : ok ? '✓' : '✕'}</span>
+            }}>{manual ? value : unknown ? '–' : differs ? '△' : ok ? '✓' : '✕'}</span>
             <div style={{ flex: 1 }}>
                 <div style={{ fontSize: '0.84rem', fontWeight: '600', color: 'var(--text-main)' }}>
                     {label}
@@ -137,6 +143,8 @@ export default function SnsDetailPanel({ academy, region = '하남', allAcademie
         const target = {
             id: regNo, name: academy.name || '', category, regNo,
             address: academy.address || '',
+            // 네이버에 적힌 금액을 이것과 맞춰 본다 — 하나도 안 맞으면 교습비 칸이 △ 가 된다
+            declaredFees: declaredFees(academy),
             // 직접 지정한 플레이스가 있으면 그것만 본다. 지정을 푼 직후에는 저장된 플레이스도
             // 무시해야 새로 검색한다 (그대로 두면 잘못 잡은 그 플레이스를 다시 물고 온다).
             placeId: hintUrl ? '' : (pinned || (ignoreStoredPlace ? '' : effectivePlaceId(from))),
@@ -413,8 +421,11 @@ export default function SnsDetailPanel({ academy, region = '하남', allAcademie
                                     cell={cells.get(cellKey('place', '교습비'))}
                                     onToggle={() => cycle(cells.get(cellKey('place', '교습비')))}
                                     disabled={running || done} lockedHint={lockedHint}
-                                    detail={result.플레이스_게시형태 && result.플레이스_게시형태 !== '없음'
-                                        ? `게시 형태: ${result.플레이스_게시형태}` : '가격 메뉴·가격표·소개글 어디에도 교습비가 없습니다'} />
+                                    detail={result.플레이스_교습비 === '△'
+                                        ? `${result.플레이스_게시형태} — 신고한 교습비와 같은 금액이 하나도 없습니다`
+                                        : result.플레이스_게시형태 && result.플레이스_게시형태 !== '없음'
+                                            ? `게시 형태: ${result.플레이스_게시형태}` : '가격 메뉴·가격표·소개글 어디에도 교습비가 없습니다'}
+                                    detailColor={result.플레이스_교습비 === '△' ? '#d97706' : undefined} />
                                 <ObligationRow label={`${numberLabel} 게시`}
                                     cell={cells.get(cellKey('place', '번호'))}
                                     onToggle={() => cycle(cells.get(cellKey('place', '번호')))}
@@ -515,9 +526,12 @@ export default function SnsDetailPanel({ academy, region = '하남', allAcademie
                                     <>
                                         <ObligationRow label="교습비 게시" cell={feeCell}
                                             onToggle={() => cycle(feeCell)} disabled={running || done} lockedHint={lockedHint}
-                                            detail={c.교습비 === 'O'
-                                                ? `${c.조사범위}에서 교습비 안내를 확인했습니다`
-                                                : `${c.조사범위}에서 교습비를 찾지 못했습니다${c.종류 === 'instagram' ? '' : ' (이미지로만 올렸을 수 있음)'}`} />
+                                            detail={c.교습비 === '△'
+                                                ? `소개글에 적힌 금액 ${wonList(c.기재금액)} — 신고한 교습비와 같은 금액이 하나도 없습니다`
+                                                : c.교습비 === 'O'
+                                                    ? `${c.조사범위}에서 교습비 안내를 확인했습니다`
+                                                    : `${c.조사범위}에서 교습비를 찾지 못했습니다${c.종류 === 'instagram' ? '' : ' (이미지로만 올렸을 수 있음)'}`}
+                                            detailColor={c.교습비 === '△' ? '#d97706' : undefined} />
                                         <ObligationRow label={`${numberLabel} 게시`} cell={noCell}
                                             onToggle={() => cycle(noCell)} disabled={running || done} lockedHint={lockedHint}
                                             detail={c.번호대조 === '불일치'

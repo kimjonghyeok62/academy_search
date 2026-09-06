@@ -251,8 +251,12 @@ export const NONE = '없음';
  *
  * O 도 X 도 아니다. X 로 두면 문자가 '교습비가 확인되지 않았습니다' 라고 나가는데, 학원은
  * 올려 뒀으니 무슨 소린가 하고 되묻는다. O 로 두면 금액이 다른 채로 이행으로 집계된다.
- * 자동 조사는 금액을 읽지 않으므로(게시 여부만 본다) 이 값은 담당자가 대조창에서 금액을
- * 맞춰 보고 직접 넣는다 — 칸을 눌러 O 다음에 나온다.
+ *
+ * 두 곳에서 붙는다.
+ *  - 자동 조사 — 네이버에 글자로 적힌 금액이 신고 금액과 하나도 안 맞을 때 (naverProbe 의 compareFees).
+ *    학원이 값을 적어 넣은 자리(플레이스 가격메뉴·소개글, 블로그 소개글)에서만 본다.
+ *  - 담당자 — 칸을 눌러 O 다음에 나온다. 가격표가 이미지뿐이라 자동으로는 못 읽은 곳을
+ *    대조창에서 눈으로 맞춰 보고 넣는 자리다. 사람이 넣은 값이 언제나 자동값을 이긴다.
  */
 export const DIFFERS = '△';
 export const cellKey = (bucket, field) => `${bucket}|${field}`;
@@ -840,6 +844,23 @@ export const blogSearchUrl = (name, city) =>
 
 // ── 조사 대상 목록 만들기 ───────────────────────────────
 // aActiveList / hActiveList (지역·개원 필터가 이미 적용된 목록)를 그대로 받는다.
+
+/**
+ * 신고한 교습비 — 조사할 때 서버가 '네이버에 적힌 금액' 과 맞춰 보는 기준이다.
+ * 하나도 없으면(마스터에 교습과정이 없는 학원) 서버는 대조를 건너뛴다.
+ *
+ * 교습비(AL열)와 총교습비(AO열)를 둘 다 넣는다. 학원이 광고에 어느 쪽을 적을지는 제각각인데,
+ * 한쪽만 기준으로 삼으면 재료비까지 더해 적어 둔 학원이 통째로 '금액 다름'(△)이 된다.
+ * 여기서는 '이 금액이 신고된 것인가' 만 물으면 되므로 후보를 넓게 두는 편이 안전하다.
+ */
+export function declaredFees(academy) {
+    const num = (v) => Number(String(v ?? '').replace(/[^0-9]/g, ''));
+    const nums = (academy?.courses || [])
+        .flatMap((c) => [num(c.tuitionFee), num(c.totalFee)])
+        .filter((n) => n > 0);
+    return [...new Set(nums)].sort((x, y) => x - y);
+}
+
 export function toProbeTargets(list, category) {
     return (list || []).map((a) => ({
         id: a.id,
@@ -849,6 +870,7 @@ export function toProbeTargets(list, category) {
         address: a.address || '',
         contact: a.founder?.mobile || a.founder?.phone || '',
         founderName: a.founder?.name || '',
+        declaredFees: declaredFees(a),
     }));
 }
 
