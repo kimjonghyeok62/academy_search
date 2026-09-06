@@ -52,6 +52,9 @@ export const LMS_LIMIT = 2000;
 // 잘리면 안 된다 — 넘는 만큼은 '외 N개 과정' 한 줄로 접는다.
 export const COURSE_LINES = 8;
 
+// 한 매체에 적어 보낼 '광고 중인 금액' 수 상한 (넘으면 '외 N건')
+export const AD_FEES = 6;
+
 // ── 담당자가 화면에서 정하는 값 ─────────────────────────
 // 문의 전화·기한·안내 링크는 사람마다·시기마다 달라진다. 시트에 넣을 값은 아니고
 // (학원별 값이 아니다) 행마다 prop 으로 실어 나르면 750행의 참조가 흔들려 표가 무거워진다.
@@ -222,6 +225,67 @@ function courseBlock(academy) {
 }
 
 /**
+ * 조사할 때 플레이스에서 읽어 둔 금액.
+ *
+ * 시트에 따로 열을 두지 않고 '플레이스_게시형태' 꼬리에 '· 적힌 금액 260,000·300,000' 으로
+ * 붙여 둔 값이다 (naverProbe 의 wonList). 열을 늘리려면 Apps Script 까지 손대야 해서
+ * 그렇게 남겼고, 여기서는 그 꼬리를 도로 숫자로 되돌린다.
+ */
+const PLACE_FEE_MARK = '적힌 금액 ';
+function placeAdFees(result) {
+    const s = String(result?.플레이스_게시형태 || '');
+    const i = s.indexOf(PLACE_FEE_MARK);
+    if (i < 0) return [];
+    return s.slice(i + PLACE_FEE_MARK.length).split('·')
+        .map((t) => Number(String(t).replace(/[^0-9]/g, '')))
+        .filter((n) => n > 0);
+}
+
+/** 매체별로 '지금 올라와 있는 금액' — 플레이스는 게시형태 꼬리에, 나머지는 채널상세의 기재금액에 있다 */
+function adFees(result) {
+    const out = {};
+    const place = placeAdFees(result);
+    if (place.length) out.place = place;
+
+    const chs = parseChannels(result);
+    const at = assignBuckets(chs);
+    chs.forEach((c, i) => {
+        const nums = String(c.기재금액 || '').split(',').map((n) => Number(n)).filter((n) => n > 0);
+        if (!nums.length) return;
+        out[at[i]] = [...new Set([...(out[at[i]] || []), ...nums])].sort((x, y) => x - y);
+    });
+    return out;
+}
+
+/**
+ * [현재 광고 중인 교습비] 블록 — '· 네이버플레이스 : 260,000원 · 300,000원'.
+ *
+ * 금액이 다른(△) 매체만 싣는다. 학원이 알아야 하는 것은 '무엇을 고쳐야 하는가' 이고,
+ * 신고액과 같은 금액을 되읊어 주는 것은 그 말을 흐릴 뿐이다. △ 는 자동 조사가
+ * '읽어낸 금액 중 신고액과 같은 것이 하나도 없다' 고 본 경우다(naverProbe 의 compareFees).
+ *
+ * 과정 이름은 넣지 않는다 — 조사 때 남기는 것은 숫자뿐이고, 이름까지 읽으려면 그때마다
+ * 네이버를 다시 열어야 한다(대조창의 ③ 카드가 하는 일). 750곳에 보낼 문자를 짓느라
+ * 할 일은 아니다.
+ */
+function adBlock(result) {
+    const by = adFees(result);
+    const lines = rowCells(result)
+        .filter((c) => c.field === '교습비' && c.value === DIFFERS)
+        .map((c) => ({ bucket: c.bucket, nums: by[c.bucket] || [] }))
+        .filter((x) => x.nums.length)
+        .map(({ bucket, nums }) => {
+            const shown = nums.slice(0, AD_FEES);
+            const list = shown.map((n) => `${n.toLocaleString('ko-KR')}원`).join(' · ')
+                + (nums.length > shown.length ? ` 외 ${nums.length - shown.length}건` : '');
+            return `· ${CHANNEL_NAME[bucket]} : ${list}`;
+        });
+    if (!lines.length) return [];
+    return ['[현재 광고 중인 교습비]', ...lines,
+        '위 금액은 신고하신 교습비와 다릅니다 — 신고한 금액으로 고치시거나, 교습비가 바뀌었다면 먼저 신고해 주세요.'];
+}
+
+/**
  * 문구를 조립한다. keep 이 있으면 그 매체들만 [수정 방법]·[관련링크] 에 싣는다
  * (길이가 넘쳐 덜어낸 경우 — buildNoticeSms 가 두 번째로 부를 때 쓴다).
  * withCourses 가 거짓이면 교습과정 목록을 뺀다 (담당자가 꺼 두었거나, 그래도 길이가 넘칠 때).
@@ -274,6 +338,12 @@ function compose(target, result, academy, opts, keep, withCourses) {
         const block = courseBlock(academy);
         if (block.length) L.push(...block, '');
     }
+
+    // 신고한 것 바로 아래에 지금 올라와 있는 것을 둔다 — 두 목록이 붙어 있어야
+    // 어디가 어긋났는지 학원이 스스로 짚는다. 길이가 넘쳐도 이건 덜어내지 않는다
+    // (몇 줄뿐이고, 위에 적은 '금액이 다름' 이 무슨 말인지 설명하는 자리다).
+    const ad = adBlock(result);
+    if (ad.length) L.push(...ad, '');
 
     L.push(`${noticeDeadline(days)}까지 수정 부탁드리며, 이후 담당자가 다시 확인합니다.`);
     L.push(TAIL_LINE, '');
