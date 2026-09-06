@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
     fetchSnsCheckContext, probeAll, saveSnsChecks, resultToRecord, parseChannels,
     placeSearchUrl, VERDICT_COLOR, rowCells, cellKey, assignBuckets, effectiveVerdict,
@@ -6,8 +6,10 @@ import {
     isDone, doneAt, setDone,
     remarkPlaceHint, pinResolvedPlace, hasPlaceCandidate,
     effectivePlaceId, sharedCellTargets, buildGroups, recordKey, PIN_CLEARED,
-    currentPlaceUrl, placeSource, placeUrlFromId, pinnedPlaceUrl, declaredFees,
+    currentPlaceUrl, placeSource, placeUrlFromId, pinnedPlaceUrl, declaredFees, toProbeTargets,
 } from '../utils/snsCheck';
+import { openTuitionCompare } from '../utils/tuitionCompareWindow';
+import { buildNoticeSms, copyNoticeSms, noticeItems, smsBytes, LMS_LIMIT } from '../utils/snsNoticeText';
 
 const CHANNEL_ICON = { blog: '✍️', instagram: '📷', homepage: '🌐' };
 const MANUAL_COLOR = '#2563eb';
@@ -99,9 +101,16 @@ export default function SnsDetailPanel({ academy, region = '하남', allAcademie
     const [message, setMessage] = useState('');
     const [pinOpen, setPinOpen] = useState(false);
     const [pinInput, setPinInput] = useState('');
+    const [smsOpen, setSmsOpen] = useState(false);
+    const [smsFlash, setSmsFlash] = useState(null);
 
     // 다른 학원으로 바뀌면 loadedKey 가 어긋나 자동으로 로딩 상태가 된다
     const loading = loadedKey !== key;
+
+    // 안내 문자가 받는 모양({ name, category, regNo, contact }). 표가 쓰는 함수를 그대로 쓴다 —
+    // 연락처를 어디서 꺼내는지(founder.mobile → phone)가 두 곳으로 갈라지면 같은 학원에
+    // 두 화면이 다른 번호를 말하게 된다.
+    const target = useMemo(() => toProbeTargets([academy], category)[0], [academy, category]);
 
     useEffect(() => {
         let alive = true;
@@ -272,6 +281,50 @@ export default function SnsDetailPanel({ academy, region = '하남', allAcademie
     const placeFound = hasPlaceCandidate(result);
     const placeUnconfirmed = placeFound && result.matchStatus !== 'matched';
 
+    // 이 학원에서 빠지거나 신고와 다른 칸의 수 — 보낼 문자가 있는지, 몇 가지인지
+    const noticeCount = noticeItems(result).length;
+    // 문구는 펼쳤을 때만 만든다 (표가 750행 때문에 지킨 규칙이지만, 여기서도 안 볼 문구를 지을 이유가 없다)
+    const smsText = useMemo(
+        () => (smsOpen ? buildNoticeSms(target, result, academy) : ''),
+        [smsOpen, target, result, academy]);
+    const smsSize = smsText ? smsBytes(smsText) : 0;
+    const smsOver = smsSize > LMS_LIMIT;
+
+    const copySms = () => {
+        if (!smsText) return;
+        const show = (v) => { setSmsFlash(v); setTimeout(() => setSmsFlash(null), 2200); };
+        copyNoticeSms(smsText).then(
+            () => show({ text: '✓ 복사했습니다' }),
+            () => show({ text: '복사 실패 — 아래 글을 직접 긁어 복사하세요', warn: true }));
+    };
+
+    // 표의 '💰 교습비' 와 같은 창이다. 아직 조사하지 않은 학원도 열 수 있다 —
+    // 창은 '미조사' 로 뜨고 신고한 교습비는 그대로 보인다 (조사 전에 금액부터 볼 일이 많다).
+    const compareBtn = (
+        <button onClick={() => openTuitionCompare(academy, result, { region, numberLabel })}
+            title="신고한 교습비를 새 창에 띄웁니다 — 네이버 창과 나란히 놓고 금액이 같은지 확인하세요"
+            style={{
+                padding: '8px 12px', borderRadius: '8px', border: '1px solid #0d9488',
+                background: 'transparent', color: '#0d9488',
+                fontSize: '0.82rem', fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap',
+            }}>💰 교습비 대조</button>
+    );
+
+    const smsBtn = (
+        <button onClick={() => setSmsOpen((v) => !v)} disabled={noticeCount === 0}
+            title={!result ? '먼저 조사해야 무엇이 빠졌는지 알 수 있습니다'
+                : noticeCount === 0 ? '빠지거나 신고와 다른 항목이 없어 보낼 문자가 없습니다'
+                    : '빠진 것만 넣은 안내 문자를 만들어 보여줍니다 — 보고 나서 복사하세요'}
+            style={{
+                padding: '8px 12px', borderRadius: '8px', whiteSpace: 'nowrap',
+                border: `1px solid ${noticeCount ? '#7c3aed' : 'var(--border-color)'}`,
+                background: 'transparent',
+                color: noticeCount ? '#7c3aed' : 'var(--border-color)',
+                fontSize: '0.82rem', fontWeight: '700',
+                cursor: noticeCount ? 'pointer' : 'default',
+            }}>✉ 안내 문자{noticeCount ? ` ${noticeCount}` : ''}{smsOpen ? ' ▴' : ''}</button>
+    );
+
     const runBtn = (
         <button onClick={() => runCheck()} disabled={running} style={{
             padding: '8px 14px', borderRadius: '8px', border: 'none',
@@ -311,12 +364,52 @@ export default function SnsDetailPanel({ academy, region = '하남', allAcademie
                         </div>
                     </div>
                     <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+                        {compareBtn}
+                        {smsBtn}
                         {doneBtn}
                         {runBtn}
                     </div>
                 </div>
                 {message && <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '10px' }}>{message}</div>}
             </div>
+
+            {/* 안내 문자 — 표는 자리가 없어 툴팁으로 보여줬지만, 여기서는 보내기 전에 눈으로 읽는다 */}
+            {smsOpen && smsText && (
+                <div style={{ ...card, borderLeft: '4px solid #7c3aed' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                        <div style={{ fontSize: '0.86rem', fontWeight: '800' }}>✉ 안내 문자 — 빠진 {noticeCount}가지</div>
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                            {/* 바이트 수를 미리 보여준다 — 붙여넣고 보내기를 누른 뒤에 알면 통째로 다시 해야 한다 */}
+                            <span style={{ fontSize: '0.76rem', fontWeight: '700', color: smsOver ? '#ef4444' : 'var(--text-muted)' }}>
+                                {smsSize.toLocaleString('ko-KR')}B / {LMS_LIMIT.toLocaleString('ko-KR')}B
+                            </span>
+                            <button onClick={copySms} style={{
+                                padding: '6px 12px', borderRadius: '8px', border: 'none',
+                                background: smsFlash?.warn ? '#ef4444' : smsFlash ? DONE_COLOR : '#7c3aed',
+                                color: 'white', fontSize: '0.8rem', fontWeight: '700', cursor: 'pointer',
+                            }}>{smsFlash ? smsFlash.text : '복사'}</button>
+                        </div>
+                    </div>
+                    {smsOver && (
+                        <div style={{ fontSize: '0.78rem', color: '#ef4444', marginBottom: '6px', lineHeight: 1.6 }}>
+                            ⚠ LMS 한도를 넘었습니다 — 문자마당이 받아 주지 않을 수 있습니다.
+                            ⚙ 문자 설정에서 교습과정 목록이나 안내 링크를 빼면 줄어듭니다.
+                        </div>
+                    )}
+                    <pre style={{
+                        margin: 0, padding: '10px 12px', maxHeight: '340px', overflow: 'auto',
+                        background: 'var(--bg-main)', border: '1px solid var(--border-color)', borderRadius: '8px',
+                        whiteSpace: 'pre-wrap', wordBreak: 'break-all',
+                        fontFamily: 'inherit', fontSize: '0.78rem', lineHeight: 1.7, color: 'var(--text-main)',
+                    }}>{smsText}</pre>
+                    <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '8px', lineHeight: 1.7 }}>
+                        {target.contact
+                            ? <>☎ {target.contact} 로 보낼 문구입니다 — 문자마당 창에 붙여넣으세요.</>
+                            : <b style={{ color: '#f59e0b' }}>☎ 연락처가 없습니다 — 문자마당에서 받는 번호를 직접 넣으세요.</b>}
+                        <br />문의 전화·수정 기한·안내 링크·교습과정 표시는 <b>지도점검 업무관리 → SNS 점검표</b>의 <b>⚙ 문자 설정</b>에서 바꿉니다.
+                    </div>
+                </div>
+            )}
 
             {/* 공동 운영 — 플레이스·블로그를 함께 쓰는 학원 */}
             {siblings.length > 0 && (
