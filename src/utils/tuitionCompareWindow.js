@@ -470,8 +470,8 @@ const SPLIT_SCRIPT = `<script>
     try { return window.toolbar.visible === false; } catch (e) { return true; }
   })();
 
-  // 탭에서 옮겨 온 복제본인가. 옮겨 올 때 채널 창 이름도 함께 물려받아, 먼저 열려 있던
-  // 그 창을 이름으로 되찾는다 (adopt) — 되찾아야 '닫으면 제자리' 가 첫 채널부터 된다.
+  // 탭에서 옮겨 온 복제본인가. 채널 창 이름(RIGHT)도 함께 물려받는다 — 이름이 같아야
+  // 채널을 연달아 눌러도 창이 늘어나지 않고 같은 자리에서 갈아 끼워진다.
   var PROMOTED = HTML.getAttribute('data-promoted') === '1';
   var RIGHT = HTML.getAttribute('data-right') || ('academySplit_' + Math.random().toString(36).slice(2));
   // 옮겨 오면서 물려받은 '열려던 채널' — 옮겨 온 창이 대신 연다 (아래 promote 주석)
@@ -586,26 +586,40 @@ const SPLIT_SCRIPT = `<script>
     return true;
   }
 
-  /** 옮겨 온 직후 채널을 자동으로 못 열었을 때 — 한 번만 더 누르면 된다고 알려 준다 */
+  /** 옮겨 온 직후 채널을 자동으로 못 열었을 때 — 무엇을 하면 되는지 알려 준다 */
   function nudge() {
     var el = document.querySelector('.howto');
-    if (!el) return;
+    if (!el || document.getElementById('nudge')) return;
     var d = document.createElement('div');
-    d.textContent = '↑ 왼쪽 절반으로 붙었습니다. 오른쪽 열기를 한 번만 더 눌러 주세요 — 이제부터는 한 번에 붙습니다.';
-    d.setAttribute('style', 'margin-top:8px;font-weight:800;color:#b45309');
+    d.id = 'nudge';
+    d.innerHTML = '왼쪽 절반으로 붙었습니다 — <b>이 창 아무 곳이나 한 번 누르면</b> 오른쪽이 열립니다.'
+      + '<br><span style="font-weight:600">이 한 번도 없애려면: 주소창 왼쪽 아이콘 → 사이트 설정 → '
+      + '<b>팝업 및 리디렉션</b> → 허용. 그러면 대조창이 처음부터 창으로 떠서 열기 한 번에 두 화면이 붙습니다.</span>';
+    d.setAttribute('style', 'margin-top:8px;font-weight:800;color:#b45309;line-height:1.7');
     el.appendChild(d);
   }
+  function unNudge() {
+    var d = document.getElementById('nudge');
+    if (d && d.parentNode) d.parentNode.removeChild(d);
+  }
 
-  /** 탭이 먼저 열어 둔 채널 창을 이름으로 넘겨받는다 (새 창을 여는 것이 아니다) */
-  function adopt() {
-    var w = null;
-    try { w = window.open('', RIGHT); } catch (e) { return; }
-    if (!w) return;
-    var mine = true;
-    try { void w.location.href; } catch (e) { mine = false; }   // 남의 출처 = 그 채널 창이 맞다
-    if (mine) { try { w.close(); } catch (e) { /* 이름이 없어 새로 열린 빈 창 */ } return; }
-    right = w;
-    watch();
+  /**
+   * 자동으로 못 열었을 때 — 다음 클릭 하나를 빌린다.
+   *
+   * 브라우저가 팝업을 내주는 것은 '사람이 방금 눌렀을 때' 뿐이다. 옮겨 온 창은 스스로 뜬
+   * 것이라 그 자격이 없다. 그래서 이 창에서 일어나는 다음 클릭 아무거나에 얹어 연다 —
+   * 열기를 다시 찾아 누를 것 없이, 창 아무 데나 한 번 누르면 된다.
+   */
+  function armFirstClick(url) {
+    nudge();
+    var fire = function (ev) {
+      document.removeEventListener('click', fire, true);
+      unNudge();
+      // 열기를 다시 누른 것이면 평소 흐름이 알아서 연다 (두 번 열지 않는다)
+      var onLink = ev.target && ev.target.closest && ev.target.closest('a.open');
+      if (!onLink) openChannel(url);
+    };
+    document.addEventListener('click', fire, true);
   }
 
   document.addEventListener('click', function (ev) {
@@ -637,9 +651,12 @@ const SPLIT_SCRIPT = `<script>
     // 열릴 때 준 자리를 브라우저가 다 듣지 않는 경우가 있다 (최소 너비 등) — 한 번 더 맞춘다
     var lb = leftHalf();
     try { window.moveTo(lb.left, lb.top); window.resizeTo(lb.w, lb.h); } catch (e) { /* 무시 */ }
-    adopt();
-    // 탭에서 누른 그 채널을 이어서 연다. 막히면(사용자 동작 없이 여는 팝업) 한 번 더 누르면 된다.
-    if (OPEN_URL && !right && !openChannel(OPEN_URL)) nudge();
+    // 탭에서 누른 그 채널을 이어서 연다.
+    //
+    // 여기서 window.open 을 부르기 전에 다른 window.open 을 하나라도 부르면 안 된다.
+    // 브라우저가 이 창에 내주는 팝업은 있어도 하나뿐이라, 앞에서 빈 창 하나를 열었다 닫는
+    // 것만으로 정작 채널이 열리지 않는다 (예전 adopt() 가 그랬다).
+    if (OPEN_URL && !openChannel(OPEN_URL)) armFirstClick(OPEN_URL);
   }
 })();
 </script>`;
