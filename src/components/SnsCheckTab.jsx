@@ -8,7 +8,7 @@ import {
     buildGroups, placeDuplicates, sharedCellTargets, pinnedPlaceId,
     pinResolvedPlace, parsePlaceInput, placeUrlFromId, PIN_CLEARED,
     RECHECK_DAYS, VERDICT_COLOR, matchesSnsFilter,
-    REPLY_FILTERS, replyStage, fetchReplyLinks,
+    REPLY_FILTERS, replyStage, fetchReplyLinks, setReplySeen, isReplySeen, isReplied, clearReply,
 } from '../utils/snsCheck';
 import { downloadSnsWorkbook } from '../utils/snsWorkbookExcel';
 import { readNoticeSettings, writeNoticeSettings, noticeDeadline, COURSE_LINES, LMS_LIMIT } from '../utils/snsNoticeText';
@@ -23,7 +23,7 @@ const FILTERS = ['전체', '미이행', '이행', '확인불가', '해당없음'
 const DONE_FILTERS = ['전체', '미확인', '확인완료'];
 
 // 회신 칩 색 — 기다리는 중은 조용히, 회신은 초록, 기한을 넘긴 곳은 빨강(확인서·처분으로 갈 곳이다)
-const REPLY_COLOR = { 회신옴: '#10b981', 기한초과: '#ef4444', 대기중: '#f59e0b' };
+const REPLY_COLOR = { 회신옴: '#10b981', 회신처리: '#64748b', 기한초과: '#ef4444', 대기중: '#f59e0b' };
 
 // 점검표 엑셀에서 빼는 판정 — 전화로 할 말이 없는 곳이라 종이만 두꺼워진다.
 // 그 칩을 직접 골라 둔 경우에는 일부러 보려는 것이므로 빼지 않는다.
@@ -344,7 +344,7 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
 
     // 회신 칩에 붙일 숫자 — 네 자리가 겹치지 않고 합이 전체라, 이 줄이 곧 진행 상황이다
     const replyCounts = useMemo(() => {
-        const c = { 전체: rows.length, 미발송: 0, 대기중: 0, 회신옴: 0, 기한초과: 0 };
+        const c = { 전체: rows.length, 미발송: 0, 대기중: 0, 기한초과: 0, 회신옴: 0, 회신처리: 0 };
         rows.forEach(({ result }) => { c[replyStage(result, notice.days)]++; });
         return c;
     }, [rows, notice.days]);
@@ -639,6 +639,33 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
         queue.push(rowKey, resultToRecord(updated));
     }, [applyManual, queue]);
 
+    // 회신을 보고 처리했다는 표시 — 초록이 걷혀 '아직 안 본 회신' 만 눈에 남는다.
+    // 마감(확인 열)과는 다른 축이다: 이것은 '이 회신을 봤다', 마감은 '이 학원을 다 봤다'.
+    const toggleReplySeen = useCallback((result) => {
+        if (!result) return;
+        const rowKey = recordKey(result.category, result.regNo);
+        const updated = setReplySeen(result, !isReplySeen(result));
+        applyManual({ ...resultsRef.current, [rowKey]: updated }, [rowKey]);
+        setSaveState('');
+        queue.push(rowKey, resultToRecord(updated));
+    }, [applyManual, queue]);
+
+    // 발송·회신 표시 초기화 — 문자를 복사한 것이 곧 발송은 아니다.
+    // 시험 삼아 눌러 본 것까지 '보냄' 으로 세면 기한초과 목록이 부풀어
+    // 엉뚱한 학원이 확인서 대상이 된다. 되돌릴 때는 한 번 묻는다 (학원 회신도 함께 지워진다).
+    const resetReply = useCallback((result) => {
+        if (!result) return;
+        const name = result.name || result.regNo;
+        const what = isReplied(result) ? '발송 표시와 학원 회신' : '발송 표시';
+        if (!window.confirm(`${name} 의 ${what}를 지웁니다.
+조사 결과와 O/X 는 그대로 둡니다. 계속할까요?`)) return;
+        const rowKey = recordKey(result.category, result.regNo);
+        const updated = clearReply(result);
+        applyManual({ ...resultsRef.current, [rowKey]: updated }, [rowKey]);
+        setSaveState(`${name} 의 ${what}를 지웠습니다.`);
+        queue.push(rowKey, resultToRecord(updated));
+    }, [applyManual, queue]);
+
     // ── 네이버플레이스가 아예 없는 학원 ──────────────────
     // 이름이 달라 못 찾은 것과 정말 없는 것은 자동으로 못 가린다. 사람이 확인해 눌러 주면
     // 물고 온 남의 업체를 버리고, 판정을 '해당없음'으로 빼고, 다시 조사하지 않는다.
@@ -826,7 +853,8 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                             onClick={() => setReplyFilter(f)} color={REPLY_COLOR[f]} />
                     ))}
                     <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                        문자를 만든 날부터 {notice.days}일이 지나도록 회신이 없으면 <b>기한초과</b>
+                        문자를 만든 날부터 {notice.days}일이 지나도록 회신이 없으면 <b>기한초과</b>.
+                        <b> 회신옴</b> = 아직 확인하지 않은 회신 (회신 열의 <b>처리</b> 를 누르면 <b>회신처리</b> 로 넘어갑니다)
                     </span>
                 </div>
 
@@ -1015,7 +1043,8 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                                 pinError={pinRow === key ? pinError : null}
                                 memoOpen={memoRow === key}
                                 memoInput={memoRow === key ? memoInput : ''}
-                                replyUrl={replyLinks ? replyLinks[key] || '' : ''}
+                                replyUrl={replyLinks?.[key]?.reply || ''}
+                                formUrl={replyLinks?.[key]?.form || ''}
                                 days={notice.days}
                                 onSelectAcademy={onSelectAcademy}
                                 onCycle={cycleCell}
@@ -1024,6 +1053,8 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                                 onRefresh={runOne}
                                 onJump={jumpToRow}
                                 onSent={markSent}
+                                onToggleReplySeen={toggleReplySeen}
+                                onResetReply={resetReply}
                                 onPinOpen={openPin}
                                 onPinChange={changePin}
                                 onPinSave={savePinFromInput}

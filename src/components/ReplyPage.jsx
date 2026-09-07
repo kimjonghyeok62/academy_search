@@ -44,6 +44,16 @@ const ANSWERS = [
 
 const NOTE_MAX = 60;
 
+// 문자를 보낸 곳의 이름 — snsNoticeText 의 SENDER 와 같은 말이어야 한다.
+// '저희' 라고만 하면 학원은 누가 보고 있는 것인지 알 수 없다.
+const SENDER = '하남교육지원센터';
+
+// 남기실 말씀의 보기.
+// 보기를 하나 두면 그 문장을 그대로 베껴 적는 사람이 생긴다. 그래서 '다음 주에 올리겠습니다'
+// 처럼 누구나 쓸 수 있는 말이 아니라, 날짜와 할 일이 든 문장을 보기로 든다 —
+// 베껴 적으면 곧 사실이 아닌 것이 드러나므로, 자기 사정을 적게 된다.
+const NOTE_EXAMPLE = '내일 교습비 변경하러 하남교육지원센터 방문 예정입니다';
+
 const wrap = {
     maxWidth: '560px', margin: '0 auto', padding: '20px 16px 48px',
     color: '#1e293b', fontSize: '16px', lineHeight: 1.6,
@@ -215,7 +225,7 @@ export default function ReplyPage() {
             )}
 
             <p style={{ margin: '0 0 14px' }}>
-                아래는 저희가 확인하지 못했거나 신고하신 내용과 달랐던 것입니다.
+                아래는 {SENDER}에서 확인하지 못했거나, 신고하신 내용과 달랐던 것입니다.
                 <b> 고치신 것만 눌러 주시면 됩니다.</b>
             </p>
 
@@ -236,7 +246,7 @@ export default function ReplyPage() {
                         {url && (
                             <a href={url} target="_blank" rel="noopener noreferrer"
                                 style={{ display: 'inline-block', marginBottom: '10px', fontSize: '14px', color: '#2563eb', wordBreak: 'break-all' }}>
-                                저희가 본 곳 열어 보기 ↗
+                                {SENDER}에서 본 곳 열어 보기 ↗
                             </a>
                         )}
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
@@ -270,12 +280,26 @@ export default function ReplyPage() {
                 </label>
                 <input id="note" value={note} maxLength={NOTE_MAX}
                     onChange={(e) => setNote(e.target.value)}
-                    placeholder="예) 다음 주에 올리겠습니다"
+                    placeholder="담당자에게 전하실 말씀"
                     style={{
                         width: '100%', boxSizing: 'border-box', minHeight: '44px', padding: '10px 12px',
                         fontSize: '16px', borderRadius: '10px', border: '1.5px solid #cbd5e1',
                     }} />
+                <div style={{ ...muted, marginTop: '6px' }}>예) {NOTE_EXAMPLE}</div>
             </div>
+
+            {/* 게시표 예시 — '교습비를 게시하라' 고만 하면 무엇을 어떤 모양으로 붙일지 모른다.
+                문자에도 같은 주소가 들어가지만, 문자를 닫고 들어온 분을 위해 여기에도 둔다 */}
+            <a href={`/g/${encodeURIComponent(token)}`} target="_blank" rel="noopener noreferrer"
+                style={{
+                    ...card, display: 'block', textAlign: 'center', textDecoration: 'none',
+                    color: '#0d9488', borderColor: '#0d9488', fontWeight: 700,
+                }}>
+                📄 교습비 게시표 예시 보기 ↗
+                <div style={{ ...muted, fontWeight: 400, marginTop: '4px' }}>
+                    신고하신 내용으로 만든 내부용·외부용 게시표입니다
+                </div>
+            </a>
 
             {sendError && <Notice tone="bad">{sendError}</Notice>}
 

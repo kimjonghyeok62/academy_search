@@ -467,21 +467,55 @@ export function setMemo(result, text) {
 // 안내 문자 끝에 그 학원만 여는 주소를 한 줄 넣는다. 학원이 눌러 '고쳤습니다' 를 표시하면
 // 시트의 회신일시·회신내용에 남고, 담당자는 1,000곳을 다시 도는 대신 회신이 온 곳만 본다.
 //
-// 이 두 칸은 화면에서 고치지 않는다 — 읽기만 하고 실어 보내지 않는다 (PASSTHROUGH 주석 참고).
+// 이 두 칸은 화면이 평소에 실어 보내지 않는다 — 읽기만 한다 (PASSTHROUGH 주석 참고).
+// 지울 때만 REPLY_CLEARED 를 명시해 보낸다 (바로 아래).
 // 판정을 바꾸지도 않는다. 회신은 '학원이 그렇게 말했다' 는 사실일 뿐이고,
 // 이행 여부를 정하는 것은 언제나 다시 조사한 결과다.
 export const REPLY_COLUMNS = ['회신일시', '회신내용'];
 
+// 지운 자리는 빈 값이 아니라 '-' 로 남긴다 — Apps Script 는 빈 값을 '안 넘어온 것' 으로 보고
+// 기존 값을 지켜주므로, 빈 문자열로 보내면 지우기가 영영 저장되지 않는다
+// (PIN_CLEARED·MEMO_CLEARED 와 같은 규약).
+export const REPLY_CLEARED = '-';
+const clean = (v) => {
+    const s = String(v || '').trim();
+    return s === REPLY_CLEARED ? '' : s;
+};
+
 /** 담당자가 안내 문자를 만든 시각 (ISO). 없으면 빈 문자열 */
-export const sentAt = (result) => String(result?.발송일시 || '').trim();
+export const sentAt = (result) => clean(result?.발송일시);
 
 /** 학원이 회신한 시각 (ISO). 없으면 빈 문자열 */
-export const repliedAt = (result) => String(result?.회신일시 || '').trim();
+export const repliedAt = (result) => clean(result?.회신일시);
 
 /** 학원이 표시한 내용 — 사람이 읽는 한 줄 */
-export const replyText = (result) => String(result?.회신내용 || '').trim();
+export const replyText = (result) => clean(result?.회신내용);
 
 export const isReplied = (result) => !!repliedAt(result);
+
+// ── 담당자가 회신을 보았다는 표시 ────────────────────────
+// 회신이 왔다는 것과 담당자가 그것을 보고 처리했다는 것은 다른 사실이다. 섞어 두면
+// '아직 안 본 회신' 이 몇 건인지 알 수 없어, 회신이 쌓일수록 목록이 쓸모를 잃는다.
+// 마감(__done)과는 또 다르다 — 마감은 '이 학원을 다 봤다', 이것은 '이 회신을 봤다' 이다.
+// 새 시트 열을 만들지 않고 수동확인 JSON 의 예약 키에 둔다 (__done 과 같은 자리).
+export const REPLY_SEEN_KEY = '__replyseen';
+
+export const isReplySeen = (result) => !!parseManual(result)[REPLY_SEEN_KEY];
+
+/** 회신을 봤다/안 봤다 표시 — 저장은 부르는 쪽이 한다 */
+export const setReplySeen = (result, on) =>
+    setManualCell(result, REPLY_SEEN_KEY, on ? new Date().toISOString() : undefined);
+
+/**
+ * 발송·회신 표시를 통째로 지운다 — 저장은 부르는 쪽이 한다.
+ *
+ * 문자를 복사한 것이 곧 발송은 아니다. 시험 삼아 눌러 본 것까지 '보냄' 으로 세면
+ * 기한초과 목록이 부풀어 엉뚱한 학원이 확인서 대상이 된다. 되돌릴 길이 있어야 한다.
+ */
+export function clearReply(result) {
+    const cleared = setManualCell(result, REPLY_SEEN_KEY, undefined);
+    return { ...cleared, 발송일시: REPLY_CLEARED, 회신일시: REPLY_CLEARED, 회신내용: REPLY_CLEARED };
+}
 
 /** 보냈는데 기한이 지나도록 회신이 없는가 — 확인서·처분으로 넘어갈 곳이다 */
 export function isOverdue(result, days) {
@@ -493,12 +527,14 @@ export function isOverdue(result, days) {
 
 /**
  * 한 학원이 지금 어느 자리에 있는가 — 업무가 흐르는 차례 그대로다.
- * 네 값이 서로 겹치지 않고 합이 전체라, 칩에 붙는 숫자가 곧 진행 상황이 된다.
+ * 다섯 값이 서로 겹치지 않고 합이 전체라, 칩에 붙는 숫자가 곧 진행 상황이 된다.
+ *   미발송 → 대기중 → 기한초과 (확인서·처분으로)
+ *                  ↘ 회신옴(아직 안 본 회신) → 회신처리
  */
-export const REPLY_FILTERS = ['전체', '미발송', '대기중', '회신옴', '기한초과'];
+export const REPLY_FILTERS = ['전체', '미발송', '대기중', '기한초과', '회신옴', '회신처리'];
 
 export function replyStage(result, days) {
-    if (isReplied(result)) return '회신옴';
+    if (isReplied(result)) return isReplySeen(result) ? '회신처리' : '회신옴';
     if (!sentAt(result)) return '미발송';
     return isOverdue(result, days) ? '기한초과' : '대기중';
 }
@@ -946,6 +982,10 @@ export function toProbeTargets(list, category) {
 
 // ── 조사 결과 → 시트 레코드 ─────────────────────────────
 export function resultToRecord(r) {
+    // 회신 두 칸은 평소 싣지 않는다. 다만 '지움'(REPLY_CLEARED)은 값으로 보내야 지워진다 —
+    // 빈 값은 Apps Script 가 '안 넘어온 것' 으로 보고 기존 값을 지키기 때문이다.
+    const clearing = {};
+    REPLY_COLUMNS.forEach((k) => { if (r?.[k] === REPLY_CLEARED) clearing[k] = REPLY_CLEARED; });
     const rec = {
         확인일시: r.checkedAt || new Date().toISOString(),
         구분: r.category || '',
@@ -957,7 +997,7 @@ export function resultToRecord(r) {
     };
     // 나머지는 컬럼명이 결과 키와 같으므로 그대로 옮긴다
     PASSTHROUGH.forEach((k) => { rec[k] = r[k] ?? ''; });
-    return rec;
+    return { ...rec, ...clearing };
 }
 
 export const recordKey = (category, regNo) => `${category}|${regNo}`;
@@ -1160,7 +1200,9 @@ export async function fetchSnsChecks() {
 }
 
 /**
- * 학원별 회신 주소를 한꺼번에 받아온다 → { '학원|1003': 'https://…/r/a1003-7k2xq9' }.
+ * 학원별 주소를 한꺼번에 받아온다
+ *   → { '학원|1003': { reply: '…/r/a1003-7k2xq9', form: '…/g/a1003-7k2xq9' } }
+ * reply 는 회신 화면, form 은 교습비 게시표 예시다 (같은 토큰, 다른 길).
  *
  * 서명이 서버(SNS_REPLY_SECRET)에만 있어 화면에서는 만들 수 없다. 행마다 물어보면
  * 750번 왕복하므로 한 번에 받아 들고 있다가 문자를 지을 때 꺼내 쓴다.
