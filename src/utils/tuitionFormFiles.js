@@ -43,18 +43,19 @@ export const formFileName = (academyName, kindLabel, ext) =>
     `${safeName(academyName)}_교습비게시표_${kindLabel}.${ext}`;
 
 // ── 워드 (.docx) ────────────────────────────────────────
-// 표 하나를 OOXML 로 다시 그리지 않는다. 그러면 양식이 두 벌이 되어, 화면과 워드 파일이
-// 조금씩 달라져도 아무도 모른다. 대신 docx 가 가진 altChunk 를 쓴다 —
-// HTML 을 그대로 넣어 두면 워드가 열 때 자기 표로 바꿔 준다.
-//
-// 한계: 워드가 변환을 맡으므로, altChunk 를 모르는 프로그램(일부 뷰어·웹 워드)에서는
-// 내용이 비어 보일 수 있다. 그래서 화면에서 PDF·JPG 를 함께 준다.
+// 표를 WordprocessingML 로 직접 쓴다. 처음에는 altChunk(HTML 을 통째로 넣고 여는 쪽이
+// 표로 바꾸게 하는 방식)를 썼는데, MS 워드에서는 잘 열려도 **한워드에서는 빈 문서**가
+// 나왔다. 그 부분을 모르는 프로그램은 통째로 건너뛰기 때문이다. 학원이 무엇으로 열지
+// 우리는 고를 수 없으므로, 어디서 열어도 같은 것이 나오는 쪽을 골랐다.
+// 옮기는 일은 htmlToDocx.js 가 한다 (이미 그려진 화면에서 값을 읽는다).
+import { docxBodyFromPages } from './htmlToDocx';
+
 const CONTENT_TYPES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
 <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
 <Default Extension="xml" ContentType="application/xml"/>
-<Default Extension="htm" ContentType="text/html"/>
 <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
 </Types>`;
 
 const ROOT_RELS = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -64,52 +65,38 @@ const ROOT_RELS = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 
 const DOC_RELS = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-<Relationship Id="htmlChunk" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk" Target="afchunk.htm"/>
+<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
 </Relationships>`;
 
-// A4 세로 · 여백 8mm.
-// 게시표 HTML 의 .page 는 210mm 에 안쪽 여백 8mm 라 내용 폭이 194mm 다. 워드 여백을 12mm 로
-// 두면 내용 폭이 186mm 밖에 안 되어 표가 옆으로 넘치고 한 장이 두 장이 된다.
-// (twip: 1mm ≈ 56.7 → 8mm ≈ 454)
-const DOCUMENT_XML = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
-<w:body>
-<w:altChunk r:id="htmlChunk"/>
-<w:sectPr>
-<w:pgSz w:w="11906" w:h="16838"/>
-<w:pgMar w:top="454" w:right="454" w:bottom="454" w:left="454" w:header="0" w:footer="0" w:gutter="0"/>
-</w:sectPr>
-</w:body>
-</w:document>`;
+// 문서 기본값만 둔다 — 글자 모양은 칸마다 따로 적으므로 여기서는 여백 없는 문단과
+// 게시표와 같은 글꼴만 정해 준다. styles.xml 이 없어도 열리기는 하지만, 없으면
+// 프로그램마다 제 나름의 기본값(줄간격·10.5pt 등)을 얹어 표가 늘어난다.
+const STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+<w:docDefaults><w:rPrDefault><w:rPr>
+<w:rFonts w:ascii="맑은 고딕" w:hAnsi="맑은 고딕" w:eastAsia="맑은 고딕"/>
+<w:sz w:val="20"/><w:szCs w:val="20"/>
+</w:rPr></w:rPrDefault>
+<w:pPrDefault><w:pPr>
+<w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="auto"/>
+</w:pPr></w:pPrDefault></w:docDefaults>
+<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style>
+</w:styles>`;
 
-/**
- * 워드에 넣기 전에 HTML 을 조금 손본다.
- *
- * `.page` 는 화면에서 'A4 한 장처럼 보이게' 하는 상자다 — 210mm 폭에 8mm 안쪽 여백,
- * 297mm 최소 높이. 워드는 그 값을 곧이곧대로 지키느라 자기 여백 위에 여백을 또 얹고,
- * 297mm 를 채우려 빈 자리를 만들어 한 장짜리를 두 장으로 밀어낸다.
- * 워드에서는 쪽 설정(sectPr)이 이미 A4·여백 8mm 를 맡으므로 이 상자는 비워 준다.
- *
- * charset 은 워드가 스스로 알아내지 못하는 일이 있어 머리에 박아 둔다.
- */
-const forWord = (html) => String(html || '')
-    .replace(/\.page\s*\{[^}]*\}/g, '.page{margin:0;padding:0;background:white;}')
-    .replace('<head>', '<head><meta charset="utf-8">');
+const documentXml = (body) => `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${body}</w:body></w:document>`;
 
-/**
- * 게시표 HTML → .docx 한 덩이.
- * 내려받기와 가른 것은 화면 없이도 시험할 수 있게 하려는 것이다 (docx 는 눈으로 못 본다).
- */
-export async function buildFormDocxBlob(html) {
+/** 그려진 게시표(.page 들) → .docx 한 덩이 */
+export async function buildFormDocxBlob(pages) {
     const { default: JSZip } = await import('jszip');
     const zip = new JSZip();
 
     zip.file('[Content_Types].xml', CONTENT_TYPES);
     zip.folder('_rels').file('.rels', ROOT_RELS);
     const word = zip.folder('word');
-    word.file('document.xml', DOCUMENT_XML);
+    word.file('document.xml', documentXml(docxBodyFromPages(pages)));
+    word.file('styles.xml', STYLES);
     word.folder('_rels').file('document.xml.rels', DOC_RELS);
-    word.file('afchunk.htm', forWord(html));
 
     return zip.generateAsync({
         type: 'blob',
@@ -117,9 +104,17 @@ export async function buildFormDocxBlob(html) {
     });
 }
 
-/** 게시표 HTML → .docx 파일로 내려받기 */
-export async function downloadFormDocx(html, filename) {
-    download(await buildFormDocxBlob(html), filename);
+/**
+ * 게시표를 .docx 로 내려받는다.
+ * 그림과 마찬가지로 **그려진 iframe** 을 넘겨받는다 — 화면에 보이는 그대로를 옮기려면
+ * 브라우저가 이미 계산해 둔 칸 너비·줄 높이가 있어야 한다.
+ */
+export async function downloadFormDocx(iframe, academyName, kindLabel) {
+    const doc = iframe?.contentDocument;
+    if (!doc) throw new Error('게시표를 아직 불러오지 못했습니다');
+    const pages = [...doc.querySelectorAll('.page')];
+    if (!pages.length) throw new Error('게시표를 아직 불러오지 못했습니다');
+    download(await buildFormDocxBlob(pages), formFileName(academyName, kindLabel, 'docx'));
 }
 
 // ── 그림 (.jpg) ─────────────────────────────────────────
