@@ -39,7 +39,46 @@ function hex(color) {
 
 const ALIGN = { center: 'center', right: 'right', end: 'right', justify: 'both' };
 
+/**
+ * 이 블록이 가로로 어디에 놓이나.
+ *
+ * text-align 만 보면 **서명란이 왼쪽으로 붙는다.** 서명 줄은 flex 로 가운데 모은 것이라
+ * text-align 은 start 그대로다(가운데로 옮기는 것은 justify-content 다). 화면에 가운데로
+ * 보이는 것이 워드에서 왼쪽에 있으면 같은 서식이라 할 수 없다.
+ */
+function blockAlign(cs) {
+    if (ALIGN[cs.textAlign]) return ALIGN[cs.textAlign];
+    if (cs.display.includes('flex')) {
+        if (cs.justifyContent === 'center') return 'center';
+        if (/end|right/.test(cs.justifyContent)) return 'right';
+    }
+    return '';
+}
+
+/** 블록 아래에 그은 가로선(상단 날짜 줄 밑의 선)을 문단 테두리로 옮긴다 */
+function blockBottomRule(cs) {
+    const width = parseFloat(cs.borderBottomWidth);
+    if (!width || cs.borderBottomStyle === 'none') return '';
+    const color = hex(cs.borderBottomColor) || '000000';
+    return `<w:pBdr><w:bottom w:val="single" w:sz="${eighthPt(width)}" w:space="1" w:color="${color}"/></w:pBdr>`;
+}
+
 // ── 글자 ─────────────────────────────────────────────────
+/**
+ * 아래 선만 그은 빈칸(년·월·일, 서명란)인가 — 워드에서는 밑줄로 옮긴다.
+ *
+ * '아래 테두리가 있으면 밑줄' 로만 보면 **표의 칸이 전부 걸린다**(칸에도 아래 테두리가
+ * 있다). 그래서 글줄 안에 놓인 것(inline)이면서 아래쪽에만 선이 있는 것으로 좁힌다.
+ * 표의 칸은 display 가 table-cell 이라 여기서 걸러진다.
+ */
+function ruledBlank(cs) {
+    if (!cs.display.startsWith('inline')) return false;
+    return parseFloat(cs.borderBottomWidth) > 0
+        && !parseFloat(cs.borderTopWidth)
+        && !parseFloat(cs.borderLeftWidth)
+        && !parseFloat(cs.borderRightWidth);
+}
+
 /** 한 조각의 글자 모양 — 화면에 그려진 그대로 */
 function runProps(el) {
     const cs = getComputedStyle(el);
@@ -47,8 +86,7 @@ function runProps(el) {
     const bits = [
         `<w:rFonts w:ascii="${esc(family)}" w:hAnsi="${esc(family)}" w:eastAsia="${esc(family)}"/>`,
         parseInt(cs.fontWeight, 10) >= 600 ? '<w:b/>' : '',
-        // 밑줄 대신 아래 테두리로 그은 빈칸(년·월·일)도 워드에서는 밑줄로 옮긴다
-        (cs.textDecorationLine || '').includes('underline') || parseFloat(cs.borderBottomWidth) > 0
+        (cs.textDecorationLine || '').includes('underline') || ruledBlank(cs)
             ? '<w:u w:val="single"/>' : '',
         `<w:sz w:val="${halfPt(cs.fontSize)}"/><w:szCs w:val="${halfPt(cs.fontSize)}"/>`,
         hex(cs.color) ? `<w:color w:val="${hex(cs.color)}"/>` : '',
@@ -71,15 +109,20 @@ function runs(node, styleEl) {
     return [...node.childNodes].map((c) => runs(c, node)).join('');
 }
 
-/** 블록 하나 → 문단 하나 */
-function paragraph(el, extra = '') {
+/**
+ * 블록 하나 → 문단 하나.
+ *
+ * 아래 여백은 CSS 값이 아니라 **화면에서 잰 실제 간격**(gap)을 쓴다. CSS 는 맞닿은
+ * 위·아래 여백을 하나로 겹쳐 쓰지만(margin collapsing) 워드는 둘을 더한다. 그대로 옮기면
+ * 문단마다 조금씩 늘어나, 한 장에 들어가던 것이 두 장이 된다.
+ */
+function paragraph(el, gap = 0, extra = '') {
     const cs = getComputedStyle(el);
-    const jc = ALIGN[cs.textAlign] ? `<w:jc w:val="${ALIGN[cs.textAlign]}"/>` : '';
-    const before = twip(cs.marginTop);
-    const after = twip(cs.marginBottom);
-    const spacing = `<w:spacing w:before="${before}" w:after="${after}" w:line="240" w:lineRule="auto"/>`;
+    const align = blockAlign(cs);
+    const jc = align ? `<w:jc w:val="${align}"/>` : '';
+    const spacing = `<w:spacing w:before="0" w:after="${twip(gap)}" w:line="240" w:lineRule="auto"/>`;
     const inner = runs(el, el);
-    return `<w:p><w:pPr>${spacing}${jc}${extra}</w:pPr>${inner}</w:p>`;
+    return `<w:p><w:pPr>${spacing}${blockBottomRule(cs)}${jc}${extra}</w:pPr>${inner}</w:p>`;
 }
 
 /** 칸 안에는 문단이 반드시 하나는 있어야 한다 (빈 칸도 마찬가지) */
@@ -114,7 +157,7 @@ const V_ALIGN = { middle: 'center', bottom: 'bottom' };
  * rowspan 은 워드에 없다. 대신 세로로 이어붙일 칸을 줄마다 두고 첫 칸에 vMerge restart,
  * 아래 칸에 vMerge 를 준다. 그래서 HTML 의 줄을 그대로 옮길 수 없고, 먼저 격자를 세운다.
  */
-function table(tbl) {
+function table(tbl, gap = 0) {
     const rows = [...tbl.rows];
     const grid = [];                 // grid[r][c] = { td, first } — 칸이 없는 자리는 비어 있다
     const carry = [];                // 열마다 아직 내려오는 rowspan 이 몇 줄 남았는지
@@ -172,7 +215,7 @@ function table(tbl) {
 
     const body = grid.map((row, r) => {
         // 그려진 줄 높이를 그대로 옮긴다 — 워드가 제 나름대로 다시 잡으면 쪽이 나뉜다
-        const h = rows[r] ? Math.round(rows[r].getBoundingClientRect().height * 15) : 0;
+        const h = rows[r] ? twip(rows[r].getBoundingClientRect().height) : 0;
         const trPr = `<w:trPr>${h ? `<w:trHeight w:hRule="atLeast" w:val="${h}"/>` : ''}`
             + `${rows[r] && rows[r].parentElement.tagName === 'THEAD' ? '<w:tblHeader/>' : ''}</w:trPr>`;
 
@@ -203,24 +246,68 @@ function table(tbl) {
         return `<w:tr>${trPr}${cells.join('')}</w:tr>`;
     }).join('');
 
-    // 표 바로 뒤에는 문단이 있어야 한다 (표로 문서가 끝나면 여는 쪽이 싫어한다)
-    return `<w:tbl>${pr}${grid_}${body}</w:tbl><w:p><w:pPr><w:spacing w:before="0" w:after="0"/></w:pPr></w:p>`;
+    // 표 바로 뒤에는 문단이 하나 있어야 한다 (표로 문서가 끝나면 여는 쪽이 싫어한다).
+    // 그 문단이 제 글자 크기만큼 자리를 먹으면 표 아래가 벌어지므로 1pt 로 눌러 두고,
+    // 화면에서 잰 간격만 아래 여백으로 준다.
+    const tail = `<w:p><w:pPr><w:spacing w:before="0" w:after="${twip(gap)}" w:line="20" w:lineRule="exact"/>`
+        + `<w:rPr><w:sz w:val="2"/></w:rPr></w:pPr></w:p>`;
+    return `<w:tbl>${pr}${grid_}${body}</w:tbl>${tail}`;
 }
 
 // ── 전체 ─────────────────────────────────────────────────
 /** 블록 하나를 옮긴다. 안에 표가 있으면 표로, 아니면 문단으로. */
-function block(el) {
+function block(el, gap = 0) {
     const cs = getComputedStyle(el);
     if (cs.display === 'none') return '';
-    if (el.tagName === 'TABLE') return table(el);
+    if (el.tagName === 'TABLE') return table(el, gap);
     if (el.querySelector && el.querySelector('table')) {
-        return [...el.children].map(block).join('');
+        return children(el);
     }
+    // 안을 문단으로 나눌지 정한다. 합쳐 버리면 두 가지를 잃는다 — 줄바꿈과, 안쪽이 따로
+    // 가진 가로 정렬(서명란은 바깥은 왼쪽인데 안쪽 줄이 flex 로 가운데다). 그래서
+    //   ① 세로로 쌓여 있거나  ② 안쪽 정렬이 바깥과 다르면 나눈다.
+    // 반대로 한 줄에 나란히 놓이고 정렬도 같은 것들(날짜 + [단위: 원])은 합쳐야 한 줄로 남는다.
+    const kids = [...el.children];
+    const mine = blockAlign(cs);
+    // flex 로 한 줄에 늘어놓는 상자는 그 안을 절대 쪼개지 않는다. flex 안에 들어간 <span>
+    // 은 display 가 block 으로 바뀌어(blockification) 겉보기에 '따로 놓인 덩이' 처럼 보이지만,
+    // 실제로는 한 줄에 나란히 있는 조각들이다. 쪼개면 '2025 년 / 4 월 / 8 일' 이 세 줄이 된다.
+    const flexRow = cs.display.includes('flex') && !cs.flexDirection.startsWith('column');
+    const differs = !flexRow && kids.some((k) => {
+        const ks = getComputedStyle(k);
+        return !ks.display.startsWith('inline') && blockAlign(ks) !== mine;
+    });
+    if (kids.length && (stacked(kids) || differs)) return children(el);
     if (!el.textContent.trim() && !el.querySelector('span[style*="border"]')) {
         // 빈 칸이라도 자리를 차지하던 것이면 빈 줄 하나로 남긴다
         return parseFloat(cs.height) > 4 ? '<w:p/>' : '';
     }
-    return paragraph(el);
+    return paragraph(el, gap);
+}
+
+/** 자식들이 세로로 쌓여 있나 — 화면에서 잰다 (CSS 를 따져 묻지 않는다) */
+function stacked(kids) {
+    for (let i = 1; i < kids.length; i++) {
+        const a = kids[i - 1].getBoundingClientRect();
+        const b = kids[i].getBoundingClientRect();
+        if (b.height && a.height && b.top >= a.bottom - 1) return true;
+    }
+    return false;
+}
+
+/**
+ * 자식들을 차례로 옮기면서, 각자의 아래 간격을 화면에서 잰다.
+ * (이 블록의 바닥과 다음 블록의 꼭대기 사이 거리 — 겹친 여백까지 반영된 값이다)
+ */
+function children(parent) {
+    const kids = [...parent.children];
+    return kids.map((el, i) => {
+        const next = kids[i + 1];
+        const gap = next
+            ? Math.max(0, next.getBoundingClientRect().top - el.getBoundingClientRect().bottom)
+            : 0;
+        return block(el, gap);
+    }).join('');
 }
 
 /**
@@ -229,7 +316,7 @@ function block(el) {
  */
 export function docxBodyFromPages(pages) {
     const parts = pages.map((page, i) => {
-        const inner = [...page.children].map(block).join('');
+        const inner = children(page);
         const brk = i < pages.length - 1
             ? '<w:p><w:r><w:br w:type="page"/></w:r></w:p>' : '';
         return inner + brk;
