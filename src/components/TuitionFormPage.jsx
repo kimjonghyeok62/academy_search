@@ -9,7 +9,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { transformAcademyData } from '../utils/googleSheets';
 import { buildTuitionFormHtml, buildTuitionFormExternalHtml } from '../utils/generateTuitionPDF';
-import { downloadFormDocx, downloadFormJpg, formFileName, stripPrintBar } from '../utils/tuitionFormFiles';
+import { downloadFormDocx, downloadFormJpg, stripPrintBar } from '../utils/tuitionFormFiles';
 
 const KINDS = [
     { key: 'inner', label: '내부용', hint: '학원 안, 학습자가 보기 쉬운 곳에 붙이는 것' },
@@ -92,8 +92,10 @@ export default function TuitionFormPage() {
         finally { setBusy(''); }
     };
 
+    // 워드도 그림과 마찬가지로 그려진 iframe 에서 만든다 — 화면에 보이는 칸 너비와
+    // 줄 높이를 그대로 옮겨야 열었을 때 같은 표가 나온다.
     const saveDocx = () => run('워드', () =>
-        downloadFormDocx(html, formFileName(academy.name, kindLabel, 'docx')));
+        downloadFormDocx(document.getElementById('form-frame'), academy.name, kindLabel));
 
     const saveJpg = () => run('그림', () =>
         downloadFormJpg(document.getElementById('form-frame'), academy.name, kindLabel));
@@ -176,8 +178,9 @@ export default function TuitionFormPage() {
             <p style={{ ...muted, marginTop: 0, marginBottom: '12px' }}>
                 PDF 는 인쇄 창에서 <b>대상을 &lsquo;PDF로 저장&rsquo;</b> 으로 바꾸시면 됩니다.
                 그림은 문자·블로그에 올리실 때 쓰세요.
-                <br />워드 파일은 <b>고쳐 쓰시라고</b> 드리는 것입니다 — 워드가 표 높이를 다시 잡아
-                쪽이 나뉠 수 있으니, 그대로 붙이실 것은 PDF 나 그림을 쓰세요.
+                <br />워드 파일은 <b>고쳐 쓰시라고</b> 드리는 것입니다 — 표를 그대로 담았으니
+                MS 워드·한워드·구글 문서 어디서 여셔도 됩니다. 다만 프로그램마다 글꼴이 조금씩
+                달라 줄 간격이 미세하게 달라질 수 있습니다.
             </p>
 
             <div style={{ ...card, padding: '8px', overflow: 'auto' }}>
