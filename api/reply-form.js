@@ -5,7 +5,7 @@
 //
 // 회신 화면(GET /api/reply)과 나누어 둔 이유: 마스터 CSV 는 몇 MB 라 읽는 값이 비싸다.
 // 회신하러 들어온 학원마다 이것까지 읽으면 회신 화면이 그만큼 늦어진다.
-import { verifyReplyToken, replySecret } from './_lib/replyToken.js';
+import { verifyReplyToken, replySecret, formExpired, FORM_TTL_DAYS } from './_lib/replyToken.js';
 import { academyRows } from './_lib/masterSheet.js';
 
 export default async function handler(req, res) {
@@ -23,6 +23,16 @@ export default async function handler(req, res) {
     const who = verifyReplyToken(req.query.t);
     if (!who) {
         return res.status(400).json({ ok: false, error: '주소가 올바르지 않습니다. 문자에 있는 주소를 그대로 열어 주세요.' });
+    }
+
+    // 게시표는 신고 내용이 보이는 자리라 주소를 오래 살려 두지 않는다.
+    // 회신(/r/)은 같은 토큰이라도 만료시키지 않는다 — 늦게라도 고쳤다면 받는 편이 낫다.
+    if (formExpired(who)) {
+        return res.status(410).json({
+            ok: false,
+            error: `이 주소는 문자를 보낸 날부터 ${FORM_TTL_DAYS}일까지만 열립니다. `
+                + '기간이 지났으니 담당자에게 전화 주시면 다시 보내 드립니다.',
+        });
     }
 
     try {

@@ -47,7 +47,14 @@ export const REPLY_LINE = '아래를 눌러 고치신 항목만 표시해 주시
 // '교습비를 게시하라' 고만 하면 무엇을 어떤 모양으로 붙여야 하는지 모른다. 신고된 내용으로
 // 만든 게시표를 보여 주면 그대로 인쇄해 붙이거나 보고 따라 만들 수 있다.
 // 회신 블록과 달리 이것은 참고 자료다 — 길이가 넘치면 가장 먼저 덜어낸다.
-export const FORM_LINE = '신고하신 내용으로 만든 게시표입니다 (내부용·외부용). 틀릴 수 있으니, 다시 한번 확인하시고 사용해 주세요.';
+//
+// 유효기간을 적는 이유: 이 주소는 신고 내용(교습과정·금액)이 보이는 자리라 오래 살려 두지
+// 않는다. 언제까지인지 말하지 않고 어느 날 갑자기 안 열리면 학원은 우리 잘못으로 안다.
+// 이 값은 api/_lib/replyToken.js 의 FORM_TTL_DAYS 와 같아야 한다 —
+// 문구와 서버가 어긋나면 학원에게 거짓말이 된다.
+export const FORM_TTL_DAYS = 10;
+export const FORM_LINE = '신고하신 내용으로 만든 게시표입니다 (내부용·외부용). '
+    + `틀릴 수 있으니, 다시 한번 확인하시고 사용해 주세요. (유효기간:${FORM_TTL_DAYS}일)`;
 
 // 길이가 넘쳐 매체를 몇 개 덜어냈을 때만 붙인다
 export const TRIMMED_LINE = '그 밖의 매체는 직접 확인 부탁드립니다.';
@@ -111,7 +118,7 @@ const CHANNEL_NAME = {
 const HOWTO = {
     place: (regLabel) => [
         '· 네이버플레이스 → 가격 정보에 교습비 등록(또는 가격표 이미지 첨부)',
-        `  소개글에 '${regLabel}' 기재 (https://new.smartplace.naver.com/help/guide?menu=edit)`,
+        `  소개글에 '${regLabel}' 기재 (수정방법:https://new.smartplace.naver.com/help/guide?menu=edit)`,
     ],
     blog: () => ['· 블로그 : 프로필·공지글에 {번호}, 별도 게시물에 교습비 등록'],
     homepage: () => ['· 홈페이지 : 첫 화면이나 학원 소개 쪽에 {번호}, 교습비 안내 쪽 추가'],
@@ -315,7 +322,9 @@ function compose(target, result, academy, opts, keep, withCourses, withForm) {
     });
     L.push('');
 
-    L.push(fill(LEGAL_LINE, numberLabel), '');
+    // 근거를 말한 자리에 그 근거를 볼 곳을 함께 둔다. 맨 아래 [관련링크] 에 두면
+    // 학원의 광고 주소와 섞여 '우리 것' 처럼 보인다 — 성격이 다른 링크다.
+    L.push(fill(LEGAL_LINE, numberLabel) + (guideUrl ? ` ( 교육지원청 게시물 : ${guideUrl} )` : ''), '');
 
     L.push('[수정 방법]');
     shown.forEach((b) => { HOWTO[b](regLabel).forEach((line) => L.push(fill(line, numberLabel))); });
@@ -340,19 +349,23 @@ function compose(target, result, academy, opts, keep, withCourses, withForm) {
     const ad = adBlock(result);
     if (ad.length) L.push(...ad, '');
 
+    // 우리가 본 곳 → 참고할 게시표 → 언제까지 → 다 고쳤으면 알려 달라.
+    // 할 일(고칠 곳·본보기)을 먼저 보이고, 기한과 회신은 그다음이다. 기한 뒤에 링크를
+    // 늘어놓으면 '언제까지' 가 문자 한가운데 묻힌다.
+    const links = [];
+    shown.forEach((b) => {
+        (urls[b] || []).forEach((u) => links.push(`· ${CHANNEL_NAME[b]} : ${u}`));
+    });
+    // 주소를 하나도 못 찾았으면 머리만 남은 빈 블록을 만들지 않는다
+    if (links.length) L.push(`[${target.name} 관련링크]`, ...links, '');
+
+    if (withForm && formUrl) L.push(`[${target.name} 교습비 게시표 예시 (참고)]`, FORM_LINE, formUrl, '');
+
     L.push(`${noticeDeadline(days)}까지 수정 부탁드리며, 이후 담당자가 다시 확인합니다.`);
     L.push(TAIL_LINE, '');
 
     // 주소를 못 받아왔으면 블록을 통째로 뺀다 — 안내는 나가야 하고, 빈 링크는 없느니만 못하다
     if (replyUrl) L.push(REPLY_HEAD, REPLY_LINE, replyUrl, '');
-    if (withForm && formUrl) L.push(`[${target.name} 교습비 게시표 예시 (참고)]`, FORM_LINE, formUrl, '');
-
-    L.push('[관련링크]');
-    shown.forEach((b) => {
-        (urls[b] || []).forEach((u) => L.push(`· ${CHANNEL_NAME[b]} : ${u}`));
-    });
-    if (guideUrl) L.push(`· 교육지원청 게시 안내 : ${guideUrl}`);
-    L.push('');
 
     L.push(`문의 : ${tel}`);
     if (keep) L.push('', TRIMMED_LINE);
