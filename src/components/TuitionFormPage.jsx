@@ -9,6 +9,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { transformAcademyData } from '../utils/googleSheets';
 import { buildTuitionFormHtml, buildTuitionFormExternalHtml } from '../utils/generateTuitionPDF';
+import { downloadFormDocx, downloadFormJpg, formFileName, stripPrintBar } from '../utils/tuitionFormFiles';
 
 const KINDS = [
     { key: 'inner', label: '내부용', hint: '학원 안, 학습자가 보기 쉬운 곳에 붙이는 것' },
@@ -25,12 +26,24 @@ const card = {
 };
 const muted = { color: '#64748b', fontSize: '14px' };
 
+// 파일 단추 — 인쇄가 으뜸이라 채워 두고, 나머지 둘은 테두리만 둔다
+const fileBtn = (color, filled = false) => ({
+    flex: '1 1 30%', minWidth: '110px', minHeight: '52px',
+    fontSize: '16px', fontWeight: 700, borderRadius: '12px', cursor: 'pointer',
+    border: `1.5px solid ${color}`,
+    background: filled ? color : '#fff',
+    color: filled ? '#fff' : color,
+});
+
 export default function TuitionFormPage() {
     const token = useMemo(
         () => decodeURIComponent(window.location.pathname.replace(/^\/g\/?/, '')).trim(), []);
 
     const [state, setState] = useState({ status: 'loading' });
     const [kind, setKind] = useState('inner');
+    // 파일을 만드는 동안(무거운 것을 그때 불러온다) 무엇이 도는지 알려 준다
+    const [busy, setBusy] = useState('');
+    const [fileError, setFileError] = useState('');
 
     useEffect(() => {
         let alive = true;
@@ -54,19 +67,36 @@ export default function TuitionFormPage() {
     const html = useMemo(() => {
         if (!academy) return '';
         const built = kind === 'outer' ? buildTuitionFormExternalHtml(academy) : buildTuitionFormHtml(academy);
-        // 게시표 HTML 에는 새 창용 단추 줄(.print-bar)이 붙어 있다. 여기서는 화면 안에 끼워
-        // 보여주므로 '✕ 닫기' 는 아무 일도 하지 않고, 인쇄는 아래 큰 단추가 맡는다 — 가린다.
-        // (만드는 함수는 담당자 화면과 함께 쓰므로 손대지 않는다)
-        return built.replace('</head>', '<style>.print-bar{display:none!important}</style></head>');
+        // 새 창용 단추 줄은 걷어낸다 — 여기서는 화면 안에 끼워 보여주므로 '✕ 닫기' 는 아무
+        // 일도 하지 않고, 인쇄는 아래 큰 단추가 맡는다. 워드로 뽑을 때도 이 HTML 을 그대로
+        // 쓰므로 여기서 한 번만 걷어내면 세 가지 파일이 모두 깨끗해진다.
+        return stripPrintBar(built);
     }, [academy, kind]);
 
-    // 게시표는 A4 한 장을 그대로 그린다 — 페이지 스타일이 섞이지 않게 iframe 안에 둔다
+    // 게시표는 A4 한 장을 그대로 그린다 — 페이지 스타일이 섞이지 않게 iframe 안에 둔다.
+    // PDF 는 브라우저 인쇄가 맡는다 ('대상'을 PDF 로 저장하면 된다)
     const print = () => {
         const f = document.getElementById('form-frame');
         if (!f) return;
         f.contentWindow.focus();
         f.contentWindow.print();
     };
+
+    const kindLabel = KINDS.find((k) => k.key === kind).label;
+
+    const run = async (what, job) => {
+        setBusy(what);
+        setFileError('');
+        try { await job(); }
+        catch (err) { setFileError(`${what} 파일을 만들지 못했습니다 — ${err.message}`); }
+        finally { setBusy(''); }
+    };
+
+    const saveDocx = () => run('워드', () =>
+        downloadFormDocx(html, formFileName(academy.name, kindLabel, 'docx')));
+
+    const saveJpg = () => run('그림', () =>
+        downloadFormJpg(document.getElementById('form-frame'), academy.name, kindLabel));
 
     if (state.status === 'loading') {
         return <div style={wrap}><p style={muted}>불러오는 중입니다…</p></div>;
@@ -127,14 +157,28 @@ export default function TuitionFormPage() {
                 {KINDS.find((k) => k.key === kind).hint}
             </p>
 
-            <button type="button" onClick={print}
-                style={{
-                    width: '100%', minHeight: '52px', marginBottom: '12px',
-                    fontSize: '17px', fontWeight: 700, borderRadius: '12px', border: 'none',
-                    background: '#0d9488', color: '#fff', cursor: 'pointer',
-                }}>
-                인쇄 · PDF 로 저장
-            </button>
+            {/* 세 가지를 함께 둔다. 붙일 것은 인쇄(PDF), 고쳐 쓸 것은 워드,
+                문자·카카오톡으로 보내거나 블로그에 올릴 것은 그림이다. */}
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
+                <button type="button" onClick={print} style={fileBtn('#0d9488', true)}>
+                    인쇄 · PDF 저장
+                </button>
+                <button type="button" onClick={saveDocx} disabled={!!busy} style={fileBtn('#2563eb')}>
+                    {busy === '워드' ? '만드는 중…' : '워드(DOCX)'}
+                </button>
+                <button type="button" onClick={saveJpg} disabled={!!busy} style={fileBtn('#7c3aed')}>
+                    {busy === '그림' ? '만드는 중…' : '그림(JPG)'}
+                </button>
+            </div>
+            {fileError && (
+                <p style={{ ...muted, color: '#b91c1c', marginTop: 0 }}>{fileError}</p>
+            )}
+            <p style={{ ...muted, marginTop: 0, marginBottom: '12px' }}>
+                PDF 는 인쇄 창에서 <b>대상을 &lsquo;PDF로 저장&rsquo;</b> 으로 바꾸시면 됩니다.
+                그림은 문자·블로그에 올리실 때 쓰세요.
+                <br />워드 파일은 <b>고쳐 쓰시라고</b> 드리는 것입니다 — 워드가 표 높이를 다시 잡아
+                쪽이 나뉠 수 있으니, 그대로 붙이실 것은 PDF 나 그림을 쓰세요.
+            </p>
 
             <div style={{ ...card, padding: '8px', overflow: 'auto' }}>
                 <iframe id="form-frame" title="교습비 게시표" srcDoc={html}
