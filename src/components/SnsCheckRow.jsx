@@ -6,7 +6,7 @@
 import { memo, useCallback, useState } from 'react';
 import {
     parseChannels, assignBuckets, rowCells, snsRemark, isDone, doneAt, noticeItems,
-    sentAt, repliedAt, replyText, isReplied, isOverdue,
+    sentAt, repliedAt, replyText, isReplied, isOverdue, isReplySeen,
     isNoPlace, noPlaceAt, memoText, MEMO_MAX,
     placeSearchUrl, blogSearchUrl, mapSearchUrl, pinnedPlaceId, hasPlaceCandidate,
     currentPlaceUrl, placeSource, parsePlaceId, shortAddress, BUCKET_LABEL,
@@ -14,7 +14,8 @@ import {
 import { insuranceStatus } from '../utils/insurance';
 import {
     W_NUM, BG_STRIPE, BG_ROW, DONE_COLOR, doneTint, stickyTd, linkStyle, CENTER,
-    CELL_PAD, CHECK_PAD, INS_OK_COLOR, INS_BAD_COLOR, REPLY_COLOR, OVERDUE_COLOR,
+    CELL_PAD, CHECK_PAD, INS_OK_COLOR, INS_BAD_COLOR,
+    REPLY_COLOR, OVERDUE_COLOR, REPLY_SEEN_COLOR,
 } from '../utils/snsTableLayout';
 import { openTuitionCompare } from '../utils/tuitionCompareWindow';
 import { buildNoticeSms, copyNoticeSms, smsBytes, LMS_LIMIT } from '../utils/snsNoticeText';
@@ -38,8 +39,9 @@ const fmtDay = (iso) => {
 function SnsCheckRow({
     index, rowKey, target, result, academy, group, dup,
     academyByKey, region, isNarrow, running, highlight,
-    pinOpen, pinInput, pinError, memoOpen, memoInput, replyUrl, days,
-    onSelectAcademy, onCycle, onToggleDone, onToggleNoPlace, onRefresh, onJump, onSent,
+    pinOpen, pinInput, pinError, memoOpen, memoInput, replyUrl, formUrl, days,
+    onSelectAcademy, onCycle, onToggleDone, onToggleNoPlace, onRefresh, onJump,
+    onSent, onToggleReplySeen, onResetReply,
     onPinOpen, onPinChange, onPinSave, onPinCancel, onPinClear, onPinConfirm,
     onMemoOpen, onMemoChange, onMemoSave, onMemoCancel,
     registerRow,
@@ -53,6 +55,7 @@ function SnsCheckRow({
     const addr = shortAddress(target.address);
     const mapUrl = mapSearchUrl(target.address);
     const done = isDone(result);
+    const replySeen = isReplySeen(result);
     const ins = insuranceStatus(academy);
     const memo = memoText(result);
     // 마감한 행은 O/X 가 아예 눌리지 않는다 — 잘못 눌러 값이 바뀌는 일을 원천적으로 막는다
@@ -66,10 +69,12 @@ function SnsCheckRow({
     // 문구 자체는 누를 때·마우스를 올릴 때만 만든다. 그리는 김에 750개를 만들어 두면
     // 표가 멎는다 (openTuitionCompare 와 같은 이유로 prop 도 늘리지 않는다 —
     // 문의 전화·기한은 snsNoticeText 가 localStorage 에서 직접 읽는다).
-    const previewSms = (e) => { e.currentTarget.title = buildNoticeSms(target, result, academy, { replyUrl }); };
+    const previewSms = (e) => {
+        e.currentTarget.title = buildNoticeSms(target, result, academy, { replyUrl, formUrl });
+    };
 
     const copySms = () => {
-        const text = buildNoticeSms(target, result, academy, { replyUrl });
+        const text = buildNoticeSms(target, result, academy, { replyUrl, formUrl });
         if (!text) return;
         const n = smsBytes(text);
         const show = (v) => { setFlash(v); setTimeout(() => setFlash(null), 2200); };
@@ -405,28 +410,59 @@ function SnsCheckRow({
             </Td>
 
             {/* 회신 — 학원이 스스로 알려 온 것. 판정을 바꾸지 않는다 (이행 여부는 다시 조사해야 안다).
-                여기 초록이 뜬 곳만 골라 다시 조사하면 750곳을 도는 일이 수십 곳을 도는 일이 된다. */}
+                초록이 뜬 곳만 골라 다시 조사하면 750곳을 도는 일이 수십 곳을 도는 일이 된다.
+                '처리' 를 누르면 초록이 걷혀, 아직 안 본 회신만 눈에 남는다.
+                ↺ 는 발송·회신 표시를 통째로 지운다 — 문자를 복사한 것이 곧 발송은 아니어서,
+                시험 삼아 눌러 본 것을 되돌릴 길이 있어야 한다. */}
             <Td style={{ ...CENTER, padding: CHECK_PAD, fontSize: '0.74rem', lineHeight: 1.4 }}>
-                {isReplied(result) ? (
-                    <span title={`${replyText(result) || '(내용 없음)'}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'stretch' }}>
+                    {isReplied(result) ? (
+                        <>
+                            <span title={`${replyText(result) || '(내용 없음)'}
 
-학원이 알려 온 내용입니다 — 실제로 고쳐졌는지는 다시 조사해 확인하세요`}
-                        style={{ color: REPLY_COLOR, fontWeight: '700', cursor: 'help' }}>
-                        ↩ {fmtDay(repliedAt(result))}
-                    </span>
-                ) : sentAt(result) ? (
-                    <span title={`안내 문자를 만든 날입니다 (복사한 때이지 실제 발송 시각은 아닙니다).
-기한 ${days}일이 지나도록 회신이 없으면 붉게 표시합니다.`}
-                        style={{
-                            color: isOverdue(result, days) ? OVERDUE_COLOR : 'var(--text-muted)',
-                            fontWeight: isOverdue(result, days) ? '700' : '500', cursor: 'help',
-                        }}>
-                        ✉ {fmtDay(sentAt(result))}
-                        <br />{isOverdue(result, days) ? '기한 넘김' : '기다리는 중'}
-                    </span>
-                ) : (
-                    <span style={{ color: 'var(--border-color)' }}>—</span>
-                )}
+학원이 알려 온 내용입니다 — 실제로 고쳐졌는지는 ↻ 로 다시 조사해 확인하세요`}
+                                style={{
+                                    color: replySeen ? REPLY_SEEN_COLOR : REPLY_COLOR,
+                                    fontWeight: replySeen ? '500' : '700', cursor: 'help',
+                                }}>
+                                ↩ {fmtDay(repliedAt(result))}
+                            </span>
+                            <button onClick={() => onToggleReplySeen(result)}
+                                title={replySeen
+                                    ? '처리한 회신입니다 — 눌러서 아직 안 본 상태로 되돌립니다'
+                                    : '이 회신을 보고 처리했다면 누르세요 (회신옴 → 회신처리). 학원 마감은 오른쪽 확인 열에서 합니다'}
+                                style={{
+                                    borderRadius: '6px', padding: '3px 4px', fontSize: '0.72rem', fontWeight: '700',
+                                    whiteSpace: 'nowrap', cursor: 'pointer',
+                                    border: replySeen ? 'none' : `1px solid ${REPLY_COLOR}`,
+                                    background: replySeen ? REPLY_SEEN_COLOR : 'none',
+                                    color: replySeen ? 'white' : REPLY_COLOR,
+                                }}>{replySeen ? '✓ 처리' : '처리'}</button>
+                        </>
+                    ) : sentAt(result) ? (
+                        <span title={`안내 문자를 만든 날입니다 (복사한 때이지 실제 발송 시각은 아닙니다).
+기한 ${days}일이 지나도록 회신이 없으면 붉게 표시합니다.
+보내지 않으셨다면 ↺ 로 지우세요.`}
+                            style={{
+                                color: isOverdue(result, days) ? OVERDUE_COLOR : 'var(--text-muted)',
+                                fontWeight: isOverdue(result, days) ? '700' : '500', cursor: 'help',
+                            }}>
+                            ✉ {fmtDay(sentAt(result))}
+                            <br />{isOverdue(result, days) ? '기한 넘김' : '기다리는 중'}
+                        </span>
+                    ) : (
+                        <span style={{ color: 'var(--border-color)' }}>—</span>
+                    )}
+                    {(sentAt(result) || isReplied(result)) && (
+                        <button onClick={() => onResetReply(result)}
+                            title="발송·회신 표시를 지웁니다 (문자를 만들었지만 보내지 않았을 때, 또는 잘못 들어온 회신). 조사 결과와 O/X 는 그대로 둡니다"
+                            style={{
+                                background: 'none', border: '1px solid var(--border-color)', borderRadius: '6px',
+                                padding: '2px 4px', color: 'var(--text-muted)',
+                                fontSize: '0.72rem', cursor: 'pointer', whiteSpace: 'nowrap',
+                            }}>↺ 초기화</button>
+                    )}
+                </div>
             </Td>
 
             {/* 확인 열 — 다 본 학원을 마감해 굳히고(오조작 방지), 필요하면 여기서 다시 조사한다 */}

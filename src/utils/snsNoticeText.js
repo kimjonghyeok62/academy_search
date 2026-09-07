@@ -43,6 +43,12 @@ export const TAIL_LINE = '이 외에도, 다른 모든 인터넷 매체(인스�
 export const REPLY_HEAD = '[수정하셨으면 알려 주세요]';
 export const REPLY_LINE = '아래를 눌러 고치신 항목만 표시해 주시면 됩니다 (1분, 로그인 없음).';
 
+// 교습비 게시표 예시 (/g/<토큰>).
+// '교습비를 게시하라' 고만 하면 무엇을 어떤 모양으로 붙여야 하는지 모른다. 신고된 내용으로
+// 만든 게시표를 보여 주면 그대로 인쇄해 붙이거나 보고 따라 만들 수 있다.
+// 회신 블록과 달리 이것은 참고 자료다 — 길이가 넘치면 가장 먼저 덜어낸다.
+export const FORM_LINE = '신고하신 내용으로 만든 게시표입니다 (내부용·외부용). 그대로 인쇄해 붙이셔도 됩니다.';
+
 // 길이가 넘쳐 매체를 몇 개 덜어냈을 때만 붙인다
 export const TRIMMED_LINE = '그 밖의 매체는 직접 확인 부탁드립니다.';
 
@@ -279,8 +285,8 @@ function adBlock(result) {
  * (길이가 넘쳐 덜어낸 경우 — buildNoticeSms 가 두 번째로 부를 때 쓴다).
  * withCourses 가 거짓이면 교습과정 목록을 뺀다 (담당자가 꺼 두었거나, 그래도 길이가 넘칠 때).
  */
-function compose(target, result, academy, opts, keep, withCourses) {
-    const { tel, days, guideUrl, replyUrl } = opts;
+function compose(target, result, academy, opts, keep, withCourses, withForm) {
+    const { tel, days, guideUrl, replyUrl, formUrl } = opts;
     const isHagwonso = String(target.category || '').includes('교습소');
     const numberLabel = isHagwonso ? '신고번호' : '등록번호';
     const regLabel = `${isHagwonso ? '신고' : '등록'} 제${target.regNo}호`;
@@ -339,6 +345,7 @@ function compose(target, result, academy, opts, keep, withCourses) {
 
     // 주소를 못 받아왔으면 블록을 통째로 뺀다 — 안내는 나가야 하고, 빈 링크는 없느니만 못하다
     if (replyUrl) L.push(REPLY_HEAD, REPLY_LINE, replyUrl, '');
+    if (withForm && formUrl) L.push(`[${target.name} 교습비 게시표 예시 (참고)]`, FORM_LINE, formUrl, '');
 
     L.push('[관련링크]');
     shown.forEach((b) => {
@@ -356,23 +363,31 @@ function compose(target, result, academy, opts, keep, withCourses) {
 /**
  * 그 학원에 보낼 문자 문구. 빠진 것이 없으면 빈 문자열.
  *
- * LMS 한도를 넘으면 두 번에 걸쳐 덜어낸다.
- *   ① 빠진 항목이 많은 매체 3곳만 [수정 방법]·[관련링크] 에 남긴다
- *   ② 그래도 넘치면 교습과정 목록까지 뺀다
- * 덜어내는 차례는 급한 것을 뒤에 둔 것이다 — 교습과정은 참고 자료이지만 '무엇을 고쳐야
- * 하는지'는 이 문자의 본론이라, 목록(무엇이 빠졌는지)은 어느 단계에서도 줄이지 않는다.
+ * LMS 한도를 넘으면 차례로 덜어낸다.
+ *   ① 교습비 게시표 예시 (참고 자료다)
+ *   ② 빠진 항목이 많은 매체 3곳만 [수정 방법]·[관련링크] 에 남긴다
+ *   ③ 그래도 넘치면 교습과정 목록까지 뺀다
+ * 덜어내는 차례는 급한 것을 뒤에 둔 것이다. 두 가지는 어느 단계에서도 줄이지 않는다 —
+ * 빠진 항목 목록(무엇을 고쳐야 하는지)은 이 문자의 본론이고,
+ * 회신 주소는 이 문자를 보내는 목적이다 (없으면 1,000곳을 다시 조사해야 한다).
  */
 export function buildNoticeSms(target, result, academy, opts) {
     if (!target || !noticeItems(result).length) return '';
     const o = { ...readNoticeSettings(), ...(opts || {}) };
     const withCourses = o.courses !== false;
-
-    const full = compose(target, result, academy, o, null, withCourses);
-    if (smsBytes(full) <= LMS_LIMIT) return full;
-
     const keep = bucketsByWeight(noticeItems(result)).slice(0, TRIM_KEEP);
-    const trimmed = compose(target, result, academy, o, keep, withCourses);
-    if (!withCourses || smsBytes(trimmed) <= LMS_LIMIT) return trimmed;
 
-    return compose(target, result, academy, o, keep, false);
+    // 덜어내는 차례대로 지어 보고, 한도 안에 드는 첫 번째를 쓴다
+    const steps = [
+        [null, withCourses, true],
+        [null, withCourses, false],
+        [keep, withCourses, false],
+        [keep, false, false],
+    ];
+    let text = '';
+    for (const [k, c, f] of steps) {
+        text = compose(target, result, academy, o, k, c, f);
+        if (smsBytes(text) <= LMS_LIMIT) return text;
+    }
+    return text;   // 다 덜어내도 넘치면 마지막 것을 낸다 (화면이 바이트 수로 알린다)
 }

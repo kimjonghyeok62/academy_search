@@ -8,11 +8,18 @@ import {
     effectivePlaceId, sharedCellTargets, buildGroups, recordKey, PIN_CLEARED,
     currentPlaceUrl, placeSource, placeUrlFromId, pinnedPlaceUrl, declaredFees, toProbeTargets,
     noticeItems, fetchReplyLinks, isReplied, repliedAt, replyText, sentAt,
+    isReplySeen, setReplySeen, clearReply,
 } from '../utils/snsCheck';
 import { openTuitionCompare } from '../utils/tuitionCompareWindow';
 import { buildNoticeSms, copyNoticeSms, smsBytes, LMS_LIMIT } from '../utils/snsNoticeText';
 
 const CHANNEL_ICON = { blog: '✍️', instagram: '📷', homepage: '🌐' };
+
+// 회신 줄에 붙는 작은 단추
+const miniBtn = (color) => ({
+    padding: '3px 9px', borderRadius: '6px', border: `1px solid ${color}`,
+    background: 'transparent', color, fontSize: '0.75rem', fontWeight: '700', cursor: 'pointer',
+});
 const MANUAL_COLOR = '#2563eb';
 const DONE_COLOR = '#10b981';
 
@@ -104,8 +111,9 @@ export default function SnsDetailPanel({ academy, region = '하남', allAcademie
     const [pinInput, setPinInput] = useState('');
     const [smsOpen, setSmsOpen] = useState(false);
     const [smsFlash, setSmsFlash] = useState(null);
-    // 이 학원만 여는 회신 주소 — 서명이 서버에만 있어 받아와야 한다 (점검표는 한꺼번에 받는다)
-    const [replyUrl, setReplyUrl] = useState('');
+    // 이 학원만 여는 주소 두 개 { reply, form } — 서명이 서버에만 있어 받아와야 한다
+    // (점검표는 750곳 것을 한꺼번에 받는다)
+    const [links, setLinks] = useState(null);
 
     // 다른 학원으로 바뀌면 loadedKey 가 어긋나 자동으로 로딩 상태가 된다
     const loading = loadedKey !== key;
@@ -132,7 +140,7 @@ export default function SnsDetailPanel({ academy, region = '하남', allAcademie
     useEffect(() => {
         let alive = true;
         fetchReplyLinks([{ category, regNo }])
-            .then(links => { if (alive) setReplyUrl(links[key] || ''); });
+            .then(got => { if (alive) setLinks(got[key] || null); });
         return () => { alive = false; };
     }, [category, regNo, key]);
 
@@ -295,8 +303,10 @@ export default function SnsDetailPanel({ academy, region = '하남', allAcademie
     const noticeCount = noticeItems(result).length;
     // 문구는 펼쳤을 때만 만든다 (표가 750행 때문에 지킨 규칙이지만, 여기서도 안 볼 문구를 지을 이유가 없다)
     const smsText = useMemo(
-        () => (smsOpen ? buildNoticeSms(target, result, academy, { replyUrl }) : ''),
-        [smsOpen, target, result, academy, replyUrl]);
+        () => (smsOpen
+            ? buildNoticeSms(target, result, academy, { replyUrl: links?.reply, formUrl: links?.form })
+            : ''),
+        [smsOpen, target, result, academy, links]);
     const smsSize = smsText ? smsBytes(smsText) : 0;
     const smsOver = smsSize > LMS_LIMIT;
 
@@ -318,6 +328,29 @@ export default function SnsDetailPanel({ academy, region = '하남', allAcademie
         try { await saveSnsChecks([resultToRecord(updated)]); } catch { /* 다음 저장 때 함께 올라간다 */ }
     };
 
+    // 회신을 보고 처리했다는 표시 / 발송·회신 표시 초기화 —
+    // 점검표의 toggleReplySeen·resetReply 와 같은 규칙이다 (두 화면이 다르게 굴면 안 된다).
+    const saveRow = async (updated, msg) => {
+        setResult(updated);
+        setResults((prev) => ({ ...prev, [key]: updated }));
+        setMessage(msg || '');
+        try { await saveSnsChecks([resultToRecord(updated)]); }
+        catch (err) { setMessage(`⚠ 저장 실패: ${err.message}`); }
+    };
+
+    const toggleReplySeen = () => {
+        if (!result) return;
+        saveRow(setReplySeen(result, !isReplySeen(result)), '');
+    };
+
+    const resetReply = () => {
+        if (!result) return;
+        const what = isReplied(result) ? '발송 표시와 학원 회신' : '발송 표시';
+        if (!window.confirm(`${academy.name} 의 ${what}를 지웁니다.
+조사 결과와 O/X 는 그대로 둡니다. 계속할까요?`)) return;
+        saveRow(clearReply(result), `${what}를 지웠습니다.`);
+    };
+
     // 표의 '💰 교습비' 와 같은 창이다. 아직 조사하지 않은 학원도 열 수 있다 —
     // 창은 '미조사' 로 뜨고 신고한 교습비는 그대로 보인다 (조사 전에 금액부터 볼 일이 많다).
     const compareBtn = (
@@ -331,17 +364,29 @@ export default function SnsDetailPanel({ academy, region = '하남', allAcademie
     );
 
     // 문자를 다른 경로(전화·방문)로 안내할 때도 주소만 따로 건네줄 수 있어야 한다
-    const replyBtn = replyUrl ? (
-        <button onClick={() => copyNoticeSms(replyUrl).then(
+    const replyBtn = links?.reply ? (
+        <button onClick={() => copyNoticeSms(links.reply).then(
             () => { setSmsFlash({ text: '✓ 회신 주소를 복사했습니다' }); setTimeout(() => setSmsFlash(null), 2200); },
             () => { setSmsFlash({ text: '복사 실패', warn: true }); setTimeout(() => setSmsFlash(null), 2200); })}
             title={`이 학원만 여는 회신 주소입니다 (로그인 없이 열립니다)
-${replyUrl}`}
+${links.reply}`}
             style={{
                 padding: '8px 12px', borderRadius: '8px', border: '1px solid #0ea5e9',
                 background: 'transparent', color: '#0ea5e9',
                 fontSize: '0.82rem', fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap',
             }}>🔗 회신 주소</button>
+    ) : null;
+
+    // 학원에게 보내는 게시표 예시 — 담당자도 무엇이 나가는지 눌러 볼 수 있어야 한다
+    const formBtn = links?.form ? (
+        <a href={links.form} target="_blank" rel="noopener noreferrer"
+            title={`학원이 문자에서 누르면 열리는 게시표 예시입니다
+${links.form}`}
+            style={{
+                padding: '8px 12px', borderRadius: '8px', border: '1px solid #0d9488',
+                background: 'transparent', color: '#0d9488', textDecoration: 'none',
+                fontSize: '0.82rem', fontWeight: '700', whiteSpace: 'nowrap',
+            }}>📄 게시표 예시</a>
     ) : null;
 
     const smsBtn = (
@@ -401,24 +446,44 @@ ${replyUrl}`}
                         {compareBtn}
                         {smsBtn}
                         {replyBtn}
+                        {formBtn}
                         {doneBtn}
                         {runBtn}
                     </div>
                 </div>
                 {/* 학원이 알려 온 것. 판정을 바꾸지 않는다 — 실제로 고쳐졌는지는 다시 조사해야 안다
                     (표의 '회신' 열과 같은 말을 해야 한다) */}
-                {isReplied(result) ? (
-                    <div style={{ fontSize: '0.8rem', color: DONE_COLOR, marginTop: '10px', lineHeight: 1.6 }}>
-                        ↩ <b>{fmtWhen(repliedAt(result))}</b> 학원이 알려 왔습니다 — {replyText(result) || '(내용 없음)'}
-                        <br /><span style={{ color: 'var(--text-muted)' }}>
-                            학원이 말한 것입니다. ↻ 다시 조사해 실제로 게시됐는지 확인한 뒤 마감하세요.
-                        </span>
+                {(isReplied(result) || sentAt(result)) && (
+                    <div style={{ fontSize: '0.8rem', marginTop: '10px', lineHeight: 1.6 }}>
+                        {isReplied(result) ? (
+                            <span style={{ color: isReplySeen(result) ? 'var(--text-muted)' : DONE_COLOR }}>
+                                ↩ <b>{fmtWhen(repliedAt(result))}</b> 학원이 알려 왔습니다 — {replyText(result) || '(내용 없음)'}
+                                {isReplySeen(result) && ' (처리함)'}
+                            </span>
+                        ) : (
+                            <span style={{ color: 'var(--text-muted)' }}>
+                                ✉ {fmtWhen(sentAt(result))} 안내 문자를 만들었습니다 — 아직 회신이 없습니다.
+                            </span>
+                        )}
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '6px', flexWrap: 'wrap' }}>
+                            {isReplied(result) && (
+                                <button onClick={toggleReplySeen} style={miniBtn(isReplySeen(result) ? '#64748b' : DONE_COLOR)}
+                                    title="이 회신을 보고 처리했다는 표시입니다 (회신옴 → 회신처리). 학원 마감은 위의 ✓ 확인완료 로 합니다">
+                                    {isReplySeen(result) ? '✓ 처리함' : '처리 표시'}
+                                </button>
+                            )}
+                            <button onClick={resetReply} style={miniBtn('#94a3b8')}
+                                title="발송·회신 표시를 지웁니다 (문자를 만들었지만 보내지 않았을 때). 조사 결과와 O/X 는 그대로 둡니다">
+                                ↺ 초기화
+                            </button>
+                            {isReplied(result) && (
+                                <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+                                    학원이 말한 것입니다 — ↻ 로 다시 조사해 확인한 뒤 마감하세요.
+                                </span>
+                            )}
+                        </div>
                     </div>
-                ) : sentAt(result) ? (
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '10px' }}>
-                        ✉ {fmtWhen(sentAt(result))} 안내 문자를 만들었습니다 — 아직 회신이 없습니다.
-                    </div>
-                ) : null}
+                )}
                 {message && <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '10px' }}>{message}</div>}
             </div>
 

@@ -145,7 +145,13 @@ export function formatChangeDateKo(dateStr) {
     };
 }
 
-export function printTuitionForm(academy) {
+/**
+ * 게시표(내부용) HTML 을 만든다 — 띄우는 일과 가른다.
+ *
+ * 담당자 화면에서는 새 창에 띄우지만, 학원 회신 화면(/g/<토큰>)에서는 그 HTML 을 그대로
+ * 화면 안에 보여준다. 두 곳이 같은 양식을 내야 하므로 만드는 자리는 하나여야 한다.
+ */
+export function buildTuitionFormHtml(academy) {
     // 변경일 → 없으면 등록일 순서로 fallback
     const baseDateStr = academy.changeDate || academy.regDate || '';
     const baseDate = formatChangeDateKo(baseDateStr);
@@ -474,7 +480,11 @@ export function printTuitionForm(academy) {
 </body>
 </html>`;
 
-    openHtmlWindow(html);
+    return html;
+}
+
+export function printTuitionForm(academy) {
+    openHtmlWindow(buildTuitionFormHtml(academy));
 }
 
 // ─────────────────────────────────────────────
@@ -546,7 +556,8 @@ function getSignLabelExternal(academy) {
     }
 }
 
-export function printTuitionFormExternal(academy) {
+/** 게시표(외부용·옥외가격표시) HTML — 내부용과 같은 이유로 만들기와 띄우기를 가른다 */
+export function buildTuitionFormExternalHtml(academy) {
     const baseDateStr = academy.changeDate || academy.regDate || '';
     const baseDate = formatChangeDateKo(baseDateStr);
     const courses = sortCourses(academy.courses || []);
@@ -801,5 +812,9 @@ export function printTuitionFormExternal(academy) {
 </body>
 </html>`;
 
-    openHtmlWindow(html);
+    return html;
+}
+
+export function printTuitionFormExternal(academy) {
+    openHtmlWindow(buildTuitionFormExternalHtml(academy));
 }

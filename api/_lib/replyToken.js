@@ -59,14 +59,14 @@ export function verifyReplyToken(token) {
 }
 
 /**
- * 그 토큰을 여는 주소.
+ * 그 토큰을 여는 주소. seg 는 어느 화면인지 — 'r' 회신, 'g' 교습비 게시표 예시.
  * 도메인을 코드에 박지 않는다 — 프리뷰 배포에서도 자기 주소가 나와야 한다.
  * 로컬에서는 앱(5173)과 함수(3000)의 포트가 달라, PUBLIC_BASE_URL 로 앱 쪽을 일러 준다.
  */
-export function replyUrlFor(req, token) {
+export function replyUrlFor(req, token, seg = 'r') {
     if (!token) return '';
     const base = String(process.env.PUBLIC_BASE_URL || '').trim().replace(/\/+$/, '');
-    if (base) return `${base}/r/${token}`;
+    if (base) return `${base}/${seg}/${token}`;
     const proto = String(req.headers['x-forwarded-proto'] || 'https').split(',')[0];
-    return `${proto}://${req.headers.host}/r/${token}`;
+    return `${proto}://${req.headers.host}/${seg}/${token}`;
 }

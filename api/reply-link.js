@@ -4,6 +4,10 @@
 // 한 번에 물어보고 Map 으로 들고 있다가, 문자를 지을 때 그 주소를 실어 보낸다.
 import { signReplyToken, replyUrlFor, replySecret } from './_lib/replyToken.js';
 
+// 학원이 여는 두 화면 — 같은 토큰, 다른 길
+//   /r/ 회신 (고쳤다고 알려 오는 곳)   /g/ 교습비 게시표 예시
+const PATHS = { reply: 'r', form: 'g' };
+
 // 학원 1,000곳 + 여유. 이보다 많이 오면 우리 화면이 부른 것이 아니다.
 const MAX_ITEMS = 2000;
 
@@ -29,7 +33,12 @@ export default async function handler(req, res) {
     const links = {};
     items.forEach((it) => {
         const token = signReplyToken(it && it.category, it && it.regNo);
-        if (token) links[`${it.category}|${it.regNo}`] = replyUrlFor(req, token);
+        if (!token) return;
+        const one = {};
+        Object.entries(PATHS).forEach(([name, seg]) => {
+            one[name] = replyUrlFor(req, token, seg);
+        });
+        links[`${it.category}|${it.regNo}`] = one;
     });
     return res.status(200).json({ ok: true, links });
 }
