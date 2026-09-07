@@ -151,6 +151,22 @@ export function formatChangeDateKo(dateStr) {
  * 담당자 화면에서는 새 창에 띄우지만, 학원 회신 화면(/g/<토큰>)에서는 그 HTML 을 그대로
  * 화면 안에 보여준다. 두 곳이 같은 양식을 내야 하므로 만드는 자리는 하나여야 한다.
  */
+/**
+ * 게시표 제목에 붙는 학원명 — 이름 옆에 등록(신고)번호를 함께 적는다.
+ *
+ * 이름만 적으면 같은 이름이 여럿일 때 어느 곳의 게시표인지 알 수 없고, 담당자가 게시된
+ * 것을 보고 대장과 맞춰 볼 근거도 없다. 교습소는 '등록'이 아니라 '신고'라 말이 다르다.
+ * 번호는 이름보다 작게, 굵기 없이 적는다 — 제목은 어디까지나 이름이다.
+ */
+function academyTitleHtml(academy) {
+    // 대장에는 숫자만 들어 있지만, 누가 '제1050호' 로 적어 두었더라도 '제제…호호' 가
+    // 되지 않게 앞뒤를 털고 다시 붙인다
+    const no = String(academy.id || '').trim().replace(/^제/, '').replace(/호$/, '').trim();
+    if (!no) return academy.name;
+    const label = /교습소/.test(academy.category || '') ? '신고번호' : '등록번호';
+    return `${academy.name}<span class="form-reg-no">[${label} : 제${no}호]</span>`;
+}
+
 export function buildTuitionFormHtml(academy) {
     // 변경일 → 없으면 등록일 순서로 fallback
     const baseDateStr = academy.changeDate || academy.regDate || '';
@@ -287,6 +303,12 @@ export function buildTuitionFormHtml(academy) {
     text-align: center;
     margin-bottom: 4mm;
   }
+  .form-reg-no {
+    font-size: 11pt;
+    font-weight: normal;
+    margin-left: 3mm;
+    white-space: nowrap;
+  }
 
   /* 상단 날짜 (변경일) + 단위 */
   .form-date-unit {
@@ -341,6 +363,7 @@ export function buildTuitionFormHtml(academy) {
     font-size: 10.5pt;
     line-height: 1.8;
     margin-bottom: 5mm;
+    text-align: center;
   }
 
   /* 하단 날짜 (오늘) + 서명란 */
@@ -410,7 +433,7 @@ export function buildTuitionFormHtml(academy) {
 
   <div class="form-label">[별지 제4호서식]</div>
   <div class="form-title">교습비등 게시표</div>
-  <div class="form-academy">${academy.name}</div>
+  <div class="form-academy">${academyTitleHtml(academy)}</div>
 
   <!-- 상단: 변경일(또는 등록일) 현재 + 단위 -->
   <div class="form-date-unit">
@@ -697,6 +720,10 @@ export function buildTuitionFormExternalHtml(academy) {
     font-size: 15pt; font-weight: bold;
     text-align: center; margin-bottom: 3mm;
   }
+  .form-reg-no {
+    font-size: 11.5pt; font-weight: normal;
+    margin-left: 3mm; white-space: nowrap;
+  }
   .form-date-row {
     display: flex; justify-content: flex-end;
     align-items: baseline; font-size: 12pt;
@@ -730,6 +757,7 @@ export function buildTuitionFormExternalHtml(academy) {
   /* 게시 문구 */
   .notice-text {
     font-size: 11pt; line-height: 1.9; margin-bottom: 6mm;
+    text-align: center;
   }
 
   /* 서명란 */
@@ -764,7 +792,7 @@ export function buildTuitionFormExternalHtml(academy) {
 <div class="page">
   <div style="font-size:8.5pt; color:#555; margin-bottom:2mm;">■ 교육부「학원비 옥외가격표시제 가이드라인」[별첨1]&lt;신설 2017. 8.&gt; (옥외용)</div>
   <div class="form-title">교습비등 게시표</div>
-  <div class="form-academy">${academy.name}</div>
+  <div class="form-academy">${academyTitleHtml(academy)}</div>
 
   <div class="form-date-row">
     <div class="form-date">
