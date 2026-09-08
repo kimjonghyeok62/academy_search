@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback, useDeferredValue } from 'react';
 import {
     probeAll, fetchSnsChecks, saveSnsChecks, resultToRecord, recordKey, rowToResult,
+    snapshotRow, saveSnapshot,
     toProbeTargets, needsRecheck, probeTargetFor,
     BUCKETS, BUCKET_LABEL,
     parseManual, effectiveVerdict, applyManualCell, setManualCell, keepManual,
@@ -730,6 +731,36 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
             .catch(() => setSaveState('⚠ 점검표 엑셀을 만들지 못했습니다.'));
     };
 
+    // ── 회차 저장 (성과 자료) ──────────────────────────
+    // 이 시트는 학원 한 곳에 한 줄이라 다시 조사하면 그 칸을 덮어쓴다. 안내 전과 뒤를
+    // 견주려면 그때그때의 판정이 따로 남아 있어야 한다 — 재조사를 시작하기 **전에**
+    // 한 번 눌러 두어야 비교할 앞 자리가 생긴다.
+    //
+    // 거르개가 걸려 있어도 **전체**를 저장한다. 보이는 것만 남기면 분모가 회차마다 달라져
+    // 게시율 추이가 뜻을 잃는다.
+    const [snapshotState, setSnapshotState] = useState('');
+
+    const saveRound = async () => {
+        const now = new Date();
+        const suggest = `${now.getFullYear()}년 ${now.getMonth() + 1}월 ${now.getDate()}일`;
+        const round = window.prompt(
+            `지금 판정을 회차로 저장합니다 (전체 ${allRows.length}곳).\n`
+            + '나중에 이 이름으로 게시율을 견줍니다. 같은 이름이 있으면 덮어씁니다.',
+            suggest,
+        );
+        if (round === null) return;
+        const name = round.trim();
+        if (!name) return;
+
+        setSnapshotState('⏳ 회차를 저장하는 중…');
+        try {
+            const saved = await saveSnapshot(name, allRows.map(x => snapshotRow(x.target, x.result)));
+            setSnapshotState(`✓ '${name}' 로 ${saved}곳을 저장했습니다. 성과 탭에서 보실 수 있습니다.`);
+        } catch (err) {
+            setSnapshotState(`⚠ 회차를 저장하지 못했습니다 — ${err.message}`);
+        }
+    };
+
     // ── 문자 설정 (상태 선언은 위쪽 거르개 옆에 있다) ────
     const changeNotice = (patch) => setNotice(writeNoticeSettings(patch));
 
@@ -880,12 +911,22 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                             🔍 조사 필요 {stale.length}곳
                         </button>
                         <button onClick={runAll} style={btnStyle('#64748b')}>전체 다시 조사 ({rows.length}곳)</button>
+                        <button onClick={saveRound} style={btnStyle('#7c3aed')}
+                            title="지금 판정을 회차로 쌓아 둡니다. 다시 조사하면 칸이 덮여 지난 상태가 사라지므로, 재조사 전에 한 번 눌러 두세요 (거르개와 관계없이 전체를 저장합니다)">
+                            📌 회차 저장 ({allRows.length}곳)
+                        </button>
                         {paperRows.length > 0 && (
                             <button onClick={downloadWorksheet} style={btnStyle('#0d9488')}
                                 title="지금 화면에 걸린 조건 그대로, 학원·교습소를 두 시트에 담아 내려받습니다 (확인불가·해당없음 제외)">
                                 📋 점검표 엑셀 ({paperRows.length}곳)
                             </button>
                         )}
+                    </div>
+                )}
+
+                {snapshotState && (
+                    <div style={{ marginTop: '8px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                        {snapshotState}
                     </div>
                 )}
 

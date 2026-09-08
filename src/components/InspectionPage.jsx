@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import AreaCalculatorApp from './AreaCalculatorApp';
 import PhotoRenamePage from './PhotoRenamePage';
 import SnsCheckTab from './SnsCheckTab';
+import PerformanceTab from './PerformanceTab';
 import {
     Chart as ChartJS, ArcElement, Tooltip, Legend,
     CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title,
@@ -4571,8 +4572,8 @@ export default function InspectionPage({ onBack, academies, privateTutors, onSel
         onSelectAcademy(academy, tab);
     }, [region, activeTab, onSelectAcademy]);
 
-    const TABS      = ['계획', '완료', '통계', '검토', 'SNS', '사진', '면적'];
-    const TAB_ICONS = ['⚠️', '🕐', '📊', '🔬', '📣', '', ''];
+    const TABS      = ['계획', '완료', '통계', '검토', 'SNS', '사진', '면적', '성과'];
+    const TAB_ICONS = ['⚠️', '🕐', '📊', '🔬', '📣', '', '', '🏅'];
 
     useEffect(() => {
         fetchAcademyClosureData()
@@ -4756,6 +4757,7 @@ export default function InspectionPage({ onBack, academies, privateTutors, onSel
                         {activeTab === 4 && <SnsCheckTab region={region} academies={academies} onSelectAcademy={handleSelectAcademy} />}
                         {activeTab === 5 && <PhotoRenamePage embedded={true} />}
                         {activeTab === 6 && <AreaCalculatorApp embedded={true} />}
+                        {activeTab === 7 && <PerformanceTab />}
                     </div>
                 )}
             </div>
