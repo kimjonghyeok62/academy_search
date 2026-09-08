@@ -1189,11 +1189,39 @@ export async function probeAll(targets, city, { onProgress, shouldStop, onWait, 
 }
 
 // ── 구글시트 저장 / 조회 ────────────────────────────────
+
+/**
+ * 같은 조회가 겹쳐 나가지 않게 한 번만 보낸다.
+ *
+ * 리액트가 개발 모드에서 화면을 두 번 붙였다 떼므로 탭을 한 번 열어도 요청이 두 벌 나간다.
+ * 앱스 스크립트는 한 계정의 실행을 줄 세워 돌리는데 점검 시트는 1,070줄이라, 겹치면 뒤엣것이
+ * 한참 기다리다 끊긴다(실제로 연결이 끊겨 응답률이 0곳으로 떴다).
+ * 답이 오는 동안 들어온 같은 요청은 그 약속을 같이 쓰고, 끝나면 바로 지운다 — 묵힌 값은 안 쓴다.
+ */
+const inFlight = new Map();
+function once(key, run) {
+    const had = inFlight.get(key);
+    if (had) return had;
+    const p = run().finally(() => inFlight.delete(key));
+    inFlight.set(key, p);
+    return p;
+}
+
+/** 조회 한 번. 실패하면 던진다 — 빈 배열로 갈음하면 '없음'과 '못 읽음'이 구별되지 않는다 */
+async function readRows(action) {
+    const res = await fetch(`/api/apps-script-proxy?action=${action}`);
+    const json = await res.json().catch(() => ({ ok: false, error: `HTTP ${res.status}` }));
+    if (!json.ok) throw new Error(json.error || `HTTP ${res.status}`);
+    return json.rows || [];
+}
+
+export function fetchSnsChecksOrThrow() {
+    return once('getSnsChecks', () => readRows('getSnsChecks'));
+}
+
 export async function fetchSnsChecks() {
     try {
-        const res = await fetch('/api/apps-script-proxy?action=getSnsChecks');
-        const json = await res.json();
-        return json.ok ? (json.rows || []) : [];
+        return await fetchSnsChecksOrThrow();
     } catch {
         return [];
     }
@@ -1221,6 +1249,45 @@ export async function fetchReplyLinks(items) {
     } catch {
         return {};
     }
+}
+
+// ── 성과 조사 ──────────────────────────────
+// 이 시트는 학원 한 곳에 한 줄이라 다시 조사하면 그 칸을 덮어쓴다. 그래서 '지금 이행률' 은
+// 알아도 '지난달 이행률' 은 어디에도 없다. 게시율이 얼마나 올랐는지 말하려면
+// 그때그때의 판정이 따로 남아 있어야 한다 — 담당자가 '회차 저장' 을 누를 때 쌓아 둔다.
+
+/** 지금 상태를 스냅샷 한 줄로. 판정은 화면과 같은 effectiveVerdict 로 매번 다시 재는다 */
+export function snapshotRow(target, result) {
+    const missing = noticeItems(result)
+        .map((it) => `${it.bucket === 'place' ? '플레이스' : BUCKET_LABEL[it.bucket]} ${it.field}`)
+        .join(' · ');
+    return {
+        category: target.category,
+        regNo: String(target.regNo || ''),
+        name: target.name || '',
+        verdict: effectiveVerdict(result),
+        missing,
+    };
+}
+
+/** 스냅샷 한 벌을 올린다. 같은 회차가 이미 있으면 그 회차를 걷어내고 새로 넣는다 */
+export async function saveSnapshot(round, rows) {
+    const res = await fetch('/api/apps-script-proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'saveSnapshot', round, rows }),
+    });
+    const json = await res.json().catch(() => ({ ok: false }));
+    if (!json.ok) throw new Error(json.error || '저장 실패');
+    return json.saved || 0;
+}
+
+export function fetchSnapshots() {
+    return once('getSnapshots', () => readRows('getSnapshots'));
+}
+
+export function fetchSurveys() {
+    return once('getSurveys', () => readRows('getSurveys'));
 }
 
 export async function saveSnsChecks(records) {

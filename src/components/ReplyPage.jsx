@@ -54,6 +54,13 @@ const SENDER = '하남교육지원센터';
 // 베껴 적으면 곧 사실이 아닌 것이 드러나므로, 자기 사정을 적게 된다.
 const NOTE_EXAMPLE = '내일 교습비 변경하러 하남교육지원센터 방문 예정입니다';
 
+// ── 만족도 조사 ─────────────────────────
+// 회신을 다 보내고 나서 보는 자리라 문항이 길면 아무도 답하지 않는다. 둘만 묻는다.
+// 보기는 api/_lib/surveyText.js 의 목록과 **글자까지 같아야 한다** — 다르면 서버가 버린다.
+const SURVEY_HELP = ['많이 도움', '도움', '보통', '별로', '전혀'];
+const SURVEY_FORM_USE = ['확인 후 인쇄', '네이버 플레이스 게시', '열어만 봄', '쓰지 않음'];
+const SURVEY_NOTE_MAX = 100;
+
 const wrap = {
     maxWidth: '560px', margin: '0 auto', padding: '20px 16px 48px',
     color: '#1e293b', fontSize: '16px', lineHeight: 1.6,
@@ -90,6 +97,33 @@ function Notice({ children, tone = 'info' }) {
     );
 }
 
+/** 만족도 문항 하나 — 단추 한 번이면 끝나야 한다 */
+function SurveyQ({ n, title, options, value, onPick }) {
+    return (
+        <div style={{ marginBottom: '16px' }}>
+            <div style={{ fontWeight: 700, marginBottom: '8px' }}>{n}. {title}</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                {options.map((o) => {
+                    const on = value === o;
+                    return (
+                        <button key={o} type="button" onClick={() => onPick(on ? '' : o)}
+                            style={{
+                                flex: '1 1 auto', minHeight: '44px', padding: '8px 10px',
+                                fontSize: '15px', fontWeight: on ? 700 : 500,
+                                borderRadius: '10px', cursor: 'pointer',
+                                border: `1.5px solid ${on ? '#4f46e5' : '#cbd5e1'}`,
+                                background: on ? '#4f46e5' : '#fff',
+                                color: on ? '#fff' : '#334155',
+                            }}>
+                            {o}
+                        </button>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
 export default function ReplyPage() {
     const token = useMemo(
         () => decodeURIComponent(window.location.pathname.replace(/^\/r\/?/, '')).trim(), []);
@@ -100,6 +134,11 @@ export default function ReplyPage() {
     const [sending, setSending] = useState(false);
     const [sendError, setSendError] = useState('');
     const [sent, setSent] = useState(null);
+    // 만족도 — 회신을 보낸 뒤에만 보인다
+    const [survey, setSurvey] = useState({ help: '', formUse: '', note: '' });
+    const [surveyDone, setSurveyDone] = useState(false);
+    const [surveySending, setSurveySending] = useState(false);
+    const [surveyError, setSurveyError] = useState('');
 
     useEffect(() => {
         let alive = true;
@@ -149,6 +188,27 @@ export default function ReplyPage() {
         }
     };
 
+    const sendSurvey = async () => {
+        setSurveySending(true);
+        setSurveyError('');
+        try {
+            const res = await fetch('/api/survey', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ t: token, ...survey }),
+            });
+            const json = await res.json().catch(() => ({ ok: false }));
+            if (!json.ok) throw new Error(json.error || '보내지 못했습니다');
+            setSurveyDone(true);
+        } catch (err) {
+            // 조용히 삼키지 않는다 — 안 갔는데 '감사합니다' 라고 하면 거짓말이 된다.
+            // 회신은 이미 저장됐으므로 여기서 막혀도 잃는 것은 없다.
+            setSurveyError(`${err.message} — 다시 눌러 주시거나 그냥 마치셔도 됩니다.`);
+        } finally {
+            setSurveySending(false);
+        }
+    };
+
     if (state.status === 'loading') {
         return <div style={wrap}><p style={muted}>불러오는 중입니다…</p></div>;
     }
@@ -183,6 +243,66 @@ export default function ReplyPage() {
                     <div>{sent.text}</div>
                 </div>
                 <p style={muted}>잘못 표시하셨다면 이 화면을 새로 고쳐 다시 보내실 수 있습니다.</p>
+
+                {/* 회신은 이미 끝난 자리다. 답하지 않아도 그만이라는 것이 보이게 '마치기' 를
+                    보내기와 같은 크기로 둔다 — 강요로 읽히면 점수가 왜곡되고,
+                    그러면 이 조사를 하는 뜻이 없어진다. */}
+                {surveyDone ? (
+                    <Notice tone="good">※ 설문에 응해 주셔서 감사합니다.</Notice>
+                ) : (
+                    <div style={card}>
+                        <div style={{ fontWeight: 700 }}>이번 안내, 어떠셨습니까</div>
+                        <div style={{ ...muted, marginBottom: '14px' }}>선택 · 10초</div>
+
+                        <SurveyQ n={1} title="이번 안내가 도움이 되었습니까?"
+                            options={SURVEY_HELP} value={survey.help}
+                            onPick={(v) => setSurvey((s) => ({ ...s, help: v }))} />
+                        <SurveyQ n={2} title="귀 학원 맞춤형 교습비 게시표(예시)를 어떻게 쓰셨습니까?"
+                            options={SURVEY_FORM_USE} value={survey.formUse}
+                            onPick={(v) => setSurvey((s) => ({ ...s, formUse: v }))} />
+
+                        <label htmlFor="say" style={{ display: 'block', fontWeight: 700, marginBottom: '8px' }}>
+                            3. 하고 싶은 말씀{' '}
+                            <span style={{ ...muted, fontWeight: 400 }}>({SURVEY_NOTE_MAX}자, 선택)</span>
+                        </label>
+                        <textarea id="say" value={survey.note} maxLength={SURVEY_NOTE_MAX} rows={2}
+                            onChange={(e) => setSurvey((s) => ({ ...s, note: e.target.value }))}
+                            style={{
+                                width: '100%', boxSizing: 'border-box', padding: '10px 12px',
+                                fontSize: '16px', borderRadius: '10px', border: '1.5px solid #cbd5e1',
+                                resize: 'vertical', fontFamily: 'inherit',
+                            }} />
+
+                        <p style={{ ...muted, marginTop: '10px' }}>
+                            ※ 답변은 담당자에게 학원별로 보이지 않고 합계로만 보입니다.
+                            <br />지도점검 결과와는 아무 관계가 없습니다.
+                        </p>
+
+                        {surveyError && (
+                            <p style={{ ...muted, color: '#b91c1c' }}>{surveyError}</p>
+                        )}
+
+                        <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                            <button type="button" onClick={() => setSurveyDone(true)}
+                                style={{
+                                    flex: 1, minHeight: '48px', fontSize: '16px', fontWeight: 500,
+                                    borderRadius: '12px', cursor: 'pointer',
+                                    border: '1.5px solid #cbd5e1', background: '#fff', color: '#334155',
+                                }}>
+                                답하지 않고 마치기
+                            </button>
+                            <button type="button" onClick={sendSurvey} disabled={surveySending}
+                                style={{
+                                    flex: 1, minHeight: '48px', fontSize: '16px', fontWeight: 700,
+                                    borderRadius: '12px', border: 'none',
+                                    cursor: surveySending ? 'default' : 'pointer',
+                                    background: surveySending ? '#cbd5e1' : '#4f46e5', color: '#fff',
+                                }}>
+                                {surveySending ? '보내는 중…' : '보내기'}
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
         );
     }
