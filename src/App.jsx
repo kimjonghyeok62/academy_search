@@ -675,6 +675,7 @@ function App() {
         academies={academies}
         privateTutors={privateTutors}
         initialTab={inspectionInitialTab}
+        supplementLoading={supplementLoading}
         onSelectAcademy={(academy, tab) => {
           setDetailOrigin('inspection');
           setShowInspection(false);

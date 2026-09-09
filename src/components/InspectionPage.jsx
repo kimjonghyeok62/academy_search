@@ -16,6 +16,8 @@ import {
     fetchInspectionDeferRawRows,
 } from '../utils/inspectionSheets';
 import { fetchAcademyClosureData, regKey } from '../utils/googleSheets';
+import { fetchSnsChecksOrThrow } from '../utils/snsCheck';
+import { buildRiskContext, runRiskChecks, crossSignals } from '../utils/riskChecks';
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title);
 
@@ -1926,7 +1928,9 @@ function TabStats({ region, statRows, academies, privateTutors, academyClosures,
 }
 
 // ───────────────────────────────────────────────
-// 탭: 검토 (데이터 품질 7개 검사)
+// 탭: 검토
+//   민원취약  — 외부인이 인터넷으로 알아낼 수 있는 위반 단서 (riskChecks.js)
+//   데이터품질 — 우리 데이터가 맞는지 보는 검사 9종
 // ───────────────────────────────────────────────
 const toDateRev = (s) => {
     // Allow optional spaces after separators (e.g. "2026. 2. 20")
@@ -1934,21 +1938,27 @@ const toDateRev = (s) => {
     return m ? new Date(parseInt(m[1]), parseInt(m[2]) - 1, parseInt(m[3])) : null;
 };
 
-function TabReview({ region, academies, privateTutors, academyClosures, onSelectAcademy, addrDongCacheVer, initialOpenSections, onSubStateChange }) {
+function TabReview({ region, academies, privateTutors, academyClosures, onSelectAcademy, addrDongCacheVer, initialOpenSections, initialSubTab, supplementLoading, onSubStateChange }) {
     const city = region.endsWith('시') ? region : region + '시';
-    const DEFAULT_SECTIONS_REVIEW = { dateReverse: false, geoFail: false, dongUnclassified: false, noContact: false, hagwonClosure: false, dupReg: false, missingInfo: false, zipIssues: false, insurance: false, insCountMismatch: false, feeExceed: false };
+    // 데이터품질 9종 + 민원취약 12종. 민원취약 쪽은 riskChecks.js 의 항목 id 를 그대로 쓴다.
+    const DEFAULT_SECTIONS_REVIEW = { dateReverse: false, geoFail: false, dongUnclassified: false, noContact: false, hagwonClosure: false, dupReg: false, missingInfo: false, zipIssues: false, insCountMismatch: false };
     const [openSections, setOpenSections] = useState(() => initialOpenSections || DEFAULT_SECTIONS_REVIEW);
+    // 'risk' 를 기본으로 둔다 — 민원이 들어오기 전에 먼저 봐야 하는 쪽이다
+    const [subTab, setSubTab] = useState(() => initialSubTab || 'risk');
     const toggleSection = (key) => setOpenSections(prev => {
         const next = { ...prev, [key]: !prev[key] };
-        onSubStateChange?.(next);
+        onSubStateChange?.({ reviewOpenSections: next });
         return next;
     });
+    const changeSubTab = (t) => {
+        setSubTab(t);
+        onSubStateChange?.({ reviewSubTab: t });
+    };
 
     const aList = useMemo(() => (academies || []).filter(a => (a.address || '').includes(city) && a.category !== '교습소'), [academies, city]);
     const hList = useMemo(() => (academies || []).filter(a => (a.address || '').includes(city) && a.category === '교습소'), [academies, city]);
     const pList = useMemo(() => (privateTutors || []).filter(a => (a.address || '').includes(city)), [privateTutors, city]);
     // 검토 대상: 학원·교습소는 '개원', 개인과외교습자는 '신고' 상태만
-    const H_CLOSED_R = ['자진폐원', '직권폐원', '자진폐소', '직권폐소'];
     const aActiveList = useMemo(() => aList.filter(a => (a.status || '') === '개원'), [aList]);
     const hActiveList = useMemo(() => hList.filter(h => (h.status || '') === '개원'), [hList]);
     const pActiveList = useMemo(() => pList.filter(p => (p.status || '') === '신고'), [pList]);
@@ -2165,22 +2175,7 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
         );
     };
 
-    // 8b. 보험 만료/미가입
-    const insuranceIssues = useMemo(() => {
-        const today = new Date();
-        const check = (list, type) => list.map(a => {
-            if (!a.insurances || a.insurances.length === 0)
-                return { type, id: a.id, name: a.name, phone: a.founder?.phone || '', mobile: a.founder?.mobile || '', issue: '미가입' };
-            const hasActive = a.insurances.some(ins => { const e = toDateRev(ins.endDate); return e && e >= today; });
-            if (hasActive) return null;
-            const latest = a.insurances.reduce((b, ins) => {
-                const d = toDateRev(ins.endDate), bd = b ? toDateRev(b.endDate) : null;
-                return d && (!bd || d > bd) ? ins : b;
-            }, null);
-            return { type, id: a.id, name: a.name, phone: a.founder?.phone || '', mobile: a.founder?.mobile || '', issue: `만료 (${latest?.endDate || '-'})` };
-        }).filter(Boolean);
-        return [...check(aActiveList, '학원'), ...check(hActiveList, '교습소')];
-    }, [aActiveList, hActiveList]);
+    // 8b(이전됨). 보험 만료/미가입 → 민원취약 서브탭 (riskChecks.js 의 insurance 항목)
 
     // 8c-1. 보험 강사수 vs 등록 강사수 불일치
     const insCountMismatch = useMemo(() => {
@@ -2202,42 +2197,118 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
         return [...check(aActiveList, '학원'), ...check(hActiveList, '교습소')];
     }, [aActiveList, hActiveList]);
 
-    // 8c. 교습비 단가 기준 초과
-    const ADULT_KEYWORDS_R = ['성인', '일반인', '직장', '주부', '노인'];
-    const procLevel = (proc) => {
-        if (proc.includes('유아')) return '유';
-        if (proc.includes('초등')) return '초';
-        if (proc.includes('중등')) return '중';
-        if (proc.includes('고등')) return '고';
-        return '';
+    // 8c(이전됨). 교습비 단가 기준 초과 → 민원취약 서브탭 (riskChecks.js 의 feeExceed 항목)
+
+    // ── 민원취약 ────────────────────────────────────────────────
+    // SNS 조사 결과는 검토 탭이 직접 읽는다 — 성과 탭이 이미 같은 방식으로 쓰고 있어 새 인프라가 없다.
+    // 못 읽은 것과 '조사한 적 없음'은 담당자가 할 일이 다르므로 구분해서 들고 있는다.
+    const [snsRows, setSnsRows] = useState(null);
+    const [snsError, setSnsError] = useState('');
+    useEffect(() => {
+        let alive = true;
+        fetchSnsChecksOrThrow()
+            .then(rows => { if (alive) { setSnsRows(rows); setSnsError(''); } })
+            .catch(err => { if (alive) { setSnsRows([]); setSnsError(err.message || '읽지 못했습니다'); } });
+        return () => { alive = false; };
+    }, []);
+
+    // 강사 명단은 백그라운드로 뒤늦게 붙는다. 다 붙기 전에 세면 모든 학원이 '강사 0명'으로 잡히므로,
+    // 그때는 항목을 pending 으로 두고 건수 대신 '집계 중'을 보여 준다.
+    const instructorsReady = !supplementLoading && (academies || []).some(a => Array.isArray(a.instructors));
+    const riskItems = useMemo(() => {
+        const ctx = buildRiskContext({ academies, region, snsRows: snsRows || [], today: new Date() });
+        return runRiskChecks(ctx, { instructors: instructorsReady, sns: !!snsRows });
+    }, [academies, region, snsRows, instructorsReady]);
+    const riskCross = useMemo(() => crossSignals(riskItems), [riskItems]);
+    const riskStats = useMemo(() => {
+        const flagged = new Set();
+        riskItems.forEach(it => it.rows.forEach(r => r.id && flagged.add(`${r.type}|${r.id}`)));
+        let multi = 0;
+        riskCross.forEach(set => { if (set.size >= 2) multi++; });
+        return { flagged: flagged.size, multi };
+    }, [riskItems, riskCross]);
+
+    const GROUP_LABEL = { A: '경력조회 취약', B: '초과징수', C: '허위·과대광고', D: '게시 의무', E: '실태 미신고' };
+    const GROUP_COLOR = { A: '#dc2626', B: '#ea580c', C: '#7c3aed', D: '#f59e0b', E: '#64748b' };
+
+    /** 겹쳐 걸린 신호 수 — 한 곳이 여러 항목에 잡혔다면 그만큼 먼저 나가야 한다 */
+    const CrossChip = ({ row, selfId }) => {
+        const set = riskCross.get(`${row.type}|${row.id}`);
+        const n = set ? set.size - (set.has(selfId) ? 1 : 0) : 0;
+        if (n <= 0) return <span style={{ color: 'var(--text-muted)', fontSize: '0.76rem' }}>-</span>;
+        return (
+            <span style={{ fontSize: '0.71rem', padding: '1px 6px', borderRadius: '4px', background: '#fee2e2', color: '#dc2626', fontWeight: '700' }}>
+                +{n}
+            </span>
+        );
     };
-    const getStdLabel = (std, track, process) => {
-        const p = Math.round(std); const t = (track || ''); const proc = (process || '');
-        if (p === 210) return '보습-단과(초등)'; if (p === 222) return '보습-단과(중등)';
-        if (p === 259) return '어학'; if (p === 336) return '음악-입시';
-        if (p === 234) return t.includes('진학') ? '진학상담' : '보습-단과(고등)';
-        if (p === 224) { const lv = procLevel(proc); return lv ? `음악-${lv}` : '음악'; }
-        if (p === 212) { const lv = procLevel(proc); if (t.includes('미술')) return lv ? `미술-${lv}` : '미술'; if (t.includes('무용')) return lv ? `무용-${lv}` : '무용'; return lv || ''; }
-        if (p === 255) { if (t.includes('미술')) return '미술-입시'; if (t.includes('무용')) return '무용-입시'; return '입시'; }
-        if (p === 230) return t.includes('정보') ? '정보-일반' : '기타-일반';
-        return '';
+
+    const RiskSection = ({ item }) => {
+        const isOpen = openSections[item.id];
+        const badge = item.rows.length;
+        return (
+            <div style={{ background: 'var(--bg-card)', borderRadius: '14px', padding: '14px 16px', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)', marginBottom: '12px' }}>
+                <button onClick={() => toggleSection(item.id)} style={{ width: '100%', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', background: 'none', border: 'none', cursor: 'pointer', padding: 0, gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', minWidth: 0 }}>
+                        <div style={{ paddingTop: '1px' }}>
+                            {item.pending
+                                ? <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: '22px', height: '20px', borderRadius: '10px', padding: '0 6px', background: '#cbd5e1', color: 'white', fontSize: '0.68rem', fontWeight: '800' }}>…</span>
+                                : <Badge count={badge} color={item.color} />}
+                        </div>
+                        <div style={{ textAlign: 'left', minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                <span style={{ fontSize: '0.7rem', fontWeight: '800', color: GROUP_COLOR[item.group], background: 'var(--bg-main)', border: '1px solid var(--border-color)', borderRadius: '4px', padding: '1px 5px' }}>{GROUP_LABEL[item.group]}</span>
+                                <span style={{ fontSize: '0.88rem', fontWeight: '700', color: 'var(--text-main)' }}>{item.title}</span>
+                            </div>
+                            <div style={{ fontSize: '0.71rem', color: 'var(--text-muted)', marginTop: '2px', lineHeight: 1.45 }}>
+                                {item.ref}{item.sanction ? ` · ${item.sanction}` : ''}
+                            </div>
+                        </div>
+                    </div>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', flexShrink: 0 }}>{isOpen ? '▲' : '▼'}</span>
+                </button>
+                {isOpen && (
+                    <div style={{ marginTop: '10px' }}>
+                        {item.note && (
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '8px', lineHeight: 1.5 }}>{item.note}</div>
+                        )}
+                        {item.pending ? (
+                            <div style={{ fontSize: '0.8rem', color: '#f59e0b', fontWeight: '600', padding: '4px 0' }}>
+                                {item.needsInstructors && !instructorsReady ? '강사 명단을 불러오는 중입니다 — 잠시 뒤 다시 확인하세요'
+                                    : snsError ? `SNS 조사 결과를 읽지 못했습니다 (${snsError})`
+                                        : 'SNS 조사 결과를 불러오는 중입니다'}
+                            </div>
+                        ) : badge === 0 ? (
+                            <div style={{ fontSize: '0.82rem', color: '#10b981', fontWeight: '600', padding: '4px 0' }}>✓ 해당 없음</div>
+                        ) : (
+                            <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                    <thead><tr>
+                                        <Th>구분</Th><Th>등록(신고)번호</Th><Th>명칭</Th><Th>연락처</Th><Th>내용</Th><Th>겹친신호</Th>
+                                    </tr></thead>
+                                    <tbody>
+                                        {item.rows.map((r, i) => (
+                                            <tr key={`${r.type}-${r.id}-${i}`} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
+                                                <Td><span style={{ color: typeColor(r.type), fontWeight: '700', fontSize: '0.78rem' }}>{r.type}</span></Td>
+                                                <Td style={{ color: 'var(--text-muted)', fontSize: '0.74rem' }}>{r.id || '-'}</Td>
+                                                <Td><NameLink id={r.id} type={r.type} name={r.name} /></Td>
+                                                <Td style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>{r.phone || '-'}</Td>
+                                                <Td style={{ whiteSpace: 'normal', minWidth: '260px', lineHeight: 1.5 }}>
+                                                    <span style={{ color: item.color, fontWeight: '600' }}>{r.detail}</span>
+                                                    {r.reason ? <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>{r.reason}</div> : null}
+                                                </Td>
+                                                <Td style={{ textAlign: 'center' }}><CrossChip row={r} selfId={item.id} /></Td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
+        );
     };
-    const feeExceed = useMemo(() => {
-        const results = [];
-        [...aActiveList, ...hActiveList].forEach(a => {
-            if ((a.category || '').includes('평생직업')) return;
-            (a.courses || []).forEach(course => {
-                const proc = course.process || ''; const subj = course.subject || '';
-                if (ADULT_KEYWORDS_R.some(k => proc.includes(k) || subj.includes(k))) return;
-                const unit = parseFloat((course.unitPrice || '').toString().replace(/,/g, ''));
-                const std  = parseFloat((course.standardUnitPrice || '').toString().replace(/,/g, ''));
-                if (unit > 0 && std > 0 && unit > std) {
-                    results.push({ type: a.category === '교습소' ? '교습소' : '학원', id: a.id, name: a.name, subject: course.subject || '-', stdLabel: getStdLabel(std, course.track, course.process), unit, std, diff: Math.round(unit - std) });
-                }
-            });
-        });
-        return results;
-    }, [aActiveList, hActiveList]);
 
     const ReviewSection = ({ id, title, badge, badgeColor, children, alwaysShow }) => {
         const isOpen = openSections[id];
@@ -2263,8 +2334,50 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
         );
     };
 
+    const reviewSubTabBtn = (on) => ({
+        flex: 1, padding: '9px 12px', background: 'none', border: 'none', cursor: 'pointer',
+        fontSize: '0.85rem', fontWeight: on ? '800' : '600',
+        color: on ? 'var(--primary)' : 'var(--text-muted)',
+        borderBottom: on ? '2px solid var(--primary)' : '2px solid transparent',
+    });
+
     return (
         <div>
+            {/* 민원취약 / 데이터품질 서브탭 — 목적이 다른 두 검사를 섞어 두면 급한 쪽이 묻힌다 */}
+            <div style={{ display: 'flex', borderBottom: '1px solid var(--border-color)', marginBottom: '14px' }}>
+                <button style={reviewSubTabBtn(subTab === 'risk')} onClick={() => changeSubTab('risk')}>🚨 민원취약</button>
+                <button style={reviewSubTabBtn(subTab === 'quality')} onClick={() => changeSubTab('quality')}>🔬 데이터품질</button>
+            </div>
+
+            {subTab === 'risk' && (
+                <div>
+                    {/* 요약 헤더 */}
+                    <div style={{ background: 'var(--bg-card)', borderRadius: '14px', padding: '14px 16px', border: '1px solid var(--border-color)', marginBottom: '14px', boxShadow: 'var(--shadow-sm)' }}>
+                        <div style={{ fontSize: '0.88rem', fontWeight: '800', color: 'var(--text-main)', marginBottom: '8px' }}>🚨 민원 취약 기관</div>
+                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: '1.6' }}>
+                            외부인이 인터넷만 보고 신고할 수 있는 위반 단서입니다. 처분이 무거운 항목이 위에 옵니다.
+                            <br />
+                            개원 학원·교습소 중 <strong style={{ color: '#dc2626' }}>{riskStats.flagged}곳</strong>이 한 가지 이상 걸렸고,
+                            그중 <strong style={{ color: '#dc2626' }}>{riskStats.multi}곳</strong>은 신호가 둘 이상 겹칩니다 — 이곳부터 나가는 것이 좋습니다.
+                            <br />
+                            <span style={{ fontSize: '0.74rem' }}>
+                                ※ 경력조회를 실제로 했는지는 데이터에 없습니다. 조회 의무가 생기는데 인력 신고가 부실한 곳을 고른 것이므로, 점검 나가서 조회 대장을 확인해야 합니다.
+                            </span>
+                            <br />
+                            <span style={{ fontSize: '0.74rem' }}>
+                                ※ 광고 문구는 SNS 조사를 <strong>다시 돌린 기관부터</strong> 채워집니다
+                                {snsError ? ` (현재 SNS 결과를 읽지 못함: ${snsError})`
+                                    : snsRows ? ` (현재 SNS 조사 결과 ${snsRows.length}건 반영)` : ' (SNS 결과 불러오는 중)'}.
+                            </span>
+                        </div>
+                    </div>
+
+                    {riskItems.map(item => <RiskSection key={item.id} item={item} />)}
+                </div>
+            )}
+
+            {subTab === 'quality' && (
+            <div>
             {/* 요약 헤더 */}
             <div style={{ background: 'var(--bg-card)', borderRadius: '14px', padding: '14px 16px', border: '1px solid var(--border-color)', marginBottom: '14px', boxShadow: 'var(--shadow-sm)' }}>
                 <div style={{ fontSize: '0.88rem', fontWeight: '800', color: 'var(--text-main)', marginBottom: '8px' }}>🔬 데이터 품질 검토</div>
@@ -2440,26 +2553,6 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
                 </table>
             </ReviewSection>
 
-            {/* 8b. 보험 만료/미가입 */}
-            <ReviewSection id="insurance" title="보험 만료 · 미가입 (학원·교습소)" badge={insuranceIssues.length} badgeColor="#ef4444">
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                    <thead><tr>
-                        <Th>구분</Th><Th>등록(신고)번호</Th><Th>학원명(교습소명)</Th><Th>연락처(휴대폰)</Th><Th>보험 상태</Th>
-                    </tr></thead>
-                    <tbody>
-                        {insuranceIssues.map((a, i) => (
-                            <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
-                                <Td><span style={{ color: typeColor(a.type), fontWeight: '700', fontSize: '0.78rem' }}>{a.type}</span></Td>
-                                <Td style={{ color: 'var(--text-muted)', fontSize: '0.74rem' }}>{a.id || '-'}</Td>
-                                <Td><NameLink id={a.id} type={a.type} name={a.name} /></Td>
-                                <Td style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>{a.mobile || a.phone || '-'}</Td>
-                                <Td style={{ color: '#ef4444', fontWeight: '700' }}>{a.issue}</Td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </ReviewSection>
-
             {/* 8c-1. 보험 강사수 vs 등록 강사수 불일치 */}
             <ReviewSection id="insCountMismatch" title="보험 강사수 ≠ 등록 강사수" badge={insCountMismatch.length} badgeColor="#f59e0b">
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -2482,28 +2575,8 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
                     </tbody>
                 </table>
             </ReviewSection>
-
-            {/* 8c. 교습비 단가 기준 초과 */}
-            <ReviewSection id="feeExceed" title="교습비 단가 기준 초과 (학원·교습소)" badge={feeExceed.length} badgeColor="#f97316">
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                    <thead><tr>
-                        <Th>구분</Th><Th>등록번호</Th><Th>명칭</Th><Th>교습과목</Th><Th>기준단가(분당)</Th><Th>신고단가(분당)</Th><Th>초과액</Th>
-                    </tr></thead>
-                    <tbody>
-                        {feeExceed.map((a, i) => (
-                            <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
-                                <Td><span style={{ color: typeColor(a.type), fontWeight: '700', fontSize: '0.78rem' }}>{a.type}</span></Td>
-                                <Td style={{ color: 'var(--text-muted)', fontSize: '0.74rem' }}>{a.id || '-'}</Td>
-                                <Td><NameLink id={a.id} type={a.type} name={a.name} /></Td>
-                                <Td>{a.subject}</Td>
-                                <Td><span style={{ fontWeight: '700' }}>{a.std.toLocaleString()}원</span>{a.stdLabel ? <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: '400', marginLeft: '4px' }}>{a.stdLabel}</span> : ''}</Td>
-                                <Td style={{ color: '#f97316', fontWeight: '600' }}>{a.unit.toLocaleString()}원</Td>
-                                <Td style={{ color: '#ef4444', fontWeight: '700' }}>+{a.diff.toLocaleString()}원</Td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </ReviewSection>
+            </div>
+            )}
         </div>
     );
 }
@@ -4511,7 +4584,7 @@ function TabPlaceholder({ label }) {
 // ───────────────────────────────────────────────
 const INSP_STATE_KEY = 'inspectionPageState';
 
-export default function InspectionPage({ onBack, academies, privateTutors, onSelectAcademy, onShowRouteMap, initialTab }) {
+export default function InspectionPage({ onBack, academies, privateTutors, onSelectAcademy, onShowRouteMap, initialTab, supplementLoading }) {
     const [region, setRegion] = useState(() => {
         try { return JSON.parse(sessionStorage.getItem(INSP_STATE_KEY))?.region || '하남'; } catch { return '하남'; }
     });
@@ -4753,7 +4826,7 @@ export default function InspectionPage({ onBack, academies, privateTutors, onSel
                         {activeTab === 0 && <TabCaution region={region} academies={academies} privateTutors={privateTutors} academyClosures={academyClosures} onSelectAcademy={handleSelectAcademy} addrDongCacheVer={addrDongCacheVer} initialOpenSections={savedSubState.cautionOpenSections} onSubStateChange={s => handleSubStateChange({ cautionOpenSections: s })} onShowRouteMap={onShowRouteMap} initialRouteDate={savedSubState.routeDate || ''} onRouteDateChange={date => handleSubStateChange({ routeDate: date })} initialExpandedDongs={savedSubState.cautionExpandedDongs} initialUnderdueExpandedDongs={savedSubState.cautionUnderdueExpandedDongs} initialByBuildingExpandedDongs={savedSubState.cautionByBuildingExpandedDongs} initialByBuildingExpandedBuildings={savedSubState.cautionByBuildingExpandedBuildings} onExpandedDongsChange={s => handleSubStateChange({ cautionExpandedDongs: s.expandedDongs ?? subStateRef.current?.cautionExpandedDongs, cautionUnderdueExpandedDongs: s.underdueExpandedDongs ?? subStateRef.current?.cautionUnderdueExpandedDongs, cautionByBuildingExpandedDongs: s.byBuildingExpandedDongs ?? subStateRef.current?.cautionByBuildingExpandedDongs, cautionByBuildingExpandedBuildings: s.byBuildingExpandedBuildings ?? subStateRef.current?.cautionByBuildingExpandedBuildings })} />}
                         {activeTab === 1 && <TabRecent region={region} academies={academies} onSelectAcademy={handleSelectAcademy} initialPage={recentInitPage} initialScrollY={recentInitScrollY} onPageChange={p => handleSubStateChange({ page: p })} />}
                         {activeTab === 2 && <TabStats region={region} statRows={statRows} academies={academies} privateTutors={privateTutors} academyClosures={academyClosures} addrDongCacheVer={addrDongCacheVer} />}
-                        {activeTab === 3 && <TabReview region={region} academies={academies} privateTutors={privateTutors} academyClosures={academyClosures} onSelectAcademy={handleSelectAcademy} addrDongCacheVer={addrDongCacheVer} initialOpenSections={savedSubState.reviewOpenSections} onSubStateChange={s => handleSubStateChange({ reviewOpenSections: s })} />}
+                        {activeTab === 3 && <TabReview region={region} academies={academies} privateTutors={privateTutors} academyClosures={academyClosures} onSelectAcademy={handleSelectAcademy} addrDongCacheVer={addrDongCacheVer} initialOpenSections={savedSubState.reviewOpenSections} initialSubTab={savedSubState.reviewSubTab} supplementLoading={supplementLoading} onSubStateChange={handleSubStateChange} />}
                         {activeTab === 4 && <SnsCheckTab region={region} academies={academies} onSelectAcademy={handleSelectAcademy} />}
                         {activeTab === 5 && <PhotoRenamePage embedded={true} />}
                         {activeTab === 6 && <AreaCalculatorApp embedded={true} />}

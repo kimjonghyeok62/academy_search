@@ -345,6 +345,7 @@ export async function fetchInstructorData() {
                 dismissDate: (row['해임일'] || '').trim(),
                 changeReason: (row['변경사유'] || '').trim(),
                 visaType: (row['외국인강사체류자격'] || '').trim(),
+                nationality: (row['국적'] || '').trim(),
                 academyName: name,
                 regNum: regNum,
             };
