@@ -11,6 +11,8 @@
 //      플레이스에 링크가 없는 채널은 별도로 검색하지 않는다 — 검색으로 찾은 블로그는
 //      동명이인·본원 블로그인 경우가 많아 오판의 주범이었다.
 
+import { scanAdPhrases, formatAdPhrases } from './adPhrases.js';
+
 const UA_MOBILE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1';
 const UA_DESKTOP = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 const H_MOBILE = { 'User-Agent': UA_MOBILE, 'Accept-Language': 'ko-KR,ko;q=0.9' };
@@ -615,6 +617,15 @@ export function htmlToText(html) {
         .trim();
 }
 
+// 광고 문구를 훑을 글자 수 상한. 교습비를 보려고 이미 받아 둔 본문을 다시 읽을 뿐이라
+// 요청은 늘지 않지만, 블로그 한 곳이 수백 KB 라 전부 훑을 이유는 없다.
+const AD_SCAN_MAX = 200000;
+
+/** 이미 받아 둔 HTML 에서 광고 문구를 찾아 시트에 넣을 한 줄로 만든다 */
+function adPhraseLine(html) {
+    return formatAdPhrases(scanAdPhrases(htmlToText(String(html || '').slice(0, AD_SCAN_MAX))));
+}
+
 // 블로그에서 교습비·등록번호를 어디에 적어두는지가 제각각이라 세 군데를 본다.
 //   1) m.blog        — 사이드바 '소개'. PC PostList 에는 이 글이 안 들어온다.
 //                      (예: "[학원등록번호:제1537호]")
@@ -677,7 +688,10 @@ async function probeBlogChannel(link) {
         if (hit) regNos = extractRegNos(hit.text);
     }
 
-    return { feeMentioned, regNos, 적힌금액: introFee.amounts, scope: '소개·최근 글·블로그 내 검색' };
+    // 소개글과 최근 글을 한꺼번에 훑는다 — 과대광고는 글 제목에 적어 두는 곳이 많아 RSS 가 특히 잘 걸린다
+    const 광고문구 = adPhraseLine(parts.join(' '));
+
+    return { feeMentioned, regNos, 적힌금액: introFee.amounts, 광고문구, scope: '소개·최근 글·블로그 내 검색' };
 }
 
 // ── 대조용: '적혀 있는 금액' 을 그대로 꺼내온다 ────────────────────────
@@ -825,6 +839,7 @@ async function probeHomepageChannel(link) {
         feeMentioned: fee.shown,
         적힌금액: fee.amounts,
         regNos: extractRegNos(text),
+        광고문구: formatAdPhrases(scanAdPhrases(text)),
         scope: '첫 페이지',
     };
 }
@@ -979,6 +994,7 @@ export function buildResult({ academy, place, channels = [], matchScore, error, 
                 조사범위: '조사 안 함',
                 비고: '소개글 한 줄만 보이고 서버에서는 거의 열리지 않아 자동 조사 대상에서 뺐습니다 — 링크로 직접 확인하세요',
                 소개글: '',
+                광고문구: '',
             };
         }
         const 대조 = c.unavailable ? '확인불가' : compareRegNos(c.regNos, masterDigits);
@@ -999,6 +1015,9 @@ export function buildResult({ academy, place, channels = [], matchScore, error, 
             조사범위: c.scope || '',
             비고: c.note || '',
             소개글: c.excerpt || '',
+            // 허위·과대광고로 읽힐 만한 문구. 기재금액·금액대조와 같은 자리에 넣어
+            // 시트 열을 늘리지 않고도 표와 검토 탭이 함께 읽는다.
+            광고문구: c.unavailable ? '' : (c.광고문구 || ''),
         };
     });
 
