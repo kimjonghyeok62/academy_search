@@ -304,7 +304,7 @@ export default function SnsDetailPanel({ academy, region = '하남', allAcademie
     // 문구는 펼쳤을 때만 만든다 (표가 750행 때문에 지킨 규칙이지만, 여기서도 안 볼 문구를 지을 이유가 없다)
     const smsText = useMemo(
         () => (smsOpen
-            ? buildNoticeSms(target, result, academy, { replyUrl: links?.reply, formUrl: links?.form })
+            ? buildNoticeSms(target, result, academy, { replyUrl: links?.reply })
             : ''),
         [smsOpen, target, result, academy, links]);
     const smsSize = smsText ? smsBytes(smsText) : 0;
@@ -377,10 +377,11 @@ ${links.reply}`}
             }}>🔗 회신 주소</button>
     ) : null;
 
-    // 학원에게 보내는 게시표 예시 — 담당자도 무엇이 나가는지 눌러 볼 수 있어야 한다
+    // 신고 내용으로 만든 게시표 — 담당자가 전화로 안내하기 전에 눌러 볼 수 있어야 한다.
+    // 문자에는 이제 이 주소가 아니라 학원이 직접 만드는 곳을 싣는다 (snsNoticeText 의 FORM_LINE).
     const formBtn = links?.form ? (
         <a href={links.form} target="_blank" rel="noopener noreferrer"
-            title={`학원이 문자에서 누르면 열리는 게시표 예시입니다
+            title={`신고하신 내용으로 만든 게시표입니다 (담당자 확인용)
 ${links.form}`}
             style={{
                 padding: '8px 12px', borderRadius: '8px', border: '1px solid #0d9488',

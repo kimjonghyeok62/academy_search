@@ -39,7 +39,7 @@ const fmtDay = (iso) => {
 function SnsCheckRow({
     index, rowKey, target, result, academy, group, dup,
     academyByKey, region, isNarrow, running, highlight,
-    pinOpen, pinInput, pinError, memoOpen, memoInput, replyUrl, formUrl, days,
+    pinOpen, pinInput, pinError, memoOpen, memoInput, replyUrl, days,
     onSelectAcademy, onCycle, onToggleDone, onToggleNoPlace, onRefresh, onJump,
     onSent, onToggleReplySeen, onResetReply,
     onPinOpen, onPinChange, onPinSave, onPinCancel, onPinClear, onPinConfirm,
@@ -70,11 +70,11 @@ function SnsCheckRow({
     // 표가 멎는다 (openTuitionCompare 와 같은 이유로 prop 도 늘리지 않는다 —
     // 문의 전화·기한은 snsNoticeText 가 localStorage 에서 직접 읽는다).
     const previewSms = (e) => {
-        e.currentTarget.title = buildNoticeSms(target, result, academy, { replyUrl, formUrl });
+        e.currentTarget.title = buildNoticeSms(target, result, academy, { replyUrl });
     };
 
     const copySms = () => {
-        const text = buildNoticeSms(target, result, academy, { replyUrl, formUrl });
+        const text = buildNoticeSms(target, result, academy, { replyUrl });
         if (!text) return;
         const n = smsBytes(text);
         const show = (v) => { setFlash(v); setTimeout(() => setFlash(null), 2200); };

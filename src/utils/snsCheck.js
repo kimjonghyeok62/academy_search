@@ -1207,15 +1207,67 @@ function once(key, run) {
     return p;
 }
 
-/** 조회 한 번. 실패하면 던진다 — 빈 배열로 갈음하면 '없음'과 '못 읽음'이 구별되지 않는다 */
-async function readRows(action) {
-    const res = await fetch(`/api/apps-script-proxy?action=${action}`);
-    const json = await res.json().catch(() => ({ ok: false, error: `HTTP ${res.status}` }));
-    if (!json.ok) throw new Error(json.error || `HTTP ${res.status}`);
-    return json.rows || [];
+// 점검 시트는 1,070줄이다. 앱스 스크립트가 다른 실행 뒤에 줄을 서면 한 번 읽는 데 수십 초가
+// 걸리고, 그 사이 브라우저나 프록시가 먼저 끊는다. 한 번 끊긴 것을 실패로 확정하면
+// 화면은 조사한 적 없는 1,000곳을 그린다 — 실제로 '전부 미조사, 확인완료 0%' 로 떴다.
+// 그래서 스스로 시한을 두고(멎은 요청을 붙들고 있지 않도록), 끊긴 요청은 한 번 더 해 본다.
+//
+// 시한은 프록시가 버티는 60초보다 짧게 잡는다 — 프록시가 먼저 끊으면 사람이 읽을 수 없는
+// 오류가 오기 때문이다. 다시 시도는 한 번뿐이다. 두 번, 세 번 더 해 보면 가장 나쁜 경우에
+// 몇 분을 아무 말 없이 기다리게 되는데, 그 사이 담당자는 화면이 멎은 줄로 안다.
+const READ_TIMEOUT_MS = 40000;
+const READ_RETRIES = 1;
+const READ_RETRY_GAP_MS = 2000;
+
+/** 조회 한 번 — 시한을 넘기면 스스로 끊는다 */
+async function readOnce(action) {
+    const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+    const timer = ctrl ? setTimeout(() => ctrl.abort(), READ_TIMEOUT_MS) : null;
+    try {
+        const res = await fetch(`/api/apps-script-proxy?action=${action}`, ctrl ? { signal: ctrl.signal } : undefined);
+        const json = await res.json().catch(() => ({ ok: false, error: `HTTP ${res.status}` }));
+        if (!json.ok) throw new Error(json.error || `HTTP ${res.status}`);
+        return json.rows || [];
+    } catch (err) {
+        // abort 는 'signal is aborted without reason' 같은 말로 온다 — 사람이 읽을 말로 바꾼다
+        if (err?.name === 'AbortError') throw new Error(`응답이 ${Math.round(READ_TIMEOUT_MS / 1000)}초 안에 오지 않았습니다`);
+        throw err;
+    } finally {
+        if (timer) clearTimeout(timer);
+    }
 }
 
-export function fetchSnsChecksOrThrow() {
+// 방금 읽은 것을 잠깐 들고 있는다.
+//
+// 같은 시트를 읽는 화면이 둘 이상이다 — 검토 탭(민원취약)과 SNS 탭, 성과 탭. 검토에서 SNS 로
+// 넘어가면 몇 초 사이에 같은 조회가 두 번 나가는데, 앱스 스크립트는 한 계정의 실행을 줄 세워
+// 돌리므로 뒤엣것이 앞엣것이 끝나기를 기다리다 시한을 넘긴다. 한 벌만 읽어 나눠 쓰면
+// 그 줄서기 자체가 없어진다. (탭을 옮겨 다니는 사이에 시트가 바뀔 일은 드물고,
+// 바뀌었다면 화면의 '다시 불러오기' 가 force 로 건너뛴다)
+const READ_FRESH_MS = 60000;
+const freshRows = new Map();   // action → { at, rows }
+
+/** 조회. 끊기면 잠깐 쉬었다 다시 — 다 실패하면 던진다 (빈 배열로 갈음하면 '없음'과 '못 읽음'이 구별되지 않는다) */
+async function readRows(action, { force = false } = {}) {
+    if (force) freshRows.delete(action);
+    const hit = freshRows.get(action);
+    if (hit && Date.now() - hit.at < READ_FRESH_MS) return hit.rows;
+
+    let last;
+    for (let attempt = 0; attempt <= READ_RETRIES; attempt++) {
+        if (attempt) await new Promise((r) => setTimeout(r, READ_RETRY_GAP_MS * attempt));
+        try {
+            const rows = await readOnce(action);
+            freshRows.set(action, { at: Date.now(), rows });
+            return rows;
+        } catch (err) { last = err; }
+    }
+    throw new Error(`${last?.message || '읽지 못했습니다'} (${READ_RETRIES + 1}번 시도)`);
+}
+
+/** force 를 주면 잠깐 들고 있던 값을 버리고 시트를 다시 읽는다 (화면의 '다시 불러오기') */
+export function fetchSnsChecksOrThrow({ force = false } = {}) {
+    if (force) return once('getSnsChecks:force', () => readRows('getSnsChecks', { force: true }));
     return once('getSnsChecks', () => readRows('getSnsChecks'));
 }
 
@@ -1279,6 +1331,7 @@ export async function saveSnapshot(round, rows) {
     });
     const json = await res.json().catch(() => ({ ok: false }));
     if (!json.ok) throw new Error(json.error || '저장 실패');
+    freshRows.delete('getSnapshots');
     return json.saved || 0;
 }
 
@@ -1291,6 +1344,8 @@ export function fetchSurveys() {
 }
 
 export async function saveSnsChecks(records) {
+    // 시트를 고쳤으니 잠깐 들고 있던 값은 더 이상 맞지 않는다 — 다음에 읽을 때 새로 읽게 한다
+    freshRows.delete('getSnsChecks');
     let saved = 0;
     for (let i = 0; i < records.length; i += SAVE_BATCH) {
         const chunk = records.slice(i, i + SAVE_BATCH);

@@ -409,7 +409,7 @@ export default function ReplyPage() {
             </div>
 
             {/* 게시표 예시 — '교습비를 게시하라' 고만 하면 무엇을 어떤 모양으로 붙일지 모른다.
-                문자에도 같은 주소가 들어가지만, 문자를 닫고 들어온 분을 위해 여기에도 둔다 */}
+                문자는 학원이 직접 만드는 곳을 알려 주고, 여기서는 신고한 내용으로 미리 만들어 보여 준다 */}
             <a href={`/g/${encodeURIComponent(token)}`} target="_blank" rel="noopener noreferrer"
                 style={{
                     ...card, display: 'block', textAlign: 'center', textDecoration: 'none',
