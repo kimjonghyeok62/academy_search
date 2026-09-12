@@ -14,7 +14,7 @@
 import {
     rowCells, parseChannels, assignBuckets, currentPlaceUrl, noticeItems, DIFFERS,
 } from './snsCheck';
-import { sortCourses, parseNum } from './generateTuitionPDF';
+import { sortCourses } from './generateTuitionPDF';
 import { feeRange } from './tuitionCompareWindow';
 
 // ── 담당자가 고치는 자리 ────────────────────────────────
@@ -46,8 +46,9 @@ export const TAIL_LINE = '· 이 외에 인스타, 카페, 당근 등도 살펴�
 // 회신 창구 안내. 주소(replyUrl)는 그 학원만 여는 것이라 부르는 쪽이 실어 준다.
 // 길이가 넘쳐 덜어낼 때도 이 블록은 남긴다 — 이 문자를 보내는 목적이 여기에 있다.
 // 없으면 담당자가 750곳을 다시 조사해야 누가 고쳤는지 알 수 있다.
+// 머리 한 줄과 주소 한 줄이면 된다. '아래를 눌러 …' 는 주소 바로 위에서
+// 주소를 누르라고 말하는 줄이라, 머리말이 이미 한 말을 되풀이할 뿐이었다.
 export const REPLY_HEAD = '4. 수정하셨으면 알려 주세요';
-export const REPLY_LINE = '아래를 눌러 고치신 항목만 표시해 주시면 됩니다 (10초).';
 
 // 2번(수정 방법) 끝에 붙는 세 줄 — 무엇을 적어야 하는지, 어디서 확인하는지, 어떻게 뽑는지.
 //
@@ -60,8 +61,8 @@ export const REPLY_LINE = '아래를 눌러 고치신 항목만 표시해 주시
 export const PRICE_TOOL_URL = 'https://hakwon-price.vercel.app/';
 export const NEIS_URL = 'https://hakwon.neis.go.kr/nxui/index.html';
 export const REGNO_LINE = '· 귀 {기관} {번호}: 제{regNo}호';
-export const NEIS_LINE = `· 귀 {기관} 교습비: 나이스학원 ${NEIS_URL}`;
-export const FORM_LINE = `· 교습비 출력 도움 : ${PRICE_TOOL_URL} (JPG, HWPX 등)`;
+export const NEIS_LINE = `· 신고된 교습비 : ${NEIS_URL}`;
+export const FORM_LINE = `· 출력 도움 : ${PRICE_TOOL_URL} (JPG, HWPX 등)`;
 
 // 길이가 넘쳐 매체를 몇 개 덜어냈을 때만 붙인다. 3번 목록의 한 줄로 들어간다 —
 // 문자 맨 아래 '문의' 뒤에 두면, 1번에는 일곱 곳이 적혀 있는데 3번에는 세 곳뿐인 것을
@@ -75,10 +76,6 @@ export const DEFAULT_GUIDE_URL =
 
 // LMS 한도. 넘으면 문자마당이 받아 주지 않는다.
 export const LMS_LIMIT = 2000;
-
-// 문자에 싣는 교습과정 줄 수 상한. 과정이 스무 개인 학원 하나 때문에 문자가 통째로
-// 잘리면 안 된다 — 넘는 만큼은 '외 N개 과정' 한 줄로 접는다.
-export const COURSE_LINES = 8;
 
 // 한 매체에 적어 보낼 '광고 중인 금액' 수 상한 (넘으면 '외 N건')
 export const AD_FEES = 6;
@@ -101,9 +98,6 @@ export function readNoticeSettings() {
         days: Number.isFinite(days) && days >= 0 ? days : DEFAULT_DAYS,
         // 빈 문자열은 '링크를 빼겠다' 는 뜻이다 — 기본값으로 되돌리면 안 된다
         guideUrl: saved.guideUrl ?? DEFAULT_GUIDE_URL,
-        // 교습과정 목록을 넣을지 — 기본은 넣는다. guideUrl 과 같은 이유로 !== false 로 읽는다
-        // (?? 나 || 로 읽으면 담당자가 꺼 둔 false 가 기본값으로 되살아난다)
-        courses: saved.courses !== false,
     };
     return cached;
 }
@@ -123,20 +117,6 @@ const CHANNEL_NAME = {
     cafe: '카페', youtube: '유튜브', instagram: '인스타그램', etc: '그 밖의 매체',
 };
 
-// 매체별 고치는 방법. 매체마다 한 줄이 원칙이다 — 여덟 매체가 두 줄씩 서면
-// 2번이 문자의 절반을 먹는다. 플레이스만 고치는 곳 주소를 한 줄 더 붙인다.
-const HOWTO = {
-    place: () => [
-        '· 네이버플레이스 : 가격 정보에 교습비 등록(또는 가격표 이미지), 소개글에 {번호} 기재',
-        '  (수정방법 : https://new.smartplace.naver.com/help/guide?menu=edit)',
-    ],
-    blog: () => ['· 블로그 : 프로필·공지글에 {번호}, 별도 게시물에 교습비 등록'],
-    homepage: () => ['· 홈페이지 : 첫 화면이나 {기관} 소개 쪽에 {번호}, 교습비 안내 쪽 추가'],
-    cafe: () => ['· 카페 : 대문·공지글에 {번호}, 교습비는 별도 게시글로 등록'],
-    youtube: () => ['· 유튜브 : 채널 정보(설명)에 {번호}, 교습비는 채널 설명이나 고정 게시물에 기재'],
-    instagram: () => ['· 인스타그램 : 프로필 소개글에 {번호}, 교습비는 별도 게시물에 등록'],
-    etc: () => ['· 그 밖의 매체 : 첫 화면·소개란에 {번호}와 교습비 기재'],
-};
 
 /**
  * 문구를 클립보드에 담는다.
@@ -209,35 +189,6 @@ function bucketsByWeight(items) {
 }
 
 /**
- * [신고하신 교습과정] 블록 — '· 보통교과 / 초등수학 : 월 250,000원'.
- *
- * 범위 한 줄('25만원 ~ 35만원')만 보내면 학원은 어느 과정을 얼마로 신고했는지 몰라
- * 게시할 금액을 정하지 못한다. 앱은 통째로 로그인 뒤에 있어 학원에 링크를 걸어 줄 수
- * 없으므로 문자 본문에 적어 보낸다.
- *
- * 금액은 대조창·게시표와 같은 함수(parseNum)로 읽는다 — 같은 학원에 대고 화면과 문자가
- * 다른 금액을 말하면 어느 쪽이 맞는지 알 수 없다 (feeRange 를 함께 쓰는 이유와 같다).
- */
-function courseBlock(academy) {
-    const rows = sortCourses(academy?.courses || [])
-        .map((c) => ({
-            name: [c.process, c.subject].filter(Boolean).join(' / '),
-            fee: parseNum(c.tuitionFee || c.totalFee),
-        }))
-        .filter((r) => r.name);
-    if (!rows.length) return [];
-
-    // '월' 은 줄마다 되풀이하지 않고 머리에 한 번만 적는다 — 과정이 여덟이면 여덟 번이다
-    const L = ['신고하신 교습과정 (월 교습비)'];
-    rows.slice(0, COURSE_LINES).forEach((r) => {
-        // 금액을 빈칸으로 두면 무료로 읽는다 — 모르면 모른다고 적는다
-        L.push(`· ${r.name} : ${r.fee > 0 ? `${r.fee.toLocaleString('ko-KR')}원` : '금액 미상'}`);
-    });
-    if (rows.length > COURSE_LINES) L.push(`· 외 ${rows.length - COURSE_LINES}개 과정`);
-    return L;
-}
-
-/**
  * 조사할 때 플레이스에서 읽어 둔 금액.
  *
  * 시트에 따로 열을 두지 않고 '플레이스_게시형태' 꼬리에 '· 적힌 금액 260,000·300,000' 으로
@@ -300,15 +251,14 @@ function adBlock(result) {
 }
 
 /**
- * 문구를 조립한다. keep 이 있으면 그 매체들만 2번(수정 방법)·3번(광고 링크) 에 싣는다
+ * 문구를 조립한다. keep 이 있으면 그 매체들만 3번(광고 링크) 에 싣는다
  * (길이가 넘쳐 덜어낸 경우 — buildNoticeSms 가 두 번째로 부를 때 쓴다).
- * withCourses 가 거짓이면 교습과정 목록을 뺀다 (담당자가 꺼 두었거나, 그래도 길이가 넘칠 때).
  *
  * 문자는 번호 붙인 네 토막이다 — 1 무엇이 빠졌나 / 2 어떻게 고치나 / 3 우리가 본 곳 /
  * 4 고쳤으면 알려 달라. 학원이 전화로 물어올 때 '2번 보세요' 로 짚어 줄 수 있어야 하므로
  * 번호는 내용이 적어도 건너뛰지 않는다 (3번은 링크를 못 찾아도 머리와 마지막 줄은 남긴다).
  */
-function compose(target, result, academy, opts, keep, withCourses, withForm) {
+function compose(target, result, academy, opts, keep, withForm) {
     const { tel, days, guideUrl, replyUrl } = opts;
     const isHagwonso = String(target.category || '').includes('교습소');
     const numberLabel = isHagwonso ? '신고번호' : '등록번호';
@@ -326,9 +276,8 @@ function compose(target, result, academy, opts, keep, withCourses, withForm) {
     const urls = bucketUrls(result);
     const range = feeRange(sortCourses(academy?.courses || []));
 
-    // 보내는 곳과 받는 곳은 한 덩어리다 — 사이를 띄우면 첫 화면에서 두 줄이 따로 논다
     const L = [];
-    L.push(`[${SENDER}] ${SUBJECT}`);
+    L.push(`[${SENDER}] ${SUBJECT}`, '');
     L.push(`${target.name} (${regLabel})`, '');
 
     // ── 1. 무엇이 빠졌나 ────────────────────────────────
@@ -352,7 +301,9 @@ function compose(target, result, academy, opts, keep, withCourses, withForm) {
         if (g.다름.length) parts.push(`${g.다름.join('·')} 다름`);
         L.push(`· ${CHANNEL_NAME[bucket]} : ${parts.join(', ')}`);
     });
-    L.push('', `위 ${items.length}개 사항이 모두 표시될 수 있도록 해 주시기 바랍니다.`, '');
+    // '위 N개 사항이 모두 표시될 수 있도록' 은 바로 위 목록을 세어 되읊는 줄이었다.
+    // 무엇을 해야 하는지는 목록이 이미 말하고, 언제까지인지는 3번 아래 기한이 말한다.
+    L.push('');
 
     // 근거를 말한 자리에 그 근거를 볼 곳을 함께 둔다. 3번에 두면 학원의 광고 주소와
     // 섞여 '우리 것' 처럼 보인다 — 성격이 다른 링크다.
@@ -361,24 +312,24 @@ function compose(target, result, academy, opts, keep, withCourses, withForm) {
     if (guideUrl) L.push(`교육지원청 안내문 : ${guideUrl}`);
     L.push('');
 
-    // ── 2. 어떻게 고치나 ────────────────────────────────
-    // 번호 다음에 빈 줄을 두지 않는다 (3번도 그렇다) — 머리와 목록은 한 덩어리다
+    // ── 2. 무엇을 적나 ─────────────────────────────────
+    // 번호 다음에 빈 줄을 두지 않는다 (3번도 그렇다) — 머리와 목록은 한 덩어리다.
+    //
+    // 매체마다 '어디에 어떻게 적는지' 를 여기 늘어놓지 않는다. 매체가 일곱인 학원은
+    // 그것만 일곱 줄이고, 정작 학원이 알아야 할 '내 번호가 몇 번인지, 내가 신고한
+    // 교습비가 얼마인지' 가 그 아래 묻혔다. 매체별 방법은 4번 주소를 눌러 들어간
+    // 회신 화면이, 그 학원에서 빠진 칸에 대해서만 말해 준다 (ReplyPage 의 HOWTO).
     L.push('2. 수정 방법');
-    shown.forEach((b) => { HOWTO[b]().forEach((line) => L.push(say(line))); });
-    // 매체별 방법 뒤에 '무엇을 적을 것인가' 를 붙인다 — 번호는 우리가 알려 주고,
-    // 교습비는 학원이 신고한 값이라 나이스에서 직접 보게 한다.
     L.push(say(REGNO_LINE).split('{regNo}').join(target.regNo));
     L.push(say(NEIS_LINE));
     if (withForm) L.push(FORM_LINE);
     L.push('');
 
-    // 과정별 금액(명세)과 범위(요약)는 같은 값을 두 번 말하는 것이다.
-    // 명세가 있으면 그것만 싣는다 — 학원이 무엇을 얼마로 올려야 하는지는 목록을 봐야 알고,
-    // 범위는 목록 바로 위에서 '25만원 ~ 35만원' 이라고 되읊는 줄일 뿐이다.
-    // 마스터에 교습과정이 없는 곳만 범위로 갈음한다 (없는 값을 넣어 말하지는 않는다).
-    const courses = withCourses ? courseBlock(academy) : [];
-    if (courses.length) L.push(...courses, '');
-    else if (range) {
+    // 과정별 금액은 문자에 싣지 않는다 — 과정이 열둘인 학원은 그것만 열두 줄이고,
+    // 그 목록이 하던 일(무엇을 얼마로 올려야 하는가)은 2번의 나이스 주소가 대신한다.
+    // 여기서는 범위 한 줄로 '어느 만큼인지' 만 짚어 준다.
+    // 마스터에 교습과정이 없는 곳은 이 줄도 뺀다 (없는 값을 넣어 말하지는 않는다).
+    if (range) {
         L.push(`신고하신 월 교습비는 ${range}입니다.`);
         L.push('게시하신 금액이 이와 같은지도 함께 확인해 주세요.', '');
     }
@@ -404,7 +355,7 @@ function compose(target, result, academy, opts, keep, withCourses, withForm) {
 
     // ── 4. 고쳤으면 알려 달라 ───────────────────────────
     // 주소를 못 받아왔으면 블록을 통째로 뺀다 — 안내는 나가야 하고, 빈 링크는 없느니만 못하다
-    if (replyUrl) L.push(REPLY_HEAD, REPLY_LINE, replyUrl, '');
+    if (replyUrl) L.push(REPLY_HEAD, replyUrl, '');
 
     L.push(`문의 : ${tel}`);
 
@@ -416,8 +367,7 @@ function compose(target, result, academy, opts, keep, withCourses, withForm) {
  *
  * LMS 한도를 넘으면 차례로 덜어낸다.
  *   ① 교습비 출력 도움 줄 (참고 자료다)
- *   ② 빠진 항목이 많은 매체 3곳만 2번(수정 방법)·3번(광고 링크) 에 남긴다
- *   ③ 그래도 넘치면 교습과정 목록까지 뺀다
+ *   ② 빠진 항목이 많은 매체 3곳만 3번(광고 링크) 에 남긴다
  * 덜어내는 차례는 급한 것을 뒤에 둔 것이다. 두 가지는 어느 단계에서도 줄이지 않는다 —
  * 빠진 항목 목록(무엇을 고쳐야 하는지)은 이 문자의 본론이고,
  * 회신 주소는 이 문자를 보내는 목적이다 (없으면 1,000곳을 다시 조사해야 한다).
@@ -425,19 +375,13 @@ function compose(target, result, academy, opts, keep, withCourses, withForm) {
 export function buildNoticeSms(target, result, academy, opts) {
     if (!target || !noticeItems(result).length) return '';
     const o = { ...readNoticeSettings(), ...(opts || {}) };
-    const withCourses = o.courses !== false;
     const keep = bucketsByWeight(noticeItems(result)).slice(0, TRIM_KEEP);
 
     // 덜어내는 차례대로 지어 보고, 한도 안에 드는 첫 번째를 쓴다
-    const steps = [
-        [null, withCourses, true],
-        [null, withCourses, false],
-        [keep, withCourses, false],
-        [keep, false, false],
-    ];
+    const steps = [[null, true], [null, false], [keep, false]];
     let text = '';
-    for (const [k, c, f] of steps) {
-        text = compose(target, result, academy, o, k, c, f);
+    for (const [k, f] of steps) {
+        text = compose(target, result, academy, o, k, f);
         if (smsBytes(text) <= LMS_LIMIT) return text;
     }
     return text;   // 다 덜어내도 넘치면 마지막 것을 낸다 (화면이 바이트 수로 알린다)
