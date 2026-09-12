@@ -43,18 +43,17 @@ export const TAIL_LINE = '이 외에도, 다른 모든 인터넷 매체(인스�
 export const REPLY_HEAD = '[수정하셨으면 알려 주세요]';
 export const REPLY_LINE = '아래를 눌러 고치신 항목만 표시해 주시면 됩니다 (1분, 로그인 없음).';
 
-// 교습비 게시표 예시 (/g/<토큰>).
-// '교습비를 게시하라' 고만 하면 무엇을 어떤 모양으로 붙여야 하는지 모른다. 신고된 내용으로
-// 만든 게시표를 보여 주면 그대로 인쇄해 붙이거나 보고 따라 만들 수 있다.
+// 교습비 게시표 만드는 곳.
+// '교습비를 게시하라' 고만 하면 무엇을 어떤 모양으로 붙여야 하는지 모른다. 학원이 직접
+// 만들어 받아 갈 수 있는 자리를 알려 준다.
 // 회신 블록과 달리 이것은 참고 자료다 — 길이가 넘치면 가장 먼저 덜어낸다.
 //
-// 유효기간을 적는 이유: 이 주소는 신고 내용(교습과정·금액)이 보이는 자리라 오래 살려 두지
-// 않는다. 언제까지인지 말하지 않고 어느 날 갑자기 안 열리면 학원은 우리 잘못으로 안다.
-// 이 값은 api/_lib/replyToken.js 의 FORM_TTL_DAYS 와 같아야 한다 —
-// 문구와 서버가 어긋나면 학원에게 거짓말이 된다.
-export const FORM_TTL_DAYS = 10;
-export const FORM_LINE = '신고하신 내용으로 만든 게시표입니다 (내부용·외부용). '
-    + `틀릴 수 있으니, 다시 한번 확인하시고 사용해 주세요. (유효기간:${FORM_TTL_DAYS}일)`;
+// 학원별 주소(/g/<토큰>)를 싣던 자리다. 그 주소는 신고 내용이 보이는 자리라 유효기간이
+// 있었고, 문자를 묵혔다 여는 학원에게는 열리지 않는 링크가 됐다. 여기 주소는 모든 학원이
+// 같고 기한이 없어, 언제 열어도 열린다.
+export const PRICE_TOOL_URL = 'https://hakwon-price.vercel.app/';
+export const FORM_HEAD = '[귀 학원의 교습비 게시표]';
+export const FORM_LINE = `${PRICE_TOOL_URL} 에 들어가시면 (JPG, PDF, HWPX, DOCX) 형식으로 출력 가능`;
 
 // 길이가 넘쳐 매체를 몇 개 덜어냈을 때만 붙인다
 export const TRIMMED_LINE = '그 밖의 매체는 직접 확인 부탁드립니다.';
@@ -293,7 +292,7 @@ function adBlock(result) {
  * withCourses 가 거짓이면 교습과정 목록을 뺀다 (담당자가 꺼 두었거나, 그래도 길이가 넘칠 때).
  */
 function compose(target, result, academy, opts, keep, withCourses, withForm) {
-    const { tel, days, guideUrl, replyUrl, formUrl } = opts;
+    const { tel, days, guideUrl, replyUrl } = opts;
     const isHagwonso = String(target.category || '').includes('교습소');
     const numberLabel = isHagwonso ? '신고번호' : '등록번호';
     const regLabel = `${isHagwonso ? '신고' : '등록'} 제${target.regNo}호`;
@@ -359,7 +358,7 @@ function compose(target, result, academy, opts, keep, withCourses, withForm) {
     // 주소를 하나도 못 찾았으면 머리만 남은 빈 블록을 만들지 않는다
     if (links.length) L.push(`[${target.name} 관련링크]`, ...links, '');
 
-    if (withForm && formUrl) L.push(`[${target.name} 교습비 게시표 예시 (참고)]`, FORM_LINE, formUrl, '');
+    if (withForm) L.push(FORM_HEAD, FORM_LINE, '');
 
     L.push(`${noticeDeadline(days)}까지 수정 부탁드리며, 이후 담당자가 다시 확인합니다.`);
     L.push(TAIL_LINE, '');
@@ -377,7 +376,7 @@ function compose(target, result, academy, opts, keep, withCourses, withForm) {
  * 그 학원에 보낼 문자 문구. 빠진 것이 없으면 빈 문자열.
  *
  * LMS 한도를 넘으면 차례로 덜어낸다.
- *   ① 교습비 게시표 예시 (참고 자료다)
+ *   ① 교습비 게시표 안내 (참고 자료다)
  *   ② 빠진 항목이 많은 매체 3곳만 [수정 방법]·[관련링크] 에 남긴다
  *   ③ 그래도 넘치면 교습과정 목록까지 뺀다
  * 덜어내는 차례는 급한 것을 뒤에 둔 것이다. 두 가지는 어느 단계에서도 줄이지 않는다 —
