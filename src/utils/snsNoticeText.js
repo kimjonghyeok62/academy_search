@@ -63,8 +63,10 @@ export const REGNO_LINE = '· 귀 {기관} {번호}: 제{regNo}호';
 export const NEIS_LINE = `· 귀 {기관} 교습비: 나이스학원 ${NEIS_URL}`;
 export const FORM_LINE = `· 교습비 출력 도움 : ${PRICE_TOOL_URL} (JPG, HWPX 등)`;
 
-// 길이가 넘쳐 매체를 몇 개 덜어냈을 때만 붙인다
-export const TRIMMED_LINE = '그 밖의 매체는 직접 확인 부탁드립니다.';
+// 길이가 넘쳐 매체를 몇 개 덜어냈을 때만 붙인다. 3번 목록의 한 줄로 들어간다 —
+// 문자 맨 아래 '문의' 뒤에 두면, 1번에는 일곱 곳이 적혀 있는데 3번에는 세 곳뿐인 것을
+// 학원이 먼저 보고 '왜 빠졌나' 를 묻게 된다. 빠진 자리에서 말해야 한다.
+export const TRIMMED_LINE = '· 위에 적지 못한 매체는 직접 확인 부탁드립니다';
 
 export const DEFAULT_TEL = '02-480-5144';
 export const DEFAULT_DAYS = 5;
@@ -121,11 +123,12 @@ const CHANNEL_NAME = {
     cafe: '카페', youtube: '유튜브', instagram: '인스타그램', etc: '그 밖의 매체',
 };
 
-// 매체별 고치는 방법. regLabel 은 '등록 제1042호' (교습소는 '신고 제N호').
+// 매체별 고치는 방법. 매체마다 한 줄이 원칙이다 — 여덟 매체가 두 줄씩 서면
+// 2번이 문자의 절반을 먹는다. 플레이스만 고치는 곳 주소를 한 줄 더 붙인다.
 const HOWTO = {
-    place: (regLabel) => [
-        '· 네이버플레이스 → 가격 정보에 교습비 등록(또는 가격표 이미지 첨부)',
-        `  소개글에 '${regLabel}' 기재 (수정방법:https://new.smartplace.naver.com/help/guide?menu=edit)`,
+    place: () => [
+        '· 네이버플레이스 : 가격 정보에 교습비 등록(또는 가격표 이미지), 소개글에 {번호} 기재',
+        '  (수정방법 : https://new.smartplace.naver.com/help/guide?menu=edit)',
     ],
     blog: () => ['· 블로그 : 프로필·공지글에 {번호}, 별도 게시물에 교습비 등록'],
     homepage: () => ['· 홈페이지 : 첫 화면이나 {기관} 소개 쪽에 {번호}, 교습비 안내 쪽 추가'],
@@ -224,10 +227,11 @@ function courseBlock(academy) {
         .filter((r) => r.name);
     if (!rows.length) return [];
 
-    const L = ['[신고하신 교습과정]'];
+    // '월' 은 줄마다 되풀이하지 않고 머리에 한 번만 적는다 — 과정이 여덟이면 여덟 번이다
+    const L = ['신고하신 교습과정 (월 교습비)'];
     rows.slice(0, COURSE_LINES).forEach((r) => {
         // 금액을 빈칸으로 두면 무료로 읽는다 — 모르면 모른다고 적는다
-        L.push(`· ${r.name} : ${r.fee > 0 ? `월 ${r.fee.toLocaleString('ko-KR')}원` : '월 금액 미상'}`);
+        L.push(`· ${r.name} : ${r.fee > 0 ? `${r.fee.toLocaleString('ko-KR')}원` : '금액 미상'}`);
     });
     if (rows.length > COURSE_LINES) L.push(`· 외 ${rows.length - COURSE_LINES}개 과정`);
     return L;
@@ -290,8 +294,9 @@ function adBlock(result) {
             return `· ${CHANNEL_NAME[bucket]} : ${list}`;
         });
     if (!lines.length) return [];
-    return ['[현재 광고 중인 교습비]', ...lines,
-        '위 금액은 신고하신 교습비와 다릅니다 — 신고한 금액으로 고치시거나, 교습비가 바뀌었다면 먼저 신고해 주세요.'];
+    // 무엇이 문제인지를 머리에 적으면 꼬리에서 되풀이할 것이 없다
+    return ['지금 광고 중인 금액 — 신고하신 교습비와 다릅니다', ...lines,
+        '신고한 금액으로 고치시거나, 교습비가 바뀌었다면 먼저 신고해 주세요.'];
 }
 
 /**
@@ -321,8 +326,9 @@ function compose(target, result, academy, opts, keep, withCourses, withForm) {
     const urls = bucketUrls(result);
     const range = feeRange(sortCourses(academy?.courses || []));
 
+    // 보내는 곳과 받는 곳은 한 덩어리다 — 사이를 띄우면 첫 화면에서 두 줄이 따로 논다
     const L = [];
-    L.push(`[${SENDER}] ${SUBJECT}`, '');
+    L.push(`[${SENDER}] ${SUBJECT}`);
     L.push(`${target.name} (${regLabel})`, '');
 
     // ── 1. 무엇이 빠졌나 ────────────────────────────────
@@ -330,21 +336,35 @@ function compose(target, result, academy, opts, keep, withCourses, withForm) {
     // '확인되지 않았다' 고 하면 학원은 되묻고, 담당자가 전화를 한 번 더 받는다.
     L.push(items.some((it) => it.differs)
         ? `1. 귀 ${kindLabel} 온라인 광고에서 다음이 확인되지 않았거나, 신고하신 내용과 다릅니다.`
-        : `1. 귀 ${kindLabel} 온라인 광고에서 다음이 확인되지 않았습니다.`, '');
+        : `1. 귀 ${kindLabel} 온라인 광고에서 다음이 확인되지 않았습니다.`);
+    // 한 매체에서 둘 다 빠졌으면 한 줄로 묶는다. '· 블로그 : 신고번호 없음' 과
+    // '· 블로그 : 교습비 없음' 이 따로 서면, 매체가 넷일 때 여덟 줄이 되어
+    // 정작 '몇 군데를 손봐야 하는가' 가 눈에 안 들어온다.
+    // 없음과 다름은 갈라 적는다 — 없으면 올리는 일이고, 다르면 고치는 일이다.
+    const byBucket = new Map();
     items.forEach(({ bucket, field, differs }) => {
-        const what = field === '번호' ? numberLabel : field;
-        // 빠진 것과 다른 것은 학원이 할 일이 다르다 — 없으면 올리고, 다르면 고친다
-        L.push(`· ${CHANNEL_NAME[bucket]} : ${what} ${differs ? '다름' : '없음'}`);
+        if (!byBucket.has(bucket)) byBucket.set(bucket, { 없음: [], 다름: [] });
+        byBucket.get(bucket)[differs ? '다름' : '없음'].push(field === '번호' ? numberLabel : field);
+    });
+    byBucket.forEach((g, bucket) => {
+        const parts = [];
+        if (g.없음.length) parts.push(`${g.없음.join('·')} 없음`);
+        if (g.다름.length) parts.push(`${g.다름.join('·')} 다름`);
+        L.push(`· ${CHANNEL_NAME[bucket]} : ${parts.join(', ')}`);
     });
     L.push('', `위 ${items.length}개 사항이 모두 표시될 수 있도록 해 주시기 바랍니다.`, '');
 
     // 근거를 말한 자리에 그 근거를 볼 곳을 함께 둔다. 3번에 두면 학원의 광고 주소와
     // 섞여 '우리 것' 처럼 보인다 — 성격이 다른 링크다.
-    L.push(say(LEGAL_LINE) + (guideUrl ? ` ( 교육지원청 안내문 : ${guideUrl} )` : ''), '');
+    // 주소는 줄을 바꿔 붙인다 — 괄호로 문장 끝에 매달면 그 한 줄이 화면 석 줄을 먹는다.
+    L.push(say(LEGAL_LINE));
+    if (guideUrl) L.push(`교육지원청 안내문 : ${guideUrl}`);
+    L.push('');
 
     // ── 2. 어떻게 고치나 ────────────────────────────────
-    L.push('2. 수정 방법', '');
-    shown.forEach((b) => { HOWTO[b](regLabel).forEach((line) => L.push(say(line))); });
+    // 번호 다음에 빈 줄을 두지 않는다 (3번도 그렇다) — 머리와 목록은 한 덩어리다
+    L.push('2. 수정 방법');
+    shown.forEach((b) => { HOWTO[b]().forEach((line) => L.push(say(line))); });
     // 매체별 방법 뒤에 '무엇을 적을 것인가' 를 붙인다 — 번호는 우리가 알려 주고,
     // 교습비는 학원이 신고한 값이라 나이스에서 직접 보게 한다.
     L.push(say(REGNO_LINE).split('{regNo}').join(target.regNo));
@@ -352,17 +372,15 @@ function compose(target, result, academy, opts, keep, withCourses, withForm) {
     if (withForm) L.push(FORM_LINE);
     L.push('');
 
-    // 마스터에 교습과정이 없는 학원은 신고 금액을 모른다 — 없는 값을 넣어 말하지 않는다
-    if (range) {
+    // 과정별 금액(명세)과 범위(요약)는 같은 값을 두 번 말하는 것이다.
+    // 명세가 있으면 그것만 싣는다 — 학원이 무엇을 얼마로 올려야 하는지는 목록을 봐야 알고,
+    // 범위는 목록 바로 위에서 '25만원 ~ 35만원' 이라고 되읊는 줄일 뿐이다.
+    // 마스터에 교습과정이 없는 곳만 범위로 갈음한다 (없는 값을 넣어 말하지는 않는다).
+    const courses = withCourses ? courseBlock(academy) : [];
+    if (courses.length) L.push(...courses, '');
+    else if (range) {
         L.push(`신고하신 월 교습비는 ${range}입니다.`);
         L.push('게시하신 금액이 이와 같은지도 함께 확인해 주세요.', '');
-    }
-
-    // 범위 뒤에 과정별 금액을 붙인다. 범위는 요약이고 이 목록은 명세라 쓰임이 다르다 —
-    // 학원이 무엇을 얼마로 올려야 하는지는 이 목록을 봐야 안다.
-    if (withCourses) {
-        const block = courseBlock(academy);
-        if (block.length) L.push(...block, '');
     }
 
     // 신고한 것 바로 아래에 지금 올라와 있는 것을 둔다 — 두 목록이 붙어 있어야
@@ -378,16 +396,17 @@ function compose(target, result, academy, opts, keep, withCourses, withForm) {
     shown.forEach((b) => {
         (urls[b] || []).forEach((u) => L.push(`· ${CHANNEL_NAME[b]} : ${u}`));
     });
+    // 길이 때문에 몇 곳을 덜어냈으면 그 사실을 이 목록 안에서 말한다
+    if (keep) L.push(TRIMMED_LINE);
     L.push(TAIL_LINE, '');
 
     L.push(`${noticeDeadline(days)}까지 수정 부탁드리며, 이후 담당자가 다시 확인합니다.`, '');
 
     // ── 4. 고쳤으면 알려 달라 ───────────────────────────
     // 주소를 못 받아왔으면 블록을 통째로 뺀다 — 안내는 나가야 하고, 빈 링크는 없느니만 못하다
-    if (replyUrl) L.push(REPLY_HEAD, '', REPLY_LINE, replyUrl, '');
+    if (replyUrl) L.push(REPLY_HEAD, REPLY_LINE, replyUrl, '');
 
     L.push(`문의 : ${tel}`);
-    if (keep) L.push('', TRIMMED_LINE);
 
     return L.join('\n');
 }
