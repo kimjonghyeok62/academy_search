@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback, useDeferredValue } from 'react';
 import {
-    probeAll, fetchSnsChecks, saveSnsChecks, resultToRecord, recordKey, rowToResult,
+    probeAll, fetchSnsChecksOrThrow, saveSnsChecks, resultToRecord, recordKey, rowToResult,
     snapshotRow, saveSnapshot,
     toProbeTargets, needsRecheck, probeTargetFor,
     BUCKETS, BUCKET_LABEL,
@@ -159,6 +159,12 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
     const [running, setRunning] = useState(false);
     const [progress, setProgress] = useState({ done: 0, total: 0 });
     const [saveState, setSaveState] = useState('');
+    // 저장된 결과를 못 읽었을 때의 사유. 빈 값이면 잘 읽은 것이다 —
+    // 못 읽은 것을 조용히 넘기면 1,000곳이 통째로 '미조사' 로 그려져, 담당자가 지금까지
+    // 해 둔 일(확인 마감·직접 고친 칸)이 사라진 것처럼 보인다.
+    const [loadError, setLoadError] = useState('');
+    // '다시 불러오기' 를 누르면 올린다 — 조회 효과를 한 번 더 돌리는 손잡이
+    const [reloadNonce, setReloadNonce] = useState(0);
     const [saveInfo, setSaveInfo] = useState({ status: 'idle', pending: 0, error: '' });
     // 네이버가 막았을 때 자동으로 쉬는 중인 상태 (남은 초, 몇 번째 대기인지)
     const [wait, setWait] = useState(null);
@@ -257,12 +263,19 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
     }, [loading]);
 
     // 저장된 결과 불러오기 (캐시로 이미 그리고 있어도 최신 내용을 받아 바꿔 끼운다)
+    //
+    // 실패를 빈 배열로 갈음하지 않는다. 시트를 못 읽은 것과 '아직 아무도 조사하지 않은 것'은
+    // 담당자가 할 일이 정반대인데, 화면에서는 둘 다 똑같이 '미조사 1,000곳' 으로 보인다.
+    // 그래서 못 읽었으면 사유를 남기고 표는 건드리지 않는다 (검토·성과 탭과 같은 방식).
     useEffect(() => {
         let alive = true;
-        fetchSnsChecks().then(rows => {
+        // refreshing 은 여기서 켜지 않는다 — 첫 조회는 상태 초기값이, 다시 불러오기는
+        // reload 가 이미 켜 두었다 (효과 안에서 또 켜면 그릴 차례가 한 번 더 돈다).
+        // force 는 '다시 불러오기' 로 들어온 길일 때만 — 잠깐 들고 있던 값을 건너뛰고 새로 읽는다.
+        fetchSnsChecksOrThrow({ force: reloadNonce > 0 }).then(rows => {
             if (!alive) return;
-            // 조회에 실패하면 빈 배열이 온다 — 그것으로 캐시를 덮으면 표가 통째로 사라진다
-            if (!rows.length && cachedBoot) { setRefreshing(false); return; }
+            // 정말로 한 줄도 없는 시트일 수 있다. 그때 캐시가 있으면 캐시를 지키는 것이 안전하다
+            if (!rows.length && cachedBoot) { setLoadError(''); setRefreshing(false); return; }
             const map = {};
             rows.forEach(row => {
                 const r = rowToResult(row);
@@ -275,11 +288,24 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
             });
             applyStructural(map);
             writeCacheWhenIdle(map);
+            setLoadError('');
+            setLoading(false);
+            setRefreshing(false);
+        }).catch(err => {
+            if (!alive) return;
+            setLoadError(err?.message || '읽지 못했습니다');
             setLoading(false);
             setRefreshing(false);
         });
         return () => { alive = false; };
-    }, [applyStructural, cachedBoot]);
+    }, [applyStructural, cachedBoot, reloadNonce]);
+
+    /** 다시 불러오기 — 사유를 지우고 조회 효과를 한 번 더 돌린다 */
+    const reload = useCallback(() => {
+        setLoadError('');
+        setRefreshing(true);
+        setReloadNonce(n => n + 1);
+    }, []);
 
     // 회신 주소는 학원마다 하나씩이고 바뀌지 않는다 — 목록이 준비되면 한 번만 받아 둔다.
     // 못 받아와도 문자는 나간다 (그 경우 문자에 회신 안내 블록이 빠질 뿐이다).
@@ -768,6 +794,28 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
         return <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>저장된 점검 결과를 불러오는 중…</div>;
     }
 
+    // 못 읽었는데 보여줄 것도 없을 때. 여기서 표를 그리면 1,000곳이 모두 '미조사' 로 뜨고
+    // 확인 마감해 둔 곳도 0% 가 된다 — 사실과 다른 화면을 보여주느니 사유를 말한다.
+    if (loadError && !Object.keys(results).length) {
+        return (
+            <div style={{ textAlign: 'center', padding: '40px 20px', lineHeight: 1.8 }}>
+                <div style={{ fontWeight: '700', color: '#ef4444', marginBottom: '8px' }}>
+                    ⚠ 저장된 점검 결과를 불러오지 못했습니다
+                </div>
+                <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                    {loadError}
+                    <br />점검 시트가 1,000줄이 넘어 가끔 응답이 늦습니다. 잠시 뒤 다시 눌러 보세요 —
+                    <br />지금까지 조사한 내용과 확인 마감 표시는 시트에 그대로 있습니다.
+                </div>
+                <button onClick={reload} style={{
+                    marginTop: '14px', padding: '8px 18px', borderRadius: '8px',
+                    border: '1px solid var(--primary)', background: 'var(--primary)', color: 'white',
+                    fontSize: '0.85rem', fontWeight: '700', cursor: 'pointer',
+                }}>다시 불러오기</button>
+            </div>
+        );
+    }
+
     const donePct = rows.length ? Math.round((doneCount / rows.length) * 100) : 0;
     const saveLabel = SAVE_LABEL[saveInfo.status];
 
@@ -999,6 +1047,18 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                     </div>
                 )}
                 {refreshing && <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '6px' }}>저장해 둔 결과를 먼저 보여드리는 중 · 최신 내용을 확인하고 있습니다…</div>}
+                {/* 캐시로는 그리고 있지만 최신 내용을 못 받아온 상태 — 언제 것인지 모르는 표를
+                    말없이 보여주면, 방금 시트에서 바뀐 것이 화면에 없어도 알 길이 없다 */}
+                {loadError && !refreshing && (
+                    <div style={{ fontSize: '0.8rem', color: '#ef4444', marginTop: '6px' }}>
+                        ⚠ 최신 내용을 불러오지 못했습니다 — 지금 보시는 표는 저장해 둔 이전 결과입니다 ({loadError})
+                        <button onClick={reload} style={{
+                            marginLeft: '8px', padding: '2px 8px', borderRadius: '6px',
+                            border: '1px solid #ef4444', background: 'none', color: '#ef4444',
+                            fontSize: '0.76rem', fontWeight: '700', cursor: 'pointer',
+                        }}>다시 불러오기</button>
+                    </div>
+                )}
                 {saveState && <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '8px' }}>{saveState}</div>}
                 {!running && (
                     <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '6px', lineHeight: 1.7 }}>
@@ -1085,7 +1145,6 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                                 memoOpen={memoRow === key}
                                 memoInput={memoRow === key ? memoInput : ''}
                                 replyUrl={replyLinks?.[key]?.reply || ''}
-                                formUrl={replyLinks?.[key]?.form || ''}
                                 days={notice.days}
                                 onSelectAcademy={onSelectAcademy}
                                 onCycle={cycleCell}
