@@ -29,7 +29,7 @@ const HOWTO = {
         교습비: '가격 정보에 교습비를 등록하시거나 가격표 이미지를 올려 주세요',
     },
     blog: { 번호: '프로필이나 공지글에 {번호}를 적어 주세요', 교습비: '별도 게시물로 교습비를 올려 주세요' },
-    homepage: { 번호: '첫 화면이나 학원 소개에 {번호}를 적어 주세요', 교습비: '교습비 안내 쪽을 만들어 주세요' },
+    homepage: { 번호: '첫 화면이나 {기관} 소개에 {번호}를 적어 주세요', 교습비: '교습비 안내 쪽을 만들어 주세요' },
     cafe: { 번호: '대문이나 공지글에 {번호}를 적어 주세요', 교습비: '별도 게시글로 교습비를 올려 주세요' },
     youtube: { 번호: '채널 정보(설명)에 {번호}를 적어 주세요', 교습비: '채널 설명이나 고정 게시물에 교습비를 적어 주세요' },
     instagram: { 번호: '프로필 소개글에 {번호}를 적어 주세요', 교습비: '별도 게시물로 교습비를 올려 주세요' },
@@ -159,7 +159,11 @@ export default function ReplyPage() {
 
     const isHagwonso = String(state.category || '').includes('교습소');
     const numberLabel = isHagwonso ? '신고번호' : '등록번호';
+    // 교습소에게 '귀 학원' 이라고 부르면, 고치라는 말보다 그 한 글자가 먼저 눈에 띈다
+    // (안내 문자도 같은 구분을 쓴다 — snsNoticeText 의 kindLabel)
+    const kindLabel = isHagwonso ? '교습소' : '학원';
     const regLabel = `${isHagwonso ? '신고' : '등록'} 제${state.regNo}호`;
+    const say = (line) => String(line).split('{번호}').join(numberLabel).split('{기관}').join(kindLabel);
 
     const answered = items.filter((it) => picked[`${it.bucket}|${it.field}`]);
 
@@ -257,7 +261,7 @@ export default function ReplyPage() {
                         <SurveyQ n={1} title="이번 안내가 도움이 되었습니까?"
                             options={SURVEY_HELP} value={survey.help}
                             onPick={(v) => setSurvey((s) => ({ ...s, help: v }))} />
-                        <SurveyQ n={2} title="귀 학원 맞춤형 교습비 게시표(예시)를 어떻게 쓰셨습니까?"
+                        <SurveyQ n={2} title={`귀 ${kindLabel} 맞춤형 교습비 게시표(예시)를 어떻게 쓰셨습니까?`}
                             options={SURVEY_FORM_USE} value={survey.formUse}
                             onPick={(v) => setSurvey((s) => ({ ...s, formUse: v }))} />
 
@@ -361,7 +365,7 @@ export default function ReplyPage() {
                         <div style={{ ...muted, marginBottom: '10px' }}>
                             {it.differs
                                 ? `올려 두셨으나 신고하신 ${what}와 다릅니다`
-                                : HOWTO[it.bucket][it.field].split('{번호}').join(numberLabel)}
+                                : say(HOWTO[it.bucket][it.field])}
                         </div>
                         {url && (
                             <a href={url} target="_blank" rel="noopener noreferrer"

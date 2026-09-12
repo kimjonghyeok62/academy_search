@@ -23,37 +23,45 @@ import { feeRange } from './tuitionCompareWindow';
 export const SENDER = '하남교육지원센터';
 export const SUBJECT = '학원 온라인 게시 표시 안내';
 
-// 조문 번호는 일부러 넣지 않았다. 틀린 조문 하나가 안내문 전체의 신뢰를 깎는다 —
-// 담당자가 확인한 뒤 채워 넣을 것.
+// 조문 번호. 법제처 본문으로 확인한 값이다 — 제15조 제3항이 '학습자를 모집할 목적으로
+// 인쇄물·인터넷 등을 통하여 광고를 하는 경우' 의 표시 의무 조항이고, 같은 항이 학원은
+// 등록증명서, 교습소는 신고증명서라고 나눠 적는다. 아래 {번호}·{기관} 이 그 구분이다.
+// 조문을 고칠 일이 생기면 반드시 법문을 다시 보고 고칠 것 —
+// 틀린 조문 하나가 안내문 전체의 신뢰를 깎는다.
 //
-// {번호} 는 학원이면 '등록번호', 교습소면 '신고번호' 로 바뀐다. 교습소는 등록이 아니라
-// 신고라서, 한 글자 틀린 안내문을 314곳에 보내지 않으려면 이 자리를 비워 두어야 한다.
+// {번호} 는 학원이면 '등록번호', 교습소면 '신고번호' 로, {기관} 은 '학원' / '교습소' 로
+// 바뀐다. 교습소는 등록이 아니라 신고라서, 한 글자 틀린 안내문을 314곳에 보내지 않으려면
+// 이 자리를 비워 두어야 한다.
 export const LEGAL_LINE =
-    '「학원의 설립·운영 및 과외교습에 관한 법률」에 따라 학원 광고물에는\n'
-    + '{번호}와 교습비등을 표시하여야 합니다.';
+    '「학원법」 제15조 제3항에 따라 {기관} 광고물에는 {번호}와 교습비등을 표시하여야 합니다.';
 
-/** 문구 속 {번호} 를 등록번호/신고번호로 바꾼다 */
-const fill = (text, numberLabel) => String(text).split('{번호}').join(numberLabel);
+/** 문구 속 {번호}·{기관} 을 그 학원의 말로 바꾼다 */
+const fill = (text, numberLabel, kindLabel) =>
+    String(text).split('{번호}').join(numberLabel).split('{기관}').join(kindLabel);
 
-export const TAIL_LINE = '이 외에도, 다른 모든 인터넷 매체(인스타그램, 카페 등)도 살펴보시기 바랍니다.';
+// 3번(인터넷광고 링크) 끝에 붙는 줄. 우리가 본 것은 플레이스에 링크가 걸린 매체뿐이라
+// 나머지는 학원이 직접 봐야 한다 — 그래서 목록의 마지막 항목으로 둔다.
+export const TAIL_LINE = '· 이 외에 인스타, 카페, 당근 등도 살펴보세요';
 
 // 회신 창구 안내. 주소(replyUrl)는 그 학원만 여는 것이라 부르는 쪽이 실어 준다.
 // 길이가 넘쳐 덜어낼 때도 이 블록은 남긴다 — 이 문자를 보내는 목적이 여기에 있다.
 // 없으면 담당자가 750곳을 다시 조사해야 누가 고쳤는지 알 수 있다.
-export const REPLY_HEAD = '[수정하셨으면 알려 주세요]';
-export const REPLY_LINE = '아래를 눌러 고치신 항목만 표시해 주시면 됩니다 (1분, 로그인 없음).';
+export const REPLY_HEAD = '4. 수정하셨으면 알려 주세요';
+export const REPLY_LINE = '아래를 눌러 고치신 항목만 표시해 주시면 됩니다 (10초).';
 
-// 교습비 게시표 만드는 곳.
-// '교습비를 게시하라' 고만 하면 무엇을 어떤 모양으로 붙여야 하는지 모른다. 학원이 직접
-// 만들어 받아 갈 수 있는 자리를 알려 준다.
-// 회신 블록과 달리 이것은 참고 자료다 — 길이가 넘치면 가장 먼저 덜어낸다.
+// 2번(수정 방법) 끝에 붙는 세 줄 — 무엇을 적어야 하는지, 어디서 확인하는지, 어떻게 뽑는지.
 //
-// 학원별 주소(/g/<토큰>)를 싣던 자리다. 그 주소는 신고 내용이 보이는 자리라 유효기간이
-// 있었고, 문자를 묵혔다 여는 학원에게는 열리지 않는 링크가 됐다. 여기 주소는 모든 학원이
-// 같고 기한이 없어, 언제 열어도 열린다.
+// '번호와 교습비를 표시하라' 고만 하면 학원은 그 값을 어디서 보는지 모른다. 번호는 우리가
+// 이미 알고 있으니 문자에 적어 주고, 교습비는 학원이 신고한 값이라 나이스에서 직접 보게 한다.
+//
+// 게시표는 참고 자료다 — 길이가 넘치면 가장 먼저 덜어낸다. 예전에는 학원별 주소(/g/<토큰>)를
+// 실었는데 유효기간이 10일이라, 문자를 묵혔다 여는 학원에게는 열리지 않는 링크가 됐다.
+// 여기 주소는 모든 학원이 같고 기한이 없어 언제 열어도 열린다.
 export const PRICE_TOOL_URL = 'https://hakwon-price.vercel.app/';
-export const FORM_HEAD = '[귀 학원의 교습비 게시표]';
-export const FORM_LINE = `${PRICE_TOOL_URL} 에 들어가시면 (JPG, PDF, HWPX, DOCX) 형식으로 출력 가능`;
+export const NEIS_URL = 'https://hakwon.neis.go.kr/nxui/index.html';
+export const REGNO_LINE = '· 귀 {기관} {번호}: 제{regNo}호';
+export const NEIS_LINE = `· 귀 {기관} 교습비: 나이스학원 ${NEIS_URL}`;
+export const FORM_LINE = `· 교습비 출력 도움 : ${PRICE_TOOL_URL} (JPG, HWPX 등)`;
 
 // 길이가 넘쳐 매체를 몇 개 덜어냈을 때만 붙인다
 export const TRIMMED_LINE = '그 밖의 매체는 직접 확인 부탁드립니다.';
@@ -120,7 +128,7 @@ const HOWTO = {
         `  소개글에 '${regLabel}' 기재 (수정방법:https://new.smartplace.naver.com/help/guide?menu=edit)`,
     ],
     blog: () => ['· 블로그 : 프로필·공지글에 {번호}, 별도 게시물에 교습비 등록'],
-    homepage: () => ['· 홈페이지 : 첫 화면이나 학원 소개 쪽에 {번호}, 교습비 안내 쪽 추가'],
+    homepage: () => ['· 홈페이지 : 첫 화면이나 {기관} 소개 쪽에 {번호}, 교습비 안내 쪽 추가'],
     cafe: () => ['· 카페 : 대문·공지글에 {번호}, 교습비는 별도 게시글로 등록'],
     youtube: () => ['· 유튜브 : 채널 정보(설명)에 {번호}, 교습비는 채널 설명이나 고정 게시물에 기재'],
     instagram: () => ['· 인스타그램 : 프로필 소개글에 {번호}, 교습비는 별도 게시물에 등록'],
@@ -287,15 +295,23 @@ function adBlock(result) {
 }
 
 /**
- * 문구를 조립한다. keep 이 있으면 그 매체들만 [수정 방법]·[관련링크] 에 싣는다
+ * 문구를 조립한다. keep 이 있으면 그 매체들만 2번(수정 방법)·3번(광고 링크) 에 싣는다
  * (길이가 넘쳐 덜어낸 경우 — buildNoticeSms 가 두 번째로 부를 때 쓴다).
  * withCourses 가 거짓이면 교습과정 목록을 뺀다 (담당자가 꺼 두었거나, 그래도 길이가 넘칠 때).
+ *
+ * 문자는 번호 붙인 네 토막이다 — 1 무엇이 빠졌나 / 2 어떻게 고치나 / 3 우리가 본 곳 /
+ * 4 고쳤으면 알려 달라. 학원이 전화로 물어올 때 '2번 보세요' 로 짚어 줄 수 있어야 하므로
+ * 번호는 내용이 적어도 건너뛰지 않는다 (3번은 링크를 못 찾아도 머리와 마지막 줄은 남긴다).
  */
 function compose(target, result, academy, opts, keep, withCourses, withForm) {
     const { tel, days, guideUrl, replyUrl } = opts;
     const isHagwonso = String(target.category || '').includes('교습소');
     const numberLabel = isHagwonso ? '신고번호' : '등록번호';
+    // 학원에게는 '귀 학원', 교습소에게는 '귀 교습소' 라고 불러야 한다. 314곳에 남의
+    // 이름으로 말하면, 정작 고치라는 말보다 그 한 글자가 먼저 눈에 띈다.
+    const kindLabel = isHagwonso ? '교습소' : '학원';
     const regLabel = `${isHagwonso ? '신고' : '등록'} 제${target.regNo}호`;
+    const say = (line) => fill(line, numberLabel, kindLabel);
 
     const items = noticeItems(result);
     const order = [];
@@ -309,24 +325,31 @@ function compose(target, result, academy, opts, keep, withCourses, withForm) {
     L.push(`[${SENDER}] ${SUBJECT}`, '');
     L.push(`${target.name} (${regLabel})`, '');
 
+    // ── 1. 무엇이 빠졌나 ────────────────────────────────
     // 다른 것이 하나라도 있으면 머리말도 그렇게 말해야 한다 — 올려 둔 것을 두고
     // '확인되지 않았다' 고 하면 학원은 되묻고, 담당자가 전화를 한 번 더 받는다.
     L.push(items.some((it) => it.differs)
-        ? '아래 광고물에서 다음이 확인되지 않았거나, 신고하신 내용과 다릅니다.'
-        : '아래 광고물에서 다음이 확인되지 않았습니다.');
-    items.forEach(({ bucket, field, differs }, i) => {
+        ? `1. 귀 ${kindLabel} 온라인 광고에서 다음이 확인되지 않았거나, 신고하신 내용과 다릅니다.`
+        : `1. 귀 ${kindLabel} 온라인 광고에서 다음이 확인되지 않았습니다.`, '');
+    items.forEach(({ bucket, field, differs }) => {
         const what = field === '번호' ? numberLabel : field;
-        const tail = differs ? (field === '번호' ? ' (적힌 번호가 다름)' : ' (교습비 금액이 다름)') : '';
-        L.push(`${i + 1}. ${CHANNEL_NAME[bucket]} : ${what}${tail}`);
+        // 빠진 것과 다른 것은 학원이 할 일이 다르다 — 없으면 올리고, 다르면 고친다
+        L.push(`· ${CHANNEL_NAME[bucket]} : ${what} ${differs ? '다름' : '없음'}`);
     });
-    L.push('');
+    L.push('', `위 ${items.length}개 사항이 모두 표시될 수 있도록 해 주시기 바랍니다.`, '');
 
-    // 근거를 말한 자리에 그 근거를 볼 곳을 함께 둔다. 맨 아래 [관련링크] 에 두면
-    // 학원의 광고 주소와 섞여 '우리 것' 처럼 보인다 — 성격이 다른 링크다.
-    L.push(fill(LEGAL_LINE, numberLabel) + (guideUrl ? ` ( 교육지원청 게시물 : ${guideUrl} )` : ''), '');
+    // 근거를 말한 자리에 그 근거를 볼 곳을 함께 둔다. 3번에 두면 학원의 광고 주소와
+    // 섞여 '우리 것' 처럼 보인다 — 성격이 다른 링크다.
+    L.push(say(LEGAL_LINE) + (guideUrl ? ` ( 교육지원청 안내문 : ${guideUrl} )` : ''), '');
 
-    L.push('[수정 방법]');
-    shown.forEach((b) => { HOWTO[b](regLabel).forEach((line) => L.push(fill(line, numberLabel))); });
+    // ── 2. 어떻게 고치나 ────────────────────────────────
+    L.push('2. 수정 방법', '');
+    shown.forEach((b) => { HOWTO[b](regLabel).forEach((line) => L.push(say(line))); });
+    // 매체별 방법 뒤에 '무엇을 적을 것인가' 를 붙인다 — 번호는 우리가 알려 주고,
+    // 교습비는 학원이 신고한 값이라 나이스에서 직접 보게 한다.
+    L.push(say(REGNO_LINE).split('{regNo}').join(target.regNo));
+    L.push(say(NEIS_LINE));
+    if (withForm) L.push(FORM_LINE);
     L.push('');
 
     // 마스터에 교습과정이 없는 학원은 신고 금액을 모른다 — 없는 값을 넣어 말하지 않는다
@@ -344,27 +367,24 @@ function compose(target, result, academy, opts, keep, withCourses, withForm) {
 
     // 신고한 것 바로 아래에 지금 올라와 있는 것을 둔다 — 두 목록이 붙어 있어야
     // 어디가 어긋났는지 학원이 스스로 짚는다. 길이가 넘쳐도 이건 덜어내지 않는다
-    // (몇 줄뿐이고, 위에 적은 '금액이 다름' 이 무슨 말인지 설명하는 자리다).
+    // (몇 줄뿐이고, 1번에 적은 '다름' 이 무슨 말인지 설명하는 자리다).
     const ad = adBlock(result);
     if (ad.length) L.push(...ad, '');
 
-    // 우리가 본 곳 → 참고할 게시표 → 언제까지 → 다 고쳤으면 알려 달라.
-    // 할 일(고칠 곳·본보기)을 먼저 보이고, 기한과 회신은 그다음이다. 기한 뒤에 링크를
-    // 늘어놓으면 '언제까지' 가 문자 한가운데 묻힌다.
-    const links = [];
+    // ── 3. 우리가 본 곳 ────────────────────────────────
+    // 링크를 하나도 못 찾았어도 머리는 남긴다. 번호를 건너뛰면 2번 다음이 4번이 되어
+    // 전화로 '3번 보세요' 라고 짚어 줄 수가 없다. 마지막 줄만으로도 할 말은 있다.
+    L.push(`3. 귀 ${kindLabel} 인터넷광고 링크`);
     shown.forEach((b) => {
-        (urls[b] || []).forEach((u) => links.push(`· ${CHANNEL_NAME[b]} : ${u}`));
+        (urls[b] || []).forEach((u) => L.push(`· ${CHANNEL_NAME[b]} : ${u}`));
     });
-    // 주소를 하나도 못 찾았으면 머리만 남은 빈 블록을 만들지 않는다
-    if (links.length) L.push(`[${target.name} 관련링크]`, ...links, '');
-
-    if (withForm) L.push(FORM_HEAD, FORM_LINE, '');
-
-    L.push(`${noticeDeadline(days)}까지 수정 부탁드리며, 이후 담당자가 다시 확인합니다.`);
     L.push(TAIL_LINE, '');
 
+    L.push(`${noticeDeadline(days)}까지 수정 부탁드리며, 이후 담당자가 다시 확인합니다.`, '');
+
+    // ── 4. 고쳤으면 알려 달라 ───────────────────────────
     // 주소를 못 받아왔으면 블록을 통째로 뺀다 — 안내는 나가야 하고, 빈 링크는 없느니만 못하다
-    if (replyUrl) L.push(REPLY_HEAD, REPLY_LINE, replyUrl, '');
+    if (replyUrl) L.push(REPLY_HEAD, '', REPLY_LINE, replyUrl, '');
 
     L.push(`문의 : ${tel}`);
     if (keep) L.push('', TRIMMED_LINE);
@@ -376,8 +396,8 @@ function compose(target, result, academy, opts, keep, withCourses, withForm) {
  * 그 학원에 보낼 문자 문구. 빠진 것이 없으면 빈 문자열.
  *
  * LMS 한도를 넘으면 차례로 덜어낸다.
- *   ① 교습비 게시표 안내 (참고 자료다)
- *   ② 빠진 항목이 많은 매체 3곳만 [수정 방법]·[관련링크] 에 남긴다
+ *   ① 교습비 출력 도움 줄 (참고 자료다)
+ *   ② 빠진 항목이 많은 매체 3곳만 2번(수정 방법)·3번(광고 링크) 에 남긴다
  *   ③ 그래도 넘치면 교습과정 목록까지 뺀다
  * 덜어내는 차례는 급한 것을 뒤에 둔 것이다. 두 가지는 어느 단계에서도 줄이지 않는다 —
  * 빠진 항목 목록(무엇을 고쳐야 하는지)은 이 문자의 본론이고,
