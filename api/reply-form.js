@@ -1,10 +1,7 @@
 // 교습비 게시표 예시 — 학원이 안내 문자로 받은 주소(/g/<토큰>)를 열면 이곳이 자료를 준다.
 //
 // 학원이 스스로 게시표를 만들려면 신고한 교습과정·금액·시간이 필요하고, 그것은 마스터
-// 스프레드시트에 있다. 회신 창구(api/reply.js)와 같은 토큰을 쓰므로 그 학원 것만 열린다.
-//
-// 회신 화면(GET /api/reply)과 나누어 둔 이유: 마스터 CSV 는 몇 MB 라 읽는 값이 비싸다.
-// 회신하러 들어온 학원마다 이것까지 읽으면 회신 화면이 그만큼 늦어진다.
+// 스프레드시트에 있다. 토큰이 학원을 특정하므로 그 학원 것만 열린다.
 import { verifyReplyToken, replySecret, formExpired, FORM_TTL_DAYS } from './_lib/replyToken.js';
 import { academyRows } from './_lib/masterSheet.js';
 
@@ -26,7 +23,6 @@ export default async function handler(req, res) {
     }
 
     // 게시표는 신고 내용이 보이는 자리라 주소를 오래 살려 두지 않는다.
-    // 회신(/r/)은 같은 토큰이라도 만료시키지 않는다 — 늦게라도 고쳤다면 받는 편이 낫다.
     if (formExpired(who)) {
         return res.status(410).json({
             ok: false,

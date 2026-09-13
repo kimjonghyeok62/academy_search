@@ -43,13 +43,6 @@ const fill = (text, numberLabel, kindLabel) =>
 // 나머지는 학원이 직접 봐야 한다 — 그래서 목록의 마지막 항목으로 둔다.
 export const TAIL_LINE = '· 이 외에 인스타, 카페, 당근 등도 살펴보세요';
 
-// 회신 창구 안내. 주소(replyUrl)는 그 학원만 여는 것이라 부르는 쪽이 실어 준다.
-// 길이가 넘쳐 덜어낼 때도 이 블록은 남긴다 — 이 문자를 보내는 목적이 여기에 있다.
-// 없으면 담당자가 750곳을 다시 조사해야 누가 고쳤는지 알 수 있다.
-// 머리 한 줄과 주소 한 줄이면 된다. '아래를 눌러 …' 는 주소 바로 위에서
-// 주소를 누르라고 말하는 줄이라, 머리말이 이미 한 말을 되풀이할 뿐이었다.
-export const REPLY_HEAD = '4. 수정하셨으면 알려 주세요';
-
 // 2번(수정 방법) 끝에 붙는 세 줄 — 무엇을 적어야 하는지, 어디서 확인하는지, 어떻게 뽑는지.
 //
 // '번호와 교습비를 표시하라' 고만 하면 학원은 그 값을 어디서 보는지 모른다. 번호는 우리가
@@ -254,12 +247,12 @@ function adBlock(result) {
  * 문구를 조립한다. keep 이 있으면 그 매체들만 3번(광고 링크) 에 싣는다
  * (길이가 넘쳐 덜어낸 경우 — buildNoticeSms 가 두 번째로 부를 때 쓴다).
  *
- * 문자는 번호 붙인 네 토막이다 — 1 무엇이 빠졌나 / 2 어떻게 고치나 / 3 우리가 본 곳 /
- * 4 고쳤으면 알려 달라. 학원이 전화로 물어올 때 '2번 보세요' 로 짚어 줄 수 있어야 하므로
+ * 문자는 번호 붙인 세 토막이다 — 1 무엇이 빠졌나 / 2 어떻게 고치나 / 3 우리가 본 곳.
+ * 학원이 전화로 물어올 때 '2번 보세요' 로 짚어 줄 수 있어야 하므로
  * 번호는 내용이 적어도 건너뛰지 않는다 (3번은 링크를 못 찾아도 머리와 마지막 줄은 남긴다).
  */
 function compose(target, result, academy, opts, keep, withForm) {
-    const { tel, days, guideUrl, replyUrl } = opts;
+    const { tel, days, guideUrl } = opts;
     const isHagwonso = String(target.category || '').includes('교습소');
     const numberLabel = isHagwonso ? '신고번호' : '등록번호';
     // 학원에게는 '귀 학원', 교습소에게는 '귀 교습소' 라고 불러야 한다. 314곳에 남의
@@ -317,8 +310,7 @@ function compose(target, result, academy, opts, keep, withForm) {
     //
     // 매체마다 '어디에 어떻게 적는지' 를 여기 늘어놓지 않는다. 매체가 일곱인 학원은
     // 그것만 일곱 줄이고, 정작 학원이 알아야 할 '내 번호가 몇 번인지, 내가 신고한
-    // 교습비가 얼마인지' 가 그 아래 묻혔다. 매체별 방법은 4번 주소를 눌러 들어간
-    // 회신 화면이, 그 학원에서 빠진 칸에 대해서만 말해 준다 (ReplyPage 의 HOWTO).
+    // 교습비가 얼마인지' 가 그 아래 묻혔다.
     L.push('2. 수정 방법');
     L.push(say(REGNO_LINE).split('{regNo}').join(target.regNo));
     L.push(say(NEIS_LINE));
@@ -341,7 +333,7 @@ function compose(target, result, academy, opts, keep, withForm) {
     if (ad.length) L.push(...ad, '');
 
     // ── 3. 우리가 본 곳 ────────────────────────────────
-    // 링크를 하나도 못 찾았어도 머리는 남긴다. 번호를 건너뛰면 2번 다음이 4번이 되어
+    // 링크를 하나도 못 찾았어도 머리는 남긴다. 번호를 건너뛰면 2번 다음이 끝이 되어
     // 전화로 '3번 보세요' 라고 짚어 줄 수가 없다. 마지막 줄만으로도 할 말은 있다.
     L.push(`3. 귀 ${kindLabel} 인터넷광고 링크`);
     shown.forEach((b) => {
@@ -352,10 +344,6 @@ function compose(target, result, academy, opts, keep, withForm) {
     L.push(TAIL_LINE, '');
 
     L.push(`${noticeDeadline(days)}까지 수정 부탁드리며, 이후 담당자가 다시 확인합니다.`, '');
-
-    // ── 4. 고쳤으면 알려 달라 ───────────────────────────
-    // 주소를 못 받아왔으면 블록을 통째로 뺀다 — 안내는 나가야 하고, 빈 링크는 없느니만 못하다
-    if (replyUrl) L.push(REPLY_HEAD, replyUrl, '');
 
     L.push(`문의 : ${tel}`);
 
@@ -368,9 +356,8 @@ function compose(target, result, academy, opts, keep, withForm) {
  * LMS 한도를 넘으면 차례로 덜어낸다.
  *   ① 교습비 출력 도움 줄 (참고 자료다)
  *   ② 빠진 항목이 많은 매체 3곳만 3번(광고 링크) 에 남긴다
- * 덜어내는 차례는 급한 것을 뒤에 둔 것이다. 두 가지는 어느 단계에서도 줄이지 않는다 —
- * 빠진 항목 목록(무엇을 고쳐야 하는지)은 이 문자의 본론이고,
- * 회신 주소는 이 문자를 보내는 목적이다 (없으면 1,000곳을 다시 조사해야 한다).
+ * 덜어내는 차례는 급한 것을 뒤에 둔 것이다. 빠진 항목 목록(무엇을 고쳐야 하는지)은
+ * 이 문자의 본론이라 어느 단계에서도 줄이지 않는다.
  */
 export function buildNoticeSms(target, result, academy, opts) {
     if (!target || !noticeItems(result).length) return '';

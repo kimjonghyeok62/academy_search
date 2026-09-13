@@ -10,13 +10,8 @@
 // 그래프 라이브러리를 쓰지 않았다. 회차는 두엇에서 서넛이라 막대 몇 개면 되고,
 // 그 정도에 차트 묶음(chart.js)을 이 탭에 끌어오면 화면만 무거워진다.
 import { useEffect, useMemo, useState } from 'react';
-import { fetchSnapshots, fetchSurveys, fetchSnsChecksOrThrow } from '../utils/snsCheck';
-import { ratesByRound, compareRounds, surveyStats, HELP_ORDER, FORM_USE_ORDER } from '../utils/surveyStats';
-
-const filled = (v) => {
-    const s = String(v || '').trim();
-    return !!s && s !== '-';
-};
+import { fetchSnapshots } from '../utils/snsCheck';
+import { ratesByRound, compareRounds } from '../utils/roundStats';
 
 const card = {
     background: 'var(--card-bg, #fff)', border: '1px solid var(--border-color)',
@@ -57,35 +52,14 @@ function download(blob, filename) {
 }
 
 export default function PerformanceTab() {
-    const [data, setData] = useState({ loading: true, snapshots: [], surveys: [], checks: [], counted: 'wait' });
+    const [data, setData] = useState({ loading: true, snapshots: [] });
     const [from, setFrom] = useState('');
     const [to, setTo] = useState('');
 
-    // 차례로 부른다. 앱스 스크립트는 한 계정의 실행을 줄 세워 돌리므로 세 요청을 한꺼번에
-    // 보내면 하나가 물려 빈 값으로 돌아온다 — 실제로 응답률의 분모가 0곳으로 떴다.
-    //
-    // 다만 셋을 다 기다린 뒤에 그리면 30초 남짓 흰 화면이다. 그래서 두 번에 나눠 그린다 —
-    // 게시율과 만족도를 먼저 내놓고, 응답률의 분모(발송·회신 곳수)만 뒤따라 채운다.
-    // 그 분모는 점검 시트 1,070줄을 통째로 읽어야 나오는데, 그것 때문에 나머지가 기다릴 이유가 없다.
     useEffect(() => {
-        (async () => {
-            try {
-                const snapshots = await fetchSnapshots();
-                const surveys = await fetchSurveys();
-                setData((d) => ({ ...d, loading: false, snapshots, surveys }));
-            } catch (err) {
-                setData((d) => ({ ...d, loading: false, error: err.message }));
-                return;
-            }
-
-            try {
-                const checks = await fetchSnsChecksOrThrow();
-                setData((d) => ({ ...d, checks, counted: 'ok' }));
-            } catch {
-                // 못 읽은 것을 0곳으로 적으면 안 된다 — 없는 것과 못 본 것은 다르다
-                setData((d) => ({ ...d, counted: 'fail' }));
-            }
-        })();
+        fetchSnapshots()
+            .then((snapshots) => setData({ loading: false, snapshots }))
+            .catch((err) => setData({ loading: false, snapshots: [], error: err.message }));
     }, []);
 
     const rounds = useMemo(() => ratesByRound(data.snapshots), [data.snapshots]);
@@ -100,16 +74,6 @@ export default function PerformanceTab() {
     const diff = useMemo(
         () => (from && to && from !== to ? compareRounds(data.snapshots, from, to) : null),
         [data.snapshots, from, to],
-    );
-
-    const counts = useMemo(() => ({
-        sent: data.checks.filter((r) => filled(r.발송일시)).length,
-        replied: data.checks.filter((r) => filled(r.회신일시)).length,
-    }), [data.checks]);
-
-    const stats = useMemo(
-        () => surveyStats(data.surveys, { sentCount: counts.sent, repliedCount: counts.replied }),
-        [data.surveys, counts],
     );
 
     const exportExcel = async () => {
@@ -133,27 +97,6 @@ export default function PerformanceTab() {
                 ...diff.stillBad.map((r) => [r.구분, r.등록번호, r.학원명, r.이전판정, r.판정, r.미이행매체 || '']),
             ]), '아직 미이행');
         }
-
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
-            ['문항', '보기', '응답 수'],
-            ...stats.help.map((x) => ['이번 안내가 도움이 되었습니까?', x.label, x.count]),
-            ...stats.formUse.map((x) => ['교습비 게시표를 어떻게 쓰셨습니까?', x.label, x.count]),
-            [],
-            ['응답 곳수', stats.total],
-            ['평균(5점)', stats.avgHelp],
-            ['도움 이상 비율(%)', stats.helpfulRate],
-            ['게시표 활용률(%)', stats.formUsedRate],
-            ['문자 보낸 곳', stats.sentCount],
-            ['회신한 곳', stats.repliedCount],
-            ['응답률 — 보낸 곳 대비(%)', stats.rateOfSent],
-            ['응답률 — 회신한 곳 대비(%)', stats.rateOfReplied],
-        ]), '만족도');
-
-        // 의견은 학원 이름 없이 — 화면과 같은 규칙이다
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
-            ['응답일시', '의견'],
-            ...stats.notes.map((n) => [n.at, n.text]),
-        ]), '의견');
 
         const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
         const stamp = new Date().toISOString().slice(0, 10);
@@ -288,101 +231,16 @@ export default function PerformanceTab() {
                 </div>
             )}
 
-            {/* ── 만족도 ────────────────────────────────── */}
-            <div style={card}>
-                <h3 style={h2}>만족도</h3>
-                <p style={sub}>
-                    학원이 회신을 보낸 뒤 완료 화면에서 답한 것입니다. <b>어느 학원이 무엇을 골랐는지는 보이지 않습니다</b> —
-                    그렇게 하겠다고 학원에 적어 두었고, 그래야 답이 솔직해집니다.
-                </p>
-
-                {!stats.total ? (
-                    <div style={{ color: 'var(--text-muted)' }}>아직 응답이 없습니다.</div>
-                ) : (
-                    <>
-                        <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', marginBottom: '14px' }}>
-                            <div>
-                                <div style={num}>{stats.total}곳</div>
-                                <div style={sub}>응답</div>
-                            </div>
-                            <div>
-                                <div style={num}>{stats.avgHelp ?? '—'}</div>
-                                <div style={sub}>평균 (5점 만점)</div>
-                            </div>
-                            <div>
-                                <div style={num}>{fmtPct(stats.helpfulRate)}</div>
-                                <div style={sub}>‘도움’ 이상</div>
-                            </div>
-                            <div>
-                                <div style={num}>{fmtPct(stats.formUsedRate)}</div>
-                                <div style={sub}>게시표 활용</div>
-                            </div>
-                        </div>
-
-                        <div style={{ fontWeight: 600, marginBottom: '6px' }}>이번 안내가 도움이 되었습니까?</div>
-                        {stats.help.map((x) => (
-                            <Bar key={x.label} label={x.label} count={x.count} total={stats.total} />
-                        ))}
-
-                        <div style={{ fontWeight: 600, margin: '14px 0 6px' }}>교습비 게시표를 어떻게 쓰셨습니까?</div>
-                        {stats.formUse.map((x) => (
-                            <Bar key={x.label} label={x.label} count={x.count} total={stats.formAnswered} color="#0d9488" />
-                        ))}
-
-                        <p style={{ ...sub, marginTop: '14px', marginBottom: '6px' }}>
-                            {data.counted === 'wait' ? (
-                                <><b>응답률</b> — 문자 보낸 곳과 회신한 곳을 세는 중입니다…</>
-                            ) : data.counted === 'fail' ? (
-                                <><b>응답률</b> — 점검 시트를 읽지 못해 셈하지 못했습니다.
-                                    잠시 뒤 이 탭을 다시 열어 주세요.</>
-                            ) : (
-                                <>
-                                    <b>응답률</b> — 문자 보낸 {stats.sentCount}곳 대비 <b>{fmtPct(stats.rateOfSent)}</b>,
-                                    회신한 {stats.repliedCount}곳 대비 <b>{fmtPct(stats.rateOfReplied)}</b>.
-                                    만족도에 답한 곳은 회신까지 한 곳이라 <b>스스로 고른 분들</b>입니다 — 두 분모를 함께 적는 이유입니다.
-                                </>
-                            )}
-                        </p>
-
-                        {stats.notes.length > 0 && (
-                            <>
-                                <div style={{ fontWeight: 600, margin: '14px 0 6px' }}>
-                                    하고 싶은 말씀 ({stats.notes.length}건)
-                                </div>
-                                <div style={{ maxHeight: '260px', overflowY: 'auto' }}>
-                                    {stats.notes.map((n, i) => (
-                                        <div key={`${n.at}-${i}`} style={{
-                                            padding: '8px 10px', marginBottom: '6px', borderRadius: '8px',
-                                            background: 'var(--bg-subtle, #f8fafc)', fontSize: '0.9rem',
-                                        }}>
-                                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                                                {String(n.at).slice(0, 10)}
-                                            </div>
-                                            {n.text}
-                                        </div>
-                                    ))}
-                                </div>
-                            </>
-                        )}
-                    </>
-                )}
-            </div>
-
             {/* ── 내보내기 ──────────────────────────────── */}
             <div style={{ ...card, display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                <button onClick={exportExcel} disabled={data.counted !== 'ok'} style={{
-                    padding: '9px 14px', borderRadius: '8px', border: 'none',
-                    cursor: data.counted === 'ok' ? 'pointer' : 'default',
-                    background: data.counted === 'ok' ? '#0d9488' : 'var(--border-color)',
-                    color: data.counted === 'ok' ? '#fff' : 'var(--text-muted)',
-                    fontWeight: 700, fontSize: '0.85rem',
+                <button onClick={exportExcel} style={{
+                    padding: '9px 14px', borderRadius: '8px', border: 'none', cursor: 'pointer',
+                    background: '#0d9488', color: '#fff', fontWeight: 700, fontSize: '0.85rem',
                 }}>
                     📊 성과 엑셀 내려받기
                 </button>
                 <span style={{ ...sub, margin: 0 }}>
-                    {data.counted === 'ok'
-                        ? '회차별 게시율 · 개선한 곳 명단 · 만족도 집계 · 의견이 시트 넷으로 들어갑니다.'
-                        : '응답률까지 다 센 뒤에 눌러 주세요 — 지금 내려받으면 분모가 0곳으로 박힙니다.'}
+                    회차별 게시율과, 두 회차를 골랐다면 개선한 곳·아직 미이행인 곳 명단이 들어갑니다.
                 </span>
             </div>
 

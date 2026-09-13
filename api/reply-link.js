@@ -1,12 +1,9 @@
-// 담당자 화면이 회신 링크를 한꺼번에 받아가는 자리.
+// 담당자 화면이 교습비 게시표 예시 주소(/g/<토큰>)를 받아가는 자리.
+// 서명 키가 서버에만 있어 화면에서는 주소를 만들 수 없다.
 //
-// 행마다 부르면 750번 왕복한다. 점검표는 결과를 읽은 뒤 '보낼 것이 있는 행' 전부를
-// 한 번에 물어보고 Map 으로 들고 있다가, 문자를 지을 때 그 주소를 실어 보낸다.
+// 이름이 reply-link 인 것은 학원 회신(/r/) 을 함께 만들던 때의 흔적이다.
+// 회신 기능은 걷어냈고 지금은 게시표 주소만 준다.
 import { signReplyToken, replyUrlFor, replySecret } from './_lib/replyToken.js';
-
-// 학원이 여는 두 화면 — 같은 토큰, 다른 길
-//   /r/ 회신 (고쳤다고 알려 오는 곳)   /g/ 교습비 게시표 예시
-const PATHS = { reply: 'r', form: 'g' };
 
 // 학원 1,000곳 + 여유. 이보다 많이 오면 우리 화면이 부른 것이 아니다.
 const MAX_ITEMS = 2000;
@@ -34,11 +31,7 @@ export default async function handler(req, res) {
     items.forEach((it) => {
         const token = signReplyToken(it && it.category, it && it.regNo);
         if (!token) return;
-        const one = {};
-        Object.entries(PATHS).forEach(([name, seg]) => {
-            one[name] = replyUrlFor(req, token, seg);
-        });
-        links[`${it.category}|${it.regNo}`] = one;
+        links[`${it.category}|${it.regNo}`] = { form: replyUrlFor(req, token, 'g') };
     });
     return res.status(200).json({ ok: true, links });
 }

@@ -14,7 +14,7 @@ import {
     openHtmlPopup, openHtmlWindow,
 } from './generateTuitionPDF';
 import {
-    rowCells, parseChannels, assignBuckets, effectiveVerdict, currentPlaceUrl, isNoPlace,
+    rowCells, parseChannels, assignBuckets, effectiveVerdict, currentPlaceUrl, placeMapUrl, isNoPlace,
     placeSearchUrl, shortAddress, cellKey, BUCKETS, BUCKET_LABEL, VERDICT_COLOR,
 } from './snsCheck';
 
@@ -189,7 +189,7 @@ function channelTable(result, academyName, region, label) {
     <td class="mid">${oxBadge(cells.get(cellKey('place', '교습비')))}<div class="sub fee" data-fee="place"></div></td>
     <td>${noPlace ? '<span class="dim">–</span>'
             : regNoCell(cells.get(cellKey('place', '번호')), [result.플레이스_기재번호], result.플레이스_번호대조)}</td>
-    <td class="mid">${placeUrl ? openBtn(placeUrl, '열기') : '<span class="dim">–</span>'}</td>
+    <td class="mid">${placeUrl ? openBtn(placeMapUrl(placeUrl), '열기') : '<span class="dim">–</span>'}</td>
   </tr>`];
 
     BUCKETS.forEach((b) => {

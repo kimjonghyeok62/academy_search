@@ -1,11 +1,11 @@
-// 교습비 게시표 예시 화면 — 안내 문자로 받은 주소(/g/<토큰>)를 열면 나오는 곳.
+// 교습비 게시표 예시 화면 — 이 학원만 여는 주소(/g/<토큰>)를 열면 나오는 곳.
 //
 // 학원에 '교습비를 게시하라' 고만 하면 무엇을 어떤 모양으로 붙여야 하는지 모른다.
 // 신고된 내용으로 만든 게시표를 보여 주면, 그대로 인쇄해 붙이거나 보고 따라 만들 수 있다.
 // 담당자가 쓰던 것과 같은 함수(buildTuitionFormHtml)로 만든다 — 두 곳이 다른 양식을 내면
 // 학원이 붙인 것을 나중에 담당자가 보고 '이건 우리 양식이 아닌데' 하게 된다.
 //
-// 회신 화면(ReplyPage)과 같은 토큰을 쓰고, 마찬가지로 App.css 를 쓰지 않는다.
+// 로그인 없이 열리는 자리라 App.css 를 쓰지 않는다 (관리자 번들을 끌고 오지 않는다).
 import { useEffect, useMemo, useState } from 'react';
 import { transformAcademyData } from '../utils/googleSheets';
 import { buildTuitionFormHtml, buildTuitionFormExternalHtml } from '../utils/generateTuitionPDF';
