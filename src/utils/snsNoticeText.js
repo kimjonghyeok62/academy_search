@@ -33,7 +33,7 @@ export const SUBJECT = '학원 온라인 게시 표시 안내';
 // 바뀐다. 교습소는 등록이 아니라 신고라서, 한 글자 틀린 안내문을 314곳에 보내지 않으려면
 // 이 자리를 비워 두어야 한다.
 export const LEGAL_LINE =
-    '「학원법」 제15조 제3항에 따라 {기관} 광고물에는 {번호}와 교습비등을 표시하여야 합니다.';
+    '「학원법」 제15조 제3항에 따라 {기관} 광고물에는 {번호}와 교습비등을 표시하여야 합니다. (명칭도 교육청에 등록된 명칭으로)';
 
 /** 문구 속 {번호}·{기관} 을 그 학원의 말로 바꾼다 */
 const fill = (text, numberLabel, kindLabel) =>
@@ -43,17 +43,21 @@ const fill = (text, numberLabel, kindLabel) =>
 // 나머지는 학원이 직접 봐야 한다 — 그래서 목록의 마지막 항목으로 둔다.
 export const TAIL_LINE = '· 이 외에 인스타, 카페, 당근 등도 살펴보세요';
 
-// 2번(수정 방법) 끝에 붙는 세 줄 — 무엇을 적어야 하는지, 어디서 확인하는지, 어떻게 뽑는지.
+// 3번의 플레이스 주소 바로 아래에 붙는 줄 — 플레이스 어느 탭에 무엇을 올리는지와 고치는 법.
+// 주소 뒤에 괄호를 붙이지 않는다 — 휴대폰이 ')' 까지 링크로 잡아 열리지 않는다.
+export const PLACE_HOWTO_LINE =
+    '  [홈] 교습비 이미지, [정보] 등록번호, (수정방법) https://new.smartplace.naver.com/help/guide?menu=edit';
+
+// 2번(신고된 교습비 확인방법) 의 두 줄 — 어디서 확인하는지, 어떻게 뽑는지.
 //
-// '번호와 교습비를 표시하라' 고만 하면 학원은 그 값을 어디서 보는지 모른다. 번호는 우리가
-// 이미 알고 있으니 문자에 적어 주고, 교습비는 학원이 신고한 값이라 나이스에서 직접 보게 한다.
+// '교습비를 표시하라' 고만 하면 학원은 그 값을 어디서 보는지 모른다. 교습비는 학원이
+// 신고한 값이라 나이스에서 직접 보게 한다. 번호는 문자 머리의 '(등록 제N호)' 가 이미 말한다.
 //
 // 게시표는 참고 자료다 — 길이가 넘치면 가장 먼저 덜어낸다. 예전에는 학원별 주소(/g/<토큰>)를
 // 실었는데 유효기간이 10일이라, 문자를 묵혔다 여는 학원에게는 열리지 않는 링크가 됐다.
 // 여기 주소는 모든 학원이 같고 기한이 없어 언제 열어도 열린다.
 export const PRICE_TOOL_URL = 'https://hakwon-price.vercel.app/';
 export const NEIS_URL = 'https://hakwon.neis.go.kr/nxui/index.html';
-export const REGNO_LINE = '· 귀 {기관} {번호}: 제{regNo}호';
 export const NEIS_LINE = `· 신고된 교습비 : ${NEIS_URL}`;
 export const FORM_LINE = `· 출력 도움 : ${PRICE_TOOL_URL} (JPG, HWPX 등)`;
 
@@ -64,7 +68,10 @@ export const TRIMMED_LINE = '· 위에 적지 못한 매체는 직접 확인 부
 
 export const DEFAULT_TEL = '02-480-5144';
 export const DEFAULT_DAYS = 5;
-export const DEFAULT_GUIDE_URL =
+export const DEFAULT_GUIDE_URL = 'https://buly.kr/BpHq2UV';
+// 예전 기본값. 설정을 한 번이라도 저장한 브라우저에는 이 긴 주소가 남아 있어,
+// 기본값을 바꿔도 그 담당자의 문자에는 옛 주소가 나간다 — 읽을 때 새 주소로 바꿔 준다.
+const OLD_GUIDE_URL =
     'https://www.goegh.kr/goegh/na/ntt/selectNttInfo.do?mi=8747&bbsId=5083&nttSn=1167255';
 
 // LMS 한도. 넘으면 문자마당이 받아 주지 않는다.
@@ -90,7 +97,7 @@ export function readNoticeSettings() {
         tel: saved.tel || DEFAULT_TEL,
         days: Number.isFinite(days) && days >= 0 ? days : DEFAULT_DAYS,
         // 빈 문자열은 '링크를 빼겠다' 는 뜻이다 — 기본값으로 되돌리면 안 된다
-        guideUrl: saved.guideUrl ?? DEFAULT_GUIDE_URL,
+        guideUrl: saved.guideUrl === OLD_GUIDE_URL ? DEFAULT_GUIDE_URL : (saved.guideUrl ?? DEFAULT_GUIDE_URL),
     };
     return cached;
 }
@@ -273,26 +280,21 @@ function compose(target, result, academy, opts, keep, withForm) {
     L.push(`[${SENDER}] ${SUBJECT}`, '');
     L.push(`${target.name} (${regLabel})`, '');
 
-    // ── 1. 무엇이 빠졌나 ────────────────────────────────
-    // 다른 것이 하나라도 있으면 머리말도 그렇게 말해야 한다 — 올려 둔 것을 두고
-    // '확인되지 않았다' 고 하면 학원은 되묻고, 담당자가 전화를 한 번 더 받는다.
-    L.push(items.some((it) => it.differs)
-        ? `1. 귀 ${kindLabel} 온라인 광고에서 다음이 확인되지 않았거나, 신고하신 내용과 다릅니다.`
-        : `1. 귀 ${kindLabel} 온라인 광고에서 다음이 확인되지 않았습니다.`);
-    // 한 매체에서 둘 다 빠졌으면 한 줄로 묶는다. '· 블로그 : 신고번호 없음' 과
-    // '· 블로그 : 교습비 없음' 이 따로 서면, 매체가 넷일 때 여덟 줄이 되어
-    // 정작 '몇 군데를 손봐야 하는가' 가 눈에 안 들어온다.
-    // 없음과 다름은 갈라 적는다 — 없으면 올리는 일이고, 다르면 고치는 일이다.
+    // ── 1. 무엇을 확인하나 ──────────────────────────────
+    // '확인되지 않았습니다' 라고 단정하지 않고 '확인해 보시라' 고 권한다. 자동 조사가
+    // 놓친 곳에 단정해 보내면 학원은 되묻고, 담당자가 전화를 한 번 더 받는다.
+    L.push(`1. 귀 ${kindLabel} 온라인 광고에서 다음을 확인해 보시기 바랍니다.`);
+    // 한 매체의 항목은 한 줄로 묶는다 ('· 네이버플레이스 : 등록번호 및 교습비').
+    // 따로 서면 매체가 넷일 때 여덟 줄이 되어 '몇 군데를 손봐야 하는가' 가 안 보인다.
+    // 없음·다름을 가르지 않는다 — 금액이 다른 곳은 아래 '지금 광고 중인 금액' 이 따로 말한다.
     const byBucket = new Map();
-    items.forEach(({ bucket, field, differs }) => {
-        if (!byBucket.has(bucket)) byBucket.set(bucket, { 없음: [], 다름: [] });
-        byBucket.get(bucket)[differs ? '다름' : '없음'].push(field === '번호' ? numberLabel : field);
+    items.forEach(({ bucket, field }) => {
+        if (!byBucket.has(bucket)) byBucket.set(bucket, []);
+        const label = field === '번호' ? numberLabel : field;
+        if (!byBucket.get(bucket).includes(label)) byBucket.get(bucket).push(label);
     });
-    byBucket.forEach((g, bucket) => {
-        const parts = [];
-        if (g.없음.length) parts.push(`${g.없음.join('·')} 없음`);
-        if (g.다름.length) parts.push(`${g.다름.join('·')} 다름`);
-        L.push(`· ${CHANNEL_NAME[bucket]} : ${parts.join(', ')}`);
+    byBucket.forEach((fields, bucket) => {
+        L.push(`· ${CHANNEL_NAME[bucket]} : ${fields.join(' 및 ')}`);
     });
     // '위 N개 사항이 모두 표시될 수 있도록' 은 바로 위 목록을 세어 되읊는 줄이었다.
     // 무엇을 해야 하는지는 목록이 이미 말하고, 언제까지인지는 3번 아래 기한이 말한다.
@@ -300,19 +302,16 @@ function compose(target, result, academy, opts, keep, withForm) {
 
     // 근거를 말한 자리에 그 근거를 볼 곳을 함께 둔다. 3번에 두면 학원의 광고 주소와
     // 섞여 '우리 것' 처럼 보인다 — 성격이 다른 링크다.
-    // 주소는 줄을 바꿔 붙인다 — 괄호로 문장 끝에 매달면 그 한 줄이 화면 석 줄을 먹는다.
-    L.push(say(LEGAL_LINE));
-    if (guideUrl) L.push(`교육지원청 안내문 : ${guideUrl}`);
+    // 안내문 주소는 짧은 주소라 근거 문장 끝에 이어 붙인다.
+    L.push(guideUrl ? `${say(LEGAL_LINE)} 교육지원청 안내문 : ${guideUrl}` : say(LEGAL_LINE));
     L.push('');
 
-    // ── 2. 무엇을 적나 ─────────────────────────────────
+    // ── 2. 신고된 교습비 확인방법 ───────────────────────
     // 번호 다음에 빈 줄을 두지 않는다 (3번도 그렇다) — 머리와 목록은 한 덩어리다.
     //
     // 매체마다 '어디에 어떻게 적는지' 를 여기 늘어놓지 않는다. 매체가 일곱인 학원은
-    // 그것만 일곱 줄이고, 정작 학원이 알아야 할 '내 번호가 몇 번인지, 내가 신고한
-    // 교습비가 얼마인지' 가 그 아래 묻혔다.
-    L.push('2. 수정 방법');
-    L.push(say(REGNO_LINE).split('{regNo}').join(target.regNo));
+    // 그것만 일곱 줄이고, 정작 학원이 알아야 할 '내가 신고한 교습비가 얼마인지' 가 묻혔다.
+    L.push('2. 신고된 교습비 확인방법');
     L.push(say(NEIS_LINE));
     if (withForm) L.push(FORM_LINE);
     L.push('');
@@ -337,13 +336,16 @@ function compose(target, result, academy, opts, keep, withForm) {
     // 전화로 '3번 보세요' 라고 짚어 줄 수가 없다. 마지막 줄만으로도 할 말은 있다.
     L.push(`3. 귀 ${kindLabel} 인터넷광고 링크`);
     shown.forEach((b) => {
-        (urls[b] || []).forEach((u) => L.push(`· ${CHANNEL_NAME[b]} : ${u}`));
+        (urls[b] || []).forEach((u) => {
+            L.push(`· ${CHANNEL_NAME[b]} : ${u}`);
+            if (b === 'place') L.push(PLACE_HOWTO_LINE);
+        });
     });
     // 길이 때문에 몇 곳을 덜어냈으면 그 사실을 이 목록 안에서 말한다
     if (keep) L.push(TRIMMED_LINE);
     L.push(TAIL_LINE, '');
 
-    L.push(`${noticeDeadline(days)}까지 수정 부탁드리며, 이후 담당자가 다시 확인합니다.`, '');
+    L.push(`${noticeDeadline(days)} 즈음에 다시 확인하도록 하겠습니다.`, '');
 
     L.push(`문의 : ${tel}`);
 
