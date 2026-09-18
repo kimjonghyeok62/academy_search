@@ -101,7 +101,7 @@ function courseTable(courses) {
     <thead><tr><th>교습과정 / 교습과목</th><th>교습시간</th><th>월 교습비</th><th>기타경비</th></tr></thead>
     <tbody>${rows}</tbody>
   </table>
-  <p class="note">신고받은 값은 <b>총교습시간(분/월)</b> 하나입니다. 주 회수·회당 분은 거기서 되짚은 <b>추정</b>이라
+  <p class="note tip">신고받은 값은 <b>총교습시간(분/월)</b> 하나입니다. 주 회수·회당 분은 거기서 되짚은 <b>추정</b>이라
   같은 총량에 다른 조합도 들어맞습니다 — 회수가 다르다는 것만으로 지적하지 마세요.</p>`;
 }
 
@@ -189,7 +189,7 @@ function channelTable(result, academyName, address, label) {
     <td class="mid">${oxBadge(cells.get(cellKey('place', '교습비')))}<div class="sub fee" data-fee="place"></div></td>
     <td>${noPlace ? '<span class="dim">–</span>'
             : regNoCell(cells.get(cellKey('place', '번호')), [result.플레이스_기재번호], result.플레이스_번호대조)}</td>
-    <td class="mid">${placeUrl ? openBtn(placeMapUrl(placeUrl), '열기') : '<span class="dim">–</span>'}</td>
+    <td class="mid act">${placeUrl ? openBtn(placeMapUrl(placeUrl), '열기') : '<span class="dim">–</span>'}</td>
   </tr>`];
 
     BUCKETS.forEach((b) => {
@@ -204,15 +204,15 @@ function channelTable(result, academyName, address, label) {
         <div class="sub fee" data-fee="${esc(b)}">${feeChips(list)}</div></td>
       <td>${regNoCell(cells.get(cellKey(b, '번호')),
             list.map((c) => c.기재번호), worstCmp(list.map((c) => c.번호대조)))}</td>
-      <td class="mid">${list.map((c, i) => openBtn(c.url, list.length > 1 ? `열기 ${i + 1}` : '열기')).join(' ')}</td>
+      <td class="mid act">${list.map((c, i) => openBtn(c.url, list.length > 1 ? `열기 ${i + 1}` : '열기')).join(' ')}</td>
     </tr>`);
     });
 
     return `<table class="grid">
-    <thead><tr><th>채널 · 어디에 올렸나</th><th>교습비</th><th>${esc(label)}</th><th></th></tr></thead>
+    <thead><tr><th>채널 · 어디에 올렸나</th><th>교습비</th><th>${esc(label)}</th><th class="act"></th></tr></thead>
     <tbody>${rows.join('')}</tbody>
   </table>
-  <p class="note">플레이스 홈에 링크가 걸린 채널만 조사합니다 — 링크가 없는 채널은 위에 나오지 않습니다.
+  <p class="note tip">플레이스 홈에 링크가 걸린 채널만 조사합니다 — 링크가 없는 채널은 위에 나오지 않습니다.
   번호 칸의 <b>적힌 번호</b>가 위 ${esc(label)}와 같은지 확인하세요 — 잘못 적어둔 곳도 O 로 뜹니다.</p>`;
 }
 
@@ -415,7 +415,7 @@ const READ_SCRIPT = `<script>
 
     if (says.length) html += '<p class="note">' + says.join('<br>') + '</p>';
     if (notes.length) html += '<p class="note">덧붙은 안내: ' + notes.map(esc).join(' · ') + '</p>';
-    if (links.length) html += '<p style="margin-top:10px">' + links.join(' ') + '</p>';
+    if (links.length) html += '<p class="act" style="margin-top:10px">' + links.join(' ') + '</p>';
     if (aiUsed) {
       html += '<div class="caution"><b>가격표 이미지는 Claude 가 읽은 값입니다.</b> 사람이 찍어 올린 사진이라'
         + ' 잘못 읽었을 수 있습니다 — 지적하기 전에 <b>가격표 원본</b>을 눌러 눈으로 확인하세요.'
@@ -627,6 +627,7 @@ const SPLIT_SCRIPT = `<script>
       + '이 창은 주소가 blob: 으로 시작하는 옮겨 온 창이라 그 설정의 대상이 아닙니다.)</span>';
     d.setAttribute('style', 'margin-top:8px;font-weight:800;color:#b45309;line-height:1.7');
     el.appendChild(d);
+    el.open = true;
   }
   function unNudge() {
     var d = document.getElementById('nudge');
@@ -778,7 +779,9 @@ export function buildTuitionCompareHtml(academy, result, { numberLabel } = {}) {
   a.open { display: inline-block; color: #2563eb; font-weight: 600; font-size: 0.8rem;
            text-decoration: none; border: 1px solid #bfdbfe; border-radius: 6px;
            padding: 2px 8px; margin-right: 4px; white-space: nowrap; }
-  .howto { background: #fffbeb; border-color: #fde68a; font-size: 0.84rem; color: #78350f; }
+  .howto { background: #fffbeb; border-color: #fde68a; font-size: 0.84rem; color: #78350f; padding: 10px 18px; }
+  .howto summary { cursor: pointer; }
+  .howto-body { margin-top: 8px; }
   .kbd { border: 1px solid #d6bd8a; border-radius: 5px; padding: 0 5px; background: #fff; font-size: 0.8rem; }
   .src { font-size: 0.78rem; font-weight: 700; color: #475569; white-space: nowrap; }
   .grid td.mid .fee { white-space: normal; text-align: center; line-height: 1.35; }
@@ -799,10 +802,27 @@ export function buildTuitionCompareHtml(academy, result, { numberLabel } = {}) {
   .bar button { padding: 7px 13px; border: none; border-radius: 8px; font-size: 0.84rem;
                 font-weight: 700; cursor: pointer; }
   .bar .p { background: #2563eb; color: #fff; } .bar .c { background: #e2e8f0; color: #334155; }
+  /* 인쇄 — A4 세로 1~2장에 들어가게.
+     화면용 사용법·설명 문구·열기 단추는 빼고(종이에서는 누를 수 없다), 글자와 여백을 줄인다.
+     글자 크기는 모두 rem 이라 html 한 곳만 줄이면 함께 줄어든다. */
+  @page { size: A4 portrait; margin: 10mm; }
   @media print {
-    body { background: #fff; padding: 0; }
-    .bar { display: none !important; }
-    .card { border-color: #cbd5e1; break-inside: avoid; }
+    html { font-size: 11.5px; }
+    body { background: #fff; padding: 0; line-height: 1.4;
+           -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .wrap { max-width: none; }
+    .bar, .howto, .tip, .act { display: none !important; }
+    .card { border-color: #cbd5e1; border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; }
+    /* ①② 는 위아래로 — A4 폭에 나란히 두면 표가 눌려 못 읽는다 */
+    .cols { grid-template-columns: 1fr; gap: 0; }
+    h2 { margin-bottom: 6px; break-after: avoid; }
+    .range { font-size: 1.3rem; margin-top: 4px; }
+    .regno { margin-top: 2px; }
+    .grid th, .grid td { padding: 4px 6px; }
+    /* 긴 표는 장을 넘겨도 되지만 한 줄이 두 장에 걸치지는 않게, 넘어간 장에도 머리줄을 다시 찍는다 */
+    .grid tr { break-inside: avoid; }
+    .grid thead { display: table-header-group; }
+    .note, .caution { margin-top: 5px; }
     a.open { border: none; padding: 0; }
   }
 </style>
@@ -824,13 +844,17 @@ export function buildTuitionCompareHtml(academy, result, { numberLabel } = {}) {
     <div class="regno">${esc(label)} <b>제${esc(regNo)}호</b><small>광고물에 이 번호가 그대로 적혀 있어야 합니다</small></div>
   </div>
 
-  <div class="card howto">
+  <!-- 한 번 읽으면 되는 사용법이라 접어 둔다 (펼치면 예전 안내 그대로). 인쇄에서는 아예 뺀다 -->
+  <details class="card howto">
+    <summary><b><span class="kbd">열기</span> 사용법</b> <span class="dim">— 나란히 보기 · 팝업 설정 (눌러서 펼치기)</span></summary>
+    <div class="howto-body">
     <b>오른쪽 <span class="kbd">열기</span>를 누르면 이 창이 화면 왼쪽 절반, 그 채널이 오른쪽 절반으로 붙습니다.</b>
     자동 조사는 <b>글자로 적힌 금액</b>만 신고 금액과 맞춰 봅니다 —
     가격표가 <b>이미지</b>인 곳은 여기서 사람이 봐야 합니다. 나란히 놓인 두 화면의 금액을 맞춰 보고,
     다 봤으면 오른쪽 창을 닫으세요 — 이 창은 저절로 제자리로 돌아옵니다.
     <span class="dim">(플레이스·블로그·홈페이지·인스타·카페 모두 같습니다. Ctrl+클릭은 예전처럼 새 탭입니다.)</span>
-  </div>
+    </div>
+  </details>
 
   <div class="cols">
     <div class="card">
