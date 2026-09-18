@@ -36,7 +36,7 @@ const fmtDay = (iso) => {
 
 function SnsCheckRow({
     index, rowKey, target, result, academy, group, dup,
-    academyByKey, region, isNarrow, running, highlight,
+    academyByKey, region, isNarrow, running, highlight, leftNote,
     pinOpen, pinInput, pinError, memoOpen, memoInput,
     onSelectAcademy, onCycle, onToggleDone, onToggleNoPlace, onRefresh, onJump,
     onPinOpen, onPinChange, onPinSave, onPinCancel, onPinClear, onPinConfirm,
@@ -112,7 +112,8 @@ function SnsCheckRow({
     const curUrl = result && !noPlace ? currentPlaceUrl(result) : '';
 
     return (
-        <tr ref={setRef} style={{ background: rowBg }}>
+        // 조건을 벗어났지만 확인하라고 남겨 둔 줄 — 흐리게 두되 계속 누를 수 있다 (SnsCheckTab 의 kept)
+        <tr ref={setRef} style={{ background: rowBg, ...(leftNote ? { opacity: 0.55 } : null) }}>
             <Td style={{
                 ...(isNarrow ? { background: rowBg } : stickyTd(0, rowBg)),
                 // 마감한 행 왼쪽에 초록 선 — 옅은 배경색만으로는 다크 테마에서 잘 안 보인다
@@ -143,6 +144,15 @@ function SnsCheckRow({
                         }}>
                         {addr}
                     </a>
+                )}
+                {leftNote && (
+                    <div title="조건을 바꾸거나 위쪽 '정리' 를 누르면 목록에서 빠집니다"
+                        style={{
+                            display: 'inline-block', marginTop: '3px', padding: '1px 8px', borderRadius: '999px',
+                            background: '#fef3c7', color: '#92400e', fontSize: '0.72rem', fontWeight: '800',
+                        }}>
+                        ✓ {leftNote}
+                    </div>
                 )}
                 {result?.플레이스명 && result.플레이스명 !== target.name && (
                     <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>→ {result.플레이스명}</div>
