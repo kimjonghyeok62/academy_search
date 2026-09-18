@@ -1,13 +1,13 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
     fetchSnsCheckContext, probeAll, saveSnsChecks, resultToRecord, parseChannels,
-    placeSearchUrl, VERDICT_COLOR, rowCells, cellKey, assignBuckets, effectiveVerdict,
+    placeMapSearchUrl, VERDICT_COLOR, rowCells, cellKey, assignBuckets, effectiveVerdict,
     applyManualCell, setManualCell, keepManual, parseManual, manualCells, parsePlaceId, parsePlaceInput, pinnedPlaceId,
     isDone, doneAt, setDone,
     remarkPlaceHint, pinResolvedPlace, hasPlaceCandidate,
     effectivePlaceId, sharedCellTargets, buildGroups, recordKey, PIN_CLEARED,
     currentPlaceUrl, placeSource, placeUrlFromId, placeMapUrl, pinnedPlaceUrl, declaredFees, toProbeTargets,
-    noticeItems, fetchFormLinks,
+    noticeItems, fetchFormLinks, readSnsCache, writeSnsCacheWhenIdle,
 } from '../utils/snsCheck';
 import { openTuitionCompare } from '../utils/tuitionCompareWindow';
 import { buildNoticeSms, copyNoticeSms, smsBytes, LMS_LIMIT } from '../utils/snsNoticeText';
@@ -99,6 +99,10 @@ export default function SnsDetailPanel({ academy, region = '하남', allAcademie
     // 묶음(같은 블로그·플레이스를 함께 쓰는 학원) 판정과 교습비 전파에 전체 결과가 필요하다
     const [results, setResults] = useState({});
     const [loadedKey, setLoadedKey] = useState(null);
+    // 담아 둔 지난 결과로 먼저 그려 놓고 시트에서 최신 내용을 받아 오는 중
+    const [refreshing, setRefreshing] = useState(false);
+    // 받아 오는 사이에 담당자가 이 화면에서 고쳤는지 — 고쳤으면 뒤늦게 온 값으로 덮지 않는다
+    const dirtyRef = useRef(false);
     const [running, setRunning] = useState(false);
     const [message, setMessage] = useState('');
     const [pinOpen, setPinOpen] = useState(false);
@@ -116,19 +120,49 @@ export default function SnsDetailPanel({ academy, region = '하남', allAcademie
     // 두 화면이 다른 번호를 말하게 된다.
     const target = useMemo(() => toProbeTargets([academy], category)[0], [academy, category]);
 
+    // 시트는 1,070줄이라 다 읽는 데 몇 초가 걸린다. 점검표 SNS 탭(또는 상세화면을 열 때 미리 읽기)이
+    // 이 세션에 담아 둔 결과가 있으면 그것으로 곧바로 그리고, 최신 내용은 뒤에서 받아 바꿔 끼운다.
+    // (점검표가 빨리 뜨는 것도 같은 방식이다 — 전에는 여기만 매번 시트를 다 읽을 때까지 기다렸다)
+    // 효과에서 넣으면 '불러오는 중' 이 한 번 그려진 뒤에 바뀌므로, 학원이 바뀌는 그 자리에서 넣는다.
+    const [bootKey, setBootKey] = useState(null);
+    if (bootKey !== key) {
+        setBootKey(key);
+        const cached = readSnsCache();
+        if (cached) {
+            setResult(cached[key] || null);
+            setResults(cached);
+            setLoadedKey(key);
+        }
+        setRefreshing(!!cached);
+    }
+
     useEffect(() => {
         let alive = true;
+        dirtyRef.current = false;
+        const hadCache = !!readSnsCache();
         fetchSnsCheckContext(category, regNo)
             .then(({ result: r, results: all }) => {
                 if (!alive) return;
+                setRefreshing(false);
+                setLoadedKey(key);
+                // 못 읽었으면(빈 목록) 담아 둔 값을 지킨다 — 비워 버리면 '조사한 적 없음' 으로 보인다
+                if (hadCache && !Object.keys(all).length) return;
+                // 그 사이 고친 값은 이미 시트에 저장했다 — 화면 값을 지킨다
+                if (dirtyRef.current) return;
                 setResult(r);
                 setResults(all);
-                setLoadedKey(key);
+                writeSnsCacheWhenIdle(all);
             })
             // 조회 실패도 로딩을 풀어야 한다 (결과 없음으로 표시하고 '지금 조사' 를 쓸 수 있게)
-            .catch(() => { if (alive) setLoadedKey(key); });
+            .catch(() => { if (alive) { setRefreshing(false); setLoadedKey(key); } });
         return () => { alive = false; };
     }, [category, regNo, key]);
+
+    // 여기서 고친 값을 담아 둔 결과에도 넣는다 — 점검표로 돌아가거나 이 학원을 다시 열었을 때
+    // 고치기 전 값이 잠깐 보였다 바뀌지 않도록
+    useEffect(() => {
+        if (dirtyRef.current) writeSnsCacheWhenIdle(results);
+    }, [results]);
 
     useEffect(() => {
         let alive = true;
@@ -180,6 +214,7 @@ export default function SnsDetailPanel({ academy, region = '하남', allAcademie
         }
         // 담당자가 직접 고친 값·지정·묶음은 새 조사 결과에 없다 — 이어 붙이지 않으면 화면에서 사라진다
         const merged = pinResolvedPlace(keepManual(r, from));
+        dirtyRef.current = true;
         setResult(merged);
         setResults((prev) => ({ ...prev, [key]: merged }));
         try { await saveSnsChecks([resultToRecord(merged)]); setMessage('✓ 조사 결과를 저장했습니다.'); }
@@ -203,6 +238,7 @@ export default function SnsDetailPanel({ academy, region = '하남', allAcademie
             records.push(resultToRecord(u));
         });
 
+        dirtyRef.current = true;
         setResult(updated);
         setResults(nextResults);
         setMessage(shared.length
@@ -230,6 +266,7 @@ export default function SnsDetailPanel({ academy, region = '하남', allAcademie
         }
         const base = result || { category, regNo, name: academy.name || '', 판정: '', checkedAt: '' };
         const updated = { ...base, 플레이스지정: placeUrlFromId(id) };
+        dirtyRef.current = true;
         setResult(updated);
         setResults((prev) => ({ ...prev, [key]: updated }));
         setPinOpen(false);
@@ -250,6 +287,7 @@ export default function SnsDetailPanel({ academy, region = '하남', allAcademie
         if (!result) return;
         // 빈 값으로 보내면 Apps Script 가 '안 넘어온 것'으로 보고 기존 값을 지킨다 — 해제 표시를 남긴다
         const updated = { ...result, 플레이스지정: PIN_CLEARED };
+        dirtyRef.current = true;
         setResult(updated);
         setResults((prev) => ({ ...prev, [key]: updated }));
         setMessage('지정을 풀고 이름으로 다시 찾습니다…');
@@ -265,6 +303,7 @@ export default function SnsDetailPanel({ academy, region = '하남', allAcademie
         if (!result) return;
         const on = !isDone(result);
         const updated = setDone(result, on);
+        dirtyRef.current = true;
         setResult(updated);
         setResults((prev) => ({ ...prev, [key]: updated }));
         setMessage(on
@@ -397,6 +436,7 @@ ${links.form}`}
                         {runBtn}
                     </div>
                 </div>
+                {refreshing && <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '8px' }}>↻ 지난번에 불러온 결과입니다 — 최신 내용을 확인하는 중…</div>}
                 {message && <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '10px' }}>{message}</div>}
             </div>
 
@@ -496,7 +536,7 @@ ${links.form}`}
                     <div style={card}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                             <div style={{ fontSize: '0.86rem', fontWeight: '800' }}>📍 네이버플레이스</div>
-                            <a href={result.플레이스URL ? placeMapUrl(result.플레이스URL) : placeSearchUrl(academy.name, region)} target="_blank" rel="noreferrer"
+                            <a href={result.플레이스URL ? placeMapUrl(result.플레이스URL) : placeMapSearchUrl(academy.name, academy.address)} target="_blank" rel="noreferrer"
                                 style={{ fontSize: '0.78rem', color: '#3b82f6', fontWeight: '600', textDecoration: 'none' }}>열기 ↗</a>
                         </div>
                         {result.플레이스명 && (

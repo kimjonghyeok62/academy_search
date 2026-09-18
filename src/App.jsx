@@ -8,6 +8,7 @@ import InspectionStandardAccordion from './components/InspectionStandardAccordio
 import InspectionPage from './components/InspectionPage';
 import KakaoMapPage from './components/KakaoMapPage';
 import TuitionPrintPage from './components/TuitionPrintPage';
+import { placeMapSearchUrl } from './utils/snsCheck';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -557,25 +558,6 @@ function App() {
     searchInputRef.current?.blur();
   };
 
-  // 주소에서 기본 주소(도로명 + 번지수)만 추출하는 함수
-  const cleanAddress = (address) => {
-    if (!address) return '';
-
-    // 1. 쉼표가 있으면 쉼표 이전 부분만 사용
-    const commaIndex = address.indexOf(',');
-    let baseAddress = commaIndex !== -1 ? address.substring(0, commaIndex).trim() : address.trim();
-
-    // 2. 쉼표가 없는 경우, "도로명 + 번지수" 패턴 추출
-    // 예: "경기도 하남시 위례학암로 52 3층" -> "경기도 하남시 위례학암로 52"
-    // 패턴: 숫자 뒤에 공백이 있고 그 다음에 층/호/동 등이 오는 경우
-    const match = baseAddress.match(/^(.+?[로길]\s+\d+(?:-\d+)?)/);
-    if (match) {
-      return match[1].trim();
-    }
-
-    return baseAddress;
-  };
-
   // 주소에서 지역 정보 추출 및 배지 스타일 반환
   const getLocationBadge = (address) => {
     if (!address) return null;
@@ -1064,7 +1046,7 @@ function App() {
                 {academy.type !== 'privateTutor' && (<>
                 <span style={{ color: 'var(--border-color)' }}>•</span>
                 <a
-                  href={`https://map.naver.com/p/search/${encodeURIComponent(`${academy.name} ${cleanAddress(academy.address)}`)}`}
+                  href={placeMapSearchUrl(academy.name, academy.address)}
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={(e) => e.stopPropagation()}

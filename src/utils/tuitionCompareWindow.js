@@ -15,7 +15,7 @@ import {
 } from './generateTuitionPDF';
 import {
     rowCells, parseChannels, assignBuckets, effectiveVerdict, currentPlaceUrl, placeMapUrl, isNoPlace,
-    placeSearchUrl, shortAddress, cellKey, BUCKETS, BUCKET_LABEL, VERDICT_COLOR,
+    placeMapSearchUrl, shortAddress, cellKey, BUCKETS, BUCKET_LABEL, VERDICT_COLOR,
 } from './snsCheck';
 
 // 학원명·과목명·비고는 시트에서 온 자유 텍스트다. '<' 하나가 섞이면 문서가 통째로 깨진다.
@@ -163,10 +163,10 @@ function feeChips(list) {
         + (nums.length > shown.length ? ` 외 ${nums.length - shown.length}건` : '');
 }
 
-function channelTable(result, academyName, region, label) {
+function channelTable(result, academyName, address, label) {
     if (!result) {
         return `<p class="empty">아직 자동 조사를 하지 않은 학원입니다.
-      ${openBtn(placeSearchUrl(academyName, region), '네이버에서 찾아보기')}</p>`;
+      ${openBtn(placeMapSearchUrl(academyName, address), '네이버에서 찾아보기')}</p>`;
     }
     const cells = new Map(rowCells(result).map((c) => [c.key, c]));
     const chs = parseChannels(result);
@@ -714,7 +714,7 @@ const SPLIT_SCRIPT = `<script>
  * 대조창 HTML 을 만든다 (열지는 않는다).
  * 여는 일과 나눠 둔 이유: 브라우저 없이도 값·이스케이프를 확인할 수 있어야 한다.
  */
-export function buildTuitionCompareHtml(academy, result, { region = '', numberLabel } = {}) {
+export function buildTuitionCompareHtml(academy, result, { numberLabel } = {}) {
     const a = academy || {};
     const category = (a.category || result?.category || '').includes('교습소') ? '교습소' : '학원';
     const label = numberLabel || (category === '교습소' ? '신고번호' : '등록번호');
@@ -842,7 +842,7 @@ export function buildTuitionCompareHtml(academy, result, { region = '', numberLa
         <span class="verdict" style="background:${VERDICT_COLOR[verdict] || '#94a3b8'}">${esc(verdict)}</span>
         ${result?.checkedAt ? `<span class="sub" style="display:inline; margin-left:6px;">${esc(fmtWhen(result.checkedAt))} 조사</span>` : ''}
       </h2>
-      ${channelTable(result, name, region, label)}
+      ${channelTable(result, name, a.address, label)}
     </div>
   </div>
   ${readCard(placeId, blogUrl)}

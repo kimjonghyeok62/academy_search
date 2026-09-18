@@ -7,7 +7,7 @@ import { memo, useCallback, useState } from 'react';
 import {
     parseChannels, assignBuckets, rowCells, snsRemark, isDone, doneAt, noticeItems,
     isNoPlace, noPlaceAt, memoText, MEMO_MAX,
-    placeSearchUrl, blogSearchUrl, mapSearchUrl, pinnedPlaceId, hasPlaceCandidate,
+    placeSearchUrl, placeMapSearchUrl, blogSearchUrl, mapSearchUrl, pinnedPlaceId, hasPlaceCandidate,
     currentPlaceUrl, placeSource, parsePlaceId, placeMapUrl, shortAddress, BUCKET_LABEL,
 } from '../utils/snsCheck';
 import { insuranceStatus } from '../utils/insurance';
@@ -81,6 +81,16 @@ function SnsCheckRow({
             () => show({ text: '복사 실패', warn: true }));
     };
 
+    const [telFlash, setTelFlash] = useState(null);
+    const copyTel = () => {
+        const digits = String(target.contact || '').replace(/\D/g, '');
+        if (!digits) return;
+        const show = (v) => { setTelFlash(v); setTimeout(() => setTelFlash(null), 1500); };
+        copyNoticeSms(digits).then(
+            () => show({ text: `✓ ${digits} 복사` }),
+            () => show({ text: '복사 실패', warn: true }));
+    };
+
     // 공동운영에서 눌러 찾아온 행 — 어디로 왔는지 잠깐 보여준다
     const base = highlight ? '#ede9fe' : index % 2 === 1 ? BG_ROW : BG_STRIPE;
     const rowBg = done && !highlight ? doneTint(base) : base;
@@ -140,8 +150,14 @@ function SnsCheckRow({
                 {/* 전화번호를 따로 열로 두면 표가 화면을 넘어간다. 미이행 학원에 전화를 걸 때
                     어차피 이름과 함께 보게 되는 값이라 이 칸에 붙여 둔다. */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
+                    {/* 누르면 '-' 를 뺀 번호를 복사한다 — 문자마당 받는 번호 칸에 그대로 붙여넣는다 */}
                     {target.contact
-                        ? <a href={`tel:${target.contact}`} style={{ ...linkStyle, fontSize: '0.78rem' }}>☎ {target.contact}</a>
+                        ? <button onClick={copyTel} title="눌러서 '-' 없는 번호를 복사합니다"
+                            style={{
+                                ...linkStyle, background: 'none', border: 'none', padding: 0,
+                                fontFamily: 'inherit', fontSize: '0.78rem', cursor: 'pointer',
+                                ...(telFlash ? { color: telFlash.warn ? '#ef4444' : DONE_COLOR } : null),
+                            }}>☎ {telFlash ? telFlash.text : target.contact}</button>
                         : <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>☎ –</span>}
                     {/* 학원마다 빠진 것이 달라 일괄 문구를 쓸 수 없다 — 이 학원의 X 칸만 넣어
                         만든 문구를 클립보드에 담는다. 문자마당 창에 붙여넣으면 끝난다. */}
@@ -194,7 +210,7 @@ function SnsCheckRow({
                             color: academy ? '#0d9488' : 'var(--text-muted)',
                             cursor: academy ? 'pointer' : 'default',
                         }}>💰 교습비</button>
-                    <a href={result?.플레이스URL ? placeMapUrl(result.플레이스URL) : placeSearchUrl(target.name, region)} target="_blank" rel="noreferrer" style={linkStyle}>
+                    <a href={result?.플레이스URL ? placeMapUrl(result.플레이스URL) : placeMapSearchUrl(target.name, target.address)} target="_blank" rel="noreferrer" style={linkStyle}>
                         {result?.플레이스URL ? '플레이스' : '플레이스검색'}
                     </a>
                     {/* 플레이스 홈에 걸린 링크들 — 실제로 조사한 대상이다 */}
