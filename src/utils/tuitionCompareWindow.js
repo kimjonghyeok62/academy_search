@@ -17,6 +17,7 @@ import {
     rowCells, parseChannels, assignBuckets, effectiveVerdict, currentPlaceUrl, placeMapUrl, isNoPlace,
     placeMapSearchUrl, shortAddress, cellKey, BUCKETS, BUCKET_LABEL, VERDICT_COLOR,
 } from './snsCheck';
+import { currentInstructors } from './riskChecks';
 
 // 학원명·과목명·비고는 시트에서 온 자유 텍스트다. '<' 하나가 섞이면 문서가 통째로 깨진다.
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => (
@@ -75,6 +76,23 @@ function timeCell(c) {
         + `${weeklyTotal ? ` (주당 ${weeklyTotal}분)` : ''}<span class="guess">추정</span></div>`;
 }
 
+/**
+ * 신고한 기타경비 금액 — 항목 하나하나와 과정별 합계.
+ *
+ * 네이버에 '차량비 20,000원' 이 적혀 있으면 교습비 쪽 대조에서는 '범위 밖' 으로 걸린다.
+ * 그런데 그건 교습비가 아니라 신고한 기타경비를 그대로 적어 둔 것이라 잘못이 아니다.
+ * 그래서 이 금액들은 '신고한 금액과 같음' 으로 본다.
+ */
+function declaredOtherFees(courses) {
+    const out = new Set();
+    courses.forEach((c) => {
+        const vals = OTHER_FEES.map((it) => parseNum(c[it.key])).filter((n) => n > 0);
+        vals.forEach((n) => out.add(n));
+        if (vals.length > 1) out.add(vals.reduce((s, n) => s + n, 0));
+    });
+    return [...out].sort((x, y) => x - y);
+}
+
 /** 기타경비 칸 — 0 이 아닌 항목만 */
 function otherFeeCell(c) {
     const items = OTHER_FEES.filter((it) => parseNum(c[it.key]) > 0);
@@ -118,8 +136,24 @@ const oxBadge = (cell) => {
 
 // href·target 은 그대로 둔다 — 아래 SPLIT_SCRIPT 가 클릭을 가로채 반반으로 붙이지만,
 // 스크립트가 못 뜨거나 Ctrl+클릭으로 새 탭에 열려는 사람에게는 링크가 링크대로 동작해야 한다.
-const openBtn = (url, label) =>
-    `<a class="open" href="${esc(url)}" target="_blank" rel="noreferrer">${esc(label)} ↗</a>`;
+const openBtn = (url, label, title) =>
+    `<a class="open" href="${esc(url)}" target="_blank" rel="noreferrer"${title ? ` title="${esc(title)}"` : ''}>${esc(label)} ↗</a>`;
+
+/**
+ * 네이버 블로그는 첫 화면 대신 '블로그 안에서 교습비 검색' 결과를 연다.
+ * 교습비 글은 오래돼 첫 화면·최근 글에 안 보이는 일이 많고, 담당자가 여기서 할 일은
+ * 결국 그 글을 찾는 것이다 (자동 조사도 같은 검색으로 찾는다 — naverProbe 의 searchInBlog).
+ * 네이버 블로그가 아니거나 주소에서 아이디를 못 읽으면 원래 주소를 그대로 연다.
+ */
+function blogSearchUrl(url) {
+    let u;
+    try { u = new URL(/^https?:\/\//i.test(url) ? url : `https://${url}`); } catch { return ''; }
+    const host = u.hostname.toLowerCase().replace(/^www\./, '');
+    if (host !== 'blog.naver.com' && host !== 'm.blog.naver.com') return '';
+    const id = u.searchParams.get('blogId') || u.pathname.split('/').filter(Boolean)[0] || '';
+    if (!/^[A-Za-z0-9_-]+$/.test(id) || /\.naver$/i.test(id)) return '';
+    return `https://blog.naver.com/PostSearchList.naver?blogId=${encodeURIComponent(id)}&SearchText=${encodeURIComponent('교습비')}`;
+}
 
 // 번호 대조 결과 → 사람이 읽을 한마디. 빈 값이면 아무 말도 붙이지 않는다.
 const CMP_NOTE = {
@@ -204,7 +238,11 @@ function channelTable(result, academyName, address, label) {
         <div class="sub fee" data-fee="${esc(b)}">${feeChips(list)}</div></td>
       <td>${regNoCell(cells.get(cellKey(b, '번호')),
             list.map((c) => c.기재번호), worstCmp(list.map((c) => c.번호대조)))}</td>
-      <td class="mid act">${list.map((c, i) => openBtn(c.url, list.length > 1 ? `열기 ${i + 1}` : '열기')).join(' ')}</td>
+      <td class="mid act">${list.map((c, i) => {
+            const label = list.length > 1 ? `열기 ${i + 1}` : '열기';
+            const search = b === 'blog' ? blogSearchUrl(c.url) : '';
+            return search ? openBtn(search, label, '블로그 안에서 “교습비” 로 검색한 결과를 엽니다') : openBtn(c.url, label);
+        }).join(' ')}</td>
     </tr>`);
     });
 
@@ -237,7 +275,7 @@ function readConfig(placeId, blogUrl, courses, name) {
     const declared = [...new Set(courses.map((c) => parseNum(c.tuitionFee || c.totalFee))
         .filter((n) => n > 0))].sort((x, y) => x - y);
     const origin = typeof location !== 'undefined' ? location.origin : '';
-    const cfg = { api: `${origin}/api/tuition-read`, placeId, blogUrl, declared, name };
+    const cfg = { api: `${origin}/api/tuition-read`, placeId, blogUrl, declared, other: declaredOtherFees(courses), name };
     // '<' 를 그대로 두면 문자열 안의 '</script>' 하나로 문서가 끊긴다
     return `<script>var READ_CFG = ${JSON.stringify(cfg).replace(/</g, '\u003c')};</script>`;
 }
@@ -259,6 +297,9 @@ const READ_SCRIPT = `<script>
   var D = READ_CFG.declared || [];
   var DSET = {}, DMIN = D.length ? D[0] : 0, DMAX = D.length ? D[D.length - 1] : 0;
   D.forEach(function (n) { DSET[n] = true; });
+  // 신고한 기타경비(차량비 등) — 교습비가 아니라 이 금액을 적어 둔 것이면 잘못이 아니다
+  var OSET = {};
+  (READ_CFG.other || []).forEach(function (n) { if (!DSET[n]) OSET[n] = true; });
 
   function esc(v) {
     return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
@@ -277,6 +318,7 @@ const READ_SCRIPT = `<script>
     if (!amount) return '';
     if (!D.length) return '<span class="dim">신고 자료 없음</span>';
     if (DSET[amount]) return '<span class="cmp-ok">✓ 신고금액과 같음</span>';
+    if (OSET[amount]) return '<span class="cmp-ok">✓ 신고한 기타경비와 같음</span>';
     if (amount < DMIN || amount > DMAX) return '<span class="cmp-bad">⚠ 신고 범위 밖</span>';
     return '<span class="cmp-warn">신고 목록에 없는 금액</span>';
   }
@@ -292,7 +334,7 @@ const READ_SCRIPT = `<script>
   // 값이 셋도 안 되면 무엇이 예외인지 말할 근거가 없으므로 아무것도 하지 않는다.
   var ODD = {};
   function markOdd(list) {
-    var a = list.filter(function (n) { return n > 0; }).sort(function (x, y) { return x - y; });
+    var a = list.filter(function (n) { return n > 0 && !OSET[n]; }).sort(function (x, y) { return x - y; });
     if (a.length < 3) return;
     var mid = a.length % 2 ? a[(a.length - 1) / 2] : (a[a.length / 2 - 1] + a[a.length / 2]) / 2;
     a.forEach(function (n) {
@@ -320,10 +362,10 @@ const READ_SCRIPT = `<script>
     if (!amounts.length) { el.innerHTML = empty ? '<span class="dim">' + empty + '</span>' : ''; return; }
     var shown = amounts.slice(0, 6);
     el.innerHTML = '적힌 교습비 ' + shown.map(function (n) {
-      var cls = DSET[n] ? '' : (n < DMIN || n > DMAX ? 'cmp-bad' : 'cmp-warn');
+      var cls = DSET[n] || OSET[n] ? '' : (n < DMIN || n > DMAX ? 'cmp-bad' : 'cmp-warn');
       var odd = ODD[n];
       return '<b class="' + cls + (odd ? ' oddmark' : '') + '"'
-        + (odd ? ' title="' + esc(odd) + '"' : '') + '>'
+        + (odd ? ' title="' + esc(odd) + '"' : OSET[n] ? ' title="신고한 기타경비와 같은 금액"' : '') + '>'
         + Number(n).toLocaleString('ko-KR') + (odd ? '⚠' : '') + '</b>';
     }).join(' · ') + '원'
       + (amounts.length > shown.length ? ' 외 ' + (amounts.length - shown.length) + '건' : '');
@@ -498,9 +540,6 @@ const SPLIT_SCRIPT = `<script>
   var IS_WINDOW = PROMOTED || (function () {
     try { return window.toolbar.visible === false; } catch (e) { return true; }
   })();
-  // 목록 화면이 창으로 띄우려다 팝업 차단에 막혀 탭으로 물러난 경우 (openTuitionCompare)
-  var BLOCKED = HTML.getAttribute('data-popupblocked') === '1';
-  HTML.removeAttribute('data-popupblocked');
 
   var right = null, timer = null, home = null;
 
@@ -573,15 +612,10 @@ const SPLIT_SCRIPT = `<script>
     HTML.setAttribute('data-promoted', '1');
     HTML.setAttribute('data-right', RIGHT);
     if (openUrl) HTML.setAttribute('data-open', openUrl);
-    // '탭으로 열렸습니다' 안내는 창이 될 복제본에 딸려가면 거짓말이 된다
-    var hint = document.getElementById('tabhint');
-    var hintAt = hint && hint.parentNode;
-    if (hintAt) hintAt.removeChild(hint);
     var html = '<!DOCTYPE html>\\n' + HTML.outerHTML;
     // 옮기지 못했을 때 이 화면에 흔적을 남기지 않는다
     HTML.removeAttribute('data-promoted');
     HTML.removeAttribute('data-open');
-    if (hintAt) hintAt.appendChild(hint);
     var url = URL.createObjectURL(new Blob([html], { type: 'text/html; charset=utf-8' }));
     var box = leftHalf();
     var win = window.open(url, '_blank', feat(box));
@@ -616,18 +650,13 @@ const SPLIT_SCRIPT = `<script>
 
   /** 옮겨 온 직후 채널을 자동으로 못 열었을 때 — 무엇을 하면 되는지 알려 준다 */
   function nudge() {
-    var el = document.querySelector('.howto');
-    if (!el || document.getElementById('nudge')) return;
+    if (document.getElementById('nudge')) return;
     var d = document.createElement('div');
     d.id = 'nudge';
-    d.innerHTML = '왼쪽 절반으로 붙었습니다 — <b>이 창 아무 곳이나 한 번 누르면</b> 오른쪽이 열립니다.'
-      + '<br><span style="font-weight:600">이 한 번도 없애려면 <b>학원 목록 화면</b>의 주소창 왼쪽 아이콘 → 사이트 설정 → '
-      + '<b>팝업 및 리디렉션 → 허용</b> 한 뒤, 교습비 링크를 <b>다시</b> 누르세요. 그때 뜨는 대조창은 '
-      + '처음부터 창이라 열기 한 번에 두 화면이 붙습니다. (허용은 이 창에는 소급되지 않습니다 — '
-      + '이 창은 주소가 blob: 으로 시작하는 옮겨 온 창이라 그 설정의 대상이 아닙니다.)</span>';
-    d.setAttribute('style', 'margin-top:8px;font-weight:800;color:#b45309;line-height:1.7');
-    el.appendChild(d);
-    el.open = true;
+    d.innerHTML = '왼쪽 절반으로 붙었습니다 — <b>이 창 아무 곳이나 한 번 누르면</b> 오른쪽이 열립니다.';
+    d.setAttribute('style', 'position:fixed;left:0;right:0;top:0;z-index:9999;padding:10px 14px;'
+      + 'background:#fffbeb;border-bottom:1px solid #fde68a;color:#b45309;font-weight:800;text-align:center');
+    document.body.appendChild(d);
   }
   function unNudge() {
     var d = document.getElementById('nudge');
@@ -675,25 +704,6 @@ const SPLIT_SCRIPT = `<script>
 
   window.addEventListener('pagehide', function () { if (timer) clearInterval(timer); });
 
-  // 탭으로 열렸으면 누르기 전에 미리 알려 준다 — 눌러 보고 나서야 알면 늦다.
-  // 여기 적힌 대로 한 번만 해 두면 이 뒤로는 열기 한 번에 두 화면이 붙는다.
-  if (!IS_WINDOW) {
-    var el = document.querySelector('.howto');
-    if (el) {
-      var d = document.createElement('div');
-      d.id = 'tabhint';   // 창으로 옮겨 갈 때는 복제본에 딸려가지 않게 떼어낸다 (promote)
-      d.setAttribute('style', 'margin-top:8px;font-weight:700;color:#b45309;line-height:1.7');
-      d.innerHTML = (BLOCKED
-        ? '이 대조창은 <b>팝업이 막혀 탭으로</b> 열렸습니다.'
-        : '이 대조창은 <b>탭으로</b> 열렸습니다.')
-        + ' 탭은 스스로 자리를 못 옮겨, 열기를 누르면 한 번 더 손이 갑니다.'
-        + '<br><span style="font-weight:600">한 번만 해 두면 됩니다 — <b>학원 목록 화면</b>에서 주소창 왼쪽 아이콘 → '
-        + '사이트 설정 → <b>팝업 및 리디렉션 → 허용</b> → 그 목록 화면을 <b>새로고침(F5)</b> → 교습비를 다시 누르기. '
-        + '설정만 바꾸고 새로고침하지 않으면 그 탭에는 아직 적용되지 않습니다.</span>';
-      el.appendChild(d);
-    }
-  }
-
   if (PROMOTED) {
     // 닫으면 돌아갈 자리는 '원래 대조창이 뜨던 크기' 다 — 옮겨 오기 전 탭의 크기가 아니라.
     var b = screenBox(), w0 = Math.min(1240, b.w);
@@ -726,6 +736,16 @@ export function buildTuitionCompareHtml(academy, result, { numberLabel } = {}) {
     const baseDate = a.changeDate || a.regDate || '';
     const verdict = result ? effectiveVerdict(result) : '미조사';
     const addr = shortAddress(a.address);
+    // 머리줄에 설립·운영자, 연락처, 강사 수를 함께 — 전화로 물어볼 때 창을 옮기지 않게
+    const founder = a.founder || {};
+    const contact = [founder.phone, founder.mobile].map((v) => String(v || '').trim())
+        .filter((v, i, arr) => v && arr.indexOf(v) === i).join(' / ');
+    const teachers = category === '학원' && Array.isArray(a.instructors) ? currentInstructors(a).length : null;
+    const people = [
+        founder.name ? `${category === '교습소' ? '교습자' : '설립·운영자'} ${founder.name}` : '',
+        contact ? `연락처 ${contact}` : '',
+        teachers !== null ? `강사 ${teachers}명` : '',
+    ].filter(Boolean);
     // '적힌 금액' 을 읽어올 곳 — 플레이스(가격메뉴·가격표 이미지)와 대표 블로그.
     // 사람이 '플레이스 없음' 이라고 확인해 준 곳은 읽지 않는다 (물고 온 후보는 남의 업체다).
     const placeId = result && !isNoPlace(result) ? String(result.플레이스ID || '') : '';
@@ -779,10 +799,6 @@ export function buildTuitionCompareHtml(academy, result, { numberLabel } = {}) {
   a.open { display: inline-block; color: #2563eb; font-weight: 600; font-size: 0.8rem;
            text-decoration: none; border: 1px solid #bfdbfe; border-radius: 6px;
            padding: 2px 8px; margin-right: 4px; white-space: nowrap; }
-  .howto { background: #fffbeb; border-color: #fde68a; font-size: 0.84rem; color: #78350f; padding: 10px 18px; }
-  .howto summary { cursor: pointer; }
-  .howto-body { margin-top: 8px; }
-  .kbd { border: 1px solid #d6bd8a; border-radius: 5px; padding: 0 5px; background: #fff; font-size: 0.8rem; }
   .src { font-size: 0.78rem; font-weight: 700; color: #475569; white-space: nowrap; }
   .grid td.mid .fee { white-space: normal; text-align: center; line-height: 1.35; }
   .ctx { font-size: 0.76rem; color: #64748b; }
@@ -803,7 +819,7 @@ export function buildTuitionCompareHtml(academy, result, { numberLabel } = {}) {
                 font-weight: 700; cursor: pointer; }
   .bar .p { background: #2563eb; color: #fff; } .bar .c { background: #e2e8f0; color: #334155; }
   /* 인쇄 — A4 세로 1~2장에 들어가게.
-     화면용 사용법·설명 문구·열기 단추는 빼고(종이에서는 누를 수 없다), 글자와 여백을 줄인다.
+     화면용 설명 문구·열기 단추는 빼고(종이에서는 누를 수 없다), 글자와 여백을 줄인다.
      글자 크기는 모두 rem 이라 html 한 곳만 줄이면 함께 줄어든다. */
   @page { size: A4 portrait; margin: 10mm; }
   @media print {
@@ -811,7 +827,7 @@ export function buildTuitionCompareHtml(academy, result, { numberLabel } = {}) {
     body { background: #fff; padding: 0; line-height: 1.4;
            -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .wrap { max-width: none; }
-    .bar, .howto, .tip, .act { display: none !important; }
+    .bar, .tip, .act { display: none !important; }
     .card { border-color: #cbd5e1; border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; }
     /* ①② 는 위아래로 — A4 폭에 나란히 두면 표가 눌려 못 읽는다 */
     .cols { grid-template-columns: 1fr; gap: 0; }
@@ -839,22 +855,11 @@ export function buildTuitionCompareHtml(academy, result, { numberLabel } = {}) {
     <div class="meta">
       ${esc(category)} · ${esc(label)} ${esc(regNo)}${addr ? ` · ${esc(addr)}` : ''}
       ${baseDate ? ` · 신고 기준일 ${esc(baseDate)}` : ''}
+      ${people.map((t) => ` · ${esc(t)}`).join('')}
     </div>
     ${range ? `<div class="range">월 ${esc(range)}<small>신고된 월 교습비 범위</small></div>` : ''}
     <div class="regno">${esc(label)} <b>제${esc(regNo)}호</b><small>광고물에 이 번호가 그대로 적혀 있어야 합니다</small></div>
   </div>
-
-  <!-- 한 번 읽으면 되는 사용법이라 접어 둔다 (펼치면 예전 안내 그대로). 인쇄에서는 아예 뺀다 -->
-  <details class="card howto">
-    <summary><b><span class="kbd">열기</span> 사용법</b> <span class="dim">— 나란히 보기 · 팝업 설정 (눌러서 펼치기)</span></summary>
-    <div class="howto-body">
-    <b>오른쪽 <span class="kbd">열기</span>를 누르면 이 창이 화면 왼쪽 절반, 그 채널이 오른쪽 절반으로 붙습니다.</b>
-    자동 조사는 <b>글자로 적힌 금액</b>만 신고 금액과 맞춰 봅니다 —
-    가격표가 <b>이미지</b>인 곳은 여기서 사람이 봐야 합니다. 나란히 놓인 두 화면의 금액을 맞춰 보고,
-    다 봤으면 오른쪽 창을 닫으세요 — 이 창은 저절로 제자리로 돌아옵니다.
-    <span class="dim">(플레이스·블로그·홈페이지·인스타·카페 모두 같습니다. Ctrl+클릭은 예전처럼 새 탭입니다.)</span>
-    </div>
-  </details>
 
   <div class="cols">
     <div class="card">
@@ -886,8 +891,6 @@ ${READ_SCRIPT}
 export function openTuitionCompare(academy, result, opts) {
     const html = buildTuitionCompareHtml(academy, result, opts);
     if (openHtmlPopup(html, { width: 1240, fallback: false })) return;
-    // 창으로 못 떴다 — 탭으로 물러나되 '왜 탭인지' 를 화면이 스스로 말하게 한다.
-    // 이걸 적어 두지 않으면, 반반으로 안 붙는 이유가 브라우저 설정이라는 것을
-    // 쓰는 사람은 알 길이 없다 (실제로 여기서 한참 헤맸다).
-    openHtmlWindow(html.replace('<html ', '<html data-popupblocked="1" '));
+    // 창으로 못 떴다 — 탭으로 연다 (열기를 누르면 SPLIT_SCRIPT 가 창으로 옮긴다)
+    openHtmlWindow(html);
 }

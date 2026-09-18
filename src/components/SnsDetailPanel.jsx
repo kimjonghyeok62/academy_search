@@ -6,7 +6,7 @@ import {
     isDone, doneAt, setDone,
     remarkPlaceHint, pinResolvedPlace, hasPlaceCandidate,
     effectivePlaceId, sharedCellTargets, buildGroups, recordKey, PIN_CLEARED,
-    currentPlaceUrl, placeSource, placeUrlFromId, placeMapUrl, pinnedPlaceUrl, declaredFees, toProbeTargets,
+    currentPlaceUrl, placeSource, placeUrlFromId, placeMapUrl, pinnedPlaceUrl, declaredFees, declaredOtherFees, toProbeTargets,
     noticeItems, fetchFormLinks, readSnsCache, writeSnsCacheWhenIdle,
 } from '../utils/snsCheck';
 import { openTuitionCompare } from '../utils/tuitionCompareWindow';
@@ -199,6 +199,8 @@ export default function SnsDetailPanel({ academy, region = '하남', allAcademie
             address: academy.address || '',
             // 네이버에 적힌 금액을 이것과 맞춰 본다 — 하나도 안 맞으면 교습비 칸이 △ 가 된다
             declaredFees: declaredFees(academy),
+            // 신고한 기타경비(차량비 등)만 적어 둔 것은 교습비 '금액 다름' 으로 치지 않는다
+            otherFees: declaredOtherFees(academy),
             // 직접 지정한 플레이스가 있으면 그것만 본다. 지정을 푼 직후에는 저장된 플레이스도
             // 무시해야 새로 검색한다 (그대로 두면 잘못 잡은 그 플레이스를 다시 물고 온다).
             placeId: hintUrl ? '' : (pinned || (ignoreStoredPlace ? '' : effectivePlaceId(from))),

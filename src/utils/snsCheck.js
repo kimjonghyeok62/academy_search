@@ -931,6 +931,23 @@ export function declaredFees(academy) {
     return [...new Set(nums)].sort((x, y) => x - y);
 }
 
+/**
+ * 신고한 기타경비 금액(모의고사비·재료비·피복비·급식비·기숙사비·차량비)과 과정별 합계.
+ * 네이버에 '차량비 20,000원' 처럼 적힌 것은 교습비가 아니라 신고한 기타경비라서,
+ * 교습비 대조에서 '금액 다름' 으로 치면 안 된다 (naverProbe 의 compareFees 가 걸러 낸다).
+ */
+export function declaredOtherFees(academy) {
+    const num = (v) => Number(String(v ?? '').replace(/[^0-9]/g, ''));
+    const keys = ['mockExamFee', 'materialFee', 'clothingFee', 'mealFee', 'dormitoryFee', 'vehicleFee'];
+    const out = new Set();
+    (academy?.courses || []).forEach((c) => {
+        const vals = keys.map((k) => num(c[k])).filter((n) => n > 0);
+        vals.forEach((n) => out.add(n));
+        if (vals.length > 1) out.add(vals.reduce((s, n) => s + n, 0));
+    });
+    return [...out].sort((x, y) => x - y);
+}
+
 export function toProbeTargets(list, category) {
     return (list || []).map((a) => ({
         id: a.id,
@@ -941,6 +958,7 @@ export function toProbeTargets(list, category) {
         contact: a.founder?.mobile || a.founder?.phone || '',
         founderName: a.founder?.name || '',
         declaredFees: declaredFees(a),
+        otherFees: declaredOtherFees(a),
     }));
 }
 

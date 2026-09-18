@@ -337,11 +337,42 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
         () => ({ filter, doneFilter, q: search.trim().toLowerCase() }),
         [filter, doneFilter, search]);
 
-    const visible = useMemo(
-        () => rows.filter(x => matchesSnsFilter(x, filterQuery)),
-        [rows, filterQuery]);
-
     const filterKey = `${typeTab}|${filter}|${doneFilter}|${search}`;
+
+    // ── 방금 손댄 학원은 목록에 잠시 남긴다 ───────────────
+    // '미이행' 만 보며 X 를 O 로 고치다 보면 마지막 칸을 누르는 순간 그 학원이 '이행' 이 되어
+    // 표에서 사라진다. 제대로 눌렸는지 보지도 못한 채 줄이 없어져, 전체로 돌아가 다시 찾아야 했다.
+    // 그래서 지금 보는 조건에서 손댄 학원은 조건을 벗어나도 그 자리에 흐리게 남겨 두고,
+    // 조건(판정·확인·검색·탭)을 바꾸거나 '정리' 를 누를 때 빠진다. 위쪽 개수는 곧바로 바뀐다.
+    const [kept, setKept] = useState({ key: '', rows: new Set() });
+    const filterKeyRef = useRef(filterKey);
+    useLayoutEffect(() => { filterKeyRef.current = filterKey; }, [filterKey]);
+    // 행마다 넘기는 콜백이 바뀌지 않도록 지금 조건은 ref 로 읽는다
+    const keepRows = useCallback((keys) => setKept((k) => {
+        const fk = filterKeyRef.current;
+        return { key: fk, rows: new Set([...(k.key === fk ? k.rows : []), ...keys]) };
+    }), []);
+    const keptRows = kept.key === filterKey ? kept.rows : null;
+
+    const visible = useMemo(
+        () => rows.filter(x => matchesSnsFilter(x, filterQuery) || (keptRows && keptRows.has(x.key))),
+        [rows, filterQuery, keptRows]);
+
+    // 남겨 둔 줄 중 조건을 벗어난 것 → 무엇으로 바뀌었는지 한마디
+    const leftNotes = useMemo(() => {
+        const m = new Map();
+        if (!keptRows) return m;
+        visible.forEach((x) => {
+            if (!keptRows.has(x.key) || matchesSnsFilter(x, filterQuery)) return;
+            const v = x.result ? effectiveVerdict(x.result) : '미조사';
+            let note = '검색 조건에서 벗어남';
+            if (filter !== '전체' && v !== filter) note = `${v}${josaRo(v)} 바뀜`;
+            else if (doneFilter === '미확인' && isDone(x.result)) note = '확인 완료로 바뀜';
+            else if (doneFilter === '확인완료' && !isDone(x.result)) note = '미확인으로 바뀜';
+            m.set(x.key, note);
+        });
+        return m;
+    }, [visible, keptRows, filterQuery, filter, doneFilter]);
 
     // 거르는 조건이 바뀌면 처음부터 다시 그린다 — 얼마나 그릴지를 조건과 함께 들고 있으면
     // 조건이 바뀌는 순간 저절로 CHUNK 로 돌아간다 (되돌리는 효과를 따로 두지 않아도 된다).
@@ -504,8 +535,9 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
         // 지정 열에는 주소를 통째로 남긴다 — 시트를 열어 본 사람도 바로 눌러 확인할 수 있어야 한다
         if (pin && foundId && !pinnedPlaceId(merged)) merged = { ...merged, 플레이스지정: placeUrlFromId(foundId) };
         applyStructural({ ...resultsRef.current, [key]: merged });
+        keepRows([key]);
         try { await saveSnsChecks([resultToRecord(merged)]); } catch { /* 화면 결과는 유지 */ }
-    }, [region, carryOver, applyStructural]);
+    }, [region, carryOver, applyStructural, keepRows]);
 
     // ── 비고 칸에서 플레이스 주소 지정 ───────────────────
     // 이름으로 못 찾는 곳(확인불가)이 많아 시트를 오가지 않고 표에서 바로 넣는다.
@@ -582,12 +614,13 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
         });
 
         applyManual(next, entries.map(([k]) => k));
+        keepRows(entries.map(([k]) => k));
         setSaveState(shared.length
             ? `같은 채널을 쓰는 ${shared.map(s => s.name).join('·')} 에도 함께 반영했습니다 (교습비만).`
             : '');
         // 저장은 큐가 맡는다 — 연달아 고쳐도 요청이 겹치지 않고, 실패하면 알아서 다시 시도한다
         queue.pushMany(entries);
-    }, [applyManual, groups, queue]);
+    }, [applyManual, groups, queue, keepRows]);
 
     // ── 확인 마감 / 해제 ─────────────────────────────────
     const toggleDone = useCallback((result) => {
@@ -595,9 +628,10 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
         const rowKey = recordKey(result.category, result.regNo);
         const updated = setDone(result, !isDone(result));
         applyManual({ ...resultsRef.current, [rowKey]: updated }, [rowKey]);
+        keepRows([rowKey]);
         setSaveState('');
         queue.push(rowKey, resultToRecord(updated));
-    }, [applyManual, queue]);
+    }, [applyManual, queue, keepRows]);
 
     // ── 네이버플레이스가 아예 없는 학원 ──────────────────
     // 이름이 달라 못 찾은 것과 정말 없는 것은 자동으로 못 가린다. 사람이 확인해 눌러 주면
@@ -608,11 +642,12 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
         const on = !isNoPlace(result);
         const updated = setNoPlace(result, on);
         applyManual({ ...resultsRef.current, [rowKey]: updated }, [rowKey]);
+        keepRows([rowKey]);
         setSaveState(on
             ? '네이버플레이스가 없는 곳으로 표시했습니다 — 판정에서 빠지고 다시 조사하지 않습니다.'
             : '표시를 되돌렸습니다.');
         queue.push(rowKey, resultToRecord(updated));
-    }, [applyManual, queue]);
+    }, [applyManual, queue, keepRows]);
 
     // ── 적요 (담당자가 적는 진행사항) ────────────────────
     // 마감한 행에서도 고칠 수 있다 — 마감은 O/X 만 잠근다.
@@ -808,6 +843,17 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                         <Chip key={f} label={f} count={counts[f] || 0} active={filter === f}
                             onClick={() => setFilter(f)} color={VERDICT_COLOR[f]} />
                     ))}
+                    {leftNotes.size > 0 && (
+                        <button onClick={() => setKept({ key: '', rows: new Set() })}
+                            title="조건에서 벗어났지만 확인하시라고 남겨 둔 줄을 목록에서 뺍니다"
+                            style={{
+                                marginLeft: 'auto', padding: '5px 12px', borderRadius: '999px',
+                                border: '1px solid #f59e0b', background: '#fffbeb', color: '#b45309',
+                                fontSize: '0.8rem', fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap',
+                            }}>
+                            조건에서 벗어난 {leftNotes.size}곳 정리
+                        </button>
+                    )}
                 </div>
 
                 {/* 판정과 별개의 축이다 — '미이행 중 아직 확인 못 한 곳' 같은 조합을 만들 수 있어야 한다 */}
@@ -1018,6 +1064,7 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                                 isNarrow={isNarrow}
                                 running={running}
                                 highlight={key === jumpKey}
+                                leftNote={leftNotes.get(key) || ''}
                                 pinOpen={pinRow === key}
                                 pinInput={pinRow === key ? pinInput : ''}
                                 pinError={pinRow === key ? pinError : null}
@@ -1056,6 +1103,14 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
         </div>
     );
 }
+
+/** '이행으로' · '확인불가로' — 받침이 없거나 ㄹ 받침이면 '로' */
+const josaRo = (word) => {
+    const c = String(word).charCodeAt(String(word).length - 1) - 0xAC00;
+    if (c < 0 || c > 11171) return '(으)로';
+    const jong = c % 28;
+    return jong === 0 || jong === 8 ? '로' : '으로';
+};
 
 const btnStyle = (bg) => ({
     padding: '8px 14px', borderRadius: '8px', border: 'none', background: bg,

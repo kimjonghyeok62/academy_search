@@ -256,12 +256,17 @@ export function menuPrice(raw) {
  *   '미기재'   글자로 적힌 금액을 못 봤다 (가격표가 이미지뿐인 곳)
  *   '일치'     적힌 것 중 하나라도 신고 금액과 같다
  *   '불일치'   적힌 것이 있는데 하나도 신고 금액과 같지 않다  → △
+ *
+ * other(신고한 기타경비 — 차량비 등)와 같은 금액은 교습비가 아니라 기타경비를 적어 둔 것이라
+ * 견주기 전에 뺀다. 그것만 적혀 있으면 '교습비는 글로 못 봤다' 와 같으므로 '미기재' 다.
  */
-export function compareFees(amounts, declared) {
+export function compareFees(amounts, declared, other = []) {
     if (!declared || !declared.length) return '조사안함';
-    if (!amounts || !amounts.length) return '미기재';
     const set = new Set(declared);
-    return amounts.some((n) => set.has(n)) ? '일치' : '불일치';
+    const otherSet = new Set(other.filter((n) => !set.has(n)));
+    const list = (amounts || []).filter((n) => !otherSet.has(n));
+    if (!list.length) return '미기재';
+    return list.some((n) => set.has(n)) ? '일치' : '불일치';
 }
 
 const wonList = (list) => (list || []).slice(0, 4).map((n) => Number(n).toLocaleString('ko-KR')).join('·');
@@ -971,11 +976,12 @@ export function buildResult({ academy, place, channels = [], matchScore, error, 
     // 신고한 월 교습비. 마스터에 교습과정이 없는 학원은 빈 배열로 오고, 그러면 대조하지 않는다.
     const declared = [...new Set((academy.declaredFees || [])
         .map((n) => Number(n)).filter((n) => n >= MONEY_MIN && n <= MONEY_MAX))];
+    const otherFees = [...new Set((academy.otherFees || []).map((n) => Number(n)).filter((n) => n > 0))];
     const 플레이스_적힌금액 = [...new Set([
         ...place.menus.map((m) => menuPrice(m.price)).filter(Boolean),
         ...(introUnknown ? [] : introFee.amounts),
     ])];
-    const 플레이스_금액대조 = compareFees(플레이스_적힌금액, declared);
+    const 플레이스_금액대조 = compareFees(플레이스_적힌금액, declared, otherFees);
     const 플레이스_금액다름 = 플레이스_금액대조 === '불일치';
 
     // 읽어낸 금액은 게시형태에 붙여 남긴다 — 새 시트 열을 만들지 않고도
@@ -999,7 +1005,7 @@ export function buildResult({ academy, place, channels = [], matchScore, error, 
         }
         const 대조 = c.unavailable ? '확인불가' : compareRegNos(c.regNos, masterDigits);
         const 금액 = c.unavailable ? [] : (c.적힌금액 || []);
-        const 금액대조 = c.unavailable ? '확인불가' : compareFees(금액, declared);
+        const 금액대조 = c.unavailable ? '확인불가' : compareFees(금액, declared, otherFees);
         return {
             유형: c.label,
             종류: c.kind,
