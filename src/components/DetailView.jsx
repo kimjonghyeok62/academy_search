@@ -5,7 +5,7 @@ import FineGuideAccordion from './FineGuideAccordion';
 import { printTuitionForm, printTuitionFormExternal } from '../utils/generateTuitionPDF';
 import { saveGuidanceContent } from '../utils/inspectionSheets';
 import SnsDetailPanel from './SnsDetailPanel';
-import { placeMapSearchUrl, prefetchSnsChecks } from '../utils/snsCheck';
+import { placeOpenUrl, pinnedPlaceUrl, prefetchSnsChecks, recordKey } from '../utils/snsCheck';
 
 // 교습과정 정렬: 교습과정 → 레벨(유아<초등/초급<중등/중급<고등/고급<입시) → 과목기본명 자연정렬 → 주회수
 function sortCourses(courses) {
@@ -1155,8 +1155,18 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
     const contentRef = useRef(null);
 
     // SNS 탭이 쓰는 점검 결과를 미리 읽어 둔다 — 시트가 1,070줄이라 탭을 누른 뒤에 읽기 시작하면
-    // '불러오는 중' 이 몇 초씩 뜬다. 이 세션에 이미 담아 둔 결과가 있으면 아무것도 하지 않는다.
-    useEffect(() => { prefetchSnsChecks(); }, []);
+    // '불러오는 중' 이 몇 초씩 뜬다. 이 세션에 이미 담아 둔 결과가 있으면 시트를 다시 읽지 않는다.
+    // 읽은 김에 이 학원 것을 들고 있다가 현황 탭 '플레이스' 에 쓴다 — 직접 지정한 플레이스가 있으면
+    // 이름·주소로 검색하지 않고 그곳을 바로 연다 (검색으로 안 잡히는 곳이 있다).
+    const snsKey = recordKey((academy.category || '').includes('교습소') ? '교습소' : '학원', academy.id || '');
+    const [snsPlace, setSnsPlace] = useState({ key: '', result: null });
+    useEffect(() => {
+        let alive = true;
+        prefetchSnsChecks().then((map) => { if (alive) setSnsPlace({ key: snsKey, result: map?.[snsKey] || null }); });
+        return () => { alive = false; };
+    }, [snsKey]);
+    // 다른 학원으로 막 넘어온 참이면 앞 학원의 결과를 쓰지 않는다
+    const snsResult = snsPlace.key === snsKey ? snsPlace.result : null;
 
     // academy가 변경될 때마다 스크롤을 최상단으로 이동
     useEffect(() => {
@@ -1357,7 +1367,7 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
                             title="기본 정보"
                             rightButton={
                                 <a
-                                    href={placeMapSearchUrl(academy.name, academy.address)}
+                                    href={placeOpenUrl(snsResult, academy.name, academy.address)}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     onClick={(e) => e.stopPropagation()}
@@ -1386,7 +1396,9 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
                                         e.currentTarget.style.transform = 'translateY(0)';
                                         e.currentTarget.style.boxShadow = '0 1px 3px rgba(95, 214, 138, 0.3)';
                                     }}
-                                    title="네이버 플레이스에서 보기"
+                                    title={snsResult && pinnedPlaceUrl(snsResult)
+                                        ? '직접 지정한 네이버 플레이스를 엽니다'
+                                        : '네이버 플레이스에서 보기'}
                                 >
                                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                         <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>

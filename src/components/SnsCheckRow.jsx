@@ -7,7 +7,7 @@ import { memo, useCallback, useState } from 'react';
 import {
     parseChannels, assignBuckets, rowCells, snsRemark, isDone, doneAt, noticeItems,
     isNoPlace, noPlaceAt, memoText, MEMO_MAX,
-    placeSearchUrl, placeMapSearchUrl, blogSearchUrl, mapSearchUrl, pinnedPlaceId, hasPlaceCandidate,
+    placeSearchUrl, placeOpenUrl, blogSearchUrl, mapSearchUrl, pinnedPlaceId, hasPlaceCandidate,
     currentPlaceUrl, placeSource, parsePlaceId, placeMapUrl, shortAddress, BUCKET_LABEL,
 } from '../utils/snsCheck';
 import { insuranceStatus } from '../utils/insurance';
@@ -210,8 +210,9 @@ function SnsCheckRow({
                             color: academy ? '#0d9488' : 'var(--text-muted)',
                             cursor: academy ? 'pointer' : 'default',
                         }}>💰 교습비</button>
-                    <a href={result?.플레이스URL ? placeMapUrl(result.플레이스URL) : placeMapSearchUrl(target.name, target.address)} target="_blank" rel="noreferrer" style={linkStyle}>
-                        {result?.플레이스URL ? '플레이스' : '플레이스검색'}
+                    {/* 지정·비고·조사로 알고 있는 플레이스가 있으면 그곳을, 없으면 이름·주소 검색을 연다 */}
+                    <a href={placeOpenUrl(result, target.name, target.address)} target="_blank" rel="noreferrer" style={linkStyle}>
+                        {curUrl ? '플레이스' : '플레이스검색'}
                     </a>
                     {/* 플레이스 홈에 걸린 링크들 — 실제로 조사한 대상이다 */}
                     {channels.map((c, ci) => (

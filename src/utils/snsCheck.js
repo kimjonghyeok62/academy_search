@@ -894,6 +894,17 @@ export function placeKeyword(name, address) {
 export const placeMapSearchUrl = (name, address) =>
     `https://map.naver.com/p/search/${encodeURIComponent(placeKeyword(name, address))}`;
 
+/**
+ * '플레이스' 를 눌렀을 때 열 주소. 이름·주소로 검색해도 안 잡히는 곳이 있어,
+ * 이 학원의 플레이스를 이미 알면 검색하지 않고 그 플레이스를 바로 연다.
+ * 우선순위는 currentPlaceUrl 과 같다: 직접 지정 → 시트 비고에 적은 주소 → 지난 조사에서 찾은 곳.
+ * 모르거나 '플레이스 없음' 으로 확인해 둔 곳은 '학원명 도로명주소' 로 검색한다.
+ */
+export function placeOpenUrl(result, name, address) {
+    const url = result && !isNoPlace(result) ? currentPlaceUrl(result) : '';
+    return url ? placeMapUrl(url) : placeMapSearchUrl(name, address);
+}
+
 /** 아무 검색어로 네이버 검색 — 사람이 붙여넣은 글자를 그대로 찾아볼 때 */
 export const placeSearchUrl = (name, city) =>
     `https://m.search.naver.com/search.naver?query=${encodeURIComponent(`${city} ${name}`)}`;
@@ -1250,14 +1261,21 @@ export function writeSnsCacheWhenIdle(results) {
 
 /**
  * 학원 상세화면을 열 때 미리 읽어 둔다 — SNS 탭을 누를 즈음에는 이미 담겨 있게.
+ * 읽은 결과 { key → result } 를 돌려준다 (현황 탭 '플레이스' 가 지정해 둔 플레이스를 찾는 데 쓴다). 못 읽으면 null.
  * 이 세션에 담아 둔 결과가 있으면 아무것도 하지 않는다 (시트를 읽는 것은 세션에 한 번이면 된다.
  * 최신 내용은 SNS 탭을 열 때 뒤에서 다시 받아 바꿔 끼운다).
  */
 export function prefetchSnsChecks() {
-    if (readSnsCache()) return;
-    fetchSnsChecksOrThrow()
-        .then((rows) => { if (rows.length) writeSnsCacheWhenIdle(rowsToResults(rows)); })
-        .catch(() => { /* 미리 읽기일 뿐이다 — 실패하면 SNS 탭이 열릴 때 다시 읽는다 */ });
+    const had = readSnsCache();
+    if (had) return Promise.resolve(had);
+    return fetchSnsChecksOrThrow()
+        .then((rows) => {
+            if (!rows.length) return null;
+            const map = rowsToResults(rows);
+            writeSnsCacheWhenIdle(map);
+            return map;
+        })
+        .catch(() => null);   // 미리 읽기일 뿐이다 — 실패하면 SNS 탭이 열릴 때 다시 읽는다
 }
 
 /** force 를 주면 잠깐 들고 있던 값을 버리고 시트를 다시 읽는다 (화면의 '다시 불러오기') */

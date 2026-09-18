@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import {
     fetchSnsCheckContext, probeAll, saveSnsChecks, resultToRecord, parseChannels,
-    placeMapSearchUrl, VERDICT_COLOR, rowCells, cellKey, assignBuckets, effectiveVerdict,
+    placeOpenUrl, VERDICT_COLOR, rowCells, cellKey, assignBuckets, effectiveVerdict,
     applyManualCell, setManualCell, keepManual, parseManual, manualCells, parsePlaceId, parsePlaceInput, pinnedPlaceId,
     isDone, doneAt, setDone,
     remarkPlaceHint, pinResolvedPlace, hasPlaceCandidate,
@@ -536,7 +536,7 @@ ${links.form}`}
                     <div style={card}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                             <div style={{ fontSize: '0.86rem', fontWeight: '800' }}>📍 네이버플레이스</div>
-                            <a href={result.플레이스URL ? placeMapUrl(result.플레이스URL) : placeMapSearchUrl(academy.name, academy.address)} target="_blank" rel="noreferrer"
+                            <a href={placeOpenUrl(result, academy.name, academy.address)} target="_blank" rel="noreferrer"
                                 style={{ fontSize: '0.78rem', color: '#3b82f6', fontWeight: '600', textDecoration: 'none' }}>열기 ↗</a>
                         </div>
                         {result.플레이스명 && (
