@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback, useDeferredValue } from 'react';
 import {
-    probeAll, fetchSnsChecksOrThrow, saveSnsChecks, resultToRecord, recordKey, rowToResult,
+    probeAll, fetchSnsChecksOrThrow, saveSnsChecks, resultToRecord, recordKey, rowsToResults,
     snapshotRow, saveSnapshot,
     toProbeTargets, needsRecheck, probeTargetFor,
     BUCKETS, BUCKET_LABEL,
@@ -9,6 +9,7 @@ import {
     buildGroups, placeDuplicates, sharedCellTargets, pinnedPlaceId,
     pinResolvedPlace, parsePlaceInput, placeUrlFromId, PIN_CLEARED,
     RECHECK_DAYS, VERDICT_COLOR, matchesSnsFilter,
+    readSnsCache as readCache, writeSnsCacheWhenIdle as writeCacheWhenIdle,
 } from '../utils/snsCheck';
 import { downloadSnsWorkbook } from '../utils/snsWorkbookExcel';
 import { readNoticeSettings, writeNoticeSettings, noticeDeadline, LMS_LIMIT } from '../utils/snsNoticeText';
@@ -30,34 +31,9 @@ const OFF_PAPER = ['확인불가', '해당없음'];
 // 보이는 만큼만 그리고 표 끝에 닿으면 이어서 붙인다.
 const CHUNK = 60;
 
-// 조회에 몇 초가 걸린다. 탭을 오갈 때마다 빈 화면을 보지 않도록 마지막 결과를 담아 둔다.
-// (App.jsx 의 학원 목록 캐시와 같은 방식)
-const CACHE_KEY = 'sns_checks_v1';
 // 안내문을 폈는지 — 표를 보려고 매번 스크롤하지 않도록 기본은 접어 두고, 사람의 선택을 기억한다.
 // (결과 캐시와 달리 취향이므로 세션을 넘겨 남는 localStorage 에 둔다)
 const INTRO_KEY = 'sns_intro_open';
-
-function readCache() {
-    try {
-        const raw = sessionStorage.getItem(CACHE_KEY);
-        if (!raw) return null;
-        const { results } = JSON.parse(raw);
-        return results && typeof results === 'object' ? results : null;
-    } catch { return null; }
-}
-
-function writeCache(results) {
-    try { sessionStorage.setItem(CACHE_KEY, JSON.stringify({ results, timestamp: Date.now() })); }
-    catch { /* 용량 초과는 무시 — 캐시가 없으면 그냥 조회한다 */ }
-}
-
-// 700행을 통째로 문자열로 만드는 일이라 100ms 가까이 걸린다.
-// 조작 중에 끼어들면 그 순간 화면이 멎으므로, 한가할 때를 기다렸다 쓴다.
-function writeCacheWhenIdle(results) {
-    const run = () => writeCache(results);
-    if (typeof requestIdleCallback === 'function') requestIdleCallback(run, { timeout: 5000 });
-    else setTimeout(run, 0);
-}
 
 const fmtWhen = (iso) => {
     if (!iso) return '';
@@ -266,11 +242,7 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
             if (!alive) return;
             // 정말로 한 줄도 없는 시트일 수 있다. 그때 캐시가 있으면 캐시를 지키는 것이 안전하다
             if (!rows.length && cachedBoot) { setLoadError(''); setRefreshing(false); return; }
-            const map = {};
-            rows.forEach(row => {
-                const r = rowToResult(row);
-                if (r.regNo) map[recordKey(r.category, r.regNo)] = r;
-            });
+            const map = rowsToResults(rows);
             // 받아오는 사이에 담당자가 고친 행은 화면 값을 지킨다 (저장은 큐가 따로 끝낸다)
             dirtyRef.current.forEach(k => {
                 const local = resultsRef.current[k];

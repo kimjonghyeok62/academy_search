@@ -5,6 +5,7 @@ import FineGuideAccordion from './FineGuideAccordion';
 import { printTuitionForm, printTuitionFormExternal } from '../utils/generateTuitionPDF';
 import { saveGuidanceContent } from '../utils/inspectionSheets';
 import SnsDetailPanel from './SnsDetailPanel';
+import { placeMapSearchUrl, prefetchSnsChecks } from '../utils/snsCheck';
 
 // 교습과정 정렬: 교습과정 → 레벨(유아<초등/초급<중등/중급<고등/고급<입시) → 과목기본명 자연정렬 → 주회수
 function sortCourses(courses) {
@@ -1153,6 +1154,10 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
     // detail-content 스크롤 컨테이너를 위한 ref
     const contentRef = useRef(null);
 
+    // SNS 탭이 쓰는 점검 결과를 미리 읽어 둔다 — 시트가 1,070줄이라 탭을 누른 뒤에 읽기 시작하면
+    // '불러오는 중' 이 몇 초씩 뜬다. 이 세션에 이미 담아 둔 결과가 있으면 아무것도 하지 않는다.
+    useEffect(() => { prefetchSnsChecks(); }, []);
+
     // academy가 변경될 때마다 스크롤을 최상단으로 이동
     useEffect(() => {
         if (contentRef.current) {
@@ -1311,14 +1316,6 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
         return '';
     };
 
-    // 주소에서 시/군/구 추출
-    const getCityDistrict = (address) => {
-        if (!address) return '';
-        const parts = address.split(' ');
-        const city = parts.find(p => /[가-힣]+(시|군|구)$/.test(p));
-        return city || '';
-    };
-
     // Find academies in the same building (including current academy)
     const baseAddress = getBaseAddress(academy.address);
 
@@ -1360,9 +1357,7 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
                             title="기본 정보"
                             rightButton={
                                 <a
-                                    href={`https://map.naver.com/p/search/${encodeURIComponent(
-                                        (() => { const d = getCityDistrict(academy.address); const n = academy.name.replace('교습소', ''); return d ? `${n} ${d}` : n; })()
-                                    )}`}
+                                    href={placeMapSearchUrl(academy.name, academy.address)}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     onClick={(e) => e.stopPropagation()}

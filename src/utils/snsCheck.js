@@ -871,6 +871,30 @@ export function mapSearchUrl(address) {
     return q ? `https://map.naver.com/p/search/${encodeURIComponent(q)}` : '';
 }
 
+/**
+ * 네이버지도에서 이 학원의 플레이스를 찾을 검색어 — '학원명 도로명주소(건물번호까지)'.
+ * '하남삼성영어학원 경기도 하남시 신장로205번길 27' 처럼 건물까지 박아 두면
+ * '학원명 하남시' 로 찾을 때보다 같은 이름의 다른 지점을 잡는 일이 훨씬 적다.
+ * 호수·층·(건물명) 은 붙이지 않는다 — 붙이면 오히려 안 잡힌다.
+ * 도로명이 없는 주소(지번 등)는 예전처럼 '학원명 시·군·구' 로 찾는다.
+ * 네이버 상호에는 '교습소' 가 빠진 곳이 많아 이름에서 뗀다.
+ */
+export function placeKeyword(name, address) {
+    const n = String(name || '').replace('교습소', '').trim();
+    const addr = String(address || '');
+    // 쉼표·괄호 뒤(호수, '(서해아파트상가 3층)(덕풍동)')는 먼저 잘라 낸다 —
+    // 건물명에 '…로2' 같은 글자가 있으면 그것을 도로명으로 잘못 잡는다
+    const m = addr.split(/[,(]/)[0].match(/^(.*(?:로|길)\s*\d+(?:-\d+)?)/);
+    if (m) return `${n} ${m[1].trim()}`;
+    const city = addr.split(/\s+/).find((p) => /[가-힣]+(시|군|구)$/.test(p));
+    return city ? `${n} ${city}` : n;
+}
+
+/** 학원의 네이버플레이스를 찾는 기본 링크 (플레이스를 아직 못 찾았을 때·상세화면 '플레이스') */
+export const placeMapSearchUrl = (name, address) =>
+    `https://map.naver.com/p/search/${encodeURIComponent(placeKeyword(name, address))}`;
+
+/** 아무 검색어로 네이버 검색 — 사람이 붙여넣은 글자를 그대로 찾아볼 때 */
 export const placeSearchUrl = (name, city) =>
     `https://m.search.naver.com/search.naver?query=${encodeURIComponent(`${city} ${name}`)}`;
 
@@ -975,17 +999,22 @@ export function rowToResult(row) {
     return r;
 }
 
-/**
- * 학원 상세화면용 — 해당 학원 1건과, 묶음 판정에 필요한 전체 결과를 함께 돌려준다.
- * (fetchSnsChecks 가 어차피 전체를 읽어오므로 요청이 늘지 않는다)
- */
-export async function fetchSnsCheckContext(category, regNo) {
-    const rows = await fetchSnsChecks();
+/** 시트에서 읽어온 행들 → { '학원|1003': result } */
+export function rowsToResults(rows) {
     const map = {};
     rows.forEach((row) => {
         const r = rowToResult(row);
         if (r.regNo) map[recordKey(r.category, r.regNo)] = r;
     });
+    return map;
+}
+
+/**
+ * 학원 상세화면용 — 해당 학원 1건과, 묶음 판정에 필요한 전체 결과를 함께 돌려준다.
+ * (fetchSnsChecks 가 어차피 전체를 읽어오므로 요청이 늘지 않는다)
+ */
+export async function fetchSnsCheckContext(category, regNo) {
+    const map = rowsToResults(await fetchSnsChecks());
     const key = recordKey(category, String(regNo || '').trim());
     return { result: map[key] || null, results: map, groups: buildGroups(map) };
 }
@@ -1188,6 +1217,47 @@ async function readRows(action, { force = false } = {}) {
         } catch (err) { last = err; }
     }
     throw new Error(`${last?.message || '읽지 못했습니다'} (${READ_RETRIES + 1}번 시도)`);
+}
+
+// ── 지난번 결과 (세션 캐시) ─────────────────────────────
+// 조회에 몇 초가 걸린다. 탭을 오갈 때마다 빈 화면을 보지 않도록 마지막 결과를 담아 둔다.
+// (App.jsx 의 학원 목록 캐시와 같은 방식) 점검표 SNS 탭과 학원 상세화면 SNS 탭이 같이 쓴다 —
+// 상세화면이 따로 두지 않고 이것을 먼저 그려야, 점검표를 한 번 연 뒤로는 상세화면도 곧바로 뜬다.
+const SNS_CACHE_KEY = 'sns_checks_v1';
+
+/** 담아 둔 결과 { key → result } — 없거나 못 읽으면 null */
+export function readSnsCache() {
+    try {
+        const raw = sessionStorage.getItem(SNS_CACHE_KEY);
+        if (!raw) return null;
+        const { results } = JSON.parse(raw);
+        return results && typeof results === 'object' ? results : null;
+    } catch { return null; }
+}
+
+function writeSnsCache(results) {
+    try { sessionStorage.setItem(SNS_CACHE_KEY, JSON.stringify({ results, timestamp: Date.now() })); }
+    catch { /* 용량 초과는 무시 — 캐시가 없으면 그냥 조회한다 */ }
+}
+
+// 700행을 통째로 문자열로 만드는 일이라 100ms 가까이 걸린다.
+// 조작 중에 끼어들면 그 순간 화면이 멎으므로, 한가할 때를 기다렸다 쓴다.
+export function writeSnsCacheWhenIdle(results) {
+    const run = () => writeSnsCache(results);
+    if (typeof requestIdleCallback === 'function') requestIdleCallback(run, { timeout: 5000 });
+    else setTimeout(run, 0);
+}
+
+/**
+ * 학원 상세화면을 열 때 미리 읽어 둔다 — SNS 탭을 누를 즈음에는 이미 담겨 있게.
+ * 이 세션에 담아 둔 결과가 있으면 아무것도 하지 않는다 (시트를 읽는 것은 세션에 한 번이면 된다.
+ * 최신 내용은 SNS 탭을 열 때 뒤에서 다시 받아 바꿔 끼운다).
+ */
+export function prefetchSnsChecks() {
+    if (readSnsCache()) return;
+    fetchSnsChecksOrThrow()
+        .then((rows) => { if (rows.length) writeSnsCacheWhenIdle(rowsToResults(rows)); })
+        .catch(() => { /* 미리 읽기일 뿐이다 — 실패하면 SNS 탭이 열릴 때 다시 읽는다 */ });
 }
 
 /** force 를 주면 잠깐 들고 있던 값을 버리고 시트를 다시 읽는다 (화면의 '다시 불러오기') */
