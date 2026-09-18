@@ -136,8 +136,24 @@ const oxBadge = (cell) => {
 
 // href·target 은 그대로 둔다 — 아래 SPLIT_SCRIPT 가 클릭을 가로채 반반으로 붙이지만,
 // 스크립트가 못 뜨거나 Ctrl+클릭으로 새 탭에 열려는 사람에게는 링크가 링크대로 동작해야 한다.
-const openBtn = (url, label) =>
-    `<a class="open" href="${esc(url)}" target="_blank" rel="noreferrer">${esc(label)} ↗</a>`;
+const openBtn = (url, label, title) =>
+    `<a class="open" href="${esc(url)}" target="_blank" rel="noreferrer"${title ? ` title="${esc(title)}"` : ''}>${esc(label)} ↗</a>`;
+
+/**
+ * 네이버 블로그는 첫 화면 대신 '블로그 안에서 교습비 검색' 결과를 연다.
+ * 교습비 글은 오래돼 첫 화면·최근 글에 안 보이는 일이 많고, 담당자가 여기서 할 일은
+ * 결국 그 글을 찾는 것이다 (자동 조사도 같은 검색으로 찾는다 — naverProbe 의 searchInBlog).
+ * 네이버 블로그가 아니거나 주소에서 아이디를 못 읽으면 원래 주소를 그대로 연다.
+ */
+function blogSearchUrl(url) {
+    let u;
+    try { u = new URL(/^https?:\/\//i.test(url) ? url : `https://${url}`); } catch { return ''; }
+    const host = u.hostname.toLowerCase().replace(/^www\./, '');
+    if (host !== 'blog.naver.com' && host !== 'm.blog.naver.com') return '';
+    const id = u.searchParams.get('blogId') || u.pathname.split('/').filter(Boolean)[0] || '';
+    if (!/^[A-Za-z0-9_-]+$/.test(id) || /\.naver$/i.test(id)) return '';
+    return `https://blog.naver.com/PostSearchList.naver?blogId=${encodeURIComponent(id)}&SearchText=${encodeURIComponent('교습비')}`;
+}
 
 // 번호 대조 결과 → 사람이 읽을 한마디. 빈 값이면 아무 말도 붙이지 않는다.
 const CMP_NOTE = {
@@ -222,7 +238,11 @@ function channelTable(result, academyName, address, label) {
         <div class="sub fee" data-fee="${esc(b)}">${feeChips(list)}</div></td>
       <td>${regNoCell(cells.get(cellKey(b, '번호')),
             list.map((c) => c.기재번호), worstCmp(list.map((c) => c.번호대조)))}</td>
-      <td class="mid act">${list.map((c, i) => openBtn(c.url, list.length > 1 ? `열기 ${i + 1}` : '열기')).join(' ')}</td>
+      <td class="mid act">${list.map((c, i) => {
+            const label = list.length > 1 ? `열기 ${i + 1}` : '열기';
+            const search = b === 'blog' ? blogSearchUrl(c.url) : '';
+            return search ? openBtn(search, label, '블로그 안에서 “교습비” 로 검색한 결과를 엽니다') : openBtn(c.url, label);
+        }).join(' ')}</td>
     </tr>`);
     });
 
@@ -520,9 +540,6 @@ const SPLIT_SCRIPT = `<script>
   var IS_WINDOW = PROMOTED || (function () {
     try { return window.toolbar.visible === false; } catch (e) { return true; }
   })();
-  // 목록 화면이 창으로 띄우려다 팝업 차단에 막혀 탭으로 물러난 경우 (openTuitionCompare)
-  var BLOCKED = HTML.getAttribute('data-popupblocked') === '1';
-  HTML.removeAttribute('data-popupblocked');
 
   var right = null, timer = null, home = null;
 
@@ -595,15 +612,10 @@ const SPLIT_SCRIPT = `<script>
     HTML.setAttribute('data-promoted', '1');
     HTML.setAttribute('data-right', RIGHT);
     if (openUrl) HTML.setAttribute('data-open', openUrl);
-    // '탭으로 열렸습니다' 안내는 창이 될 복제본에 딸려가면 거짓말이 된다
-    var hint = document.getElementById('tabhint');
-    var hintAt = hint && hint.parentNode;
-    if (hintAt) hintAt.removeChild(hint);
     var html = '<!DOCTYPE html>\\n' + HTML.outerHTML;
     // 옮기지 못했을 때 이 화면에 흔적을 남기지 않는다
     HTML.removeAttribute('data-promoted');
     HTML.removeAttribute('data-open');
-    if (hintAt) hintAt.appendChild(hint);
     var url = URL.createObjectURL(new Blob([html], { type: 'text/html; charset=utf-8' }));
     var box = leftHalf();
     var win = window.open(url, '_blank', feat(box));
@@ -638,18 +650,13 @@ const SPLIT_SCRIPT = `<script>
 
   /** 옮겨 온 직후 채널을 자동으로 못 열었을 때 — 무엇을 하면 되는지 알려 준다 */
   function nudge() {
-    var el = document.querySelector('.howto');
-    if (!el || document.getElementById('nudge')) return;
+    if (document.getElementById('nudge')) return;
     var d = document.createElement('div');
     d.id = 'nudge';
-    d.innerHTML = '왼쪽 절반으로 붙었습니다 — <b>이 창 아무 곳이나 한 번 누르면</b> 오른쪽이 열립니다.'
-      + '<br><span style="font-weight:600">이 한 번도 없애려면 <b>학원 목록 화면</b>의 주소창 왼쪽 아이콘 → 사이트 설정 → '
-      + '<b>팝업 및 리디렉션 → 허용</b> 한 뒤, 교습비 링크를 <b>다시</b> 누르세요. 그때 뜨는 대조창은 '
-      + '처음부터 창이라 열기 한 번에 두 화면이 붙습니다. (허용은 이 창에는 소급되지 않습니다 — '
-      + '이 창은 주소가 blob: 으로 시작하는 옮겨 온 창이라 그 설정의 대상이 아닙니다.)</span>';
-    d.setAttribute('style', 'margin-top:8px;font-weight:800;color:#b45309;line-height:1.7');
-    el.appendChild(d);
-    el.open = true;
+    d.innerHTML = '왼쪽 절반으로 붙었습니다 — <b>이 창 아무 곳이나 한 번 누르면</b> 오른쪽이 열립니다.';
+    d.setAttribute('style', 'position:fixed;left:0;right:0;top:0;z-index:9999;padding:10px 14px;'
+      + 'background:#fffbeb;border-bottom:1px solid #fde68a;color:#b45309;font-weight:800;text-align:center');
+    document.body.appendChild(d);
   }
   function unNudge() {
     var d = document.getElementById('nudge');
@@ -696,25 +703,6 @@ const SPLIT_SCRIPT = `<script>
   });
 
   window.addEventListener('pagehide', function () { if (timer) clearInterval(timer); });
-
-  // 탭으로 열렸으면 누르기 전에 미리 알려 준다 — 눌러 보고 나서야 알면 늦다.
-  // 여기 적힌 대로 한 번만 해 두면 이 뒤로는 열기 한 번에 두 화면이 붙는다.
-  if (!IS_WINDOW) {
-    var el = document.querySelector('.howto');
-    if (el) {
-      var d = document.createElement('div');
-      d.id = 'tabhint';   // 창으로 옮겨 갈 때는 복제본에 딸려가지 않게 떼어낸다 (promote)
-      d.setAttribute('style', 'margin-top:8px;font-weight:700;color:#b45309;line-height:1.7');
-      d.innerHTML = (BLOCKED
-        ? '이 대조창은 <b>팝업이 막혀 탭으로</b> 열렸습니다.'
-        : '이 대조창은 <b>탭으로</b> 열렸습니다.')
-        + ' 탭은 스스로 자리를 못 옮겨, 열기를 누르면 한 번 더 손이 갑니다.'
-        + '<br><span style="font-weight:600">한 번만 해 두면 됩니다 — <b>학원 목록 화면</b>에서 주소창 왼쪽 아이콘 → '
-        + '사이트 설정 → <b>팝업 및 리디렉션 → 허용</b> → 그 목록 화면을 <b>새로고침(F5)</b> → 교습비를 다시 누르기. '
-        + '설정만 바꾸고 새로고침하지 않으면 그 탭에는 아직 적용되지 않습니다.</span>';
-      el.appendChild(d);
-    }
-  }
 
   if (PROMOTED) {
     // 닫으면 돌아갈 자리는 '원래 대조창이 뜨던 크기' 다 — 옮겨 오기 전 탭의 크기가 아니라.
@@ -811,10 +799,6 @@ export function buildTuitionCompareHtml(academy, result, { numberLabel } = {}) {
   a.open { display: inline-block; color: #2563eb; font-weight: 600; font-size: 0.8rem;
            text-decoration: none; border: 1px solid #bfdbfe; border-radius: 6px;
            padding: 2px 8px; margin-right: 4px; white-space: nowrap; }
-  .howto { background: #fffbeb; border-color: #fde68a; font-size: 0.84rem; color: #78350f; padding: 10px 18px; }
-  .howto summary { cursor: pointer; }
-  .howto-body { margin-top: 8px; }
-  .kbd { border: 1px solid #d6bd8a; border-radius: 5px; padding: 0 5px; background: #fff; font-size: 0.8rem; }
   .src { font-size: 0.78rem; font-weight: 700; color: #475569; white-space: nowrap; }
   .grid td.mid .fee { white-space: normal; text-align: center; line-height: 1.35; }
   .ctx { font-size: 0.76rem; color: #64748b; }
@@ -835,7 +819,7 @@ export function buildTuitionCompareHtml(academy, result, { numberLabel } = {}) {
                 font-weight: 700; cursor: pointer; }
   .bar .p { background: #2563eb; color: #fff; } .bar .c { background: #e2e8f0; color: #334155; }
   /* 인쇄 — A4 세로 1~2장에 들어가게.
-     화면용 사용법·설명 문구·열기 단추는 빼고(종이에서는 누를 수 없다), 글자와 여백을 줄인다.
+     화면용 설명 문구·열기 단추는 빼고(종이에서는 누를 수 없다), 글자와 여백을 줄인다.
      글자 크기는 모두 rem 이라 html 한 곳만 줄이면 함께 줄어든다. */
   @page { size: A4 portrait; margin: 10mm; }
   @media print {
@@ -843,7 +827,7 @@ export function buildTuitionCompareHtml(academy, result, { numberLabel } = {}) {
     body { background: #fff; padding: 0; line-height: 1.4;
            -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .wrap { max-width: none; }
-    .bar, .howto, .tip, .act { display: none !important; }
+    .bar, .tip, .act { display: none !important; }
     .card { border-color: #cbd5e1; border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; }
     /* ①② 는 위아래로 — A4 폭에 나란히 두면 표가 눌려 못 읽는다 */
     .cols { grid-template-columns: 1fr; gap: 0; }
@@ -877,18 +861,6 @@ export function buildTuitionCompareHtml(academy, result, { numberLabel } = {}) {
     <div class="regno">${esc(label)} <b>제${esc(regNo)}호</b><small>광고물에 이 번호가 그대로 적혀 있어야 합니다</small></div>
   </div>
 
-  <!-- 한 번 읽으면 되는 사용법이라 접어 둔다 (펼치면 예전 안내 그대로). 인쇄에서는 아예 뺀다 -->
-  <details class="card howto">
-    <summary><b><span class="kbd">열기</span> 사용법</b> <span class="dim">— 나란히 보기 · 팝업 설정 (눌러서 펼치기)</span></summary>
-    <div class="howto-body">
-    <b>오른쪽 <span class="kbd">열기</span>를 누르면 이 창이 화면 왼쪽 절반, 그 채널이 오른쪽 절반으로 붙습니다.</b>
-    자동 조사는 <b>글자로 적힌 금액</b>만 신고 금액과 맞춰 봅니다 —
-    가격표가 <b>이미지</b>인 곳은 여기서 사람이 봐야 합니다. 나란히 놓인 두 화면의 금액을 맞춰 보고,
-    다 봤으면 오른쪽 창을 닫으세요 — 이 창은 저절로 제자리로 돌아옵니다.
-    <span class="dim">(플레이스·블로그·홈페이지·인스타·카페 모두 같습니다. Ctrl+클릭은 예전처럼 새 탭입니다.)</span>
-    </div>
-  </details>
-
   <div class="cols">
     <div class="card">
       <h2>① 신고한 교습비 · ${esc(label)}</h2>
@@ -919,8 +891,6 @@ ${READ_SCRIPT}
 export function openTuitionCompare(academy, result, opts) {
     const html = buildTuitionCompareHtml(academy, result, opts);
     if (openHtmlPopup(html, { width: 1240, fallback: false })) return;
-    // 창으로 못 떴다 — 탭으로 물러나되 '왜 탭인지' 를 화면이 스스로 말하게 한다.
-    // 이걸 적어 두지 않으면, 반반으로 안 붙는 이유가 브라우저 설정이라는 것을
-    // 쓰는 사람은 알 길이 없다 (실제로 여기서 한참 헤맸다).
-    openHtmlWindow(html.replace('<html ', '<html data-popupblocked="1" '));
+    // 창으로 못 떴다 — 탭으로 연다 (열기를 누르면 SPLIT_SCRIPT 가 창으로 옮긴다)
+    openHtmlWindow(html);
 }
