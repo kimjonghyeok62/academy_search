@@ -17,6 +17,7 @@ import {
     rowCells, parseChannels, assignBuckets, effectiveVerdict, currentPlaceUrl, placeMapUrl, isNoPlace,
     placeMapSearchUrl, shortAddress, cellKey, BUCKETS, BUCKET_LABEL, VERDICT_COLOR,
 } from './snsCheck';
+import { currentInstructors } from './riskChecks';
 
 // 학원명·과목명·비고는 시트에서 온 자유 텍스트다. '<' 하나가 섞이면 문서가 통째로 깨진다.
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => (
@@ -73,6 +74,23 @@ function timeCell(c) {
     if (!s) return head;
     return `${head}<div class="sub">≈ 주${s.sessions}회 · 회당 ${s.minutes}분`
         + `${weeklyTotal ? ` (주당 ${weeklyTotal}분)` : ''}<span class="guess">추정</span></div>`;
+}
+
+/**
+ * 신고한 기타경비 금액 — 항목 하나하나와 과정별 합계.
+ *
+ * 네이버에 '차량비 20,000원' 이 적혀 있으면 교습비 쪽 대조에서는 '범위 밖' 으로 걸린다.
+ * 그런데 그건 교습비가 아니라 신고한 기타경비를 그대로 적어 둔 것이라 잘못이 아니다.
+ * 그래서 이 금액들은 '신고한 금액과 같음' 으로 본다.
+ */
+function declaredOtherFees(courses) {
+    const out = new Set();
+    courses.forEach((c) => {
+        const vals = OTHER_FEES.map((it) => parseNum(c[it.key])).filter((n) => n > 0);
+        vals.forEach((n) => out.add(n));
+        if (vals.length > 1) out.add(vals.reduce((s, n) => s + n, 0));
+    });
+    return [...out].sort((x, y) => x - y);
 }
 
 /** 기타경비 칸 — 0 이 아닌 항목만 */
@@ -237,7 +255,7 @@ function readConfig(placeId, blogUrl, courses, name) {
     const declared = [...new Set(courses.map((c) => parseNum(c.tuitionFee || c.totalFee))
         .filter((n) => n > 0))].sort((x, y) => x - y);
     const origin = typeof location !== 'undefined' ? location.origin : '';
-    const cfg = { api: `${origin}/api/tuition-read`, placeId, blogUrl, declared, name };
+    const cfg = { api: `${origin}/api/tuition-read`, placeId, blogUrl, declared, other: declaredOtherFees(courses), name };
     // '<' 를 그대로 두면 문자열 안의 '</script>' 하나로 문서가 끊긴다
     return `<script>var READ_CFG = ${JSON.stringify(cfg).replace(/</g, '\u003c')};</script>`;
 }
@@ -259,6 +277,9 @@ const READ_SCRIPT = `<script>
   var D = READ_CFG.declared || [];
   var DSET = {}, DMIN = D.length ? D[0] : 0, DMAX = D.length ? D[D.length - 1] : 0;
   D.forEach(function (n) { DSET[n] = true; });
+  // 신고한 기타경비(차량비 등) — 교습비가 아니라 이 금액을 적어 둔 것이면 잘못이 아니다
+  var OSET = {};
+  (READ_CFG.other || []).forEach(function (n) { if (!DSET[n]) OSET[n] = true; });
 
   function esc(v) {
     return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
@@ -277,6 +298,7 @@ const READ_SCRIPT = `<script>
     if (!amount) return '';
     if (!D.length) return '<span class="dim">신고 자료 없음</span>';
     if (DSET[amount]) return '<span class="cmp-ok">✓ 신고금액과 같음</span>';
+    if (OSET[amount]) return '<span class="cmp-ok">✓ 신고한 기타경비와 같음</span>';
     if (amount < DMIN || amount > DMAX) return '<span class="cmp-bad">⚠ 신고 범위 밖</span>';
     return '<span class="cmp-warn">신고 목록에 없는 금액</span>';
   }
@@ -292,7 +314,7 @@ const READ_SCRIPT = `<script>
   // 값이 셋도 안 되면 무엇이 예외인지 말할 근거가 없으므로 아무것도 하지 않는다.
   var ODD = {};
   function markOdd(list) {
-    var a = list.filter(function (n) { return n > 0; }).sort(function (x, y) { return x - y; });
+    var a = list.filter(function (n) { return n > 0 && !OSET[n]; }).sort(function (x, y) { return x - y; });
     if (a.length < 3) return;
     var mid = a.length % 2 ? a[(a.length - 1) / 2] : (a[a.length / 2 - 1] + a[a.length / 2]) / 2;
     a.forEach(function (n) {
@@ -320,10 +342,10 @@ const READ_SCRIPT = `<script>
     if (!amounts.length) { el.innerHTML = empty ? '<span class="dim">' + empty + '</span>' : ''; return; }
     var shown = amounts.slice(0, 6);
     el.innerHTML = '적힌 교습비 ' + shown.map(function (n) {
-      var cls = DSET[n] ? '' : (n < DMIN || n > DMAX ? 'cmp-bad' : 'cmp-warn');
+      var cls = DSET[n] || OSET[n] ? '' : (n < DMIN || n > DMAX ? 'cmp-bad' : 'cmp-warn');
       var odd = ODD[n];
       return '<b class="' + cls + (odd ? ' oddmark' : '') + '"'
-        + (odd ? ' title="' + esc(odd) + '"' : '') + '>'
+        + (odd ? ' title="' + esc(odd) + '"' : OSET[n] ? ' title="신고한 기타경비와 같은 금액"' : '') + '>'
         + Number(n).toLocaleString('ko-KR') + (odd ? '⚠' : '') + '</b>';
     }).join(' · ') + '원'
       + (amounts.length > shown.length ? ' 외 ' + (amounts.length - shown.length) + '건' : '');
@@ -726,6 +748,16 @@ export function buildTuitionCompareHtml(academy, result, { numberLabel } = {}) {
     const baseDate = a.changeDate || a.regDate || '';
     const verdict = result ? effectiveVerdict(result) : '미조사';
     const addr = shortAddress(a.address);
+    // 머리줄에 설립·운영자, 연락처, 강사 수를 함께 — 전화로 물어볼 때 창을 옮기지 않게
+    const founder = a.founder || {};
+    const contact = [founder.phone, founder.mobile].map((v) => String(v || '').trim())
+        .filter((v, i, arr) => v && arr.indexOf(v) === i).join(' / ');
+    const teachers = category === '학원' && Array.isArray(a.instructors) ? currentInstructors(a).length : null;
+    const people = [
+        founder.name ? `${category === '교습소' ? '교습자' : '설립·운영자'} ${founder.name}` : '',
+        contact ? `연락처 ${contact}` : '',
+        teachers !== null ? `강사 ${teachers}명` : '',
+    ].filter(Boolean);
     // '적힌 금액' 을 읽어올 곳 — 플레이스(가격메뉴·가격표 이미지)와 대표 블로그.
     // 사람이 '플레이스 없음' 이라고 확인해 준 곳은 읽지 않는다 (물고 온 후보는 남의 업체다).
     const placeId = result && !isNoPlace(result) ? String(result.플레이스ID || '') : '';
@@ -839,6 +871,7 @@ export function buildTuitionCompareHtml(academy, result, { numberLabel } = {}) {
     <div class="meta">
       ${esc(category)} · ${esc(label)} ${esc(regNo)}${addr ? ` · ${esc(addr)}` : ''}
       ${baseDate ? ` · 신고 기준일 ${esc(baseDate)}` : ''}
+      ${people.map((t) => ` · ${esc(t)}`).join('')}
     </div>
     ${range ? `<div class="range">월 ${esc(range)}<small>신고된 월 교습비 범위</small></div>` : ''}
     <div class="regno">${esc(label)} <b>제${esc(regNo)}호</b><small>광고물에 이 번호가 그대로 적혀 있어야 합니다</small></div>
