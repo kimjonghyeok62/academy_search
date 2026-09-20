@@ -6,6 +6,7 @@ import { printTuitionForm, printTuitionFormExternal } from '../utils/generateTui
 import { saveGuidanceContent } from '../utils/inspectionSheets';
 import SnsDetailPanel from './SnsDetailPanel';
 import { placeOpenUrl, pinnedPlaceUrl, prefetchSnsChecks, recordKey } from '../utils/snsCheck';
+import { parseKoDate } from '../utils/insurance';
 
 // 교습과정 정렬: 교습과정 → 레벨(유아<초등/초급<중등/중급<고등/고급<입시) → 과목기본명 자연정렬 → 주회수
 function sortCourses(courses) {
@@ -1262,11 +1263,13 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
         return match ? match[1].trim() : address;
     };
 
-    // Check if insurance is expired
+    // 보험 만료 여부 — 표(insuranceStatus)와 같은 규칙으로 본다.
+    // new Date('20260111') 은 Invalid Date 라 학원 자료에서는 만료를 아예 못 잡았다.
     const isInsuranceExpired = (endDate) => {
-        if (!endDate) return false;
+        const end = parseKoDate(endDate);
+        if (!end) return false;
         const today = new Date();
-        const end = new Date(endDate);
+        today.setHours(0, 0, 0, 0);   // 오늘 끝나는 보험은 아직 유효하다
         return end < today;
     };
 
@@ -2207,6 +2210,11 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
                     const n = Number((val || '').toString().replace(/[^0-9]/g, ''));
                     return isNaN(n) ? 0 : n;
                 };
+                // 교습소 자료는 '1,000,000,000', 학원 자료는 '1000000000' 으로 온다 — 보기에는 같게 둔다
+                const won = (val) => {
+                    const n = parseAmt(val);
+                    return n > 0 ? `${n.toLocaleString('ko-KR')}원` : '-';
+                };
                 const COMP_THRESHOLD = isGyoseupso ? 500_000_000 : 1_000_000_000;
                 const MEDICAL_THRESHOLD = 30_000_000;
                 const PER_PERSON_THRESHOLD = 150_000_000;
@@ -2227,9 +2235,9 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
                                     <InfoRow label="계약업체" value={ins.contractor} />
                                     <InfoRow label="계약번호" value={ins.policyNumber} />
                                     <InfoRow label="강사수" value={`${ins.teachersCount}명`} />
-                                    <InfoRow label="사고당배상" value={`${ins.compensationPerAccident}원`} highlight={compStatus} />
-                                    <InfoRow label="인당의료실비" value={`${ins.medicalPerPerson}원`} highlight={medicalStatus} />
-                                    <InfoRow label="인당배상" value={`${ins.compensationPerPerson}원`} highlight={perPersonStatus} />
+                                    <InfoRow label="사고당배상" value={won(ins.compensationPerAccident)} highlight={compStatus} />
+                                    <InfoRow label="인당의료실비" value={won(ins.medicalPerPerson)} highlight={medicalStatus} />
+                                    <InfoRow label="인당배상" value={won(ins.compensationPerPerson)} highlight={perPersonStatus} />
                                     <InfoRow
                                         label="보험기간"
                                         value={`${ins.startDate} ~ ${ins.endDate}`}

@@ -19,10 +19,16 @@ const num = (v) => {
     return Number.isFinite(n) ? n : 0;
 };
 
-/** 'YYYY.M.D' · 'YYYY-MM-DD' — 검토 탭의 toDateRev 와 같은 규칙 */
+/** 'YYYY.M.D' · 'YYYY-MM-DD' · 'YYYYMMDD'(학원조회) — 검토 탭의 toDateRev 와 같은 규칙 */
 export function toDateR(s) {
-    const m = String(s || '').match(/(\d{4})[.\-/]\s*(\d{1,2})[.\-/]\s*(\d{1,2})/);
-    return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null;
+    const str = String(s || '');
+    const m = str.match(/(\d{4})[.\-/]\s*(\d{1,2})[.\-/]\s*(\d{1,2})/);
+    if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    const c = str.match(/^\s*(\d{4})(\d{2})(\d{2})\s*$/);
+    if (c && +c[1] >= 1900 && +c[1] <= 2199 && +c[2] >= 1 && +c[2] <= 12 && +c[3] >= 1 && +c[3] <= 31) {
+        return new Date(Number(c[1]), Number(c[2]) - 1, Number(c[3]));
+    }
+    return null;
 }
 
 const idKey = (type, id) => `${type}|${id}`;

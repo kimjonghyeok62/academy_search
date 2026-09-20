@@ -1934,8 +1934,15 @@ function TabStats({ region, statRows, academies, privateTutors, academyClosures,
 // ───────────────────────────────────────────────
 const toDateRev = (s) => {
     // Allow optional spaces after separators (e.g. "2026. 2. 20")
-    const m = (s || '').match(/(\d{4})[\.\-\/]\s*(\d{1,2})[\.\-\/]\s*(\d{1,2})/);
-    return m ? new Date(parseInt(m[1]), parseInt(m[2]) - 1, parseInt(m[3])) : null;
+    const str = (s || '').toString();
+    const m = str.match(/(\d{4})[\.\-\/]\s*(\d{1,2})[\.\-\/]\s*(\d{1,2})/);
+    if (m) return new Date(parseInt(m[1]), parseInt(m[2]) - 1, parseInt(m[3]));
+    // 학원조회 시트는 구분기호 없이 '20260220' 으로 내보낸다 (보험일·지도점검 받은 일자 등)
+    const c = str.match(/^\s*(\d{4})(\d{2})(\d{2})\s*$/);
+    if (c && +c[1] >= 1900 && +c[1] <= 2199 && +c[2] >= 1 && +c[2] <= 12 && +c[3] >= 1 && +c[3] <= 31) {
+        return new Date(parseInt(c[1]), parseInt(c[2]) - 1, parseInt(c[3]));
+    }
+    return null;
 };
 
 function TabReview({ region, academies, privateTutors, academyClosures, onSelectAcademy, addrDongCacheVer, initialOpenSections, initialSubTab, supplementLoading, onSubStateChange }) {
