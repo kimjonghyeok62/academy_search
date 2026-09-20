@@ -1,13 +1,18 @@
 import React from 'react';
+import { useRegion } from '../RegionContext';
 
 export default function StandardPriceTable({ onBack }) {
+  const { region, officeName, rows, effectiveDate, tutoringHourlyRate } = useRegion();
+  const rated = rows.filter(r => r.rate > 0);
+  const average = rated.length ? (rated.reduce((sum, r) => sum + r.rate, 0) / rated.length).toFixed(2) : '';
+
   return (
     <div style={{ maxWidth: '900px', margin: '0 auto', padding: '20px', backgroundColor: '#fff', minHeight: '100vh', fontFamily: 'sans-serif' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
         <h2 style={{ fontSize: '1.4rem', fontWeight: 'bold', color: '#111827', margin: 0 }}>
-          광주하남교육지원청 학원·교습소 교습비 세부내역
+          {region ? `${officeName} 학원·교습소 교습비 세부내역` : '학원·교습소 교습비 세부내역'}
         </h2>
-        <button
+        <button 
           onClick={onBack}
           style={{
             padding: '8px 16px',
@@ -29,8 +34,21 @@ export default function StandardPriceTable({ onBack }) {
           홈페이지로 돌아가기
         </button>
       </div>
-
-      <div style={{ textAlign: 'right', fontSize: '0.9rem', color: '#4b5563', marginBottom: '10px', fontWeight: '500' }}>(단위: 원)</div>
+      
+      {!region ? (
+        <div style={{ padding: '14px', marginBottom: '40px', backgroundColor: '#fffbeb', border: '1px solid #fcd34d', borderRadius: '8px', color: '#92400e' }}>
+          첫 화면 맨 위에서 지역(교육지원청)을 먼저 선택하세요.
+        </div>
+      ) : !rows.length ? (
+        <div style={{ padding: '14px', marginBottom: '40px', backgroundColor: '#fffbeb', border: '1px solid #fcd34d', borderRadius: '8px', color: '#92400e' }}>
+          {officeName}은(는) 아직 기준단가가 입력되지 않았습니다. 관할 교육지원청에 문의하세요.
+        </div>
+      ) : (
+      <>
+      <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px', fontSize: '0.9rem', color: '#4b5563', marginBottom: '10px', fontWeight: '500' }}>
+        <span>개인과외 시간당 기준: {tutoringHourlyRate > 0 ? `${tutoringHourlyRate.toLocaleString()}원` : '미입력'}</span>
+        <span>(단위: 원)</span>
+      </div>
 
       <div style={{ overflowX: 'auto', marginBottom: '40px', borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
@@ -39,7 +57,6 @@ export default function StandardPriceTable({ onBack }) {
               <th style={{ padding: '12px 10px', borderRight: '1px solid #e2e8f0', color: '#334155' }}>시도</th>
               <th style={{ padding: '12px 10px', borderRight: '1px solid #e2e8f0', color: '#334155' }}>교육지원청</th>
               <th style={{ padding: '12px 10px', borderRight: '1px solid #e2e8f0', color: '#334155' }}>분야</th>
-              <th style={{ padding: '12px 10px', borderRight: '1px solid #e2e8f0', color: '#334155' }}>계열</th>
               <th style={{ padding: '12px 10px', borderRight: '1px solid #e2e8f0', color: '#334155' }}>교습과정</th>
               <th style={{ padding: '12px 10px', borderRight: '1px solid #e2e8f0', color: '#334155' }}>교습과목(반)</th>
               <th style={{ padding: '12px 10px', borderRight: '1px solid #e2e8f0', color: '#1d4ed8', fontWeight: 'bold' }}>분당단가</th>
@@ -47,37 +64,25 @@ export default function StandardPriceTable({ onBack }) {
             </tr>
           </thead>
           <tbody>
-            {[
-              ['경기', '광주하남', '입시ㆍ보습', '보통교과', '보습', '단과(초등)', '210', '2024-12-26'],
-              ['경기', '광주하남', '입시ㆍ보습', '보통교과', '보습', '단과(중등)', '222', '2024-12-26'],
-              ['경기', '광주하남', '입시ㆍ보습', '보통교과', '보습', '단과(고등)', '234', '2024-12-26'],
-              ['경기', '광주하남', '입시ㆍ보습', '진학지도', '진학상담, 지도', '진학상담, 지도', '234', '2024-12-26'],
-              ['경기', '광주하남', '국제화', '외국어', '어학', '어학', '259', '2024-12-26'],
-              ['경기', '광주하남', '예능', '예능', '음악', '유,초,중,고', '224', '2024-12-26'],
-              ['경기', '광주하남', '예능', '예능', '음악', '입시', '336', '2024-12-26'],
-              ['경기', '광주하남', '예능', '예능', '미술', '유,초,중,고', '212', '2024-12-26'],
-              ['경기', '광주하남', '예능', '예능', '미술', '입시', '255', '2024-12-26'],
-              ['경기', '광주하남', '예능', '예능', '무용', '유,초,중,고', '212', '2024-12-26'],
-              ['경기', '광주하남', '예능', '예능', '무용', '입시', '255', '2024-12-26'],
-              ['경기', '광주하남', '정보', '정보', '정보', '일반', '230', '2024-12-26'],
-              ['경기', '광주하남', '기타', '기타', '기타', '일반', '230', '2024-12-26'],
-            ].map((row, idx) => (
-              <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0', backgroundColor: idx % 2 === 0 ? '#fff' : '#f8fafc' }}>
-                {row.map((cell, cIdx) => (
-                  <td key={cIdx} style={{ padding: '10px 12px', borderRight: cIdx < 7 ? '1px solid #e2e8f0' : 'none', color: cIdx === 6 ? '#1d4ed8' : '#475569', fontWeight: cIdx === 6 ? '700' : '400' }}>
+            {rows.map((row, idx) => (
+              <tr key={row.id} style={{ borderBottom: '1px solid #e2e8f0', backgroundColor: idx % 2 === 0 ? '#fff' : '#f8fafc' }}>
+                {['경기', region, row.field, row.process, row.subject, row.rate > 0 ? String(row.rate) : '미입력', effectiveDate].map((cell, cIdx) => (
+                  <td key={cIdx} style={{ padding: '10px 12px', borderRight: cIdx < 6 ? '1px solid #e2e8f0' : 'none', color: cIdx === 5 ? '#1d4ed8' : '#475569', fontWeight: cIdx === 5 ? '700' : '400' }}>
                     {cell}
                   </td>
                 ))}
               </tr>
             ))}
             <tr style={{ backgroundColor: '#eff6ff', fontWeight: 'bold' }}>
-              <td colSpan="6" style={{ padding: '12px 10px', borderRight: '1px solid #e2e8f0', textAlign: 'center', color: '#1e3a8a' }}>평균</td>
-              <td style={{ padding: '12px 10px', borderRight: '1px solid #e2e8f0', color: '#1d4ed8' }}>239.46</td>
+              <td colSpan="5" style={{ padding: '12px 10px', borderRight: '1px solid #e2e8f0', textAlign: 'center', color: '#1e3a8a' }}>평균</td>
+              <td style={{ padding: '12px 10px', borderRight: '1px solid #e2e8f0', color: '#1d4ed8' }}>{average}</td>
               <td style={{ padding: '12px 10px' }}></td>
             </tr>
           </tbody>
         </table>
       </div>
+      </>
+      )}
 
       <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#111827', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '8px' }}>
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1d4ed8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
