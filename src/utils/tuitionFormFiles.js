@@ -13,7 +13,7 @@
 // (12KB 를 더 받게 하려고 여섯 줄을 아끼지 않는다).
 
 /** 만든 파일을 내려받게 한다 */
-function download(blob, filename) {
+export function download(blob, filename) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -147,4 +147,36 @@ export async function downloadFormJpg(iframe, academyName, kindLabel) {
         const tail = targets.length > 1 ? `_${i + 1}` : '';
         download(blob, formFileName(academyName, `${kindLabel}${tail}`, 'jpg'));
     }
+}
+
+// ── 화면에 없는 게시표를 그림으로 ───────────────────────
+// 게시표 예시 화면(/g/<토큰>)은 이미 iframe 에 그려 두고 그것을 넘기지만, 상세화면의
+// 교습비 탭에는 게시표가 그려져 있지 않다. html2canvas 는 브라우저가 이미 자리를 잡아
+// 놓은 것만 그리므로, 화면 밖(left:-10000px)에 A4 폭 iframe 을 잠깐 세워 같은 HTML 을
+// 그린 뒤 위와 같은 길로 보낸다 — 두 곳이 같은 그림을 내야 한다.
+const A4_FRAME_W = 900;   // 210mm(약 794px) 가 눌리지 않을 만큼
+const A4_FRAME_H = 1300;  // 297mm(약 1123px) 보다 넉넉히 — 넘치면 .page 가 알아서 늘어난다
+
+/** 게시표 HTML 을 화면 밖에 잠깐 그려 두고, 그 iframe 으로 무엇인가 한다 */
+async function withOffscreenForm(html, fn) {
+    const iframe = document.createElement('iframe');
+    iframe.setAttribute('aria-hidden', 'true');
+    iframe.style.cssText = `position:fixed; left:-10000px; top:0; width:${A4_FRAME_W}px; height:${A4_FRAME_H}px; border:0;`;
+    document.body.appendChild(iframe);
+    try {
+        const doc = iframe.contentDocument;
+        doc.open();
+        doc.write(stripPrintBar(html));
+        doc.close();
+        // 글꼴이 아직 안 왔으면 글자 너비가 달라져 표가 어긋난 채로 찍힌다
+        if (doc.fonts?.ready) await doc.fonts.ready;
+        return await fn(iframe);
+    } finally {
+        iframe.remove();
+    }
+}
+
+/** 게시표 HTML → .jpg (그려 둔 화면이 없을 때) */
+export function downloadFormJpgFromHtml(html, academyName, kindLabel) {
+    return withOffscreenForm(html, (iframe) => downloadFormJpg(iframe, academyName, kindLabel));
 }
