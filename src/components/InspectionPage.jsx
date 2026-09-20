@@ -1948,7 +1948,7 @@ const toDateRev = (s) => {
 function TabReview({ region, academies, privateTutors, academyClosures, onSelectAcademy, addrDongCacheVer, initialOpenSections, initialSubTab, supplementLoading, onSubStateChange }) {
     const city = region.endsWith('시') ? region : region + '시';
     // 데이터품질 9종 + 민원취약 12종. 민원취약 쪽은 riskChecks.js 의 항목 id 를 그대로 쓴다.
-    const DEFAULT_SECTIONS_REVIEW = { dateReverse: false, geoFail: false, dongUnclassified: false, noContact: false, hagwonClosure: false, dupReg: false, missingInfo: false, zipIssues: false, insCountMismatch: false };
+    const DEFAULT_SECTIONS_REVIEW = { dateReverse: false, geoFail: false, dongUnclassified: false, noContact: false, hagwonClosure: false, dupReg: false, missingInfo: false, zipIssues: false, insCountMismatch: false, badDate: false };
     const [openSections, setOpenSections] = useState(() => initialOpenSections || DEFAULT_SECTIONS_REVIEW);
     // 'risk' 를 기본으로 둔다 — 민원이 들어오기 전에 먼저 봐야 하는 쪽이다
     const [subTab, setSubTab] = useState(() => initialSubTab || 'risk');
@@ -2203,6 +2203,38 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
         }).filter(Boolean);
         return [...check(aActiveList, '학원'), ...check(hActiveList, '교습소')];
     }, [aActiveList, hActiveList]);
+
+    // 8c-2. 날짜를 못 읽은 칸 — 원본 시트의 형식이 바뀌면 바로 알아채기 위한 것.
+    //
+    // 2026년 9월, 학원조회 시트가 날짜를 구분기호 없이 '20260111' 로 내보내기 시작했다.
+    // toDateRev 가 못 읽어 학원 754곳이 전부 '보험 미가입' 으로 나왔는데, 화면은
+    // 멀쩡해 보여서 한참 모르고 있었다. 값이 있는데 날짜로 안 읽히면 여기 뜬다.
+    //
+    // 읽는 규칙을 그대로 쓰는 것이 중요하다 — toDateRev 가 읽는 것만 '읽은 것'이다.
+    const badDate = useMemo(() => {
+        const FIELDS = [
+            ['등록일', a => a.regDate],
+            ['상태변경일', a => a.statusDate],
+            ['변경일', a => a.changeDate],
+            ['지도점검일', a => a.niceInspectionDate],
+            ['준공일', a => a.facilities?.builtDate],
+        ];
+        return [...aList, ...hList].map(a => {
+            const bad = [];
+            FIELDS.forEach(([label, get]) => {
+                const v = String(get(a) ?? '').trim();
+                if (v && !toDateRev(v)) bad.push(`${label} ${v}`);
+            });
+            (a.insurances || []).forEach(ins => {
+                [['보험시작일', ins.startDate], ['보험종료일', ins.endDate]].forEach(([label, v]) => {
+                    const s = String(v ?? '').trim();
+                    if (s && !toDateRev(s)) bad.push(`${label} ${s}`);
+                });
+            });
+            if (!bad.length) return null;
+            return { type: a.category === '교습소' ? '교습소' : '학원', id: a.id, name: a.name, cells: bad.join(' · ') };
+        }).filter(Boolean);
+    }, [aList, hList]);
 
     // 8c(이전됨). 교습비 단가 기준 초과 → 민원취약 서브탭 (riskChecks.js 의 feeExceed 항목)
 
@@ -2577,6 +2609,30 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
                                 <Td style={{ fontWeight: '700', color: a.diff > 0 ? '#10b981' : '#ef4444', textAlign: 'center' }}>
                                     {a.diff > 0 ? `+${a.diff}` : a.diff}명
                                 </Td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </ReviewSection>
+
+            {/* 8c-2. 날짜를 못 읽은 칸 — 원본 시트 형식이 바뀌면 여기 숫자가 오른다 */}
+            <ReviewSection id="badDate" title="날짜를 못 읽은 칸" badge={badDate.length} badgeColor="#ef4444" alwaysShow>
+                {/* 0건이어도 보여 준다 — 지켜보고 있다는 것 자체가 이 검사의 값이다 */}
+                <div style={{ padding: '8px 0 12px', fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: '1.6' }}>
+                    값은 있는데 날짜로 읽히지 않는 칸입니다. <b>0이 정상</b>이고, 숫자가 오르면 원본 시트가
+                    날짜 형식을 바꾼 것입니다 (보험 만료일·미점검 판정이 조용히 틀어집니다).
+                </div>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead><tr>
+                        <Th>구분</Th><Th>등록번호</Th><Th>명칭</Th><Th>못 읽은 칸</Th>
+                    </tr></thead>
+                    <tbody>
+                        {badDate.map((a, i) => (
+                            <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
+                                <Td><span style={{ color: typeColor(a.type), fontWeight: '700', fontSize: '0.78rem' }}>{a.type}</span></Td>
+                                <Td style={{ color: 'var(--text-muted)', fontSize: '0.74rem' }}>{a.id || '-'}</Td>
+                                <Td><NameLink id={a.id} type={a.type} name={a.name} /></Td>
+                                <Td style={{ color: '#ef4444', fontSize: '0.76rem' }}>{a.cells}</Td>
                             </tr>
                         ))}
                     </tbody>
