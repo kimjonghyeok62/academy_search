@@ -3,6 +3,7 @@ import './DetailView.css';
 import AdminSanctionAccordion from './AdminSanctionAccordion';
 import FineGuideAccordion from './FineGuideAccordion';
 import TuitionExportButtons from './TuitionExportButtons';
+import { printInstructorForm, postableInstructors } from '../utils/generateInstructorForm';
 import { saveGuidanceContent } from '../utils/inspectionSheets';
 import SnsDetailPanel from './SnsDetailPanel';
 import { placeOpenUrl, pinnedPlaceUrl, prefetchSnsChecks, recordKey } from '../utils/snsCheck';
@@ -125,7 +126,7 @@ const eduShort = (edu) => {
 };
 
 // 강사 탭 컴포넌트
-function InstructorTab({ instructors = [], supplementLoading = false }) {
+function InstructorTab({ academy, instructors = [], supplementLoading = false }) {
     const [filter, setFilter] = useState('현직'); // '전체' | '현직' | '전직'
     const [subjectFilter, setSubjectFilter] = useState('전체');
 
@@ -142,6 +143,10 @@ function InstructorTab({ instructors = [], supplementLoading = false }) {
     const formerCount = instructors.filter(i => !!i.dismissDate).length;
     const foreignCount = instructors.filter(i => i.type && i.type.includes('외국인')).length;
 
+    // 게시표에 올릴 사람은 화면 필터와 상관없이 늘 현직이다 — 법이 요구하는 것은
+    // '지금 가르치는 강사'의 인적사항이라, 전직을 보고 있다고 전직이 붙을 수는 없다
+    const postable = postableInstructors(instructors);
+
     return (
         <div className="tab-content animate-enter">
             {/* 상단 통계 */}
@@ -156,6 +161,24 @@ function InstructorTab({ instructors = [], supplementLoading = false }) {
                     </div>
                 ))}
             </div>
+
+            {/* 강사게시표 출력 — 법 제13조제2항에 따라 학원이 붙여 두어야 하는 것 */}
+            <button
+                className="instructor-form-btn"
+                onClick={() => printInstructorForm(academy, instructors)}
+                disabled={postable.length === 0}
+                title={postable.length === 0 ? '현직 강사가 없어 만들 수 없습니다' : '별지 제15호서식으로 새 창에 띄웁니다'}
+            >
+                <span className="instructor-form-btn__icon" aria-hidden="true">🧾</span>
+                <span className="instructor-form-btn__text">
+                    강사게시표 만들기
+                    <span className="instructor-form-btn__sub">
+                        {postable.length > 0
+                            ? `현직 강사 ${postable.length}명 · 별지 제15호서식`
+                            : '현직 강사가 없습니다'}
+                    </span>
+                </span>
+            </button>
 
             {/* 필터 */}
             <div style={{ display: 'flex', gap: '8px', marginBottom: '14px', flexWrap: 'wrap', alignItems: 'center' }}>
@@ -2236,7 +2259,7 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
             }
             case 'instructor': {
                 return (
-                    <InstructorTab instructors={academy.instructors || []} supplementLoading={supplementLoading} />
+                    <InstructorTab academy={academy} instructors={academy.instructors || []} supplementLoading={supplementLoading} />
                 );
             }
             case 'assistant': {
