@@ -113,13 +113,28 @@ export function parseNum(val) {
 }
 
 // 징수단위에서 "0일" 제거 (예: "1개월0일" → "1개월")
-function formatPeriod(period) {
+export function formatPeriod(period) {
     if (!period) return '';
     return period.replace(/0일$/, '').trim();
 }
 
+/**
+ * 기타경비 항목 — 이름과 대장의 필드 이름.
+ *
+ * 게시표(내부용 표의 열 차례·외부용 항목 줄)와 한글 양식의 칸 차례가 이 순서를 따른다.
+ * 한 곳에서만 고칠 수 있어야 세 가지 출력이 서로 어긋나지 않는다.
+ */
+export const OTHER_FEE_ITEMS = [
+    { label: '모의고사비', key: 'mockExamFee' },
+    { label: '재료비',    key: 'materialFee' },
+    { label: '피복비',    key: 'clothingFee' },
+    { label: '급식비',    key: 'mealFee' },
+    { label: '기숙사비',  key: 'dormitoryFee' },
+    { label: '차량비',    key: 'vehicleFee' },
+];
+
 // 학원종류에 따른 설립운영자 표기 결정
-function getSignLabel(academy) {
+export function getSignLabel(academy) {
     const cat = (academy.category || '').trim();
     const name = academy.name || '';
     const founderName = academy.founder?.name || '';
@@ -158,13 +173,19 @@ export function formatChangeDateKo(dateStr) {
  * 것을 보고 대장과 맞춰 볼 근거도 없다. 교습소는 '등록'이 아니라 '신고'라 말이 다르다.
  * 번호는 이름보다 작게, 굵기 없이 적는다 — 제목은 어디까지나 이름이다.
  */
-function academyTitleHtml(academy) {
+export function getRegNoText(academy) {
     // 대장에는 숫자만 들어 있지만, 누가 '제1050호' 로 적어 두었더라도 '제제…호호' 가
     // 되지 않게 앞뒤를 털고 다시 붙인다
-    const no = String(academy.id || '').trim().replace(/^제/, '').replace(/호$/, '').trim();
-    if (!no) return academy.name;
-    const label = /교습소/.test(academy.category || '') ? '신고번호' : '등록번호';
-    return `${academy.name}<span class="form-reg-no">[${label} : 제${no}호]</span>`;
+    const no = String(academy?.id || '').trim().replace(/^제/, '').replace(/호$/, '').trim();
+    if (!no) return '';
+    const label = /교습소/.test(academy?.category || '') ? '신고번호' : '등록번호';
+    return `[${label} : 제${no}호]`;
+}
+
+function academyTitleHtml(academy) {
+    const regNo = getRegNoText(academy);
+    if (!regNo) return academy.name;
+    return `${academy.name}<span class="form-reg-no">${regNo}</span>`;
 }
 
 export function buildTuitionFormHtml(academy) {
@@ -590,14 +611,7 @@ export function buildTuitionFormExternalHtml(academy) {
         : `<span style="display:inline-block;width:60mm;border-bottom:1.5px solid #000;vertical-align:bottom;margin:0 4px;"></span>`;
 
     // 기타경비 항목 정의 (이름 + 필드키)
-    const otherFeeItems = [
-        { label: '모의고사비', key: 'mockExamFee' },
-        { label: '재료비',    key: 'materialFee' },
-        { label: '피복비',    key: 'clothingFee' },
-        { label: '급식비',    key: 'mealFee' },
-        { label: '기숙사비',  key: 'dormitoryFee' },
-        { label: '차량비',    key: 'vehicleFee' },
-    ];
+    const otherFeeItems = OTHER_FEE_ITEMS;
 
     // rowspan 방식: 기타경비 항목수만큼 행을 분리해 테두리가 정확히 맞도록 함
     const buildCourseRows = () => courses.map(c => {

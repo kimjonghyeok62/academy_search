@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import './DetailView.css';
 import AdminSanctionAccordion from './AdminSanctionAccordion';
 import FineGuideAccordion from './FineGuideAccordion';
-import { printTuitionForm, printTuitionFormExternal } from '../utils/generateTuitionPDF';
+import TuitionExportButtons from './TuitionExportButtons';
 import { saveGuidanceContent } from '../utils/inspectionSheets';
 import SnsDetailPanel from './SnsDetailPanel';
 import { placeOpenUrl, pinnedPlaceUrl, prefetchSnsChecks, recordKey } from '../utils/snsCheck';
@@ -1785,23 +1785,8 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
             case 'tuition':
                 return (
                     <div className="tab-content animate-enter">
-                        {/* 게시표 출력 버튼 (내부용 / 외부용) */}
-                        <div className="tuition-print-btns">
-                            <button
-                                className="tuition-print-btn tuition-print-btn--inner"
-                                onClick={() => printTuitionForm(academy)}
-                            >
-                                🖨️ <span className="btn-label-full">교습비등 게시표(내부용) 출력</span>
-                                   <span className="btn-label-short">내부용</span>
-                            </button>
-                            <button
-                                className="tuition-print-btn tuition-print-btn--outer"
-                                onClick={() => printTuitionFormExternal(academy)}
-                            >
-                                🖨️ <span className="btn-label-full">교습비등 게시표(외부용) 출력</span>
-                                   <span className="btn-label-short">외부용</span>
-                            </button>
-                        </div>
+                        {/* 게시표 내보내기 (내부용·외부용 × PDF·JPG·HWPX·TEXT) */}
+                        <TuitionExportButtons academy={academy} />
 
                         {/* 헤더: 총 개수 + 전체 펼침 버튼 */}
                         <div style={{
