@@ -819,3 +819,26 @@ export function transformAcademyData(rawRows, inspectionMap = new Map()) {
 
     return Array.from(academyMap.values());
 }
+
+/**
+ * 나이스 엑셀로 읽은 학원에 대장의 등록(신고)번호를 이름으로 찾아 붙인다.
+ *
+ * 나이스가 내려 주는 교습비 엑셀에는 등록번호 칸이 없다. 게시표 제목의
+ * '[등록번호 : 제1050호]' 와 등록신청서의 등록번호 칸이 이 값으로 적히므로,
+ * 이미 받아 둔 대장에서 찾아 채운다. 못 찾으면 그냥 둔다 — 번호가 없으면
+ * 제목에 이름만 적힐 뿐, 나머지는 그대로 나온다.
+ *
+ * 폐원한 곳까지 맞추면 같은 이름의 옛 학원 번호가 붙을 수 있어 개원·신고만 본다.
+ */
+export function attachRegNo(academies, masterAcademies) {
+    const key = (name) => String(name || '').replace(/\s+/g, '');
+    const byName = new Map();
+    (masterAcademies || [])
+        .filter(m => ['개원', '신고'].includes(m.status) && m.id)
+        .forEach(m => byName.set(key(m.name), m));
+    return (academies || []).map(a => {
+        const m = byName.get(key(a.name));
+        if (!m) return a;
+        return { ...a, id: a.id || m.id, category: a.category || m.category };
+    });
+}

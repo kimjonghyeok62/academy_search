@@ -1,0 +1,380 @@
+/* 학원(교습소) 교습비등 등록신청서 입력 화면 — 종이 서식처럼 보이도록 */
+
+.reg-sheet-wrap {
+  --reg-line: #333;
+  --reg-head: #eeeeee;
+  --reg-fill: #fffbe6;
+  --reg-fill-focus: #fff3bf;
+}
+
+/* PC: 앱 폭(600px)보다 넓게 펼쳐 한 과목을 한 줄에 */
+@media (min-width: 960px) {
+  .reg-sheet-wrap {
+    width: min(1120px, calc(100vw - 48px));
+    margin-left: calc((100% - min(1120px, calc(100vw - 48px))) / 2);
+  }
+}
+
+.reg-sheet-guide {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  font-size: 1rem;
+  color: #334155;
+  margin-bottom: 10px;
+  word-break: keep-all;
+}
+.reg-region-notice {
+  font-size: 0.95rem;
+  color: #92400e;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 10px;
+  line-height: 1.5;
+  word-break: keep-all;
+}
+.reg-sheet-guide-swatch {
+  display: inline-block;
+  width: 22px;
+  height: 16px;
+  background: var(--reg-fill);
+  border: 1px solid #e5c95a;
+  border-radius: 3px;
+}
+
+.reg-sheet {
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
+  padding: 28px 28px 24px;
+  font-family: '맑은 고딕', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+  color: #000;
+}
+
+.reg-sheet-title {
+  margin: 0 0 18px;
+  text-align: center;
+  font-size: 1.6rem;
+  font-weight: 800;
+  letter-spacing: 4px;
+  word-break: keep-all;
+}
+
+@media (min-width: 960px) and (max-width: 1199px) {
+  .reg-sheet { padding: 20px 16px; }
+  .reg-time select { max-width: 74px !important; }
+}
+
+/* ── 공통 표 선 ── */
+.reg-info,
+.reg-subjects {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.reg-info th,
+.reg-info td,
+.reg-subjects th,
+.reg-subjects td {
+  border: 1px solid var(--reg-line);
+  vertical-align: middle;
+}
+.reg-info th,
+.reg-subjects th {
+  background: var(--reg-head);
+  font-weight: 700;
+  text-align: center;
+  font-size: 1rem;
+  line-height: 1.35;
+  padding: 8px 4px;
+  word-break: keep-all;
+}
+.reg-info th { width: 15%; }
+.reg-info td { padding: 4px; }
+
+/* ── 적어 넣는 칸 ── */
+.reg-input {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 42px;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: var(--reg-fill);
+  font: inherit;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #000;
+  outline: none;
+}
+.reg-input:focus {
+  background: var(--reg-fill-focus);
+  border-color: #2563eb;
+}
+.reg-input::placeholder { color: #b8a878; font-weight: 400; }
+.reg-input-center { text-align: center; padding-left: 2px; padding-right: 2px; }
+.reg-input-num { text-align: center; }
+.reg-input-money { text-align: right; }
+.reg-select { padding: 6px 2px; cursor: pointer; }
+
+.reg-section-title,
+.reg-regtype {
+  border: 1px solid var(--reg-line);
+  border-top: none;
+}
+.reg-section-title {
+  background: #f7f7f7;
+  text-align: center;
+  font-weight: 800;
+  font-size: 1.1rem;
+  letter-spacing: 3px;
+  padding: 10px;
+}
+
+/* ── 신규등록/일부변경/전체변경 ── */
+.reg-regtype {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  padding: 10px 14px;
+}
+.reg-regtype-label { font-weight: 800; font-size: 1.1rem; letter-spacing: 3px; margin-right: 6px; }
+.reg-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+}
+.reg-check input { position: absolute; opacity: 0; pointer-events: none; }
+.reg-check-box {
+  width: 24px;
+  height: 24px;
+  border: 2px solid #111;
+  background: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  font-weight: 900;
+  color: #1d4ed8;
+}
+.reg-check.is-checked { color: #1d4ed8; font-weight: 800; }
+.reg-check.is-checked .reg-check-box { border-color: #1d4ed8; background: #eff6ff; }
+.reg-check.is-disabled { color: #9ca3af; cursor: default; }
+.reg-check.is-disabled .reg-check-box { border-color: #cbd5e1; }
+.reg-check:not(.is-disabled):hover { background: #f1f5f9; }
+.reg-check:focus-within .reg-check-box { outline: 2px solid #93c5fd; outline-offset: 2px; }
+
+/* ── 교습비 표 ── */
+.reg-subjects { border-top: none; }
+.reg-subjects thead th { border-top: none; }
+.reg-th-sub { font-size: 0.85rem; font-weight: 400; color: #444; margin-top: 3px; white-space: nowrap; }
+.reg-subjects td { padding: 5px 4px; }
+
+.reg-subjects .col-process { width: 11.5%; }
+.reg-subjects .col-subject { width: 11%; }
+.reg-subjects .col-period { width: 7%; }
+.reg-subjects .col-time { width: 40%; }
+.reg-subjects .col-capacity { width: 6.5%; }
+.reg-subjects .col-fee { width: 11%; }
+.reg-subjects .col-rate { width: 9.5%; }
+.reg-subjects .col-del { width: 40px; }
+
+/* 개인과외: 교습과정·정원 칸 없음 */
+.is-tutoring .reg-subjects .col-subject { width: 20%; }
+.is-tutoring .reg-subjects .col-period { width: 9%; }
+.is-tutoring .reg-subjects .col-time { width: 43%; }
+.is-tutoring .reg-subjects .col-fee { width: 14%; }
+.is-tutoring .reg-subjects .col-rate { width: 12%; }
+
+.reg-subjects tr.is-over td { background: #fff1f2; }
+
+.reg-time {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 2px;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+.reg-time-part { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+.reg-time select { background: var(--reg-fill) !important; border-color: #e5c95a !important; max-width: 80px !important; }
+.reg-time input { background: var(--reg-fill) !important; }
+.reg-op { color: #475569; font-size: 1.2rem; margin: 0 1px; }
+.reg-time-total { white-space: nowrap; }
+.reg-time-total strong { font-size: 1.2rem; font-weight: 900; color: #1d4ed8; margin-right: 2px; }
+
+.reg-unit-field { display: flex; align-items: center; gap: 3px; }
+.reg-unit { font-size: 1rem; font-weight: 600; flex-shrink: 0; }
+
+.reg-rate { text-align: center; line-height: 1.3; }
+.reg-rate-value { font-size: 1.15rem; font-weight: 900; white-space: nowrap; color: #334155; }
+.reg-rate-value.ok { color: #15803d; }
+.reg-rate-value.over { color: #dc2626; }
+.reg-rate-std { font-size: 0.85rem; color: #64748b; font-weight: 600; white-space: nowrap; }
+.reg-rate-max { font-size: 0.85rem; color: #b91c1c; font-weight: 700; margin-top: 2px; white-space: nowrap; }
+.reg-rate-empty { display: block; text-align: center; color: #9ca3af; font-size: 0.9rem; }
+
+.reg-del {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  box-shadow: none;
+  border: none;
+  background: transparent;
+  color: #9ca3af;
+  font-size: 1.2rem;
+  cursor: pointer;
+  border-radius: 6px;
+}
+.reg-del:hover { background: #fee2e2; color: #dc2626; transform: none; }
+.reg-del-text { display: none; }
+
+.reg-add {
+  width: 100%;
+  margin-top: 10px;
+  padding: 13px;
+  border: 2px dashed #94a3b8;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #334155;
+  font: inherit;
+  font-size: 1.1rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.reg-add:hover { background: #eef2ff; border-color: #6366f1; color: #4338ca; }
+
+/* ── 기타 할인사항 ── */
+.reg-discount {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr);
+  margin-top: 14px;
+  border: 1px solid var(--reg-line);
+}
+.reg-discount-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--reg-head);
+  border-right: 1px solid var(--reg-line);
+  font-weight: 800;
+  font-size: 1.05rem;
+  padding: 8px 4px;
+  text-align: center;
+  word-break: keep-all;
+}
+.reg-discount .reg-textarea { margin: 4px; width: calc(100% - 8px); }
+.reg-textarea { resize: vertical; line-height: 1.45; min-height: 58px; }
+
+/* ── 기타경비 표 ── */
+.reg-extra .col-extra-subject { width: 17%; }
+.reg-extra .col-extra-fee { width: 11%; }
+.reg-extra .col-extra-total { width: 13%; }
+.reg-extra-sum { display: block; text-align: right; padding-right: 6px; font-size: 1.1rem; font-weight: 900; color: #1d4ed8; white-space: nowrap; }
+.reg-extra-notice {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: #334155;
+  word-break: keep-all;
+}
+
+.reg-print {
+  width: 100%;
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 17px 16px;
+  border: none;
+  border-radius: 12px;
+  background: #1d4ed8;
+  color: #fff;
+  font: inherit;
+  font-size: 1.2rem;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 3px 10px rgba(29, 78, 216, 0.3);
+}
+.reg-print:hover { background: #1e40af; }
+
+/* ── 좁은 화면: 표 머리글을 숨기고 과목마다 칸을 세로로 쌓음 ── */
+@media (max-width: 959px) {
+  .reg-sheet { padding: 18px 12px 16px; }
+  .reg-sheet-title { font-size: 1.3rem; letter-spacing: 1px; }
+
+  .reg-info,
+  .reg-info tbody,
+  .reg-info tr { display: block; }
+  .reg-info tr { display: grid; grid-template-columns: 96px minmax(0, 1fr); }
+  .reg-info th,
+  .reg-info td { display: flex; align-items: center; width: auto; border-top: none; }
+  .reg-info tr:first-child th,
+  .reg-info tr:first-child td:first-of-type { border-top: 1px solid var(--reg-line); }
+  .reg-info th { justify-content: center; }
+  .reg-info td[colspan] { grid-column: auto; }
+
+  .reg-subjects,
+  .reg-subjects tbody,
+  .reg-subjects tr,
+  .reg-subjects td { display: block; width: auto !important; }
+  .reg-subjects thead { display: none; }
+  .reg-subjects tr {
+    position: relative;
+    border: 1px solid var(--reg-line);
+    border-top: none;
+  }
+  .reg-subjects tr + tr { border-top: 3px double var(--reg-line); }
+  .reg-subjects td {
+    display: grid;
+    grid-template-columns: 96px minmax(0, 1fr);
+    column-gap: 6px;
+    align-items: center;
+    border: none;
+    border-top: 1px solid #cbd5e1;
+    padding: 0 6px 0 0;
+  }
+  .reg-subjects td:first-child { border-top: none; }
+  .reg-subjects td::before {
+    content: attr(data-label);
+    align-self: stretch;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    background: var(--reg-head);
+    border-right: 1px solid #cbd5e1;
+    font-weight: 700;
+    font-size: 0.95rem;
+    padding: 6px 4px;
+    word-break: keep-all;
+  }
+  .reg-subjects td > * { margin: 5px 0; min-width: 0; }
+  .reg-subjects td.col-del { display: block; text-align: right; padding: 2px 6px; }
+  .reg-subjects td.col-del::before { content: none; }
+  .reg-subjects td.col-del > * { margin: 0; }
+  .reg-del { width: auto; height: auto; padding: 6px 10px; font-size: 0.95rem; font-weight: 700; }
+  .reg-del-text { display: inline; }
+  .reg-subjects td.col-capacity .reg-unit-field,
+  .reg-subjects td.col-fee .reg-unit-field { max-width: 220px; }
+  .reg-rate { text-align: left; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; }
+  .reg-rate-empty { text-align: left; }
+
+  .reg-discount { grid-template-columns: 96px minmax(0, 1fr); }
+  .reg-discount-label { font-size: 0.95rem; }
+  .reg-subjects td.col-extra-fee .reg-unit-field { max-width: 220px; }
+  .reg-extra-sum { text-align: left; }
+}

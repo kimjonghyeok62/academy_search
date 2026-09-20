@@ -1145,7 +1145,7 @@ function App() {
                 fontWeight: '700',
                 color: 'var(--text-main)'
               }}>
-                교습비 검토
+                교습비 계산·게시표
               </span>
             </div>
             <div style={{
