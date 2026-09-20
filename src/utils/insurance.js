@@ -7,10 +7,22 @@
 // 에도 있다. 세 곳을 한 번에 바꾸는 것은 이 변경의 범위를 넘어서므로 여기 새로 두고,
 // 나중에 그 둘을 이쪽으로 모으면 된다.
 
-/** '2026.02.20' · '2026-2-20' · '2026. 2. 20' → Date (못 읽으면 null) */
+/**
+ * '2026.02.20' · '2026-2-20' · '2026. 2. 20' · '20260220' → Date (못 읽으면 null)
+ *
+ * 구분기호 없는 '20260220' 은 학원조회 시트가 내보내는 꼴이다. googleSheets.js 가
+ * 보험 날짜는 이미 '2026-02-20' 으로 맞춰 주지만, 다른 날짜 칸도 같은 꼴로 오므로
+ * 여기서도 받아 준다.
+ */
 export function parseKoDate(s) {
-    const m = String(s || '').match(/(\d{4})[.\-/]\s*(\d{1,2})[.\-/]\s*(\d{1,2})/);
-    return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null;
+    const str = String(s || '');
+    const m = str.match(/(\d{4})[.\-/]\s*(\d{1,2})[.\-/]\s*(\d{1,2})/);
+    if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    const c = str.match(/^\s*(\d{4})(\d{2})(\d{2})\s*$/);
+    if (c && +c[1] >= 1900 && +c[1] <= 2199 && +c[2] >= 1 && +c[2] <= 12 && +c[3] >= 1 && +c[3] <= 31) {
+        return new Date(Number(c[1]), Number(c[2]) - 1, Number(c[3]));
+    }
+    return null;
 }
 
 /** 만료일이 가장 늦은 보험 1건 (검토 탭의 '보험 만료·미가입' 과 같은 기준) */

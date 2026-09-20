@@ -623,6 +623,37 @@ export function lookupStandardRate(gyeol, gwajung, gwamok) {
     return '';
 }
 
+// ── 학원조회 시트의 어긋난 칸 바로잡기 ─────────────────────────────────
+// 교습소조회는 '2026-01-11' 로 오는데 학원조회는 언젠가부터 날짜를 구분기호 없이
+// '20260111' 로 내보낸다. 날짜를 읽는 곳이 네 군데(insurance.js·riskChecks.js·
+// InspectionPage.jsx·DetailView.jsx)나 되고 모두 구분기호를 요구하는 정규식이라,
+// 읽는 쪽을 각각 고치는 대신 들어오는 자리에서 한 번에 '2026-01-11' 로 맞춘다.
+
+/** '20260111' → '2026-01-11' (이미 구분기호가 있거나 날짜가 아니면 그대로) */
+export function normalizeSheetDate(v) {
+    const s = String(v ?? '').trim();
+    const m = s.match(/^(\d{4})(\d{2})(\d{2})$/);
+    if (!m) return s;
+    const [, y, mm, dd] = m;
+    // 1900~2199 밖이거나 월·일이 말이 안 되면 날짜가 아니라 그냥 큰 수로 본다
+    if (+y < 1900 || +y > 2199 || +mm < 1 || +mm > 12 || +dd < 1 || +dd > 31) return s;
+    return `${y}-${mm}-${dd}`;
+}
+
+// 학원조회의 '사고당배당금액'·'인당의료실비금액' 칸에는 날짜 서식이 걸려 있어
+// 30000000(3천만원) 같은 값이 시트 일련번호로 해석돼 '84037-03-16' 으로 나온다.
+// 시트를 고치는 것이 옳지만 우리가 만드는 시트가 아니므로 되돌려 읽는다.
+const SHEET_EPOCH = Date.UTC(1899, 11, 30);
+
+/** '84037-03-16' → '30000000' (금액으로 보이면 그대로) */
+export function normalizeSheetAmount(v) {
+    const s = String(v ?? '').trim();
+    const m = s.match(/^(\d{1,6})-(\d{1,2})-(\d{1,2})$/);
+    if (!m) return s;
+    const serial = Math.round((Date.UTC(+m[1], +m[2] - 1, +m[3]) - SHEET_EPOCH) / 86400000);
+    return serial > 0 ? String(serial) : s;
+}
+
 export function transformAcademyData(rawRows, inspectionMap = new Map()) {
     const academyMap = new Map();
 
@@ -750,11 +781,13 @@ export function transformAcademyData(rawRows, inspectionMap = new Map()) {
             contractor: row['계약업체명'] || '',
             policyNumber: row['계약번호'] || '',
             teachersCount: row['강사수'] || '',
-            startDate: row['보험시작일'] || row['보험시작일자'] || '',
-            endDate: row['보험종료일'] || row['보험종료일자'] || '',
-            compensationPerAccident: row['사고당배상금액'] || '',
-            medicalPerPerson: row['인당의료실비금액'] || '',
-            compensationPerPerson: row['인당배상금액'] || ''
+            // 학원조회는 '보험시작일' + '20260111', 교습소조회는 '보험시작일자' + '2026-01-11'
+            startDate: normalizeSheetDate(row['보험시작일'] || row['보험시작일자'] || ''),
+            endDate: normalizeSheetDate(row['보험종료일'] || row['보험종료일자'] || ''),
+            // '사고당배당금액' 은 학원조회 시트의 머리글 오타다 (교습소조회는 '배상')
+            compensationPerAccident: normalizeSheetAmount(row['사고당배상금액'] || row['사고당배당금액'] || ''),
+            medicalPerPerson: normalizeSheetAmount(row['인당의료실비금액'] || ''),
+            compensationPerPerson: normalizeSheetAmount(row['인당배상금액'] || '')
         };
         const insuranceKey = insurance.policyNumber || `${insurance.startDate}__${insurance.endDate}__${insurance.company}`;
         if (insurance.endDate && !academy.insurances.some(i => (i.policyNumber || `${i.startDate}__${i.endDate}__${i.company}`) === insuranceKey)) {
