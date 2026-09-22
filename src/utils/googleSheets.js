@@ -675,6 +675,12 @@ export function normalizeSheetAmount(v) {
     return serial > 0 ? String(serial) : s;
 }
 
+// 교습과정 한 건을 가르는 신고값 (단가처럼 여기서 계산해 붙이는 값은 뺀다)
+const COURSE_IDENTITY_KEYS = [
+    'process', 'subject', 'track', 'quota', 'tuitionFee', 'totalFee', 'period', 'totalTime',
+    'mockExamFee', 'materialFee', 'clothingFee', 'mealFee', 'dormitoryFee', 'vehicleFee', 'otherFeeTotal', 'note'
+];
+
 export function transformAcademyData(rawRows, inspectionMap = new Map()) {
     const academyMap = new Map();
 
@@ -794,7 +800,11 @@ export function transformAcademyData(rawRows, inspectionMap = new Map()) {
             otherFeeTotal: row['기타경비합계'] || '',
             note: row['비고(교습과정)'] || ''
         };
-        if (course.subject && !academy.courses.some(c => c.subject === course.subject && c.process === course.process)) {
+        // 시트는 보험 행마다 같은 과목을 되풀이하므로 겹친 행은 거른다.
+        // 다만 같은 반 이름으로 시간·교습비가 다른 과목을 따로 신고하기도 하니 (예: 수학B-1 초등 106,000원 / 중등 224,000원)
+        // 이름만이 아니라 신고한 값 전부가 같을 때만 같은 과목으로 본다.
+        const sameCourse = c => COURSE_IDENTITY_KEYS.every(k => String(c[k]).trim() === String(course[k]).trim());
+        if (course.subject && !academy.courses.some(sameCourse)) {
             academy.courses.push(course);
         }
 
