@@ -218,6 +218,7 @@ h3 {
   min-width: 0;
 }
 .page.is-wide { max-width: 1240px; }
+.page.is-detail { max-width: 960px; }
 /* 제 머리·여백을 따로 가진 화면(지도점검)은 내용 칸을 그대로 쓴다 */
 .page.is-flush { max-width: none; padding: 0; }
 
@@ -268,6 +269,7 @@ h3 {
 .btn-outline { background: #fff; color: var(--text-body); border-color: var(--border-strong); }
 .btn-outline:hover:not(:disabled) { background: #f8fafc; border-color: #94a3b8; }
 .btn-block { display: flex; width: 100%; }
+.btn-sm { padding: 0 14px; font-size: 1rem; }
 
 .field {
   flex: 1;
@@ -484,6 +486,8 @@ h3 {
 }
 
 .suggestion-name {
+  flex: 1;
+  min-width: 0;
   font-size: 1.0625rem;
   font-weight: 700;
   color: var(--text-main);
@@ -522,60 +526,102 @@ h3 {
 .card-top {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 12px;
-  font-size: 0.85rem;
-  font-weight: 600;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
 }
 
-.academy-category {
-  color: var(--primary);
-  background: var(--primary-glow);
-  padding: 2px 10px;
-  border-radius: 6px;
+.academy-id {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-muted);
 }
 
 .academy-name {
-  font-size: 1.4rem;
+  font-size: 1.3rem;
   font-weight: 800;
-  margin-bottom: 8px;
+  line-height: 1.35;
+  margin-bottom: 6px;
   color: var(--text-main);
 }
 
 .academy-address {
-  font-size: 0.95rem;
-  color: var(--text-muted);
-  margin-bottom: 16px;
+  display: block;
+  margin-bottom: 12px;
+  font-size: 1rem;
+  font-weight: 500;
+  color: #475569;
   line-height: 1.5;
+  text-decoration: underline;
+  text-decoration-color: var(--border-strong);
+  text-underline-offset: 3px;
 }
+.academy-address:hover { color: var(--primary); }
 
 .academy-meta {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 8px 12px;
-  font-size: 0.9rem;
-  font-weight: 500;
+  font-size: 1rem;
+  color: var(--text-muted);
+}
+.academy-meta b { color: var(--text-main); font-weight: 700; }
+
+.academy-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
 }
 
+.results-count {
+  margin: 0 0 10px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+/* 학원·교습소·지역 같은 구분 글자 — 색으로 뜻을 싣지 않는 회색 꼬리표 */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  border: 1px solid var(--border-color);
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #475569;
+  white-space: nowrap;
+}
+
+.suggestion-tags { display: inline-flex; gap: 6px; flex-shrink: 0; }
+
+/* 개원·폐원처럼 뜻이 있는 상태만 초록·빨강 */
 .status-active {
-  color: #059669;
-  background: #ecfdf5;
-  padding: 4px 12px;
-  border-radius: 8px;
+  color: var(--ok);
+  background: var(--ok-soft);
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 700;
 }
 
 .status-inactive {
-  color: #dc2626;
-  background: #fef2f2;
-  padding: 4px 12px;
-  border-radius: 8px;
+  color: var(--over);
+  background: var(--over-soft);
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 700;
 }
 
 .no-results {
   text-align: center;
   color: var(--text-muted);
-  margin-top: 60px;
-  font-size: 1.1rem;
+  margin-top: 12px;
+  font-size: 1.0625rem;
 }
 
 /* ─── 분야별 교습비 검토 (QuickCalcCard) ─── */

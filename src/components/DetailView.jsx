@@ -151,13 +151,13 @@ function InstructorTab({ academy, instructors = [], supplementLoading = false })
         <div className="tab-content animate-enter">
             {/* 상단 통계 */}
             <div style={{ display: 'flex', gap: '10px', marginBottom: '16px', flexWrap: 'wrap' }}>
-                {[{ label: '현직 강사', val: currentCount, color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe' },
-                { label: '전직 강사', val: formerCount, color: '#64748b', bg: '#f8fafc', border: '#e2e8f0' },
-                { label: '외국인 강사', val: foreignCount, color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' }
+                {[{ label: '현직 강사', val: currentCount, color: 'var(--primary)' },
+                { label: '전직 강사', val: formerCount, color: 'var(--text-muted)' },
+                { label: '외국인 강사', val: foreignCount, color: 'var(--text-main)' }
                 ].map(s => (
-                    <div key={s.label} style={{ flex: '1 1 80px', minWidth: '80px', padding: '12px 14px', background: s.bg, border: `1px solid ${s.border}`, borderRadius: '12px', textAlign: 'center' }}>
+                    <div key={s.label} style={{ flex: '1 1 0', minWidth: 0, padding: '12px 6px', background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '12px', textAlign: 'center' }}>
                         <div style={{ fontSize: '1.4rem', fontWeight: '800', color: s.color }}>{s.val}</div>
-                        <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '2px' }}>{s.label}</div>
+                        <div style={{ fontSize: '0.85rem', color: '#64748b', marginTop: '2px' }}>{s.label}</div>
                     </div>
                 ))}
             </div>
@@ -187,7 +187,7 @@ function InstructorTab({ academy, instructors = [], supplementLoading = false })
                     {['현직', '전직', '전체'].map(f => (
                         <button key={f} onClick={() => setFilter(f)} style={{
                             padding: '5px 12px', borderRadius: '8px', border: 'none', cursor: 'pointer',
-                            fontSize: '0.8rem', fontWeight: '700',
+                            fontSize: '0.9rem', fontWeight: '700',
                             background: filter === f ? 'var(--primary)' : 'transparent',
                             color: filter === f ? 'white' : 'var(--text-muted)',
                             transition: 'all 0.15s'
@@ -198,7 +198,7 @@ function InstructorTab({ academy, instructors = [], supplementLoading = false })
                 {/* 교습과목 필터 */}
                 {subjects.length > 2 && (
                     <select value={subjectFilter} onChange={e => setSubjectFilter(e.target.value)}
-                        style={{ padding: '5px 10px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-main)', fontSize: '0.8rem', cursor: 'pointer' }}>
+                        style={{ padding: '5px 10px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-main)', fontSize: '0.9rem', cursor: 'pointer' }}>
                         {subjects.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
                 )}
@@ -208,7 +208,7 @@ function InstructorTab({ academy, instructors = [], supplementLoading = false })
             {filtered.length === 0 && supplementLoading ? (
                 <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)' }}>
                     <div style={{ fontSize: '1.5rem', marginBottom: '10px', animation: 'spin 1s linear infinite', display: 'inline-block' }}>⟳</div>
-                    <p style={{ margin: 0, fontSize: '0.9rem' }}>강사 데이터를 불러오는 중...</p>
+                    <p style={{ margin: 0, fontSize: '1rem' }}>강사 데이터를 불러오는 중...</p>
                 </div>
             ) : filtered.length === 0 ? (
                 <p className="empty-msg">해당 조건의 강사가 없습니다.</p>
@@ -232,27 +232,27 @@ function InstructorTab({ academy, instructors = [], supplementLoading = false })
                                         {idx + 1}. {inst.name || '-'}
                                     </span>
                                     {inst.subject && (
-                                        <span style={{ padding: '2px 8px', borderRadius: '8px', background: '#eff6ff', color: '#1d4ed8', fontSize: '0.75rem', fontWeight: '700', border: '1px solid #bfdbfe' }}>
+                                        <span style={{ padding: '2px 8px', borderRadius: '8px', background: '#eff6ff', color: '#1d4ed8', fontSize: '0.85rem', fontWeight: '700', border: '1px solid #bfdbfe' }}>
                                             {inst.subject}
                                         </span>
                                     )}
                                     {isForeign && (
-                                        <span style={{ padding: '2px 8px', borderRadius: '8px', background: '#f5f3ff', color: '#6d28d9', fontSize: '0.75rem', fontWeight: '700', border: '1px solid #ddd6fe' }}>
+                                        <span style={{ padding: '2px 8px', borderRadius: '8px', background: '#f1f5f9', color: '#475569', fontSize: '0.85rem', fontWeight: '700', border: '1px solid #e2e8f0' }}>
                                             외국인
                                         </span>
                                     )}
                                     {isDismissed && (
-                                        <span style={{ padding: '2px 8px', borderRadius: '8px', background: '#f1f5f9', color: '#64748b', fontSize: '0.72rem', fontWeight: '600', border: '1px solid #e2e8f0' }}>
+                                        <span style={{ padding: '2px 8px', borderRadius: '8px', background: '#f1f5f9', color: '#64748b', fontSize: '0.85rem', fontWeight: '600', border: '1px solid #e2e8f0' }}>
                                             전직
                                         </span>
                                     )}
-                                    <span style={{ marginLeft: 'auto', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                    <span style={{ marginLeft: 'auto', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                                         {eduShort(inst.education)}{inst.major ? ` · ${inst.major}` : ''}
                                     </span>
                                 </div>
 
                                 {/* 정보 칩들 */}
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                                     {inst.hireDate && (
                                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
                                             <span style={{ color: '#10b981', fontWeight: '700' }}>채용</span> {inst.hireDate}
@@ -267,12 +267,12 @@ function InstructorTab({ academy, instructors = [], supplementLoading = false })
                                         <span style={{ color: '#94a3b8' }}>({inst.changeReason})</span>
                                     )}
                                     {inst.visaType && (
-                                        <span style={{ padding: '1px 6px', borderRadius: '6px', background: '#f5f3ff', color: '#7c3aed', fontSize: '0.72rem', border: '1px solid #ede9fe' }}>
+                                        <span style={{ padding: '1px 6px', borderRadius: '6px', background: '#f1f5f9', color: '#475569', fontSize: '0.85rem', border: '1px solid #e2e8f0' }}>
                                             체류: {inst.visaType}
                                         </span>
                                     )}
                                     {inst.certificate && (
-                                        <span style={{ padding: '1px 6px', borderRadius: '6px', background: '#fefce8', color: '#a16207', fontSize: '0.72rem', border: '1px solid #fef08a' }}>
+                                        <span style={{ padding: '1px 6px', borderRadius: '6px', background: '#fefce8', color: '#a16207', fontSize: '0.85rem', border: '1px solid #fef08a' }}>
                                             📜 자격: {inst.certificate}
                                         </span>
                                     )}
@@ -302,12 +302,12 @@ function AssistantTab({ assistants = [] }) {
         <div className="tab-content animate-enter">
             {/* 상단 통계 */}
             <div style={{ display: 'flex', gap: '10px', marginBottom: '16px', flexWrap: 'wrap' }}>
-                {[{ label: '현직 보조요원', val: currentCount, color: '#059669', bg: '#ecfdf5', border: '#a7f3d0' },
-                  { label: '전직 보조요원', val: formerCount, color: '#64748b', bg: '#f8fafc', border: '#e2e8f0' },
+                {[{ label: '현직 보조요원', val: currentCount, color: 'var(--primary)' },
+                  { label: '전직 보조요원', val: formerCount, color: 'var(--text-muted)' },
                 ].map(s => (
-                    <div key={s.label} style={{ flex: '1 1 80px', minWidth: '80px', padding: '12px 14px', background: s.bg, border: `1px solid ${s.border}`, borderRadius: '12px', textAlign: 'center' }}>
+                    <div key={s.label} style={{ flex: '1 1 0', minWidth: 0, padding: '12px 6px', background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '12px', textAlign: 'center' }}>
                         <div style={{ fontSize: '1.4rem', fontWeight: '800', color: s.color }}>{s.val}</div>
-                        <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '2px' }}>{s.label}</div>
+                        <div style={{ fontSize: '0.85rem', color: '#64748b', marginTop: '2px' }}>{s.label}</div>
                     </div>
                 ))}
             </div>
@@ -318,7 +318,7 @@ function AssistantTab({ assistants = [] }) {
                     {['현직', '전직', '전체'].map(f => (
                         <button key={f} onClick={() => setFilter(f)} style={{
                             padding: '5px 12px', borderRadius: '8px', border: 'none', cursor: 'pointer',
-                            fontSize: '0.8rem', fontWeight: '700',
+                            fontSize: '0.9rem', fontWeight: '700',
                             background: filter === f ? 'var(--primary)' : 'transparent',
                             color: filter === f ? 'white' : 'var(--text-muted)',
                             transition: 'all 0.15s'
@@ -348,25 +348,25 @@ function AssistantTab({ assistants = [] }) {
                                         {idx + 1}. {ast.name || '-'}
                                     </span>
                                     {ast.subject && (
-                                        <span style={{ padding: '2px 8px', borderRadius: '8px', background: '#ecfdf5', color: '#065f46', fontSize: '0.75rem', fontWeight: '700', border: '1px solid #a7f3d0' }}>
+                                        <span style={{ padding: '2px 8px', borderRadius: '8px', background: '#ecfdf5', color: '#065f46', fontSize: '0.85rem', fontWeight: '700', border: '1px solid #a7f3d0' }}>
                                             {ast.subject}
                                         </span>
                                     )}
                                     {ast.type && (
-                                        <span style={{ padding: '2px 8px', borderRadius: '8px', background: '#f0fdf4', color: '#166534', fontSize: '0.75rem', fontWeight: '600', border: '1px solid #bbf7d0' }}>
+                                        <span style={{ padding: '2px 8px', borderRadius: '8px', background: '#f0fdf4', color: '#166534', fontSize: '0.85rem', fontWeight: '600', border: '1px solid #bbf7d0' }}>
                                             {ast.type}
                                         </span>
                                     )}
                                     {isDismissed && (
-                                        <span style={{ padding: '2px 8px', borderRadius: '8px', background: '#f1f5f9', color: '#64748b', fontSize: '0.72rem', fontWeight: '600', border: '1px solid #e2e8f0' }}>
+                                        <span style={{ padding: '2px 8px', borderRadius: '8px', background: '#f1f5f9', color: '#64748b', fontSize: '0.85rem', fontWeight: '600', border: '1px solid #e2e8f0' }}>
                                             전직
                                         </span>
                                     )}
-                                    <span style={{ marginLeft: 'auto', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                    <span style={{ marginLeft: 'auto', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                                         {eduShort(ast.education)}{ast.major ? ` · ${ast.major}` : ''}
                                     </span>
                                 </div>
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                                     {ast.hireDate && (
                                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
                                             <span style={{ color: '#10b981', fontWeight: '700' }}>채용</span> {ast.hireDate}
@@ -381,7 +381,7 @@ function AssistantTab({ assistants = [] }) {
                                         <span style={{ color: '#94a3b8' }}>({ast.changeReason})</span>
                                     )}
                                     {ast.certificate && (
-                                        <span style={{ padding: '1px 6px', borderRadius: '6px', background: '#fefce8', color: '#a16207', fontSize: '0.72rem', border: '1px solid #fef08a' }}>
+                                        <span style={{ padding: '1px 6px', borderRadius: '6px', background: '#fefce8', color: '#a16207', fontSize: '0.85rem', border: '1px solid #fef08a' }}>
                                             📜 자격: {ast.certificate}
                                         </span>
                                     )}
@@ -488,12 +488,12 @@ function InspectionTab({ inspections, totalCount, violationCount, academyName, f
                 backgroundColor: color ? `${color}15` : 'var(--bg-light)',
                 color: color || 'var(--text-muted)',
                 borderRadius: '6px',
-                fontSize: '0.78rem',
+                fontSize: '0.85rem',
                 fontWeight: '600',
                 border: `1px solid ${color ? `${color}40` : 'var(--border-color)'}`,
                 whiteSpace: 'nowrap'
             }}>
-                <span style={{ opacity: 0.7, fontSize: '0.7rem' }}>{label}</span>
+                <span style={{ opacity: 0.7, fontSize: '0.85rem' }}>{label}</span>
                 <span>{value}</span>
             </span>
         );
@@ -656,10 +656,10 @@ function InspectionTab({ inspections, totalCount, violationCount, academyName, f
                 }}>
                     <div style={{
                         display: 'flex', alignItems: 'center', gap: '6px',
-                        fontSize: '0.85rem', fontWeight: '800', color: '#92400e', marginBottom: '8px'
+                        fontSize: '0.9rem', fontWeight: '800', color: '#92400e', marginBottom: '8px'
                     }}>
                         🏷 과거 명칭 이력
-                        <span style={{ fontSize: '0.72rem', fontWeight: '600', color: '#b45309' }}>
+                        <span style={{ fontSize: '0.85rem', fontWeight: '600', color: '#b45309' }}>
                             등록번호{regNum ? ` ${regNum}` : ''} 기준으로 연결된 이력입니다
                         </span>
                     </div>
@@ -668,24 +668,24 @@ function InspectionTab({ inspections, totalCount, violationCount, academyName, f
                             display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px',
                             padding: '6px 0', borderTop: i === 0 ? 'none' : '1px dashed #fde68a'
                         }}>
-                            <span style={{ fontSize: '0.9rem', fontWeight: '800', color: '#78350f' }}>{a.name}</span>
-                            <span style={{ fontSize: '0.78rem', color: '#a16207' }}>
+                            <span style={{ fontSize: '1rem', fontWeight: '800', color: '#78350f' }}>{a.name}</span>
+                            <span style={{ fontSize: '0.85rem', color: '#a16207' }}>
                                 {a.first === a.last ? a.first : `${a.first} ~ ${a.last}`} · {a.count}건
                                 {a.violations > 0 ? ` (위반 ${a.violations}건)` : ''}
                             </span>
                             {a.operators.length > 0 && (
-                                <span style={{ fontSize: '0.78rem', color: '#a16207' }}>
+                                <span style={{ fontSize: '0.85rem', color: '#a16207' }}>
                                     · 당시 운영자 {a.operators.join(', ')}
                                 </span>
                             )}
                             {a.operatorChanged ? (
                                 <span style={{
-                                    fontSize: '0.72rem', fontWeight: '700', padding: '2px 8px', borderRadius: '20px',
+                                    fontSize: '0.85rem', fontWeight: '700', padding: '2px 8px', borderRadius: '20px',
                                     background: '#fee2e2', color: '#b91c1c', border: '1px solid #fecaca'
                                 }}>운영자도 변경{founderName ? ` (현재 ${founderName})` : ''}</span>
                             ) : (
                                 <span style={{
-                                    fontSize: '0.72rem', fontWeight: '700', padding: '2px 8px', borderRadius: '20px',
+                                    fontSize: '0.85rem', fontWeight: '700', padding: '2px 8px', borderRadius: '20px',
                                     background: '#dcfce7', color: '#15803d', border: '1px solid #bbf7d0'
                                 }}>운영자 동일 · 명칭만 변경</span>
                             )}
@@ -693,7 +693,7 @@ function InspectionTab({ inspections, totalCount, violationCount, academyName, f
                     ))}
                     {recentAliasViolation && (
                         <div style={{
-                            marginTop: '8px', fontSize: '0.76rem', color: '#b45309',
+                            marginTop: '8px', fontSize: '0.85rem', color: '#b45309',
                             background: '#fef3c7', borderRadius: '8px', padding: '6px 8px'
                         }}>
                             ⚠ 1년 이내 과거 명칭 시절 위반 이력이 있습니다 — 동일 위반 시 가중처분 여부를 확인하세요.
@@ -710,7 +710,7 @@ function InspectionTab({ inspections, totalCount, violationCount, academyName, f
                     border: '1px solid var(--border-color)', textAlign: 'center'
                 }}>
                     <div style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--text-main)' }}>{totalCount}</div>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>총 점검 횟수</div>
+                    <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginTop: '2px' }}>총 점검 횟수</div>
                 </div>
                 <div style={{
                     flex: 1, padding: '14px 16px',
@@ -722,7 +722,7 @@ function InspectionTab({ inspections, totalCount, violationCount, academyName, f
                     <div style={{ fontSize: '1.5rem', fontWeight: '800', color: violationCount > 0 ? '#dc2626' : '#16a34a' }}>
                         {violationCount}
                     </div>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>위반 횟수</div>
+                    <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginTop: '2px' }}>위반 횟수</div>
                 </div>
             </div>
 
@@ -772,14 +772,14 @@ function InspectionTab({ inspections, totalCount, violationCount, academyName, f
                             }}
                         >
                             <span style={{
-                                fontSize: '0.9rem', fontWeight: '700', whiteSpace: 'nowrap',
+                                fontSize: '1rem', fontWeight: '700', whiteSpace: 'nowrap',
                                 color: dateUnknown ? 'var(--text-muted)' : 'var(--text-main)'
                             }} title={dateUnknown ? '대장에 점검일이 기록되지 않은 건입니다' : undefined}>
                                 📅 {dateUnknown ? '날짜미상' : insp.date}
                             </span>
                             {pastName && (
                                 <span style={{
-                                    fontSize: '0.68rem', padding: '2px 7px', borderRadius: '6px',
+                                    fontSize: '0.85rem', padding: '2px 7px', borderRadius: '6px',
                                     background: '#fffbeb', color: '#b45309', fontWeight: '700',
                                     border: '1px solid #fde68a', whiteSpace: 'nowrap',
                                     overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '45%'
@@ -789,14 +789,14 @@ function InspectionTab({ inspections, totalCount, violationCount, academyName, f
                             )}
                             {insp.source === '2026' && (
                                 <span style={{
-                                    fontSize: '0.68rem', padding: '2px 7px', borderRadius: '6px',
+                                    fontSize: '0.85rem', padding: '2px 7px', borderRadius: '6px',
                                     background: '#eef2ff', color: '#4338ca', fontWeight: '700',
                                     border: '1px solid #c7d2fe', whiteSpace: 'nowrap'
                                 }}>2026</span>
                             )}
                             {insp.source === '~2025' && (
                                 <span style={{
-                                    fontSize: '0.68rem', padding: '2px 7px', borderRadius: '6px',
+                                    fontSize: '0.85rem', padding: '2px 7px', borderRadius: '6px',
                                     background: '#f1f5f9', color: '#64748b', fontWeight: '700',
                                     border: '1px solid #cbd5e1', whiteSpace: 'nowrap'
                                 }}>~2025</span>
@@ -806,14 +806,14 @@ function InspectionTab({ inspections, totalCount, violationCount, academyName, f
                                     <span style={{
                                         display: 'inline-flex', alignItems: 'center', gap: '4px',
                                         padding: '3px 10px', backgroundColor: '#dc2626', color: 'white',
-                                        borderRadius: '20px', fontSize: '0.75rem', fontWeight: '700',
+                                        borderRadius: '20px', fontSize: '0.85rem', fontWeight: '700',
                                     }}>⚠ 위반</span>
                                 )}
                                 {hasGuidance && !isViolation && (
                                     <span style={{
                                         display: 'inline-flex', alignItems: 'center', gap: '4px',
                                         padding: '3px 10px', backgroundColor: '#e0f2fe', color: '#0369a1',
-                                        borderRadius: '20px', fontSize: '0.75rem', fontWeight: '700',
+                                        borderRadius: '20px', fontSize: '0.85rem', fontWeight: '700',
                                         border: '1px solid #bae6fd'
                                     }}>📋 지도</span>
                                 )}
@@ -821,12 +821,12 @@ function InspectionTab({ inspections, totalCount, violationCount, academyName, f
                                     <span style={{
                                         display: 'inline-flex', alignItems: 'center', gap: '4px',
                                         padding: '3px 10px', backgroundColor: '#dcfce7', color: '#15803d',
-                                        borderRadius: '20px', fontSize: '0.75rem', fontWeight: '600',
+                                        borderRadius: '20px', fontSize: '0.85rem', fontWeight: '600',
                                     }}>✓ 이상없음</span>
                                 )}
                                 {isClickable && (
                                     <span style={{
-                                        fontSize: '0.75rem', color: 'var(--text-muted)',
+                                        fontSize: '0.85rem', color: 'var(--text-muted)',
                                         transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
                                         transition: 'transform 0.25s', display: 'inline-block'
                                     }}>▼</span>
@@ -843,17 +843,17 @@ function InspectionTab({ inspections, totalCount, violationCount, academyName, f
                             }}>
                                 {insp.violationType && (
                                     <div style={{ marginTop: '10px', marginBottom: '6px' }}>
-                                        <span style={{ fontSize: '0.75rem', color: '#7f1d1d', fontWeight: '700', marginRight: '8px' }}>⚠ 위반사항</span>
+                                        <span style={{ fontSize: '0.85rem', color: '#7f1d1d', fontWeight: '700', marginRight: '8px' }}>⚠ 위반사항</span>
                                         <span style={{
-                                            fontSize: '0.88rem', fontWeight: '800', color: '#1e40af',
+                                            fontSize: '0.9rem', fontWeight: '800', color: '#1e40af',
                                             textDecoration: 'underline', textDecorationColor: '#bfdbfe'
                                         }}>{insp.violationType}</span>
                                     </div>
                                 )}
                                 {insp.violationDetail && insp.violationDetail !== '없음' && (
                                     <div style={{ marginBottom: hasExpandableViolationDetail ? '8px' : '0' }}>
-                                        <span style={{ fontSize: '0.75rem', color: '#7f1d1d', fontWeight: '700', marginRight: '8px' }}>📋 위반내역</span>
-                                        <span style={{ fontSize: '0.88rem', fontWeight: '700', color: '#374151' }}>{insp.violationDetail}</span>
+                                        <span style={{ fontSize: '0.85rem', color: '#7f1d1d', fontWeight: '700', marginRight: '8px' }}>📋 위반내역</span>
+                                        <span style={{ fontSize: '0.9rem', fontWeight: '700', color: '#374151' }}>{insp.violationDetail}</span>
                                     </div>
                                 )}
                                 {/* 행정처분/시정 안내 힌트 */}
@@ -862,13 +862,13 @@ function InspectionTab({ inspections, totalCount, violationCount, academyName, f
                                         onClick={() => toggleExpand(idx)}
                                         style={{
                                             marginTop: '6px', display: 'inline-flex', alignItems: 'center', gap: '4px',
-                                            fontSize: '0.75rem', color: 'var(--text-muted)',
+                                            fontSize: '0.85rem', color: 'var(--text-muted)',
                                             cursor: 'pointer', textDecoration: 'underline',
                                             textDecorationColor: 'var(--border-color)'
                                         }}
                                     >
                                         <span>행정처분·시정정보 보기</span>
-                                        <span style={{ fontSize: '0.65rem' }}>▼</span>
+                                        <span style={{ fontSize: '0.85rem' }}>▼</span>
                                     </div>
                                 )}
                             </div>
@@ -889,7 +889,7 @@ function InspectionTab({ inspections, totalCount, violationCount, academyName, f
                                             rows={3}
                                             style={{
                                                 width: '100%', boxSizing: 'border-box',
-                                                fontSize: '0.85rem', padding: '8px',
+                                                fontSize: '0.9rem', padding: '8px',
                                                 borderRadius: '8px', border: '1.5px solid #7dd3fc',
                                                 resize: 'vertical', outline: 'none',
                                                 fontFamily: 'inherit', lineHeight: 1.5,
@@ -898,7 +898,7 @@ function InspectionTab({ inspections, totalCount, violationCount, academyName, f
                                         <div style={{ display: 'flex', gap: '6px', marginTop: '6px', justifyContent: 'flex-end' }}>
                                             <button onClick={cancelEdit} style={{
                                                 padding: '4px 12px', borderRadius: '6px', border: '1px solid #cbd5e1',
-                                                background: 'white', fontSize: '0.8rem', cursor: 'pointer',
+                                                background: 'white', fontSize: '0.9rem', cursor: 'pointer',
                                             }}>취소</button>
                                             <button
                                                 onClick={() => submitEdit(idx, insp)}
@@ -906,7 +906,7 @@ function InspectionTab({ inspections, totalCount, violationCount, academyName, f
                                                 style={{
                                                     padding: '4px 14px', borderRadius: '6px', border: 'none',
                                                     background: savingIdx === idx ? '#93c5fd' : '#3b82f6',
-                                                    color: 'white', fontSize: '0.8rem', fontWeight: '700',
+                                                    color: 'white', fontSize: '0.9rem', fontWeight: '700',
                                                     cursor: savingIdx === idx ? 'not-allowed' : 'pointer',
                                                 }}
                                             >{savingIdx === idx ? '저장 중…' : '저장'}</button>
@@ -915,8 +915,8 @@ function InspectionTab({ inspections, totalCount, violationCount, academyName, f
                                 ) : (
                                     <div style={{ marginTop: '10px', display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
                                         <div style={{ flex: 1 }}>
-                                            <span style={{ fontSize: '0.75rem', color: '#0c4a6e', fontWeight: '700', marginRight: '8px' }}>📋 지도내용</span>
-                                            <span style={{ fontSize: '0.85rem', color: '#1e3a5f', lineHeight: 1.5 }}>{guidanceText}</span>
+                                            <span style={{ fontSize: '0.85rem', color: '#0c4a6e', fontWeight: '700', marginRight: '8px' }}>📋 지도내용</span>
+                                            <span style={{ fontSize: '0.9rem', color: '#1e3a5f', lineHeight: 1.5 }}>{guidanceText}</span>
                                         </div>
                                         {canEdit && (
                                             <button
@@ -925,7 +925,7 @@ function InspectionTab({ inspections, totalCount, violationCount, academyName, f
                                                 style={{
                                                     flexShrink: 0, background: 'none', border: 'none',
                                                     cursor: 'pointer', padding: '2px 4px',
-                                                    fontSize: '0.85rem', color: '#64748b',
+                                                    fontSize: '0.9rem', color: '#64748b',
                                                     lineHeight: 1,
                                                 }}
                                             >✏️</button>
@@ -943,7 +943,7 @@ function InspectionTab({ inspections, totalCount, violationCount, academyName, f
                                     style={{
                                         background: 'none', border: '1px dashed #93c5fd',
                                         borderRadius: '8px', padding: '4px 12px',
-                                        fontSize: '0.78rem', color: '#0369a1', cursor: 'pointer',
+                                        fontSize: '0.85rem', color: '#0369a1', cursor: 'pointer',
                                     }}
                                 >+ 지도내용 추가</button>
                             </div>
@@ -958,7 +958,7 @@ function InspectionTab({ inspections, totalCount, violationCount, academyName, f
                                         placeholder="지도내용을 입력하세요"
                                         style={{
                                             width: '100%', boxSizing: 'border-box',
-                                            fontSize: '0.85rem', padding: '8px',
+                                            fontSize: '0.9rem', padding: '8px',
                                             borderRadius: '8px', border: '1.5px solid #7dd3fc',
                                             resize: 'vertical', outline: 'none',
                                             fontFamily: 'inherit', lineHeight: 1.5,
@@ -967,7 +967,7 @@ function InspectionTab({ inspections, totalCount, violationCount, academyName, f
                                     <div style={{ display: 'flex', gap: '6px', marginTop: '6px', justifyContent: 'flex-end' }}>
                                         <button onClick={cancelEdit} style={{
                                             padding: '4px 12px', borderRadius: '6px', border: '1px solid #cbd5e1',
-                                            background: 'white', fontSize: '0.8rem', cursor: 'pointer',
+                                            background: 'white', fontSize: '0.9rem', cursor: 'pointer',
                                         }}>취소</button>
                                         <button
                                             onClick={() => submitEdit(idx, insp)}
@@ -975,7 +975,7 @@ function InspectionTab({ inspections, totalCount, violationCount, academyName, f
                                             style={{
                                                 padding: '4px 14px', borderRadius: '6px', border: 'none',
                                                 background: savingIdx === idx ? '#93c5fd' : '#3b82f6',
-                                                color: 'white', fontSize: '0.8rem', fontWeight: '700',
+                                                color: 'white', fontSize: '0.9rem', fontWeight: '700',
                                                 cursor: savingIdx === idx ? 'not-allowed' : 'pointer',
                                             }}
                                         >{savingIdx === idx ? '저장 중…' : '저장'}</button>
@@ -992,7 +992,7 @@ function InspectionTab({ inspections, totalCount, violationCount, academyName, f
                                     <span style={{
                                         display: 'inline-flex', alignItems: 'center', gap: '4px',
                                         padding: '3px 10px', backgroundColor: '#eff6ff', color: '#1d4ed8',
-                                        borderRadius: '8px', fontSize: '0.8rem', fontWeight: '600',
+                                        borderRadius: '8px', fontSize: '0.9rem', fontWeight: '600',
                                         border: '1px solid #bfdbfe'
                                     }}>🔍 {insp.inspectionType}</span>
                                 )}
@@ -1000,14 +1000,14 @@ function InspectionTab({ inspections, totalCount, violationCount, academyName, f
                                     <span style={{
                                         display: 'inline-flex', alignItems: 'center', gap: '4px',
                                         padding: '3px 10px', backgroundColor: '#f0fdf4', color: '#166534',
-                                        borderRadius: '8px', fontSize: '0.8rem', fontWeight: '500',
+                                        borderRadius: '8px', fontSize: '0.9rem', fontWeight: '500',
                                         border: '1px solid #bbf7d0'
                                     }}>📝 {insp.note}</span>
                                 )}
                                 {hasExpandableOkInfo && (
                                     <span
                                         onClick={() => toggleExpand(idx)}
-                                        style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '2px', cursor: 'pointer' }}
+                                        style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginLeft: '2px', cursor: 'pointer' }}
                                     >클릭하여 상세보기</span>
                                 )}
                             </div>
@@ -1032,7 +1032,7 @@ function InspectionTab({ inspections, totalCount, violationCount, academyName, f
                                                 backgroundColor: '#fee2e2', borderRadius: '8px',
                                                 border: '1px solid #fca5a5'
                                             }}>
-                                                <div style={{ fontSize: '0.75rem', color: '#7f1d1d', fontWeight: '700', marginBottom: '6px' }}>🔴 행정처분</div>
+                                                <div style={{ fontSize: '0.85rem', color: '#7f1d1d', fontWeight: '700', marginBottom: '6px' }}>🔴 행정처분</div>
                                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                                                     {insp.punishmentCode && <InfoChip label="처분코드" value={insp.punishmentCode} color="#dc2626" />}
                                                     {insp.punishmentDate && <InfoChip label="처분일" value={insp.punishmentDate} color="#dc2626" />}
@@ -1044,7 +1044,7 @@ function InspectionTab({ inspections, totalCount, violationCount, academyName, f
                                                     )}
                                                 </div>
                                                 {(insp.punishmentStart || insp.punishmentEnd) && (
-                                                    <div style={{ marginTop: '6px', fontSize: '0.78rem', color: '#7f1d1d' }}>
+                                                    <div style={{ marginTop: '6px', fontSize: '0.85rem', color: '#7f1d1d' }}>
                                                         📅 처분기간: <strong>{insp.punishmentStart}</strong> ~ <strong>{insp.punishmentEnd}</strong>
                                                     </div>
                                                 )}
@@ -1057,13 +1057,13 @@ function InspectionTab({ inspections, totalCount, violationCount, academyName, f
                                                 backgroundColor: '#fffbeb', borderRadius: '8px',
                                                 border: '1px solid #fde68a'
                                             }}>
-                                                <div style={{ fontSize: '0.75rem', color: '#92400e', fontWeight: '700', marginBottom: '6px' }}>🔧 시정 정보</div>
+                                                <div style={{ fontSize: '0.85rem', color: '#92400e', fontWeight: '700', marginBottom: '6px' }}>🔧 시정 정보</div>
                                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: insp.correctionContent ? '6px' : '0' }}>
                                                     {insp.correctionStart && <InfoChip label="시정시작" value={insp.correctionStart} color="#d97706" />}
                                                     {insp.correctionEnd && <InfoChip label="시정종료" value={insp.correctionEnd} color="#d97706" />}
                                                 </div>
                                                 {insp.correctionContent && (
-                                                    <div style={{ fontSize: '0.8rem', color: '#78350f' }}>
+                                                    <div style={{ fontSize: '0.9rem', color: '#78350f' }}>
                                                         📝 시정내용: <strong>{insp.correctionContent}</strong>
                                                     </div>
                                                 )}
@@ -1081,8 +1081,8 @@ function InspectionTab({ inspections, totalCount, violationCount, academyName, f
                                                 borderLeft: '3px solid #adb5bd',
                                             }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '8px' }}>
-                                                    <span style={{ fontSize: '13px' }}>📎</span>
-                                                    <span style={{ fontSize: '0.76rem', fontWeight: '700', color: '#495057' }}>참고 안내</span>
+                                                    <span style={{ fontSize: '0.9rem' }}>📎</span>
+                                                    <span style={{ fontSize: '0.85rem', fontWeight: '700', color: '#495057' }}>참고 안내</span>
                                                 </div>
                                                 {guides.map((g, gi) => (
                                                     <div key={gi} style={{
@@ -1090,14 +1090,14 @@ function InspectionTab({ inspections, totalCount, violationCount, academyName, f
                                                         paddingTop: gi > 0 ? '8px' : '0',
                                                         borderTop: gi > 0 ? '1px dashed #dee2e6' : 'none',
                                                     }}>
-                                                        <div style={{ fontSize: '0.76rem', fontWeight: '700', color: '#343a40', marginBottom: '5px' }}>▸ {g.title}</div>
+                                                        <div style={{ fontSize: '0.85rem', fontWeight: '700', color: '#343a40', marginBottom: '5px' }}>▸ {g.title}</div>
                                                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: g.note ? '4px' : '0' }}>
-                                                            {g.sanction1 && <span style={{ padding: '2px 7px', borderRadius: '4px', fontSize: '0.7rem', fontWeight: '600', backgroundColor: '#e9ecef', color: '#495057', border: '1px solid #ced4da' }}>1차: {g.sanction1}</span>}
-                                                            {g.sanction2 && <span style={{ padding: '2px 7px', borderRadius: '4px', fontSize: '0.7rem', fontWeight: '600', backgroundColor: '#e9ecef', color: '#495057', border: '1px solid #ced4da' }}>2차: {g.sanction2}</span>}
-                                                            {g.sanction3 && <span style={{ padding: '2px 7px', borderRadius: '4px', fontSize: '0.7rem', fontWeight: '600', backgroundColor: '#dee2e6', color: '#343a40', border: '1px solid #ced4da' }}>3차: {g.sanction3}</span>}
-                                                            {g.fine && <span style={{ padding: '2px 7px', borderRadius: '4px', fontSize: '0.7rem', fontWeight: '600', backgroundColor: '#e9ecef', color: '#495057', border: '1px solid #ced4da' }}>과태료 {g.fine}</span>}
+                                                            {g.sanction1 && <span style={{ padding: '2px 7px', borderRadius: '4px', fontSize: '0.85rem', fontWeight: '600', backgroundColor: '#e9ecef', color: '#495057', border: '1px solid #ced4da' }}>1차: {g.sanction1}</span>}
+                                                            {g.sanction2 && <span style={{ padding: '2px 7px', borderRadius: '4px', fontSize: '0.85rem', fontWeight: '600', backgroundColor: '#e9ecef', color: '#495057', border: '1px solid #ced4da' }}>2차: {g.sanction2}</span>}
+                                                            {g.sanction3 && <span style={{ padding: '2px 7px', borderRadius: '4px', fontSize: '0.85rem', fontWeight: '600', backgroundColor: '#dee2e6', color: '#343a40', border: '1px solid #ced4da' }}>3차: {g.sanction3}</span>}
+                                                            {g.fine && <span style={{ padding: '2px 7px', borderRadius: '4px', fontSize: '0.85rem', fontWeight: '600', backgroundColor: '#e9ecef', color: '#495057', border: '1px solid #ced4da' }}>과태료 {g.fine}</span>}
                                                         </div>
-                                                        {g.note && <div style={{ fontSize: '0.7rem', color: '#6c757d', lineHeight: '1.5' }}>{g.note}</div>}
+                                                        {g.note && <div style={{ fontSize: '0.85rem', color: '#6c757d', lineHeight: '1.5' }}>{g.note}</div>}
                                                     </div>
                                                 ))}
                                             </div>
@@ -1108,7 +1108,7 @@ function InspectionTab({ inspections, totalCount, violationCount, academyName, f
 
                                 {/* 이상없음 아코디언: 긴 점검항목 */}
                                 {!isViolation && insp.inspectionItems && (
-                                    <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: '1.5' }}>
+                                    <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', lineHeight: '1.5' }}>
                                         <span style={{ fontWeight: '600', color: 'var(--text-main)' }}>📋 점검항목:</span> {insp.inspectionItems}
                                     </div>
                                 )}
@@ -1194,9 +1194,8 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
 
     // academy가 변경될 때마다 스크롤을 최상단으로 이동
     useEffect(() => {
-        if (contentRef.current) {
-            contentRef.current.scrollTo({ top: 0, behavior: 'smooth' });
-        }
+        // 상세 화면은 페이지가 스크롤한다 (틀 안에 들어온 뒤로)
+        window.scrollTo({ top: 0, behavior: 'smooth' });
         // 탭도 초기화 (initialTab이 지정된 경우 우선 적용)
         setActiveTab(initialTab || 'status');
     }, [academy.id]);
@@ -1210,12 +1209,10 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
             const activeButton = tabButtons[activeTabIndex];
 
             if (activeButton) {
-                // 탭 버튼을 화면 중앙에 위치시키기
-                activeButton.scrollIntoView({
-                    behavior: 'smooth',
-                    block: 'nearest',
-                    inline: 'center'
-                });
+                // 탭 버튼을 탭 줄 가운데로 — 탭 줄만 가로로 민다 (scrollIntoView 는 페이지까지 움직인다)
+                const bar = tabsRef.current;
+                const left = activeButton.offsetLeft - (bar.clientWidth - activeButton.offsetWidth) / 2;
+                bar.scrollTo({ left, behavior: 'smooth' });
             }
         }
     }, [activeTab]);
@@ -1397,41 +1394,17 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     onClick={(e) => e.stopPropagation()}
-                                    style={{
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: '4px',
-                                        padding: '6px 12px',
-                                        backgroundColor: '#5FD68A',
-                                        color: 'white',
-                                        borderRadius: '8px',
-                                        fontSize: '0.85rem',
-                                        fontWeight: '600',
-                                        cursor: 'pointer',
-                                        transition: 'all 0.2s',
-                                        boxShadow: '0 1px 3px rgba(95, 214, 138, 0.3)',
-                                        textDecoration: 'none'
-                                    }}
-                                    onMouseOver={(e) => {
-                                        e.currentTarget.style.backgroundColor = '#4EC57A';
-                                        e.currentTarget.style.transform = 'translateY(-1px)';
-                                        e.currentTarget.style.boxShadow = '0 2px 6px rgba(95, 214, 138, 0.4)';
-                                    }}
-                                    onMouseOut={(e) => {
-                                        e.currentTarget.style.backgroundColor = '#5FD68A';
-                                        e.currentTarget.style.transform = 'translateY(0)';
-                                        e.currentTarget.style.boxShadow = '0 1px 3px rgba(95, 214, 138, 0.3)';
-                                    }}
+                                    className="btn btn-outline btn-sm"
                                     title={snsResult && pinnedPlaceUrl(snsResult)
                                         ? '직접 지정한 네이버 플레이스를 엽니다'
                                         : '네이버 플레이스에서 보기'}
                                 >
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                         <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
                                         <polyline points="15 3 21 3 21 9"></polyline>
                                         <line x1="10" y1="14" x2="21" y2="3"></line>
                                     </svg>
-                                    <span>플레이스</span>
+                                    <span>네이버 플레이스</span>
                                 </a>
                             }
                         >
@@ -1477,7 +1450,7 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
                                             color: 'var(--primary)',
                                             border: '1px solid var(--border-color)',
                                             borderRadius: '6px',
-                                            fontSize: '0.75rem',
+                                            fontSize: '0.85rem',
                                             fontWeight: '600',
                                             cursor: 'pointer',
                                             transition: 'all 0.2s',
@@ -1550,7 +1523,7 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
                             return (
                                 <Section title={`동일 건축물 학원목록 (${sameBuildingAcademies.length}개)`}>
                                     <div style={{
-                                        fontSize: '0.9rem',
+                                        fontSize: '1rem',
                                         color: 'var(--text-muted)',
                                         marginBottom: '16px',
                                         padding: '12px',
@@ -1575,7 +1548,7 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
                                             </div>
                                         </div>
                                         <div style={{
-                                            fontSize: '0.85rem',
+                                            fontSize: '0.9rem',
                                             color: 'var(--text-main)',
                                             marginTop: '8px',
                                             paddingTop: '8px',
@@ -1600,7 +1573,7 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
                                                     marginBottom: idx === sameBuildingAcademies.length - 1 ? '0' : '12px',
                                                     border: isCurrentAcademy ? '2px solid var(--primary)' : '1px solid var(--border-color)',
                                                     borderRadius: '12px',
-                                                    backgroundColor: isCurrentAcademy ? 'rgba(79, 70, 229, 0.05)' : 'var(--bg-card)',
+                                                    backgroundColor: isCurrentAcademy ? 'var(--primary-soft)' : 'var(--bg-card)',
                                                     cursor: isCurrentAcademy ? 'default' : 'pointer',
                                                     transition: 'all 0.2s',
                                                     boxShadow: 'var(--shadow-sm)',
@@ -1611,7 +1584,6 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
                                                     if (!isCurrentAcademy) {
                                                         e.currentTarget.style.backgroundColor = 'var(--bg-light)';
                                                         e.currentTarget.style.borderColor = 'var(--primary)';
-                                                        e.currentTarget.style.transform = 'translateY(-2px)';
                                                         e.currentTarget.style.boxShadow = 'var(--shadow-md)';
                                                     }
                                                 }}
@@ -1619,7 +1591,6 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
                                                     if (!isCurrentAcademy) {
                                                         e.currentTarget.style.backgroundColor = 'var(--bg-card)';
                                                         e.currentTarget.style.borderColor = 'var(--border-color)';
-                                                        e.currentTarget.style.transform = 'translateY(0)';
                                                         e.currentTarget.style.boxShadow = 'var(--shadow-sm)';
                                                     }
                                                 }}
@@ -1637,14 +1608,14 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
                                                     <span>{a.name}</span>
                                                     {roomRange && (
                                                         <span style={{
-                                                            fontSize: '0.85rem',
+                                                            fontSize: '0.9rem',
                                                             color: 'var(--text-muted)',
                                                             fontWeight: '500'
                                                         }}>({roomRange})</span>
                                                     )}
                                                     {isCurrentAcademy && (
                                                         <span style={{
-                                                            fontSize: '0.75rem',
+                                                            fontSize: '0.85rem',
                                                             color: 'white',
                                                             backgroundColor: 'var(--primary)',
                                                             padding: '2px 8px',
@@ -1654,14 +1625,14 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
                                                     )}
                                                 </div>
                                                 <div style={{
-                                                    fontSize: '0.85rem',
+                                                    fontSize: '0.9rem',
                                                     color: 'var(--text-muted)',
                                                     marginBottom: '6px'
                                                 }}>
                                                     {a.category} · {a.field}
                                                 </div>
                                                 <div style={{
-                                                    fontSize: '0.85rem',
+                                                    fontSize: '0.9rem',
                                                     color: 'var(--text-muted)',
                                                     display: 'flex',
                                                     alignItems: 'center',
@@ -1682,7 +1653,7 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
                                                             <span style={{
                                                                 color: '#dc2626',
                                                                 fontWeight: '600',
-                                                                fontSize: '0.82rem'
+                                                                fontSize: '0.9rem'
                                                             }}>{period}</span>
                                                         ) : null;
                                                     })()}
@@ -1728,7 +1699,7 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
                                         padding: '12px 0',
                                         cursor: 'pointer',
                                         color: 'var(--primary)',
-                                        fontSize: '0.9rem',
+                                        fontSize: '1rem',
                                         fontWeight: '600',
                                         borderBottom: '1px dotted var(--border-color)',
                                         display: 'flex',
@@ -1752,7 +1723,7 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
                         {sameFounderAcademies.length > 0 && (
                             <Section title={`동일 위치 동일 설립자 등록 학원 (${sameFounderAcademies.length}개)`}>
                                 <div style={{
-                                    fontSize: '0.85rem',
+                                    fontSize: '0.9rem',
                                     padding: '12px',
                                     borderRadius: '8px',
                                     backgroundColor: founderTotalAreaSum >= 500 ? '#fff1f2' : 'var(--bg-light)',
@@ -1777,7 +1748,7 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
                                                 총면적 합계가 <strong>500㎡ 이상</strong>이므로, 해당 위치의 건축물용도는
                                                 '제2종근린생활시설(학원, 교습소)'이 아닌, <strong>'교육연구시설(학원)'</strong>이어야 합니다.
                                                 <br />
-                                                <span style={{ fontSize: '0.75rem', fontWeight: '500', color: '#991b1b', marginTop: '4px', display: 'inline-block' }}>
+                                                <span style={{ fontSize: '0.85rem', fontWeight: '500', color: '#991b1b', marginTop: '4px', display: 'inline-block' }}>
                                                     * 건축물대장을 확인하여 용도변경 등 검토가 필요합니다.
                                                 </span>
                                             </span>
@@ -1790,7 +1761,7 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
                                             display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                                             padding: '12px', backgroundColor: 'var(--bg-card)',
                                             border: '1px solid var(--border-color)', borderRadius: '8px',
-                                            fontSize: '0.85rem'
+                                            fontSize: '0.9rem'
                                         }}>
                                             <div style={{ fontWeight: '700', color: 'var(--primary)' }}>{a.name}</div>
                                             <div style={{ display: 'flex', gap: '16px', color: 'var(--text-muted)' }}>
@@ -1822,7 +1793,7 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
                             marginBottom: '16px'
                         }}>
                             <span style={{
-                                fontSize: '0.9rem',
+                                fontSize: '1rem',
                                 fontWeight: '600',
                                 color: 'var(--text-main)'
                             }}>
@@ -1836,7 +1807,7 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
                                     color: 'white',
                                     border: 'none',
                                     borderRadius: '8px',
-                                    fontSize: '0.85rem',
+                                    fontSize: '0.9rem',
                                     fontWeight: '600',
                                     cursor: 'pointer',
                                     transition: 'all 0.2s'
@@ -1885,7 +1856,7 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
                                         </span>
                                         <div style={{ flex: 1 }}>
                                             <div style={{
-                                                fontSize: '0.95rem',
+                                                fontSize: '1rem',
                                                 fontWeight: '700',
                                                 color: 'var(--text-main)',
                                                 marginBottom: '4px'
@@ -1958,26 +1929,26 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
                                                 const unitPriceLabel = (academy.category || '').includes('교습소') ? '교습소단가' : '학원단가';
 
                                                 return (
-                                                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                    <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                                         <div>
-                                                            {course.track} | 정원: {course.quota}명 | {feeLabel}: <span style={{ color: '#0f172a', fontWeight: '800', fontSize: '0.92rem' }}>{feeDisplay}원</span> {course.totalTime ? `| 총교습시간: ${course.totalTime}분` : ''}
+                                                            {course.track} | 정원: {course.quota}명 | {feeLabel}: <span style={{ color: '#0f172a', fontWeight: '800', fontSize: '1rem' }}>{feeDisplay}원</span> {course.totalTime ? `| 총교습시간: ${course.totalTime}분` : ''}
                                                         </div>
 
                                                         {(course.unitPrice || course.standardUnitPrice) && (
                                                             <div style={{ display: 'flex', gap: '4px', alignItems: 'center', flexWrap: 'wrap', marginTop: '2px' }}>
-                                                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', backgroundColor: 'var(--bg-light)', padding: '2px 6px', borderRadius: '4px', color: 'var(--text-muted)', border: '1px solid var(--border-color)', fontSize: '0.75rem' }}>
+                                                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', backgroundColor: 'var(--bg-light)', padding: '2px 6px', borderRadius: '4px', color: 'var(--text-muted)', border: '1px solid var(--border-color)', fontSize: '0.85rem' }}>
                                                                     {unitPriceLabel}: <span style={{ color: '#2563eb', fontWeight: '800' }}>{course.unitPrice ? `${course.unitPrice}원` : '-'}</span>
                                                                 </span>
                                                                 {hasValidCompare && (
-                                                                    <span style={{ fontWeight: '900', fontSize: '0.85rem', color: unitPriceNum > stdPriceNum ? '#dc2626' : unitPriceNum < stdPriceNum ? '#059669' : '#64748b' }}>
+                                                                    <span style={{ fontWeight: '900', fontSize: '0.9rem', color: unitPriceNum > stdPriceNum ? '#dc2626' : unitPriceNum < stdPriceNum ? '#059669' : '#64748b' }}>
                                                                         {unitPriceNum > stdPriceNum ? '>' : unitPriceNum < stdPriceNum ? '<' : '='}
                                                                     </span>
                                                                 )}
-                                                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', backgroundColor: 'var(--bg-light)', padding: '2px 6px', borderRadius: '4px', color: 'var(--text-muted)', border: '1px solid var(--border-color)', fontSize: '0.75rem', fontWeight: '500' }}>
+                                                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', backgroundColor: 'var(--bg-light)', padding: '2px 6px', borderRadius: '4px', color: 'var(--text-muted)', border: '1px solid var(--border-color)', fontSize: '0.85rem', fontWeight: '500' }}>
                                                                     기준단가: {stdPriceNum > 0 ? `${stdPriceNum}원` : '-'}
                                                                 </span>
                                                                 {hasValidCompare && (
-                                                                    <span style={{ color: unitPriceNum > stdPriceNum ? '#dc2626' : '#2563eb', fontWeight: '800', fontSize: '0.75rem' }}>
+                                                                    <span style={{ color: unitPriceNum > stdPriceNum ? '#dc2626' : '#2563eb', fontWeight: '800', fontSize: '0.85rem' }}>
                                                                         [{unitPriceNum > stdPriceNum ? '단가 초과' : '단가 적합'}]
                                                                     </span>
                                                                 )}
@@ -1992,7 +1963,7 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
                                                             const formattedTime = h > 0 ? `${h}시간 ${m.toString().padStart(2, '0')}분` : `${m}분`;
 
                                                             return (
-                                                                <div style={{ marginTop: '4px', fontSize: '0.78rem', color: '#000000', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                                <div style={{ marginTop: '4px', fontSize: '0.85rem', color: '#000000', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                                                     <div>
                                                                         (교습시간) {totalTimeNum.toLocaleString()}분 = <span style={{ fontWeight: '800' }}>{best.minutes}분씩</span> × <span style={{ fontWeight: '800' }}>주{best.sessions}회</span> × {best.weeks !== 4.3 ? <span style={{ color: '#10b981', fontWeight: '800' }}>{best.weeks}주</span> : <span>{best.weeks}주</span>}
                                                                         <br />
@@ -2073,8 +2044,8 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
                                                 const best = combos[0];
 
                                                 return (
-                                                    <div style={{ marginTop: '16px', padding: '14px', backgroundColor: 'var(--bg-light)', borderRadius: '12px', fontSize: '0.83rem', color: 'var(--text-main)', lineHeight: '1.7', borderLeft: '4px solid var(--primary)' }}>
-                                                        <div style={{ fontWeight: '800', marginBottom: '10px', color: 'var(--primary)', fontSize: '0.85rem' }}>💡 교습비 점검</div>
+                                                    <div style={{ marginTop: '16px', padding: '14px', backgroundColor: 'var(--bg-light)', borderRadius: '12px', fontSize: '0.9rem', color: 'var(--text-main)', lineHeight: '1.7', borderLeft: '4px solid var(--primary)' }}>
+                                                        <div style={{ fontWeight: '800', marginBottom: '10px', color: 'var(--primary)', fontSize: '0.9rem' }}>💡 교습비 점검</div>
 
                                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                             {/* 교습 구성 */}
@@ -2086,12 +2057,12 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
                                                                 const actualTotal = (best.minutes * best.sessions * best.weeks).toFixed(1);
                                                                 return (
                                                                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
-                                                                        <span style={{ color: '#64748b', minWidth: '80px', fontSize: '0.78rem', fontWeight: '700' }}>📐 교습 구성</span>
+                                                                        <span style={{ color: '#64748b', minWidth: '80px', fontSize: '0.85rem', fontWeight: '700' }}>📐 교습 구성</span>
                                                                         <span>
                                                                             <b>{best.minutes}분</b> × 주<b>{best.sessions}회</b> × <b>{best.weeks}주</b> = <b>{actualTotal}분</b>
                                                                             <span style={{ color: '#64748b' }}> (등록: {totalTimeNum}분)</span>
                                                                             <br/>
-                                                                            <span style={{ color: '#ea580c', fontSize: '0.77rem' }}>→ 주당 {weeklyMin}분 ({timeStr})</span>
+                                                                            <span style={{ color: '#ea580c', fontSize: '0.85rem' }}>→ 주당 {weeklyMin}분 ({timeStr})</span>
                                                                         </span>
                                                                     </div>
                                                                 );
@@ -2099,17 +2070,17 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
 
                                                             {/* 분당단가 역산 */}
                                                             <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
-                                                                <span style={{ color: '#64748b', minWidth: '80px', fontSize: '0.78rem', fontWeight: '700' }}>💰 분당단가</span>
+                                                                <span style={{ color: '#64748b', minWidth: '80px', fontSize: '0.85rem', fontWeight: '700' }}>💰 분당단가</span>
                                                                 <span>
                                                                     {feeNum.toLocaleString()}원 ÷ {totalTimeNum}분 = <b style={{ color: isSimilar ? '#2563eb' : '#dc2626' }}>{displayUnitPrice}원/분</b>
-                                                                    <span style={{ color: '#64748b', fontSize: '0.77rem' }}> ({course.tuitionFee ? 'AL열 교습비 기준' : '총교습비 기준'})</span>
+                                                                    <span style={{ color: '#64748b', fontSize: '0.85rem' }}> ({course.tuitionFee ? 'AL열 교습비 기준' : '총교습비 기준'})</span>
                                                                 </span>
                                                             </div>
 
                                                             {/* 단가 비교 */}
                                                             {!isNaN(unitPriceNum) && unitPriceNum > 0 && !isNaN(stdPriceNum) && stdPriceNum > 0 && (
                                                                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
-                                                                    <span style={{ color: '#64748b', minWidth: '80px', fontSize: '0.78rem', fontWeight: '700' }}>📊 단가 비교</span>
+                                                                    <span style={{ color: '#64748b', minWidth: '80px', fontSize: '0.85rem', fontWeight: '700' }}>📊 단가 비교</span>
                                                                     <span>
                                                                         {unitPriceLabel} <b style={{ color: '#2563eb' }}>{course.unitPrice}원</b>
                                                                         {' / '}기준단가 <b>{course.standardUnitPrice}원</b>
@@ -2122,7 +2093,7 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
 
                                                             {/* 결론 */}
                                                             <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
-                                                                <span style={{ color: '#64748b', minWidth: '80px', fontSize: '0.78rem', fontWeight: '700' }}>🔍 판정</span>
+                                                                <span style={{ color: '#64748b', minWidth: '80px', fontSize: '0.85rem', fontWeight: '700' }}>🔍 판정</span>
                                                                 <span style={{ fontWeight: '700', color: isSimilar ? '#059669' : '#dc2626' }}>
                                                                     {isSimilar
                                                                         ? `역산 단가(${displayUnitPrice}원)와 ${unitPriceLabel}(${course.unitPrice}원) 일치 → 적합`
@@ -2159,7 +2130,7 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
                                         <span>📋</span> 교습비 분당단가 기준
                                     </h3>
                                     <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid var(--border-color)', overflow: 'hidden' }}>
-                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', textAlign: 'center', backgroundColor: 'var(--bg-card)' }}>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem', textAlign: 'center', backgroundColor: 'var(--bg-card)' }}>
                                             <thead style={{ backgroundColor: '#f8fafc' }}>
                                                 <tr>
                                                     <th style={{ padding: '10px', borderBottom: '2px solid var(--border-color)', color: 'var(--text-main)', fontWeight: '700', whiteSpace: 'nowrap' }}>교습과정</th>
@@ -2199,7 +2170,7 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
                                             </tbody>
                                         </table>
                                     </div>
-                                    <div style={{ marginTop: '10px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                                    <div style={{ marginTop: '10px', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
                                         * 해당 학원의 교습과목에 적용된 <strong>기준 단가</strong>가 <span style={{ color: '#1d4ed8', fontWeight: '700', backgroundColor: '#eff6ff', padding: '2px 6px', borderRadius: '4px' }}>파란색 배경(강조표시)</span>으로 나타납니다.
                                     </div>
                                 </div>
@@ -2291,9 +2262,12 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
         <div className="detail-view">
             <div className="detail-header">
                 <button onClick={onBack} className="back-btn" aria-label="뒤로가기">
-                    ←
+                    ← 뒤로
                 </button>
-                <h2>{academy.name}</h2>
+                <div className="detail-title">
+                    <h2>{academy.name}</h2>
+                    <p className="detail-sub">{[academy.category, academy.id && `No. ${academy.id}`, academy.status].filter(Boolean).join(' · ')}</p>
+                </div>
             </div>
 
             <div
@@ -2330,7 +2304,7 @@ export default function DetailView({ academy, allAcademies = [], supplementLoadi
                 className="floating-back-btn"
                 aria-label="뒤로가기"
             >
-                ← BACK
+                ← 뒤로
             </button>
         </div>
     );
