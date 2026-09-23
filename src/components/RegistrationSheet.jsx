@@ -84,7 +84,7 @@ function judge(sub, isTutoring, standardRate) {
   };
 }
 
-export default function RegistrationSheet({ mode = 'academy', info, onInfoChange, regType, regTypeOptions = [], onRegTypeChange, subjects, onSubjectsChange, discount = '', onDiscountChange, extraFees = [], onExtraFeesChange, onPrint }) {
+export default function RegistrationSheet({ mode = 'academy', info, onInfoChange, regType, regTypeOptions = [], onRegTypeChange, subjects, onSubjectsChange, discount = '', onDiscountChange, extraFees = [], onExtraFeesChange, onPrint, onBulkExcel }) {
   const isTutoring = mode === 'tutoring';
   const setInfo = (key, value) => onInfoChange({ ...info, [key]: value });
   const { region, officeName, rows: rateRows, tutoringHourlyRate, ratesReady } = useRegion();
@@ -412,6 +412,7 @@ export default function RegistrationSheet({ mode = 'academy', info, onInfoChange
         )}
       </div>
 
+      <div className="reg-actions">
       {onPrint && (
       <button type="button" className="reg-print" onClick={onPrint}>
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -422,6 +423,17 @@ export default function RegistrationSheet({ mode = 'academy', info, onInfoChange
         {isTutoring ? '교습비 신고서 출력 (PDF)' : '등록신청서 출력 (PDF)'}
       </button>
       )}
+      {onBulkExcel && (
+      <button type="button" className="reg-print reg-bulk-excel" onClick={onBulkExcel} title="나이스 학원 교습비 일괄등록에 그대로 올리는 엑셀">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="7 10 12 15 17 10" />
+          <line x1="12" y1="15" x2="12" y2="3" />
+        </svg>
+        교습비일괄등록 다운로드 (엑셀)
+      </button>
+      )}
+      </div>
     </div>
   );
 }
