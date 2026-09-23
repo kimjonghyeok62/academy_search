@@ -144,66 +144,22 @@ export default function TuitionReviewTab({ mode = 'academy', academies: masterAc
     },
   };
 
-  const subTabStyle = (active) => ({
-    flex: 1,
-    padding: '11px 4px',
-    border: 'none',
-    borderRadius: '9px',
-    cursor: 'pointer',
-    backgroundColor: active ? 'var(--primary)' : 'transparent',
-    color: active ? '#fff' : 'var(--text-muted)',
-    fontWeight: active ? '800' : '600',
-    fontSize: '1.02rem',
-    boxShadow: active ? '0 2px 8px rgba(79, 70, 229, 0.3)' : 'none',
-    transition: 'all 0.15s',
-    fontFamily: 'inherit',
-  });
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
-      {/* 탭 전용 안내 배너 */}
-      {!isTutoring ? (
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: '8px',
-          padding: '9px 14px',
-          backgroundColor: '#eff6ff',
-          border: '1px solid #bfdbfe',
-          borderRadius: '8px',
-          fontSize: '0.95rem',
-          color: '#1d4ed8',
-          lineHeight: 1.4,
-        }}>
-          <span style={{ fontSize: '1.1rem', flexShrink: 0 }}>ℹ️</span>
-          <span>
-            이 탭은 <strong>학원·교습소</strong> 전용입니다.&nbsp;
-            개인과외는 상단 <strong>'개인과외'</strong> 탭을 이용해 주세요.
-          </span>
-        </div>
-      ) : (
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: '8px',
-          padding: '9px 14px',
-          backgroundColor: '#fffbeb',
-          border: '1px solid #fde68a',
-          borderRadius: '8px',
-          fontSize: '0.95rem',
-          color: '#92400e',
-          lineHeight: 1.4,
-        }}>
-          <span style={{ fontSize: '1.1rem', flexShrink: 0 }}>ℹ️</span>
-          <span>
-            이 탭은 <strong>개인과외</strong> 전용입니다.&nbsp;
-            학원·교습소는 상단 <strong>'학원·교습소'</strong> 탭을 이용해 주세요.
-          </span>
-        </div>
-      )}
-
       {/* 신규 / 변경 서브탭 (학원·교습소만) */}
       {!isTutoring && (
-        <div style={{ display: 'flex', gap: '6px', padding: '5px', backgroundColor: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '12px', marginBottom: '4px' }}>
+        <div className="seg seg-block" role="group" aria-label="신규·변경">
           {['신규', '변경'].map(t => (
-            <button key={t} style={subTabStyle(subTab === t)} onClick={() => setSubTab(t)}>{t}</button>
+            <button
+              key={t}
+              type="button"
+              className={`seg-btn${subTab === t ? ' is-on' : ''}`}
+              aria-pressed={subTab === t}
+              onClick={() => setSubTab(t)}
+            >
+              {t}
+            </button>
           ))}
         </div>
       )}
@@ -245,7 +201,7 @@ export default function TuitionReviewTab({ mode = 'academy', academies: masterAc
 
           {!changeSelected && (
             <>
-              <div style={{ fontSize: '1rem', fontWeight: '600', color: 'var(--text-main)', lineHeight: 1.5, marginBottom: '14px', wordBreak: 'keep-all' }}>
+              <div style={{ fontSize: '1.0625rem', fontWeight: '600', color: 'var(--text-main)', lineHeight: 1.5, marginBottom: '14px' }}>
                 나이스 학원에 등록된 교습비를 불러와서 바꿀 부분만 수정합니다.
               </div>
               <NeisHakwonCard />
@@ -254,9 +210,7 @@ export default function TuitionReviewTab({ mode = 'academy', academies: masterAc
           )}
 
           {changeError && (
-            <div style={{ color: '#dc2626', fontSize: '0.95rem', marginBottom: '16px', padding: '12px 14px', backgroundColor: '#fef2f2', borderRadius: '8px', border: '1px solid #fecaca' }}>
-              {changeError}
-            </div>
+            <div className="alert is-error" style={{ marginBottom: '16px' }}>{changeError}</div>
           )}
 
           {/* 복수 학원 선택 */}
@@ -272,11 +226,12 @@ export default function TuitionReviewTab({ mode = 'academy', academies: masterAc
                   나이스 엑셀에서 <b>{changeSelected.name}</b>의 교습과정 {changeSubjects.length}개를 불러왔습니다. 바꿀 칸만 고치세요.
                 </div>
                 <button
+                  type="button"
+                  className="btn btn-outline btn-sm"
                   onClick={() => { setChangeSelected(null); setChangeSubjects([]); setChangeAcademies([]); }}
-                  style={{ flexShrink: 0, padding: '8px 12px', backgroundColor: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', color: '#334155', fontSize: '0.95rem', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px', fontFamily: 'inherit' }}
+                  style={{ flexShrink: 0 }}
                 >
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-                  다른 파일·학원 선택
+                  ← 다른 파일·학원 선택
                 </button>
               </div>
               <RegistrationSheet

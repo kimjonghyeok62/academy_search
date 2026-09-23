@@ -274,22 +274,23 @@
     margin-bottom: 16px;
 }
 
-/* 내부용·외부용을 색으로 갈라 둔다 — 담당자가 둘을 바꿔 보내면 학원이 엉뚱한 것을 붙인다 */
+/* 내부용·외부용은 바탕과 표지로 갈라 둔다 — 담당자가 둘을 바꿔 보내면 학원이 엉뚱한 것을 붙인다
+   (내부용 = 옅은 파랑 바탕·파랑 표지, 외부용 = 흰 바탕·남색 표지) */
 .tuition-export__card {
-    border: 2px solid;
+    border: 1px solid var(--border-color);
     border-radius: 12px;
     padding: 14px;
     margin-bottom: 10px;
 }
 
 .tuition-export__card--inner {
-    background-color: #eff6ff;
+    background-color: var(--primary-soft);
     border-color: #bfdbfe;
 }
 
 .tuition-export__card--outer {
-    background-color: #ecfdf5;
-    border-color: #a7f3d0;
+    background-color: var(--bg-card);
+    border-color: var(--border-strong);
     margin-bottom: 0;
 }
 
@@ -297,37 +298,29 @@
     display: flex;
     align-items: center;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: 6px 8px;
     margin-bottom: 10px;
 }
 
 .tuition-export__title {
-    font-size: 1rem;
+    font-size: 1.0625rem;
     font-weight: 800;
     color: var(--text-main);
 }
 
 .tuition-export__badge {
-    font-size: 0.82rem;
-    font-weight: 700;
-    border-radius: 20px;
+    font-size: 0.9rem;
+    font-weight: 800;
+    border-radius: 6px;
     padding: 2px 10px;
+    color: #fff;
 }
 
-.tuition-export__card--inner .tuition-export__badge {
-    color: #1e40af;
-    background-color: #dbeafe;
-    border: 1.5px solid #93c5fd;
-}
-
-.tuition-export__card--outer .tuition-export__badge {
-    color: #065f46;
-    background-color: #d1fae5;
-    border: 1.5px solid #6ee7b7;
-}
+.tuition-export__card--inner .tuition-export__badge { background-color: var(--primary); }
+.tuition-export__card--outer .tuition-export__badge { background-color: var(--navy); }
 
 .tuition-export__hint {
-    font-size: 0.78rem;
+    font-size: 0.9rem;
     color: var(--text-muted);
 }
 
@@ -337,48 +330,43 @@
     gap: 8px;
 }
 
+/* 인쇄(PDF)가 가장 흔한 일이라 그것만 채운 파랑, 나머지는 흰 단추 */
 .tuition-export__btn {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     gap: 2px;
-    padding: 11px 8px;
-    border: 2px solid;
+    min-height: 58px;
+    padding: 8px;
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-strong);
     border-radius: 10px;
+    color: var(--text-main);
     font-family: inherit;
-    font-size: 0.92rem;
+    font-size: 1.0625rem;
     font-weight: 700;
     cursor: pointer;
-    transition: filter 0.15s;
     white-space: nowrap;
 }
 
-.tuition-export__btn:hover:not(:disabled) { filter: brightness(0.96); }
+.tuition-export__btn:hover:not(:disabled) { background-color: #f1f5f9; border-color: var(--primary); }
 .tuition-export__btn:disabled { opacity: 0.55; cursor: not-allowed; }
 
-/* 꼴마다 색을 달리한다 — 여덟 개가 한 화면에 있어 글자만으로는 더디다 */
-.tuition-export__btn--pdf  { background-color: var(--primary); border-color: var(--primary); color: #fff; }
-.tuition-export__btn--jpg  { background-color: #ecfdf5; border-color: #6ee7b7; color: #047857; }
-.tuition-export__btn--hwpx { background-color: #f0f9ff; border-color: #7dd3fc; color: #0369a1; }
-.tuition-export__btn--text { background-color: #fff7ed; border-color: #fdba74; color: #c2410c; }
-
-.tuition-export__btn--pdf:hover:not(:disabled) { filter: brightness(1.1); }
+.tuition-export__btn--pdf { background-color: var(--primary); border-color: var(--primary); color: #fff; }
+.tuition-export__btn--pdf:hover:not(:disabled) { background-color: #1e40af; border-color: #1e40af; }
 
 .tuition-export__sub {
-    font-size: 0.72rem;
-    font-weight: 600;
-    opacity: 0.75;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text-muted);
 }
 
-.tuition-export__btn--pdf .tuition-export__sub { color: rgba(255, 255, 255, 0.85); opacity: 1; }
+.tuition-export__btn--pdf .tuition-export__sub { color: rgba(255, 255, 255, 0.85); }
 
 @media (max-width: 480px) {
-    .tuition-export__btn {
-        font-size: 0.86rem;
-        padding: 10px 4px;
-    }
-    .tuition-export__hint { display: none; }
+    .tuition-export__btn { padding: 8px 4px; }
+    .tuition-export__sub { font-size: 0.85rem; }
 }
 
 /* ── 강사 탭: 강사게시표 만들기 ──

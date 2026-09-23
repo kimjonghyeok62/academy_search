@@ -853,11 +853,8 @@ function App() {
         )}
 
         {page === 'tuition' && (
-          <main className="page is-flush">
-            <TuitionPrintPage
-              academies={academies}
-              onBack={() => setShowTuitionPrint(false)}
-            />
+          <main className="page">
+            <TuitionPrintPage academies={academies} />
           </main>
         )}
 

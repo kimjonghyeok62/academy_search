@@ -6,14 +6,14 @@ import {
 
 // 교육지원청 학원담당 주무관이 자기 지역 교습과정·분당단가를 입력하는 화면 (지역별 비밀번호)
 
-const box = { backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '18px', marginBottom: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' };
-const label = { display: 'block', fontSize: '0.9rem', fontWeight: 700, color: '#334155', marginBottom: '6px' };
-const input = { width: '100%', boxSizing: 'border-box', padding: '9px 10px', fontSize: '0.95rem', border: '1px solid #cbd5e1', borderRadius: '8px', fontFamily: 'inherit' };
-const cellInput = { ...input, padding: '7px 8px', fontSize: '0.9rem' };
-const th = { padding: '8px 6px', backgroundColor: '#f8fafc', borderBottom: '2px solid #cbd5e1', fontSize: '0.85rem', color: '#334155', whiteSpace: 'nowrap' };
-const td = { padding: '5px 4px', borderBottom: '1px solid #e2e8f0', verticalAlign: 'middle' };
-const btn = (bg, color, border) => ({ padding: '9px 14px', backgroundColor: bg, color, border: `1px solid ${border}`, borderRadius: '8px', fontWeight: 700, fontSize: '0.92rem', cursor: 'pointer', fontFamily: 'inherit' });
-const smallBtn = { padding: '4px 7px', backgroundColor: '#f1f5f9', color: '#334155', border: '1px solid #e2e8f0', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem', fontFamily: 'inherit' };
+// 모양 — 앱 공통 틀(흰 카드·파랑 하나·46px 단추)을 따른다. 단추는 .btn 클래스를 쓴다.
+const box = { backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '18px', marginBottom: '16px', boxShadow: 'var(--shadow-sm)' };
+const label = { display: 'block', fontSize: '1rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '6px' };
+const input = { width: '100%', boxSizing: 'border-box', minHeight: '46px', padding: '0 12px', fontSize: '1.0625rem', border: '1px solid var(--border-strong)', borderRadius: '10px', fontFamily: 'inherit', backgroundColor: 'var(--bg-card)' };
+const cellInput = { ...input, minHeight: '40px', padding: '0 8px', fontSize: '1rem', borderRadius: '8px' };
+const th = { padding: '10px 6px', backgroundColor: '#f8fafc', borderBottom: '2px solid var(--border-strong)', fontSize: '0.9rem', color: 'var(--text-main)', whiteSpace: 'nowrap' };
+const td = { padding: '5px 4px', borderBottom: '1px solid var(--border-color)', verticalAlign: 'middle' };
+const smallBtn = { minWidth: '36px', minHeight: '36px', padding: '0 8px', backgroundColor: '#f1f5f9', color: 'var(--text-body)', border: '1px solid var(--border-color)', borderRadius: '6px', cursor: 'pointer', fontSize: '0.9rem', fontFamily: 'inherit' };
 
 function toEditRows(rows) {
   return rows.map(r => ({ ...r, rate: r.rate > 0 ? String(r.rate) : '' }));
@@ -110,21 +110,24 @@ export default function RegionAdmin({ onBack }) {
   }
 
   return (
-    <div style={{ maxWidth: '980px', margin: '0 auto', padding: '20px', minHeight: '100vh' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', flexWrap: 'wrap', gap: '10px' }}>
-        <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#111827', margin: 0 }}>교육지원청 기준단가 입력</h2>
-        <button type="button" onClick={onBack} style={btn('#1d4ed8', '#fff', '#1d4ed8')}>← 처음 화면으로</button>
+    <div className="animate-enter">
+      <button type="button" className="btn btn-outline btn-sm" onClick={onBack} style={{ marginBottom: '14px' }}>
+        ← 교습비 계산·게시표로
+      </button>
+      <div className="page-head">
+        <h1 className="page-title">교육지원청 기준단가 입력</h1>
+        <p className="page-desc">교육지원청 담당자가 자기 지역 교습과정별 분당단가를 넣습니다.</p>
       </div>
 
       {!RATES_API_URL && (
-        <div style={{ ...box, backgroundColor: '#fffbeb', borderColor: '#fcd34d', color: '#92400e' }}>
+        <div className="alert is-warn" style={{ marginBottom: '16px' }}>
           아직 기준단가 시트가 연결되지 않아 저장할 수 없습니다. 운영자에게 문의하세요.
         </div>
       )}
 
       {!unlocked ? (
         <form onSubmit={unlock} style={box}>
-          <div style={{ fontSize: '0.95rem', color: '#475569', marginBottom: '14px', lineHeight: 1.6, wordBreak: 'keep-all' }}>
+          <div style={{ fontSize: '1rem', color: 'var(--text-body)', marginBottom: '14px', lineHeight: 1.6 }}>
             각 교육지원청 학원담당 주무관이 <b>자기 지역</b>의 교습과정별 분당단가를 입력합니다. 비밀번호는 운영자에게 받으세요.
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '14px' }}>
@@ -140,8 +143,8 @@ export default function RegionAdmin({ onBack }) {
               <input id="admin-password" type="password" autoComplete="current-password" style={input} value={password} onChange={e => setPassword(e.target.value)} />
             </div>
           </div>
-          {error && <div style={{ color: '#dc2626', marginBottom: '10px', fontSize: '0.92rem' }}>{error}</div>}
-          <button type="submit" disabled={busy} style={btn('#4f46e5', '#fff', '#4f46e5')}>{busy ? '확인 중...' : '확인'}</button>
+          {error && <div className="alert is-error" style={{ marginBottom: '10px' }}>{error}</div>}
+          <button type="submit" disabled={busy} className="btn btn-primary">{busy ? '확인 중...' : '확인'}</button>
         </form>
       ) : (
         <>
@@ -168,10 +171,10 @@ export default function RegionAdmin({ onBack }) {
 
           <div style={box}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '10px' }}>
-              <div style={{ fontWeight: 800, color: '#111827' }}>{region} 교습과정별 분당단가</div>
-              <button type="button" onClick={loadTemplate} style={btn('#f8fafc', '#334155', '#cbd5e1')}>기본 교습과정 13줄 불러오기</button>
+              <div style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-main)' }}>{region} 교습과정별 분당단가</div>
+              <button type="button" onClick={loadTemplate} className="btn btn-outline btn-sm">기본 교습과정 13줄 불러오기</button>
             </div>
-            <div style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '10px', lineHeight: 1.6, wordBreak: 'keep-all' }}>
+            <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '10px', lineHeight: 1.6 }}>
               화면에는 <b>교습과정(교습과목)</b>으로 표시됩니다. 예) 보습 + 초등 → 보습(초등). 키워드(쉼표로 구분)를 적으면 학원이 과목명에 그 글자를 쓸 때 이 줄이 자동 선택됩니다. 예) 피아노,바이올린
             </div>
             <div style={{ overflowX: 'auto' }}>
@@ -199,23 +202,23 @@ export default function RegionAdmin({ onBack }) {
                       <td style={td}><input style={cellInput} value={r.subject} onChange={e => updateRow(r.id, { subject: e.target.value })} placeholder="예) 입시" /></td>
                       <td style={{ ...td, width: '120px' }}><input style={{ ...cellInput, textAlign: 'right' }} inputMode="numeric" value={r.rate} onChange={e => updateRow(r.id, { rate: e.target.value.replace(/[^0-9]/g, '') })} placeholder="0" /></td>
                       <td style={td}><input style={cellInput} value={r.keywords} onChange={e => updateRow(r.id, { keywords: e.target.value })} /></td>
-                      <td style={{ ...td, textAlign: 'center' }}><button type="button" style={{ ...smallBtn, color: '#b91c1c' }} onClick={() => removeRow(r.id)}>삭제</button></td>
+                      <td style={{ ...td, textAlign: 'center' }}><button type="button" style={{ ...smallBtn, color: 'var(--over)' }} onClick={() => removeRow(r.id)}>삭제</button></td>
                     </tr>
                   ))}
                   {!rows.length && (
-                    <tr><td colSpan={7} style={{ ...td, textAlign: 'center', color: '#94a3b8', padding: '18px' }}>아직 줄이 없습니다. "기본 교습과정 13줄 불러오기"나 "+ 줄 추가"를 누르세요.</td></tr>
+                    <tr><td colSpan={7} style={{ ...td, textAlign: 'center', color: 'var(--text-muted)', padding: '18px' }}>아직 줄이 없습니다. "기본 교습과정 13줄 불러오기"나 "+ 줄 추가"를 누르세요.</td></tr>
                   )}
                 </tbody>
               </table>
             </div>
-            <button type="button" onClick={addRow} style={{ ...btn('#f8fafc', '#4f46e5', '#c7d2fe'), marginTop: '10px' }}>+ 줄 추가</button>
+            <button type="button" onClick={addRow} className="btn btn-outline" style={{ marginTop: '10px' }}>+ 줄 추가</button>
           </div>
 
-          {error && <div style={{ color: '#dc2626', marginBottom: '10px', fontSize: '0.95rem', fontWeight: 600 }}>{error}</div>}
-          {message && <div style={{ color: '#15803d', marginBottom: '10px', fontSize: '0.95rem', fontWeight: 600 }}>{message}</div>}
+          {error && <div className="alert is-error" style={{ marginBottom: '10px' }}>{error}</div>}
+          {message && <div className="alert is-ok" style={{ marginBottom: '10px' }}>{message}</div>}
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-            <button type="button" onClick={save} disabled={busy} style={{ ...btn('#4f46e5', '#fff', '#4f46e5'), padding: '12px 22px', fontSize: '1rem' }}>{busy ? '저장 중...' : '저장'}</button>
-            <button type="button" onClick={() => { setUnlocked(false); setPassword(''); setMessage(''); setError(''); }} style={btn('#fff', '#334155', '#cbd5e1')}>나가기</button>
+            <button type="button" onClick={save} disabled={busy} className="btn btn-primary" style={{ minWidth: '120px' }}>{busy ? '저장 중...' : '저장'}</button>
+            <button type="button" onClick={() => { setUnlocked(false); setPassword(''); setMessage(''); setError(''); }} className="btn btn-outline">나가기</button>
           </div>
         </>
       )}

@@ -69,7 +69,7 @@ export default function TuitionExportButtons({ academy }) {
                             onClick={() => kind.print(academy)}
                             disabled={!!busy}
                         >
-                            🖨️ PDF 출력<span className="tuition-export__sub">인쇄용</span>
+                            PDF 출력<span className="tuition-export__sub">인쇄용</span>
                         </button>
                         <button
                             className="tuition-export__btn tuition-export__btn--jpg"
@@ -77,7 +77,7 @@ export default function TuitionExportButtons({ academy }) {
                                 downloadFormJpgFromHtml(kind.html(academy), academy.name, kind.label))}
                             disabled={!!busy}
                         >
-                            {busy === `${kind.key}-jpg` ? '⏳ 만드는 중…' : '🖼️ JPG 저장'}
+                            {busy === `${kind.key}-jpg` ? '만드는 중…' : 'JPG 저장'}
                             <span className="tuition-export__sub">문자·블로그용</span>
                         </button>
                         <button
@@ -85,7 +85,7 @@ export default function TuitionExportButtons({ academy }) {
                             onClick={() => run(`${kind.key}-hwpx`, () => kind.hwpx(academy))}
                             disabled={!!busy}
                         >
-                            {busy === `${kind.key}-hwpx` ? '⏳ 만드는 중…' : '📄 HWPX 저장'}
+                            {busy === `${kind.key}-hwpx` ? '만드는 중…' : 'HWPX 저장'}
                             <span className="tuition-export__sub">한글 편집용</span>
                         </button>
                         <button
@@ -93,7 +93,7 @@ export default function TuitionExportButtons({ academy }) {
                             onClick={() => setPlaceText(buildTuitionPlaceText(academy))}
                             disabled={!!busy}
                         >
-                            📋 TEXT 복사<span className="tuition-export__sub">네이버 플레이스용</span>
+                            TEXT 복사<span className="tuition-export__sub">네이버 플레이스용</span>
                         </button>
                     </div>
                 </div>
