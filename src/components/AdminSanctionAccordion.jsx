@@ -16,28 +16,28 @@ export default function AdminSanctionAccordion() {
 
     const thStyle = {
         padding: '7px 10px', backgroundColor: '#f1f5f9', color: 'var(--text-main)',
-        fontWeight: '700', fontSize: '0.78rem', textAlign: 'left',
+        fontWeight: '700', fontSize: '0.85rem', textAlign: 'left',
         borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap'
     };
     const tdStyle = {
-        padding: '6px 10px', fontSize: '0.78rem', color: 'var(--text-main)',
+        padding: '6px 10px', fontSize: '0.85rem', color: 'var(--text-main)',
         borderBottom: '1px solid var(--border-color)', verticalAlign: 'top', lineHeight: '1.5'
     };
-    const catTd = { ...tdStyle, backgroundColor: '#f1f5f9', fontWeight: '700', color: '#374151', fontSize: '0.75rem' };
-    const sanctionTd = { ...tdStyle, textAlign: 'center', whiteSpace: 'nowrap', fontSize: '0.76rem' };
-    const taxTd = { ...tdStyle, textAlign: 'center', fontSize: '0.85rem' };
+    const catTd = { ...tdStyle, backgroundColor: '#f1f5f9', fontWeight: '700', color: '#374151', fontSize: '0.85rem' };
+    const sanctionTd = { ...tdStyle, textAlign: 'center', whiteSpace: 'nowrap', fontSize: '0.85rem' };
+    const taxTd = { ...tdStyle, textAlign: 'center', fontSize: '0.9rem' };
 
     const SectionHeader = ({ label, sKey, color = '#f8fafc' }) => (
         <div onClick={() => toggleSection(sKey)}
             style={{
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                padding: '10px 14px', backgroundColor: color, borderRadius: '8px',
+                minHeight: '46px', boxSizing: 'border-box', padding: '0 14px', backgroundColor: color, borderRadius: '8px',
                 cursor: 'pointer', marginBottom: '8px',
                 border: '1px solid var(--border-color)', userSelect: 'none'
             }}>
-            <span style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--text-main)' }}>{label}</span>
+            <span style={{ fontSize: '1.0625rem', fontWeight: '700', color: 'var(--text-main)' }}>{label}</span>
             <span style={{
-                fontSize: '0.7rem', color: 'var(--text-muted)',
+                fontSize: '0.85rem', color: 'var(--text-muted)',
                 transform: openSections[sKey] ? 'rotate(180deg)' : 'rotate(0deg)',
                 transition: 'transform 0.2s', display: 'inline-block'
             }}>▼</span>
@@ -46,7 +46,7 @@ export default function AdminSanctionAccordion() {
 
     const SanctionTable = ({ rows }) => (
         <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid var(--border-color)', marginBottom: '12px' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                 <thead>
                     <tr>
                         <th style={thStyle}>위반사항</th>
@@ -199,12 +199,12 @@ export default function AdminSanctionAccordion() {
             <div onClick={toggleMain}
                 style={{
                     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                    padding: '12px 16px', borderRadius: '12px', cursor: 'pointer',
-                    backgroundColor: '#f1f5f9', border: '1px solid var(--border-color)', userSelect: 'none'
+                    minHeight: '52px', boxSizing: 'border-box', padding: '0 16px', borderRadius: '12px', cursor: 'pointer',
+                    backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-strong)', userSelect: 'none'
                 }}>
-                <span style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--text-main)' }}>⚖️ 행정처분 기준</span>
+                <span style={{ fontSize: '1.15rem', fontWeight: '800', color: 'var(--text-main)' }}>행정처분 기준</span>
                 <span style={{
-                    fontSize: '0.72rem', color: 'var(--text-muted)',
+                    fontSize: '0.85rem', color: 'var(--text-muted)',
                     transform: open ? 'rotate(180deg)' : 'rotate(0deg)',
                     transition: 'transform 0.25s', display: 'inline-block'
                 }}>▼</span>
@@ -214,7 +214,7 @@ export default function AdminSanctionAccordion() {
                 <div style={{ marginTop: '12px', animation: 'fadeIn 0.2s ease' }}>
                     {/* 처분기간 안내 */}
                     <div style={{
-                        fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '12px',
+                        fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '12px',
                         padding: '8px 12px', backgroundColor: '#fffbeb',
                         borderRadius: '8px', border: '1px solid #fde68a', lineHeight: '1.7'
                     }}>
@@ -224,28 +224,28 @@ export default function AdminSanctionAccordion() {
                     </div>
 
                     {/* 학원 */}
-                    <SectionHeader label="🏫 1. 학원" sKey="hagwon" color="#eff6ff" />
+                    <SectionHeader label="1. 학원" sKey="hagwon" />
                     {openSections['hagwon'] && <SanctionTable rows={hagwonRows} />}
 
                     {/* 교습소 */}
-                    <SectionHeader label="🏠 2. 교습소" sKey="gyosu" color="#f0fdf4" />
+                    <SectionHeader label="2. 교습소" sKey="gyosu" />
                     {openSections['gyosu'] && <SanctionTable rows={gyosusoRows} />}
 
                     {/* 개인과외교습자 */}
-                    <SectionHeader label="👤 3. 개인과외교습자" sKey="private" color="#fdf4ff" />
+                    <SectionHeader label="3. 개인과외교습자" sKey="private" />
                     {openSections['private'] && <SanctionTable rows={privateRows} />}
 
                     {/* 주요 위반사례 상세 */}
-                    <SectionHeader label="📋 주요 위반사례 상세" sKey="cases" />
+                    <SectionHeader label="주요 위반사례 상세" sKey="cases" />
                     {openSections['cases'] && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
                             {cases.map((c, i) => (
                                 <div key={i} style={{ borderRadius: '8px', border: '1px solid var(--border-color)', overflow: 'hidden' }}>
                                     <div style={{ padding: '8px 12px', backgroundColor: '#f8fafc', borderBottom: '1px solid var(--border-color)' }}>
-                                        <span style={{ fontWeight: '700', fontSize: '0.82rem', color: 'var(--text-main)' }}>▪ {c.title}</span>
-                                        {c.ref && <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginLeft: '8px' }}>{c.ref}</span>}
+                                        <span style={{ fontWeight: '700', fontSize: '0.9rem', color: 'var(--text-main)' }}>▪ {c.title}</span>
+                                        {c.ref && <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginLeft: '8px' }}>{c.ref}</span>}
                                     </div>
-                                    <div style={{ padding: '8px 12px', fontSize: '0.78rem', lineHeight: '1.8', color: 'var(--text-main)' }}>
+                                    <div style={{ padding: '8px 12px', fontSize: '0.85rem', lineHeight: '1.8', color: 'var(--text-main)' }}>
                                         {c.sanction && <div><span style={{ color: '#dc2626', fontWeight: '700' }}>처분: </span>{c.sanction}</div>}
                                         {c.fine && <div><span style={{ color: '#d97706', fontWeight: '700' }}>과태료: </span>{c.fine}</div>}
                                         <div><span style={{ color: '#6b7280', fontWeight: '700' }}>사례: </span>{c.detail}</div>
@@ -258,14 +258,14 @@ export default function AdminSanctionAccordion() {
 
                     {/* 장부·서류 안내 */}
                     <div style={{
-                        marginTop: '8px', padding: '10px 14px', backgroundColor: '#f8fafc',
+                        marginTop: '8px', minHeight: '46px', boxSizing: 'border-box', padding: '0 14px', backgroundColor: '#f8fafc',
                         borderRadius: '8px', border: '1px solid var(--border-color)',
-                        fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: '1.8'
+                        fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: '1.8'
                     }}>
                         <strong style={{ color: 'var(--text-main)' }}>📂 학원 장부·서류 비치 의무 [학원법 시행규칙 별표2]</strong><br />
                         원칙(준영구) · 등록증명서(준영구) · 신고증명서(준영구) · 개인과외신고증명서(준영구)<br />
                         수입·지출 장부(5년) · 교습비 영수증 원부(5년) · 수강생 대장(3년) · 직원명부(계속)<br />
-                        <span style={{ fontSize: '0.72rem' }}>※ 현금출납부·수강생대장·직원명부는 전자문서 관리 가능</span>
+                        <span style={{ fontSize: '0.85rem' }}>※ 현금출납부·수강생대장·직원명부는 전자문서 관리 가능</span>
                     </div>
                 </div>
             )}
