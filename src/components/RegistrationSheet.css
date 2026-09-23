@@ -316,6 +316,15 @@
 }
 .reg-print:hover { background: #1e40af; }
 
+/* 등록신청서 출력 + 교습비일괄등록 엑셀 — 넓은 화면은 나란히, 좁으면 위아래 */
+.reg-actions { display: flex; gap: 10px; margin-top: 16px; }
+.reg-actions .reg-print { flex: 1 1 0; margin-top: 0; }
+.reg-bulk-excel { background: #15803d; }
+.reg-bulk-excel:hover { background: #166534; }
+@media (max-width: 599px) {
+  .reg-actions { flex-direction: column; }
+}
+
 /* ── 좁은 화면: 표 머리글을 숨기고 과목마다 칸을 세로로 쌓음 ── */
 @media (max-width: 959px) {
   .reg-sheet { padding: 18px 12px 16px; }

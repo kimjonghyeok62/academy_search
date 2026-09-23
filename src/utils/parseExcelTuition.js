@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx';
+import { isBulkHeader, parseBulkRows } from './generateTuitionBulkExcel';
 
 /**
  * 교육청 표준 엑셀(acaInstiList_*.xlsx)을 파싱하여
@@ -22,6 +23,8 @@ export function parseExcelTuition(file) {
                 // PC 버전  : row0[3] = "주소" (열 13개)
                 // 모바일 버전: row0[3] = "교습과정" (열 11개)
                 const headerRow = raw[0] || [];
+                // 나이스 '교습비 일괄등록 및 정보공개' 엑셀 — 줄을 그대로 들고 있다가 일괄등록 엑셀로 다시 씀
+                if (isBulkHeader(headerRow)) return resolve(parseBulkRows(raw));
                 const isMobile = str(headerRow[3]).includes('교습과정');
 
                 const result = isMobile ? parseMobile(raw) : parsePC(raw);

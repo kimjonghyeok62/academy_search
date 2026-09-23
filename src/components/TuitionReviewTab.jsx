@@ -7,6 +7,7 @@ import { guessRateId } from '../utils/regionRates';
 import { OTHER_FEE_ITEMS } from '../utils/generateTuitionPDF';
 import { useRegion } from '../RegionContext';
 import { attachRegNo } from '../utils/googleSheets';
+import { downloadTuitionBulkExcel, checkBulkSubjects } from '../utils/generateTuitionBulkExcel';
 
 const EMPTY_INFO = { academyName: '', operator: '', regNumber: '', phone: '', address: '' };
 
@@ -84,7 +85,9 @@ export default function TuitionReviewTab({ mode = 'academy', academies: masterAc
       const label = c.subject || c.process;
       const rate = rateFields(rateRows, guessRateId(`${c.process} ${c.subject || ''}`, rateRows));
       const { dm, wc, wk } = reverseCalcTime(c.totalTime);
-      return newSheetSubject({ id: i + 1, subjectName: label || '', ...rate, dm, wc, wk, period: c.period || '1개월', fee: parseFeeStr(c.tuitionFee) });
+      // neisRow: 나이스 일괄등록 엑셀에서 온 줄 — 교습비일괄등록 엑셀을 받을 때 등록번호·분류를 그대로 둠
+      const neis = c.neisRow ? { neisRow: c.neisRow, neisRateId: rate.rateId, neisTotal: c.totalTime } : {};
+      return newSheetSubject({ id: i + 1, subjectName: label || '', ...rate, dm, wc, wk, period: c.period || '1개월', capacity: c.capacity || '', fee: parseFeeStr(c.tuitionFee), ...neis });
     });
     setChangeSubjects(padSheetSubjects(subs));
     // 나이스 엑셀에 적힌 기타경비가 있는 과정만 기타경비 표로 옮김
@@ -104,6 +107,20 @@ export default function TuitionReviewTab({ mode = 'academy', academies: masterAc
       regNumber: academy.id || '',
       address: academy.address || '',
     });
+  }
+
+  // 교습비일괄등록 엑셀 받기 — 교습소는 나이스 양식 열이 하나 더 많아 따로 맞춤
+  function downloadBulk({ info, regType, subjects, extraFees, academy }) {
+    const problems = checkBulkSubjects(subjects);
+    if (problems.length) {
+      alert(`아래 줄을 채운 뒤 다시 눌러 주세요.\n\n${problems.join('\n')}`);
+      return;
+    }
+    const name = info.academyName || academy?.name || '';
+    const isTeaching = academy?.neisBulk
+      ? academy.neisBulk.isTeaching
+      : academy?.category === '교습소' || /교습소\s*$/.test(name);
+    downloadTuitionBulkExcel({ isTeaching, academyName: name, kind: academy?.category, regType, subjects, extraFees, rateRows });
   }
 
   async function loadChangeFile(file) {
@@ -192,6 +209,7 @@ export default function TuitionReviewTab({ mode = 'academy', academies: masterAc
           extraFees={newExtraFees}
           onExtraFeesChange={setNewExtraFees}
           onPrint={() => printRegistrationForm({ ...newInfo, officeName, regType: '신규등록', subjects: newSheetSubjects, discount: newDiscount, extraFees: newExtraFees })}
+          onBulkExcel={() => downloadBulk({ info: newInfo, regType: '신규등록', subjects: newSheetSubjects, extraFees: newExtraFees })}
         />
       )}
 
@@ -247,6 +265,7 @@ export default function TuitionReviewTab({ mode = 'academy', academies: masterAc
                 extraFees={changeExtraFees}
                 onExtraFeesChange={setChangeExtraFees}
                 onPrint={() => printRegistrationForm({ ...changeInfo, officeName, regType: changeRegType, subjects: changeSubjects, discount: changeDiscount, extraFees: changeExtraFees })}
+                onBulkExcel={() => downloadBulk({ info: changeInfo, regType: changeRegType, subjects: changeSubjects, extraFees: changeExtraFees, academy: changeSelected })}
               />
             </div>
           )}
