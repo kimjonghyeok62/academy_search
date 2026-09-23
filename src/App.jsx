@@ -185,7 +185,7 @@ function App() {
     const box = item.getBoundingClientRect();
     if (box.left < navBox.left + 12) nav.scrollLeft -= navBox.left + 12 - box.left;
     else if (box.right > navBox.right - 12) nav.scrollLeft += box.right - (navBox.right - 12);
-  }, [showInspection, showTuitionPrint, extraPage, selectedAcademy, detailOrigin]);
+  }, [showInspection, showTuitionPrint, showMap, extraPage, selectedAcademy, detailOrigin]);
 
   // 상세 화면이 내용 칸에 들어오므로 스크롤을 챙긴다 — 열면 맨 위, 검색 목록으로 돌아오면 보던 자리
   const listScrollRef = useRef(0);
@@ -687,45 +687,45 @@ function App() {
     setSuggestions([]);
   };
 
-  // 맵 화면 (화면 전체를 쓰는 지도)
-  if (showMap) {
-    return (
-      <KakaoMapPage
-        academies={academies}
-        privateTutors={privateTutors}
-        focusAcademy={focusAcademy}
-        routeAcademies={routeAcademies}
-        initialMapState={savedMapState}
-        onBack={() => {
-          setShowMap(false);
-          setFocusAcademy(null);
-          setRouteAcademies(null);
-          setSavedMapState(null);
-          if (mapReturnState) {
-            if (mapReturnState.fromInspection) {
-              setShowInspection(true);
-            } else {
-              setSelectedAcademy(mapReturnState.academy);
-              setDetailOrigin(mapReturnState.origin);
-            }
-            setMapReturnState(null);
+  // 분포지도 — 틀 안, 내용 칸을 꽉 채운다
+  const mapEl = showMap && (
+    <KakaoMapPage
+      academies={academies}
+      privateTutors={privateTutors}
+      focusAcademy={focusAcademy}
+      routeAcademies={routeAcademies}
+      initialMapState={savedMapState}
+      onBack={() => {
+        setShowMap(false);
+        setFocusAcademy(null);
+        setRouteAcademies(null);
+        setSavedMapState(null);
+        if (mapReturnState) {
+          if (mapReturnState.fromInspection) {
+            setShowInspection(true);
+          } else {
+            setSelectedAcademy(mapReturnState.academy);
+            setDetailOrigin(mapReturnState.origin);
           }
-        }}
-        onSelectAcademy={(item, mapState) => {
-          setSavedMapState(mapState);
-          setDetailOrigin('map');
-          setShowMap(false);
-          setFocusAcademy(null);
-          setRouteAcademies(null);
-          setSelectedAcademy(item);
-        }}
-      />
-    );
-  }
+          setMapReturnState(null);
+        }
+      }}
+      onSelectAcademy={(item, mapState) => {
+        setSavedMapState(mapState);
+        setDetailOrigin('map');
+        setShowMap(false);
+        setFocusAcademy(null);
+        setRouteAcademies(null);
+        setSelectedAcademy(item);
+      }}
+      showBack={!!mapReturnState}
+    />
+  );
 
   const backToastEl = backToast && <div className="back-toast">한 번 더 누르면 앱이 종료됩니다</div>;
 
-  const page = selectedAcademy && !showInspection && !showTuitionPrint ? 'detail'
+  const page = showMap ? 'map'
+    : selectedAcademy && !showInspection && !showTuitionPrint ? 'detail'
     : showInspection ? 'inspection'
       : showTuitionPrint ? 'tuition'
         : extraPage || 'search';
@@ -861,9 +861,11 @@ function App() {
           </main>
         )}
 
+        {page === 'map' && <main className="page is-map">{mapEl}</main>}
+
         {page === 'detail' && <main className="page is-detail">{detailEl}</main>}
 
-        {page !== 'inspection' && page !== 'tuition' && page !== 'detail' && (
+        {page !== 'inspection' && page !== 'tuition' && page !== 'detail' && page !== 'map' && (
           <main className="page">
             <div className="page-head">
               <h1 className="page-title">{head.title}</h1>
