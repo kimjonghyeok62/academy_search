@@ -347,6 +347,7 @@ h3 {
     border-right: none;
     border-bottom: 1px solid var(--border-color);
     scrollbar-width: none;
+    scroll-padding-inline: 12px;
   }
   .sidenav::-webkit-scrollbar { display: none; }
   .sidenav-group { flex-direction: row; gap: 6px; flex-shrink: 0; }

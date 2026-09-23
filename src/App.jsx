@@ -175,6 +175,11 @@ function App() {
     }
   }, [showMap, showInspection, showTuitionPrint, extraPage, selectedAcademy, mapReturnState, detailOrigin]);
 
+  // 좁은 화면 가로 메뉴줄: 고른 메뉴가 화면 밖에 있으면 보이게 옮긴다
+  useEffect(() => {
+    document.querySelector('.sidenav-item.is-active')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [showInspection, showTuitionPrint, extraPage]);
+
   // 모바일 여부 판별
   const isMobile = () => /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1;
 
