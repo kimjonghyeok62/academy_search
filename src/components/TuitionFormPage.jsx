@@ -16,24 +16,38 @@ const KINDS = [
     { key: 'outer', label: '외부용', hint: '건물 밖에서 보이는 곳에 붙이는 옥외가격표시' },
 ];
 
+// 색·글자 크기는 관리자 화면(App.css)과 같은 값 — 남색 머리띠, 파랑 하나, 본문 17px
+const NAVY = '#1b2b4b';
+const PRIMARY = '#1d4ed8';
+
 const wrap = {
     maxWidth: '760px', margin: '0 auto', padding: '20px 16px 48px',
-    color: '#1e293b', fontSize: '16px', lineHeight: 1.6,
+    color: '#1e293b', fontSize: '17px', lineHeight: 1.6,
 };
 const card = {
-    background: '#fff', border: '1px solid #e2e8f0', borderRadius: '14px',
+    background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px',
     padding: '16px', marginBottom: '12px',
 };
-const muted = { color: '#64748b', fontSize: '14px' };
+const muted = { color: '#475569', fontSize: '15px' };
 
 // 파일 단추 — 인쇄가 으뜸이라 채워 두고, 나머지 둘은 테두리만 둔다
-const fileBtn = (color, filled = false) => ({
+const fileBtn = (filled = false) => ({
     flex: '1 1 30%', minWidth: '110px', minHeight: '52px',
-    fontSize: '16px', fontWeight: 700, borderRadius: '12px', cursor: 'pointer',
-    border: `1.5px solid ${color}`,
-    background: filled ? color : '#fff',
-    color: filled ? '#fff' : color,
+    fontSize: '17px', fontWeight: 700, borderRadius: '10px', cursor: 'pointer',
+    fontFamily: 'inherit',
+    border: `1px solid ${filled ? PRIMARY : '#94a3b8'}`,
+    background: filled ? PRIMARY : '#fff',
+    color: filled ? '#fff' : '#1e293b',
 });
+
+// 맨 위 남색 띠 — 어느 기관 화면인지 한눈에
+function Topbar() {
+    return (
+        <header style={{ background: NAVY, color: '#fff', minHeight: '56px', display: 'flex', alignItems: 'center', padding: '0 16px' }}>
+            <div style={{ maxWidth: '760px', width: '100%', margin: '0 auto', fontSize: '18px', fontWeight: 800 }}>교습비 게시표</div>
+        </header>
+    );
+}
 
 export default function TuitionFormPage() {
     const token = useMemo(
@@ -101,35 +115,43 @@ export default function TuitionFormPage() {
         downloadFormJpg(document.getElementById('form-frame'), academy.name, kindLabel));
 
     if (state.status === 'loading') {
-        return <div style={wrap}><p style={muted}>불러오는 중입니다…</p></div>;
+        return <><Topbar /><div style={wrap}><p style={muted}>불러오는 중입니다…</p></div></>;
     }
     if (state.status === 'error') {
         return (
+            <>
+            <Topbar />
             <div style={wrap}>
-                <div style={{ ...card, background: '#fef2f2', borderColor: '#fef2f2', color: '#b91c1c', textAlign: 'center' }}>
+                <div style={{ ...card, background: '#fef2f2', borderColor: '#fecaca', color: '#b91c1c', textAlign: 'center' }}>
                     {state.error}
                 </div>
                 <p style={muted}>문자에 적힌 문의 전화로 알려 주시면 확인해 드립니다.</p>
             </div>
+            </>
         );
     }
 
     if (!academy) {
         return (
+            <>
+            <Topbar />
             <div style={wrap}>
                 <div style={{ ...card, textAlign: 'center' }}>
                     신고된 교습과정이 없어 게시표를 만들 수 없습니다.
                     <div style={{ ...muted, marginTop: '6px' }}>문의 전화로 알려 주시면 확인해 드립니다.</div>
                 </div>
             </div>
+            </>
         );
     }
 
     const isHagwonso = String(state.category || '').includes('교습소');
 
     return (
+        <>
+        <Topbar />
         <div style={wrap}>
-            <h1 style={{ fontSize: '20px', lineHeight: 1.4, margin: '0 0 4px' }}>{academy.name}</h1>
+            <h1 style={{ fontSize: '24px', fontWeight: 800, lineHeight: 1.35, margin: '0 0 4px' }}>{academy.name}</h1>
             <p style={{ ...muted, margin: '0 0 4px' }}>
                 {isHagwonso ? '신고' : '등록'} 제{state.regNo}호 · 교습비 게시표 예시
             </p>
@@ -144,11 +166,12 @@ export default function TuitionFormPage() {
                     return (
                         <button key={k.key} type="button" onClick={() => setKind(k.key)}
                             title={k.hint}
+                            aria-pressed={on}
                             style={{
-                                flex: 1, minHeight: '48px', fontSize: '16px', fontWeight: on ? 700 : 500,
-                                borderRadius: '10px', cursor: 'pointer',
-                                border: `1.5px solid ${on ? '#4f46e5' : '#cbd5e1'}`,
-                                background: on ? '#4f46e5' : '#fff', color: on ? '#fff' : '#334155',
+                                flex: 1, minHeight: '48px', fontSize: '17px', fontWeight: on ? 800 : 600,
+                                borderRadius: '10px', cursor: 'pointer', fontFamily: 'inherit',
+                                border: `1px solid ${on ? NAVY : '#94a3b8'}`,
+                                background: on ? NAVY : '#fff', color: on ? '#fff' : '#334155',
                             }}>
                             {k.label}
                         </button>
@@ -162,13 +185,13 @@ export default function TuitionFormPage() {
             {/* 세 가지를 함께 둔다. 붙일 것은 인쇄(PDF), 고쳐 쓸 것은 워드,
                 문자·카카오톡으로 보내거나 블로그에 올릴 것은 그림이다. */}
             <div style={{ display: 'flex', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
-                <button type="button" onClick={print} style={fileBtn('#0d9488', true)}>
+                <button type="button" onClick={print} style={fileBtn(true)}>
                     인쇄 · PDF 저장
                 </button>
-                <button type="button" onClick={saveDocx} disabled={!!busy} style={fileBtn('#2563eb')}>
+                <button type="button" onClick={saveDocx} disabled={!!busy} style={fileBtn()}>
                     {busy === '워드' ? '만드는 중…' : '워드(DOCX)'}
                 </button>
-                <button type="button" onClick={saveJpg} disabled={!!busy} style={fileBtn('#7c3aed')}>
+                <button type="button" onClick={saveJpg} disabled={!!busy} style={fileBtn()}>
                     {busy === '그림' ? '만드는 중…' : '그림(JPG)'}
                 </button>
             </div>
@@ -177,10 +200,7 @@ export default function TuitionFormPage() {
             )}
             <p style={{ ...muted, marginTop: 0, marginBottom: '12px' }}>
                 PDF 는 인쇄 창에서 <b>대상을 &lsquo;PDF로 저장&rsquo;</b> 으로 바꾸시면 됩니다.
-                그림은 문자·블로그에 올리실 때 쓰세요.
-                <br />워드 파일은 <b>고쳐 쓰시라고</b> 드리는 것입니다 — 표를 그대로 담았으니
-                MS 워드·한워드·구글 문서 어디서 여셔도 됩니다. 다만 프로그램마다 글꼴이 조금씩
-                달라 줄 간격이 미세하게 달라질 수 있습니다.
+                그림은 문자·블로그용, 워드는 <b>고쳐 쓰실 때</b> 쓰세요(프로그램마다 줄 간격이 조금 다를 수 있습니다).
             </p>
 
             <div style={{ ...card, padding: '8px', overflow: 'auto' }}>
@@ -193,5 +213,6 @@ export default function TuitionFormPage() {
                 게시된 금액과 신고된 금액이 다르면 그 자체가 시정 대상입니다.
             </p>
         </div>
+        </>
     );
 }

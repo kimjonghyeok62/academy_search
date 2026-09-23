@@ -17,7 +17,7 @@ const Page = lazy(() => (
 const replyClosed = (
   <div style={{ maxWidth: '420px', margin: '80px auto', padding: '0 20px', textAlign: 'center', lineHeight: 1.7, fontFamily: 'system-ui, sans-serif' }}>
     <div style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: '8px' }}>더 이상 사용하지 않는 주소입니다</div>
-    <div style={{ color: '#64748b', fontSize: '0.92rem' }}>
+    <div style={{ color: '#475569', fontSize: '1rem' }}>
       수정하신 내용은 담당자가 다시 확인합니다. 따로 알려 주지 않으셔도 됩니다.
     </div>
   </div>
