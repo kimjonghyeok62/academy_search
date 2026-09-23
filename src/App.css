@@ -870,3 +870,28 @@ h3 {
 .seg-btn:hover { background: #f1f5f9; border-color: transparent; }
 .seg-btn.is-on,
 .seg-btn.is-on:hover { background: var(--navy); color: #fff; }
+
+/* 고르기 칸을 줄 전체로 (학원·교습소·개인과외 등) */
+.seg-block { display: flex; width: 100%; box-sizing: border-box; }
+.seg-block .seg-btn { flex: 1; min-width: 0; padding: 0 8px; }
+
+/* 기준표 — 행정처분·과태료 */
+.std-table { width: 100%; border-collapse: collapse; font-size: 1rem; }
+.std-table th {
+  padding: 12px 10px;
+  background: #f8fafc;
+  border-bottom: 2px solid var(--border-color);
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-align: center;
+  white-space: nowrap;
+}
+.std-table td {
+  padding: 12px 10px;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-main);
+  line-height: 1.5;
+  vertical-align: middle;
+}
+.std-table tr:last-child td { border-bottom: none; }

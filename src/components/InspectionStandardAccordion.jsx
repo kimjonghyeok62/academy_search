@@ -98,14 +98,6 @@ export default function InspectionStandardAccordion({ embedded = false }) {
 
     const filteredData = inspectionData.filter(d => d.category === activeTab);
 
-    const getTypeIcon = (type) => {
-        switch (type) {
-            case '학원': return '🏫';
-            case '교습소': return '📖';
-            case '개인과외': return '👤';
-            default: return '📋';
-        }
-    };
 
     const [isHovered, setIsHovered] = useState(false);
 
@@ -184,86 +176,50 @@ export default function InspectionStandardAccordion({ embedded = false }) {
 
             {isOpen && (
                 <div className="animate-enter" style={{ borderTop: embedded ? 'none' : '1px solid var(--border-color)' }}>
-                    {/* 구분 탭 */}
-                    <div style={{ display: 'flex', padding: '16px 20px 0 20px', gap: '8px' }}>
-                        {['학원', '교습소', '개인과외'].map(tab => (
-                            <button
-                                key={tab}
-                                onClick={() => setActiveTab(tab)}
-                                style={{
-                                    flex: 1,
-                                    padding: '10px',
-                                    borderRadius: '10px 10px 0 0',
-                                    border: '1px solid var(--border-color)',
-                                    borderBottom: activeTab === tab ? 'none' : '1px solid var(--border-color)',
-                                    background: activeTab === tab ? '#ffffff' : 'var(--bg-card)',
-                                    color: activeTab === tab ? 'var(--primary)' : 'var(--text-muted)',
-                                    fontWeight: activeTab === tab ? '800' : '600',
-                                    fontSize: '0.9rem',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: '6px',
-                                    transform: activeTab === tab ? 'translateY(1px)' : 'none',
-                                    zIndex: activeTab === tab ? 2 : 1,
-                                    boxShadow: activeTab === tab ? '0 -2px 10px rgba(0,0,0,0.02)' : 'none'
-                                }}
-                            >
-                                <span>{getTypeIcon(tab)}</span>
-                                {tab}
-                            </button>
-                        ))}
+                    {/* 구분 — 학원·교습소·개인과외 중 하나 고르기 */}
+                    <div style={{ padding: '16px 20px 0' }}>
+                        <div className="seg seg-block" role="group" aria-label="구분">
+                            {['학원', '교습소', '개인과외'].map(tab => (
+                                <button
+                                    key={tab}
+                                    type="button"
+                                    className={`seg-btn${activeTab === tab ? ' is-on' : ''}`}
+                                    aria-pressed={activeTab === tab}
+                                    onClick={() => setActiveTab(tab)}
+                                >
+                                    {tab}
+                                </button>
+                            ))}
+                        </div>
                     </div>
 
-                    <div style={{ padding: '0 20px 20px 20px', background: '#ffffff' }}>
-                        <div style={{
-                            overflowX: 'auto',
-                            border: '1px solid var(--border-color)',
-                            borderTop: 'none',
-                            borderRadius: '0 0 12px 12px',
-                            borderTopRightRadius: activeTab !== '개인과외' ? '12px' : '0',
-                            borderTopLeftRadius: activeTab !== '학원' ? '12px' : '0',
-                            marginBottom: '20px'
-                        }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                    <div style={{ padding: '14px 20px 20px' }}>
+                        <div style={{ overflowX: 'auto', border: '1px solid var(--border-color)', borderRadius: '10px', marginBottom: '20px' }}>
+                            <table className="std-table">
                                 <thead>
-                                    <tr style={{ background: 'var(--bg-main)', borderBottom: '2px solid var(--border-color)' }}>
-                                        <th style={{ padding: '10px 12px', textAlign: 'left', color: 'var(--text-muted)', fontWeight: '700', width: '60%' }}>행정처분기준</th>
-                                        <th style={{ padding: '10px 8px', textAlign: 'center', color: 'var(--text-muted)', fontWeight: '700', width: '20%', whiteSpace: 'nowrap' }}>1차 행정처분</th>
-                                        <th style={{ padding: '10px 8px', textAlign: 'center', color: 'var(--text-muted)', fontWeight: '700', width: '20%', whiteSpace: 'nowrap' }}>1차 과태료</th>
+                                    <tr>
+                                        <th style={{ textAlign: 'left', width: '60%' }}>행정처분기준</th>
+                                        <th>1차 행정처분</th>
+                                        <th>1차 과태료</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {filteredData.map((row, i) => (
-                                        <tr
-                                            key={i}
-                                            style={{
-                                                borderBottom: '1px solid var(--border-color)',
-                                                background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)',
-                                            }}
-                                        >
-                                            <td style={{ padding: '8px 12px', color: 'var(--text-main)', lineHeight: '1.4', fontSize: '0.83rem' }}>
-                                                {row.title}
-                                            </td>
-                                            <td style={{ padding: '8px 6px', textAlign: 'center' }}>
-                                                <span style={{
-                                                    padding: '3px 6px',
-                                                    borderRadius: '6px',
-                                                    fontSize: '0.75rem',
-                                                    fontWeight: '700',
-                                                    whiteSpace: 'nowrap',
-                                                    color: ['정지', '말소', '폐지', '중지'].includes(row.action) ? '#ef4444' : '#2563eb',
-                                                    background: ['정지', '말소', '폐지', '중지'].includes(row.action) ? '#fef2f2' : '#eff6ff'
-                                                }}>
-                                                    {row.action}
-                                                </span>
-                                            </td>
-                                            <td style={{ padding: '8px 6px', textAlign: 'center', fontWeight: '600', fontSize: '0.8rem', color: row.fine !== '없음' && row.fine !== '입력필요' ? '#f59e0b' : 'var(--text-muted)' }}>
-                                                {row.fine !== '없음' && row.fine !== '입력필요' ? `${row.fine}만원` : row.fine}
-                                            </td>
-                                        </tr>
-                                    ))}
+                                    {filteredData.map((row, i) => {
+                                        const heavy = ['정지', '말소', '폐지', '중지'].includes(row.action);
+                                        const hasFine = row.fine !== '없음' && row.fine !== '입력필요';
+                                        return (
+                                            <tr key={i}>
+                                                <td>{row.title}</td>
+                                                <td style={{ textAlign: 'center' }}>
+                                                    {/* 정지·말소처럼 무거운 처분만 빨강 */}
+                                                    <span className={heavy ? 'status-inactive' : 'tag'}>{row.action}</span>
+                                                </td>
+                                                <td style={{ textAlign: 'center', whiteSpace: 'nowrap', fontWeight: hasFine ? 800 : 500, color: hasFine ? 'var(--warn)' : 'var(--text-muted)' }}>
+                                                    {hasFine ? `${row.fine}만원` : row.fine}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         </div>
