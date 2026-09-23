@@ -91,8 +91,9 @@ const inspectionData = [
     { category: '개인과외', code: '4-1', title: '기타', action: '입력필요', fine: '입력필요' }
 ];
 
-export default function InspectionStandardAccordion() {
-    const [isOpen, setIsOpen] = useState(false);
+// embedded: 메뉴 화면 한 장으로 쓸 때 — 접기 머리 없이 펼친 채로 보인다
+export default function InspectionStandardAccordion({ embedded = false }) {
+    const [isOpen, setIsOpen] = useState(embedded);
     const [activeTab, setActiveTab] = useState('학원');
 
     const filteredData = inspectionData.filter(d => d.category === activeTab);
@@ -114,16 +115,15 @@ export default function InspectionStandardAccordion() {
                 background: 'var(--bg-card)',
                 borderRadius: '14px',
                 border: '1px solid',
-                borderColor: isHovered ? 'var(--primary)' : 'var(--border-color)',
-                boxShadow: isHovered ? '0 6px 12px -2px rgba(0,0,0,0.05)' : '0 2px 4px rgba(0,0,0,0.02)',
-                transform: isHovered ? 'translateY(-2px)' : 'translateY(0)',
+                borderColor: isHovered && !embedded ? 'var(--primary)' : 'var(--border-color)',
+                boxShadow: 'var(--shadow-sm)',
                 overflow: 'hidden',
-                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+                transition: 'border-color 0.15s'
             }}
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
         >
-            <div
+            {!embedded && <div
                 onClick={() => setIsOpen(!isOpen)}
                 style={{
                     padding: '12px 16px',
@@ -180,10 +180,10 @@ export default function InspectionStandardAccordion() {
                         <polyline points="6 9 12 15 18 9"></polyline>
                     </svg>
                 </div>
-            </div>
+            </div>}
 
             {isOpen && (
-                <div className="animate-enter" style={{ borderTop: '1px solid var(--border-color)' }}>
+                <div className="animate-enter" style={{ borderTop: embedded ? 'none' : '1px solid var(--border-color)' }}>
                     {/* 구분 탭 */}
                     <div style={{ display: 'flex', padding: '16px 20px 0 20px', gap: '8px' }}>
                         {['학원', '교습소', '개인과외'].map(tab => (
