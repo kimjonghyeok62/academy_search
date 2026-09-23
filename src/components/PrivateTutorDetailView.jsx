@@ -99,7 +99,7 @@ export default function PrivateTutorDetailView({ tutor, onBack, allTutors = [], 
 
   // Reset scroll + tab when tutor changes
   useEffect(() => {
-    if (contentRef.current) contentRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: 0, behavior: 'smooth' }); // 상세 화면은 페이지가 스크롤한다
     setActiveTab('status');
   }, [tutor.id]);
 
@@ -107,7 +107,8 @@ export default function PrivateTutorDetailView({ tutor, onBack, allTutors = [], 
   useEffect(() => {
     if (tabsRef.current) {
       const activeBtn = tabsRef.current.querySelector('.tab-btn.active');
-      if (activeBtn) activeBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      // 탭 줄만 가로로 민다 (scrollIntoView 는 페이지까지 움직인다)
+      if (activeBtn) tabsRef.current.scrollTo({ left: activeBtn.offsetLeft - (tabsRef.current.clientWidth - activeBtn.offsetWidth) / 2, behavior: 'smooth' });
     }
   }, [activeTab]);
 
@@ -150,7 +151,7 @@ export default function PrivateTutorDetailView({ tutor, onBack, allTutors = [], 
         <InfoRow label="신고일" value={reportDate} />
         <InfoRow label="상태">
           <span style={{
-            padding: '2px 10px', borderRadius: '8px', fontSize: '0.82rem', fontWeight: '700',
+            padding: '2px 10px', borderRadius: '8px', fontSize: '0.9rem', fontWeight: '700',
             background: status === '신고' ? '#ECFDF5' : '#FEF2F2',
             color: status === '신고' ? '#059669' : '#DC2626'
           }}>{status || '-'}</span>
@@ -164,7 +165,7 @@ export default function PrivateTutorDetailView({ tutor, onBack, allTutors = [], 
       <Section
         title="주소 정보"
         rightButton={
-          <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: '600' }}>
+          <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)', fontWeight: '600' }}>
             교습자 주소
           </span>
         }
@@ -179,7 +180,7 @@ export default function PrivateTutorDetailView({ tutor, onBack, allTutors = [], 
             padding: '14px 16px',
             background: 'var(--bg-light)',
             borderRadius: '10px',
-            fontSize: '0.95rem',
+            fontSize: '1rem',
             fontWeight: '600',
             color: 'var(--text-main)',
             lineHeight: '1.6',
@@ -198,7 +199,7 @@ export default function PrivateTutorDetailView({ tutor, onBack, allTutors = [], 
         <Section title={`동일 건축물단지 개인과외교습자 목록 (${sameBuildingTutors.length}명)`}>
           {/* 📍 주소 박스 */}
           <div style={{
-            fontSize: '0.9rem', color: 'var(--text-muted)',
+            fontSize: '1rem', color: 'var(--text-muted)',
             marginBottom: '16px', padding: '12px',
             backgroundColor: 'var(--bg-light)', borderRadius: '8px', lineHeight: '1.6'
           }}>
@@ -266,13 +267,13 @@ export default function PrivateTutorDetailView({ tutor, onBack, allTutors = [], 
                 }}>
                   <span>{t.name}</span>
                   {unitLabel && (
-                    <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: '500' }}>
+                    <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)', fontWeight: '500' }}>
                       ({unitLabel})
                     </span>
                   )}
                   {isCurrent && (
                     <span style={{
-                      fontSize: '0.75rem', color: 'white',
+                      fontSize: '0.85rem', color: 'white',
                       backgroundColor: 'var(--primary)',
                       padding: '2px 8px', borderRadius: '6px', fontWeight: '600'
                     }}>현재 보는 개인과외교습자</span>
@@ -282,7 +283,7 @@ export default function PrivateTutorDetailView({ tutor, onBack, allTutors = [], 
                 {/* 연락처 */}
                 {contact && (
                   <div style={{
-                    fontSize: '0.88rem', fontWeight: '700',
+                    fontSize: '0.9rem', fontWeight: '700',
                     color: 'var(--text-main)', marginBottom: '6px'
                   }}>
                     {contact}
@@ -291,7 +292,7 @@ export default function PrivateTutorDetailView({ tutor, onBack, allTutors = [], 
 
                 {/* 분야·계열·학교급 */}
                 {subjectParts.length > 0 && (
-                  <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '3px' }}>
+                  <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '3px' }}>
                     {subjectParts.join(' · ')}
                   </div>
                 )}
@@ -299,7 +300,7 @@ export default function PrivateTutorDetailView({ tutor, onBack, allTutors = [], 
                 {/* 교습과목 - 녹색 */}
                 {subjectNames && (
                   <div style={{
-                    fontSize: '0.82rem', fontWeight: '600',
+                    fontSize: '0.9rem', fontWeight: '600',
                     color: '#059669'
                   }}>
                     {subjectNames}
@@ -326,7 +327,7 @@ export default function PrivateTutorDetailView({ tutor, onBack, allTutors = [], 
               background: 'var(--bg-light)', borderRadius: '10px',
               cursor: 'pointer', textDecoration: 'underline',
               textDecorationColor: 'var(--border-color)',
-              fontSize: '0.95rem', fontWeight: '600',
+              fontSize: '1rem', fontWeight: '600',
               color: 'var(--text-main)', lineHeight: '1.6',
               width: '100%', boxSizing: 'border-box'
             }}
@@ -343,7 +344,7 @@ export default function PrivateTutorDetailView({ tutor, onBack, allTutors = [], 
           title={`교습장소${teachingPlaces.length > 1 ? ` ${i + 1}` : ''}`}
           rightButton={tp.type ? (
             <span style={{
-              padding: '4px 10px', borderRadius: '8px', fontSize: '0.8rem', fontWeight: '700',
+              padding: '4px 10px', borderRadius: '8px', fontSize: '0.9rem', fontWeight: '700',
               background: '#EDE9FE', color: '#7C3AED', border: '1px solid #DDD6FE',
               whiteSpace: 'nowrap'
             }}>{tp.type}</span>
@@ -356,7 +357,7 @@ export default function PrivateTutorDetailView({ tutor, onBack, allTutors = [], 
               background: 'var(--bg-light)', borderRadius: '10px',
               cursor: 'pointer', textDecoration: 'underline',
               textDecorationColor: 'var(--border-color)',
-              fontSize: '0.95rem', fontWeight: '600',
+              fontSize: '1rem', fontWeight: '600',
               color: 'var(--text-main)', lineHeight: '1.6',
               width: '100%', boxSizing: 'border-box'
             }}
@@ -366,7 +367,7 @@ export default function PrivateTutorDetailView({ tutor, onBack, allTutors = [], 
           {tp.type && (
             <div style={{
               padding: '10px 12px', background: 'var(--bg-light)',
-              borderRadius: '10px', fontSize: '0.88rem', color: 'var(--text-muted)', fontWeight: '500'
+              borderRadius: '10px', fontSize: '0.9rem', color: 'var(--text-muted)', fontWeight: '500'
             }}>
               {tp.type === '교습자주거지' && '📌 교습자 주거지에서 교습이 이루어집니다.'}
               {tp.type === '학습자주거지' && '📌 학습자 주거지에서 교습이 이루어집니다.'}
@@ -432,7 +433,7 @@ export default function PrivateTutorDetailView({ tutor, onBack, allTutors = [], 
       <div className="empty-msg" style={{ paddingTop: '80px' }}>
         <div style={{ fontSize: '2rem', marginBottom: '12px' }}>📋</div>
         <div style={{ fontWeight: '700', color: 'var(--text-main)', marginBottom: '6px' }}>지도점검 이력</div>
-        <div style={{ fontSize: '0.85rem' }}>추후 데이터 연동 예정입니다.</div>
+        <div style={{ fontSize: '0.9rem' }}>추후 데이터 연동 예정입니다.</div>
       </div>
     </div>
   );
@@ -441,8 +442,11 @@ export default function PrivateTutorDetailView({ tutor, onBack, allTutors = [], 
     <div className="detail-view">
       {/* ── 헤더 ── */}
       <div className="detail-header">
-        <button className="back-btn" onClick={onBack} title="목록으로">←</button>
-        <h2 style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', margin: 0 }}>{name}</h2>
+        <button className="back-btn" onClick={onBack} aria-label="뒤로가기">← 뒤로</button>
+        <div className="detail-title">
+          <h2>{name}</h2>
+          <p className="detail-sub">{['개인과외교습자', id && `No. ${id}`, status].filter(Boolean).join(' · ')}</p>
+        </div>
       </div>
 
       {/* ── 탭 ── */}

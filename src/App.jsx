@@ -24,11 +24,11 @@ class ErrorBoundary extends React.Component {
   }
   render() {
     if (this.state.hasError) {
-      return <div style={{ padding: '20px', backgroundColor: 'pink', color: 'red' }}>
-        <h3>Error in DetailView</h3>
-        <pre>{this.state.error && this.state.error.toString()}</pre>
-        <pre>{this.state.error && this.state.error.stack}</pre>
-        <button onClick={() => this.props.onBack()}>Go Back</button>
+      return <div className="alert is-error">
+        <h3 style={{ marginBottom: '8px' }}>상세 화면을 여는 중 오류가 났습니다</h3>
+        <pre style={{ whiteSpace: 'pre-wrap', fontSize: '0.9rem' }}>{this.state.error && this.state.error.toString()}</pre>
+        <pre style={{ whiteSpace: 'pre-wrap', fontSize: '0.85rem', maxHeight: '240px', overflow: 'auto' }}>{this.state.error && this.state.error.stack}</pre>
+        <button className="btn btn-outline" onClick={() => this.props.onBack()}>← 돌아가기</button>
       </div>;
     }
     return this.props.children;
@@ -177,8 +177,26 @@ function App() {
 
   // 좁은 화면 가로 메뉴줄: 고른 메뉴가 화면 밖에 있으면 보이게 옮긴다
   useEffect(() => {
-    document.querySelector('.sidenav-item.is-active')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-  }, [showInspection, showTuitionPrint, extraPage]);
+    // (scrollIntoView 는 페이지까지 위로 끌어올리므로 메뉴줄만 가로로 민다)
+    const nav = document.querySelector('.sidenav');
+    const item = nav?.querySelector('.sidenav-item.is-active');
+    if (!item || nav.scrollWidth <= nav.clientWidth) return;
+    const navBox = nav.getBoundingClientRect();
+    const box = item.getBoundingClientRect();
+    if (box.left < navBox.left + 12) nav.scrollLeft -= navBox.left + 12 - box.left;
+    else if (box.right > navBox.right - 12) nav.scrollLeft += box.right - (navBox.right - 12);
+  }, [showInspection, showTuitionPrint, extraPage, selectedAcademy, detailOrigin]);
+
+  // 상세 화면이 내용 칸에 들어오므로 스크롤을 챙긴다 — 열면 맨 위, 검색 목록으로 돌아오면 보던 자리
+  const listScrollRef = useRef(0);
+  const wasDetailRef = useRef(false);
+  const detailOpen = !!selectedAcademy;
+  useEffect(() => {
+    if (detailOpen) window.scrollTo(0, 0);
+    else if (wasDetailRef.current && !showInspection && !showMap && !showTuitionPrint && !extraPage) window.scrollTo(0, listScrollRef.current);
+    wasDetailRef.current = detailOpen;
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- 상세를 열고 닫을 때만
+  }, [detailOpen]);
 
   // 모바일 여부 판별
   const isMobile = () => /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1;
@@ -563,6 +581,7 @@ function App() {
     setSearchQuery(academy.name);
     setShowSuggestions(false);
     setHasSearched(true);
+    listScrollRef.current = 0;
     setDetailOrigin('main');
     setSelectedAcademy(academy);
     // 모바일 키보드 내리기
@@ -570,22 +589,14 @@ function App() {
   };
 
   // 주소에서 지역 정보 추출 및 배지 스타일 반환
+  // 학원·교습소·과외 구분 글자
+  const academyKind = (a) => (a.type === 'privateTutor' ? '과외' : a.category?.includes('교습소') ? '교습소' : '학원');
+
+  // 관할 지역 꼬리표 (색 없이 글자만)
   const getLocationBadge = (address) => {
     if (!address) return null;
-
-    if (address.includes('하남시')) {
-      return {
-        text: '하남',
-        bgColor: '#E8F4FD',
-        textColor: '#2563EB'
-      };
-    } else if (address.includes('광주시')) {
-      return {
-        text: '광주',
-        bgColor: '#DCFCE7',
-        textColor: '#16A34A'
-      };
-    }
+    if (address.includes('하남시')) return { text: '하남' };
+    if (address.includes('광주시')) return { text: '광주' };
     return null;
   };
 
@@ -626,7 +637,7 @@ function App() {
           <p style={{ color: 'var(--text-main)', fontWeight: '700', fontSize: '1rem', marginBottom: '8px' }}>
             데이터를 불러오지 못했습니다
           </p>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', lineHeight: '1.6', marginBottom: '20px' }}>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', lineHeight: '1.6', marginBottom: '20px' }}>
             광고 차단 확장 프로그램(uBlock Origin, AdBlock 등)이 Google Sheets 요청을 막고 있을 수 있습니다.
             확장 프로그램을 비활성화하거나 이 사이트를 허용 목록에 추가해주세요.
           </p>
@@ -714,10 +725,20 @@ function App() {
 
   const backToastEl = backToast && <div className="back-toast">한 번 더 누르면 앱이 종료됩니다</div>;
 
-  // 학원 상세 화면 (화면 전체를 덮는다)
-  if (selectedAcademy && !showInspection && !showTuitionPrint) {
-    return (
-      <div className="container">
+  const page = selectedAcademy && !showInspection && !showTuitionPrint ? 'detail'
+    : showInspection ? 'inspection'
+      : showTuitionPrint ? 'tuition'
+        : extraPage || 'search';
+  const head = PAGE_HEAD[page];
+  // 상세 화면에서는 들어온 곳(검색·지도점검·분포지도)의 메뉴를 켜 둔다
+  const navId = page !== 'detail' ? page
+    : detailOrigin === 'inspection' ? 'inspection'
+      : detailOrigin === 'map' ? 'map'
+        : 'search';
+
+  // 학원 상세 화면 — 틀 안, 내용 칸에 들어간다
+  const detailEl = page === 'detail' && (
+      <>
       {selectedAcademy && selectedAcademy.type === 'privateTutor' && (
         <PrivateTutorDetailView
           tutor={selectedAcademy}
@@ -757,15 +778,8 @@ function App() {
           />
         </ErrorBoundary>
       )}
-        {backToastEl}
-      </div>
-    );
-  }
-
-  const page = showInspection ? 'inspection'
-    : showTuitionPrint ? 'tuition'
-      : extraPage || 'search';
-  const head = PAGE_HEAD[page];
+      </>
+  );
 
   return (
     <div className="shell">
@@ -802,8 +816,8 @@ function App() {
                 <button
                   key={item.id}
                   type="button"
-                  className={`sidenav-item${page === item.id ? ' is-active' : ''}`}
-                  aria-current={page === item.id ? 'page' : undefined}
+                  className={`sidenav-item${navId === item.id ? ' is-active' : ''}`}
+                  aria-current={navId === item.id ? 'page' : undefined}
                   onClick={() => goTo(item.id)}
                 >
                   <NavIcon name={item.icon} />
@@ -848,7 +862,9 @@ function App() {
           </main>
         )}
 
-        {page !== 'inspection' && page !== 'tuition' && (
+        {page === 'detail' && <main className="page is-detail">{detailEl}</main>}
+
+        {page !== 'inspection' && page !== 'tuition' && page !== 'detail' && (
           <main className="page">
             <div className="page-head">
               <h1 className="page-title">{head.title}</h1>
@@ -898,37 +914,10 @@ function App() {
                       selectSuggestion(academy);
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
-                      <span className="suggestion-name">{academy.name}</span>
-                      {locationBadge && (
-                        <span style={{
-                          padding: '3px 10px',
-                          backgroundColor: locationBadge.bgColor,
-                          color: locationBadge.textColor,
-                          borderRadius: '6px',
-                          fontSize: '0.8rem',
-                          fontWeight: '600',
-                          whiteSpace: 'nowrap',
-                          flexShrink: 0
-                        }}>
-                          {locationBadge.text}
-                        </span>
-                      )}
-                    </div>
-                    <span style={{
-                      padding: '3px 10px',
-                      borderRadius: '6px',
-                      fontSize: '0.75rem',
-                      fontWeight: '700',
-                      whiteSpace: 'nowrap',
-                      flexShrink: 0,
-                      ...(academy.type === 'privateTutor'
-                        ? { backgroundColor: '#FFF7ED', color: '#D97706', border: '1px solid #FED7AA' }
-                        : academy.category?.includes('교습소')
-                          ? { backgroundColor: '#FDF2F8', color: '#C026D3', border: '1px solid #F0ABFC' }
-                          : { backgroundColor: 'var(--primary-glow)', color: 'var(--primary)', border: '1px solid rgba(79,70,229,0.2)' })
-                    }}>
-                      {academy.type === 'privateTutor' ? '과외' : academy.category?.includes('교습소') ? '교습소' : '학원'}
+                    <span className="suggestion-name">{academy.name}</span>
+                    <span className="suggestion-tags">
+                      {locationBadge && <span className="tag">{locationBadge.text}</span>}
+                      <span className="tag">{academyKind(academy)}</span>
                     </span>
                   </li>
                 );
@@ -938,157 +927,96 @@ function App() {
         </form>
                 </div>
 
-      <div className="results-list" style={{ paddingBottom: (hasSearched || searchQuery) ? '60px' : '0px' }}>
+      <div className="results-list">
+        {hasSearched && displayList.length > 0 && (
+          <p className="results-count">{displayList.length.toLocaleString()}곳</p>
+        )}
         {hasSearched && displayList.length > 0 ? (
-          displayList.map((academy, index) => (
+          displayList.map((academy, index) => {
+            const locationBadge = getLocationBadge(academy.address);
+            return (
             <div
               key={academy.id + academy.category + index}
               className="academy-card animate-enter"
-              style={{ animationDelay: `${index * 0.05}s` }}
+              // 앞의 몇 장만 차례로 — 수천 건일 때 뒤쪽 카드가 한참 비어 보이지 않게
+              style={{ animationDelay: `${Math.min(index, 8) * 0.04}s` }}
               onClick={() => {
+                listScrollRef.current = window.scrollY;
                 setDetailOrigin('main');
                 setSelectedAcademy(academy);
               }}
             >
               <div className="card-top">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span className="academy-id" style={{ color: 'var(--text-muted)' }}>No. {academy.id}</span>
-                </div>
-                <span className="academy-category">{academy.category}</span>
+                <span className="academy-id">No. {academy.id}</span>
+                <span className="tag">{academy.category || academyKind(academy)}</span>
               </div>
               <h3 className="academy-name">{academy.name}</h3>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-                <a
-                  href={`https://map.naver.com/p/search/${encodeURIComponent(academy.address)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(e) => e.stopPropagation()}
-                  className="academy-address"
-                  style={{
-                    cursor: 'pointer',
-                    textDecoration: 'underline',
-                    textDecorationColor: 'var(--border-color)',
-                    margin: 0,
-                    flex: 1,
-                    color: 'inherit'
-                  }}
-                  title="네이버 지도에서 보기"
-                >
-                  {academy.address}
-                </a>
+              <a
+                href={`https://map.naver.com/p/search/${encodeURIComponent(academy.address)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="academy-address"
+                title="네이버 지도에서 보기"
+              >
+                {academy.address}
+              </a>
+
+              <div className="academy-meta">
+                {academy.type === 'privateTutor' ? (
+                  <span>교습과목 <b>{academy.subjects?.map(s => s.subject).filter(Boolean).join(', ') || '-'}</b></span>
+                ) : (
+                  <span>설립자 <b>{academy.founder.name}</b></span>
+                )}
+                {locationBadge ? (
+                  <span className="tag">{locationBadge.text}</span>
+                ) : (
+                  <span className={academy.status.includes('개원') ? 'status-active' : 'status-inactive'}>
+                    {academy.status}
+                  </span>
+                )}
+              </div>
+
+              <div className="academy-actions">
                 <button
+                  type="button"
+                  className="btn btn-outline btn-sm"
                   onClick={(e) => {
                     e.stopPropagation();
                     setShowMap(true);
                   }}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '3px',
-                    padding: '4px 8px',
-                    backgroundColor: 'var(--bg-card)',
-                    color: 'var(--primary)',
-                    border: '1px solid var(--border-color)',
-                    borderRadius: '6px',
-                    fontSize: '0.75rem',
-                    fontWeight: '600',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s',
-                    boxShadow: 'var(--shadow-sm)',
-                    whiteSpace: 'nowrap'
-                  }}
-                  onMouseOver={(e) => {
-                    e.currentTarget.style.backgroundColor = 'var(--primary-glow)';
-                    e.currentTarget.style.borderColor = 'var(--primary)';
-                  }}
-                  onMouseOut={(e) => {
-                    e.currentTarget.style.backgroundColor = 'var(--bg-card)';
-                    e.currentTarget.style.borderColor = 'var(--border-color)';
-                  }}
                   title="분포지도에서 보기"
                 >
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                     <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
                     <circle cx="12" cy="10" r="3"></circle>
                   </svg>
-                  <span>지도</span>
+                  분포지도
                 </button>
-              </div>
-
-              <div className="academy-meta">
-                {academy.type === 'privateTutor' ? (
-                  <span style={{ color: 'var(--text-muted)' }}>교습과목: <b style={{ color: 'var(--text-main)' }}>{academy.subjects?.map(s => s.subject).filter(Boolean).join(', ') || '-'}</b></span>
-                ) : (
-                  <span style={{ color: 'var(--text-muted)' }}>설립자: <b style={{ color: 'var(--text-main)' }}>{academy.founder.name}</b></span>
+                {academy.type !== 'privateTutor' && (
+                  <a
+                    href={placeMapSearchUrl(academy.name, academy.address)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="btn btn-outline btn-sm"
+                    title="네이버 플레이스에서 보기"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                      <polyline points="15 3 21 3 21 9"></polyline>
+                      <line x1="10" y1="14" x2="21" y2="3"></line>
+                    </svg>
+                    네이버 플레이스
+                  </a>
                 )}
-                <span style={{ color: 'var(--border-color)' }}>•</span>
-                {(() => {
-                  const locationBadge = getLocationBadge(academy.address);
-                  return locationBadge ? (
-                    <span style={{
-                      padding: '4px 12px',
-                      backgroundColor: locationBadge.bgColor,
-                      color: locationBadge.textColor,
-                      borderRadius: '6px',
-                      fontSize: '0.85rem',
-                      fontWeight: '600'
-                    }}>
-                      {locationBadge.text}
-                    </span>
-                  ) : (
-                    <span className={academy.status.includes('개원') ? 'status-active' : 'status-inactive'}>
-                      {academy.status}
-                    </span>
-                  );
-                })()}
-                {academy.type !== 'privateTutor' && (<>
-                <span style={{ color: 'var(--border-color)' }}>•</span>
-                <a
-                  href={placeMapSearchUrl(academy.name, academy.address)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(e) => e.stopPropagation()}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    padding: '4px 10px',
-                    backgroundColor: '#5FD68A',
-                    color: 'white',
-                    borderRadius: '6px',
-                    fontSize: '0.8rem',
-                    fontWeight: '600',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s',
-                    boxShadow: '0 1px 3px rgba(95, 214, 138, 0.3)',
-                    textDecoration: 'none'
-                  }}
-                  onMouseOver={(e) => {
-                    e.currentTarget.style.backgroundColor = '#4EC57A';
-                    e.currentTarget.style.transform = 'translateY(-1px)';
-                    e.currentTarget.style.boxShadow = '0 2px 6px rgba(95, 214, 138, 0.4)';
-                  }}
-                  onMouseOut={(e) => {
-                    e.currentTarget.style.backgroundColor = '#5FD68A';
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = '0 1px 3px rgba(95, 214, 138, 0.3)';
-                  }}
-                  title="네이버 플레이스에서 보기"
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                    <polyline points="15 3 21 3 21 9"></polyline>
-                    <line x1="10" y1="14" x2="21" y2="3"></line>
-                  </svg>
-                  <span>네이버</span>
-                </a>
-                </>)}
               </div>
             </div>
-          ))
+            );
+          })
         ) : (
           hasSearched && (
-            <div className="no-results animate-enter" style={{ background: 'var(--bg-card)', padding: '40px', borderRadius: '20px', border: '1px solid var(--border-color)' }}>
+            <div className="card no-results">
               <p>검색 결과가 없습니다.</p>
             </div>
           )
