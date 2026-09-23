@@ -828,11 +828,10 @@ function App() {
           ))}
         </nav>
 
-        {/* 지도점검 — 제 머리(탭 줄)를 가진 화면이라 내용 칸을 그대로 쓴다 */}
+        {/* 지도점검 — 표가 넓어 넓은 폭을 쓴다 */}
         {page === 'inspection' && (
-          <main className="page is-flush">
+          <main className="page is-wide">
             <InspectionPage
-              onBack={() => { setShowInspection(false); setInspectionInitialTab(undefined); }}
               academies={academies}
               privateTutors={privateTutors}
               initialTab={inspectionInitialTab}
