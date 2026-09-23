@@ -8,6 +8,7 @@ import InspectionStandardAccordion from './components/InspectionStandardAccordio
 import InspectionPage from './components/InspectionPage';
 import KakaoMapPage from './components/KakaoMapPage';
 import TuitionPrintPage from './components/TuitionPrintPage';
+import AreaCalculatorApp from './components/AreaCalculatorApp';
 import { placeMapSearchUrl } from './utils/snsCheck';
 
 class ErrorBoundary extends React.Component {
@@ -51,7 +52,7 @@ function App() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const searchInputRef = useRef(null);
   const [dataAsOf, setDataAsOf] = useState(''); // 데이터 기준일
-  const [showLegalResources, setShowLegalResources] = useState(false); // 법령 자료 표시 여부
+  const [extraPage, setExtraPage] = useState(null); // 메뉴 화면: 'law' | 'sanction' | 'area'
   const [showInspection, setShowInspection] = useState(false); // 지도점검 화면
   const [inspectionInitialTab, setInspectionInitialTab] = useState(undefined); // 지도점검 초기 탭
   const [showMap, setShowMap] = useState(false); // 맵 화면
@@ -156,6 +157,11 @@ function App() {
         setShowTuitionPrint(false);
         return false; // 홈으로
       };
+    } else if (extraPage) {
+      backHandlerRef.current = () => {
+        setExtraPage(null);
+        return false; // 홈으로
+      };
     } else if (selectedAcademy) {
       backHandlerRef.current = () => {
         const origin = detailOrigin;
@@ -167,7 +173,12 @@ function App() {
     } else {
       backHandlerRef.current = null;
     }
-  }, [showMap, showInspection, showTuitionPrint, selectedAcademy, mapReturnState, detailOrigin]);
+  }, [showMap, showInspection, showTuitionPrint, extraPage, selectedAcademy, mapReturnState, detailOrigin]);
+
+  // 좁은 화면 가로 메뉴줄: 고른 메뉴가 화면 밖에 있으면 보이게 옮긴다
+  useEffect(() => {
+    document.querySelector('.sidenav-item.is-active')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [showInspection, showTuitionPrint, extraPage]);
 
   // 모바일 여부 판별
   const isMobile = () => /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1;
@@ -176,7 +187,7 @@ function App() {
   // popstate 핸들러가 직접 재삽입하므로, 여기서는 홈→서브 첫 진입만 처리
   useEffect(() => {
     if (!isMobile()) return;
-    const isSubScreen = showInspection || showMap || showTuitionPrint || !!selectedAcademy;
+    const isSubScreen = showInspection || showMap || showTuitionPrint || !!extraPage || !!selectedAcademy;
     if (isSubScreen && !isSubScreenRef.current) {
       window.history.pushState({ appSub: true }, '');
       isSubScreenRef.current = true;
@@ -184,7 +195,7 @@ function App() {
       isSubScreenRef.current = false;
       lastBackPressRef.current = 0; // 홈 복귀 시 종료 타이머 리셋
     }
-  }, [showInspection, showMap, showTuitionPrint, selectedAcademy]);
+  }, [showInspection, showMap, showTuitionPrint, extraPage, selectedAcademy]);
 
   // popstate 이벤트 처리 (모바일 뒤로가기 버튼 전용)
   useEffect(() => {
@@ -621,25 +632,12 @@ function App() {
           </p>
           <button
             onClick={handleClearCacheAndReload}
-            style={{
-              display: 'block', width: '100%', padding: '12px',
-              backgroundColor: 'var(--primary)', color: 'white',
-              border: 'none', borderRadius: '10px',
-              fontSize: '0.95rem', fontWeight: '700', cursor: 'pointer',
-              marginBottom: '10px'
-            }}
+            className="btn btn-primary btn-block"
+            style={{ marginBottom: '10px' }}
           >
             캐시 초기화 후 다시 시도
           </button>
-          <button
-            onClick={handleLogout}
-            style={{
-              display: 'block', width: '100%', padding: '10px',
-              backgroundColor: 'transparent', color: 'var(--text-muted)',
-              border: '1px solid var(--border-color)', borderRadius: '10px',
-              fontSize: '0.85rem', cursor: 'pointer'
-            }}
-          >
+          <button onClick={handleLogout} className="btn btn-outline btn-block">
             로그아웃
           </button>
         </div>
@@ -649,32 +647,36 @@ function App() {
 
   const displayList = hasSearched ? performSearch(searchQuery) : [];
 
-  // 지도점검 화면
-  if (showInspection) {
-    return (
-      <InspectionPage
-        onBack={() => { setShowInspection(false); setInspectionInitialTab(undefined); }}
-        academies={academies}
-        privateTutors={privateTutors}
-        initialTab={inspectionInitialTab}
-        supplementLoading={supplementLoading}
-        onSelectAcademy={(academy, tab) => {
-          setDetailOrigin('inspection');
-          setShowInspection(false);
-          setDetailInitialTab(tab || undefined);
-          setSelectedAcademy(academy);
-        }}
-        onShowRouteMap={(academies) => {
-          setRouteAcademies(academies);
-          setMapReturnState({ fromInspection: true });
-          setShowInspection(false);
-          setShowMap(true);
-        }}
-      />
-    );
-  }
+  // 메뉴 이동 — 다른 화면 상태를 모두 끄고 고른 화면 하나만 켠다
+  const goTo = (id) => {
+    setShowInspection(false);
+    setInspectionInitialTab(undefined);
+    setShowTuitionPrint(false);
+    setExtraPage(null);
+    setSelectedAcademy(null);
+    setDetailInitialTab(undefined);
+    setDetailOrigin('main');
+    setShowMap(false);
+    setFocusAcademy(null);
+    setRouteAcademies(null);
+    setSavedMapState(null);
+    setMapReturnState(null);
+    if (id === 'map') setShowMap(true);
+    else if (id === 'inspection') setShowInspection(true);
+    else if (id === 'tuition') setShowTuitionPrint(true);
+    else if (id === 'law' || id === 'sanction' || id === 'area') setExtraPage(id);
+    window.scrollTo(0, 0);
+  };
 
-  // 맵 화면
+  // 머리띠 앱 이름 — 검색어까지 비운 첫 화면으로
+  const goHome = () => {
+    goTo('search');
+    setSearchQuery('');
+    setHasSearched(false);
+    setSuggestions([]);
+  };
+
+  // 맵 화면 (화면 전체를 쓰는 지도)
   if (showMap) {
     return (
       <KakaoMapPage
@@ -710,18 +712,12 @@ function App() {
     );
   }
 
-  // 교습비출력 화면
-  if (showTuitionPrint) {
-    return (
-      <TuitionPrintPage
-        academies={academies}
-        onBack={() => setShowTuitionPrint(false)}
-      />
-    );
-  }
+  const backToastEl = backToast && <div className="back-toast">한 번 더 누르면 앱이 종료됩니다</div>;
 
-  return (
-    <div className="container">
+  // 학원 상세 화면 (화면 전체를 덮는다)
+  if (selectedAcademy && !showInspection && !showTuitionPrint) {
+    return (
+      <div className="container">
       {selectedAcademy && selectedAcademy.type === 'privateTutor' && (
         <PrivateTutorDetailView
           tutor={selectedAcademy}
@@ -761,111 +757,113 @@ function App() {
           />
         </ErrorBoundary>
       )}
+        {backToastEl}
+      </div>
+    );
+  }
 
-      {!selectedAcademy && (
-      <>
-      <header className={`header animate-enter ${hasSearched ? 'header-compact' : ''}`}>
-        <h1
-          className="title primary-gradient-text"
-          onClick={() => {
-            setSearchQuery('');
-            setHasSearched(false);
-            setSuggestions([]);
-            setSelectedAcademy(null);
-            setShowInspection(false);
-            setShowMap(false);
-            setDetailOrigin('main');
-          }}
-          style={{ cursor: 'pointer' }}
-          title="초기 화면으로 이동"
-        >
-          학원 관리
-        </h1>
+  const page = showInspection ? 'inspection'
+    : showTuitionPrint ? 'tuition'
+      : extraPage || 'search';
+  const head = PAGE_HEAD[page];
 
-        {/* 시트연결, 기준일, 로그아웃 버튼을 한 줄에 배치 */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          marginBottom: '12px',
-          position: 'relative'
-        }}>
-          {/* 시트 버튼 (삭제됨) */}
-
-          {/* 기준일 (중앙) */}
+  return (
+    <div className="shell">
+      {/* 머리띠 */}
+      <header className="topbar">
+        <button type="button" className="topbar-brand" onClick={goHome} title="첫 화면으로">
+          <span className="topbar-logo" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M22 10 12 5 2 10l10 5 10-5z" /><path d="M6 12v5c0 1.7 2.7 3 6 3s6-1.3 6-3v-5" />
+            </svg>
+          </span>
+          <span className="topbar-title">학원 관리</span>
+        </button>
+        <div className="topbar-actions">
           {dataAsOf && (
-            <div style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '6px 14px',
-              backgroundColor: 'var(--bg-card)',
-              border: '1px solid var(--border-color)',
-              borderRadius: '12px',
-              fontSize: '0.8rem',
-              fontWeight: '600',
-              color: 'var(--text-muted)',
-              boxShadow: 'var(--shadow-sm)'
-            }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                <line x1="16" y1="2" x2="16" y2="6"></line>
-                <line x1="8" y1="2" x2="8" y2="6"></line>
-                <line x1="3" y1="10" x2="21" y2="10"></line>
+            <span className="topbar-date" title="학원 자료 기준일">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
               </svg>
-              <span>{dataAsOf}</span>
-            </div>
+              {dataAsOf}
+            </span>
           )}
-
-          {/* 면적 버튼 (왼쪽) */}
-          <button
-            onClick={() => { setInspectionInitialTab(5); setShowInspection(true); }}
-            style={{
-              position: 'absolute',
-              left: '0',
-              background: 'none',
-              border: 'none',
-              color: '#7c3aed',
-              fontSize: '0.85rem',
-              fontWeight: '700',
-              cursor: 'pointer',
-              textDecoration: 'underline',
-              textDecorationColor: '#c4b5fd',
-              padding: '0',
-              transition: 'color 0.2s'
-            }}
-            onMouseOver={(e) => e.target.style.color = '#5b21b6'}
-            onMouseOut={(e) => e.target.style.color = '#7c3aed'}
-          >
-            면적계산
-          </button>
-
-          {/* 로그아웃 버튼 (오른쪽) */}
-          <button
-            onClick={handleLogout}
-            style={{
-              position: 'absolute',
-              right: '0',
-              background: 'none',
-              border: 'none',
-              color: 'var(--text-muted)',
-              fontSize: '0.85rem',
-              fontWeight: '500',
-              cursor: 'pointer',
-              textDecoration: 'underline',
-              textDecorationColor: 'var(--border-color)',
-              padding: '0',
-              transition: 'color 0.2s'
-            }}
-            onMouseOver={(e) => e.target.style.color = 'var(--primary)'}
-            onMouseOut={(e) => e.target.style.color = 'var(--text-muted)'}
-          >
-            로그아웃
-          </button>
+          <button type="button" className="topbar-btn" onClick={handleLogout}>로그아웃</button>
         </div>
+      </header>
 
-        <p className="subtitle">검색할 학원명, 운영자, 주소를 입력하세요</p>
+      <div className="shell-body">
+        {/* 메뉴 */}
+        <nav className="sidenav" aria-label="메뉴">
+          {NAV.map(g => (
+            <div key={g.group} className="sidenav-group">
+              <div className="sidenav-label">{g.group}</div>
+              {g.items.map(item => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`sidenav-item${page === item.id ? ' is-active' : ''}`}
+                  aria-current={page === item.id ? 'page' : undefined}
+                  onClick={() => goTo(item.id)}
+                >
+                  <NavIcon name={item.icon} />
+                  <span>{item.label}</span>
+                </button>
+              ))}
+            </div>
+          ))}
+        </nav>
 
+        {/* 지도점검 — 제 머리(탭 줄)를 가진 화면이라 내용 칸을 그대로 쓴다 */}
+        {page === 'inspection' && (
+          <main className="page is-flush">
+            <InspectionPage
+              onBack={() => { setShowInspection(false); setInspectionInitialTab(undefined); }}
+              academies={academies}
+              privateTutors={privateTutors}
+              initialTab={inspectionInitialTab}
+              supplementLoading={supplementLoading}
+              onSelectAcademy={(academy, tab) => {
+                setDetailOrigin('inspection');
+                setShowInspection(false);
+                setDetailInitialTab(tab || undefined);
+                setSelectedAcademy(academy);
+              }}
+              onShowRouteMap={(academies) => {
+                setRouteAcademies(academies);
+                setMapReturnState({ fromInspection: true });
+                setShowInspection(false);
+                setShowMap(true);
+              }}
+            />
+          </main>
+        )}
+
+        {page === 'tuition' && (
+          <main className="page is-flush">
+            <TuitionPrintPage
+              academies={academies}
+              onBack={() => setShowTuitionPrint(false)}
+            />
+          </main>
+        )}
+
+        {page !== 'inspection' && page !== 'tuition' && (
+          <main className="page">
+            <div className="page-head">
+              <h1 className="page-title">{head.title}</h1>
+              <p className="page-desc">{head.desc}</p>
+            </div>
+
+            {page === 'law' && <LegalResourcesPage />}
+
+            {page === 'sanction' && <InspectionStandardAccordion embedded />}
+
+            {page === 'area' && <AreaCalculatorApp embedded={true} />}
+
+            {page === 'search' && (
+              <>
+                <div className="search-area">
         <form className="search-bar" onSubmit={handleSearchSubmit}>
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="search-icon">
             <circle cx="11" cy="11" r="8"></circle>
@@ -938,7 +936,7 @@ function App() {
             </ul>
           )}
         </form>
-      </header>
+                </div>
 
       <div className="results-list" style={{ paddingBottom: (hasSearched || searchQuery) ? '60px' : '0px' }}>
         {hasSearched && displayList.length > 0 ? (
@@ -1096,537 +1094,127 @@ function App() {
           )
         )}
       </div>
-
-      {/* 하단 섹션: AI 상담 및 법령 자료 */}
-      {!hasSearched && !searchQuery && (
-        <div style={{ marginTop: '0px', paddingBottom: '32px' }}>
-          {/* 교습비등 게시표 출력 */}
-          <div
-            onClick={() => setShowTuitionPrint(true)}
-            style={{
-              padding: '12px 16px',
-              background: 'var(--bg-card)',
-              border: '1px solid var(--border-color)',
-              borderRadius: '14px',
-              cursor: 'pointer',
-              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '10px',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
-            }}
-            onMouseOver={(e) => {
-              e.currentTarget.style.borderColor = 'var(--primary)';
-              e.currentTarget.style.boxShadow = '0 6px 12px -2px rgba(0,0,0,0.05)';
-              e.currentTarget.style.transform = 'translateY(-2px)';
-            }}
-            onMouseOut={(e) => {
-              e.currentTarget.style.borderColor = 'var(--border-color)';
-              e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.02)';
-              e.currentTarget.style.transform = 'translateY(0)';
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <div style={{
-                width: '36px',
-                height: '36px',
-                borderRadius: '10px',
-                background: '#e0f2fe',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '1.2rem'
-              }}>
-                🔍
-              </div>
-              <span style={{
-                fontSize: '1rem',
-                fontWeight: '700',
-                color: 'var(--text-main)'
-              }}>
-                교습비 계산·게시표
-              </span>
-            </div>
-            <div style={{
-              width: '28px',
-              height: '28px',
-              borderRadius: '6px',
-              background: 'var(--bg-light)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="9 18 15 12 9 6"></polyline>
-              </svg>
-            </div>
-          </div>
-
-          {/* 관련 법령 자료 섹션 */}
-          <div style={{ marginTop: '10px' }}>
-            {/* 접기/펼치기 헤더 */}
-            <div
-              onClick={() => setShowLegalResources(!showLegalResources)}
-              style={{
-                padding: '12px 16px',
-                background: 'var(--bg-card)',
-                border: '1px solid var(--border-color)',
-                borderRadius: '14px',
-                cursor: 'pointer',
-                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '10px',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
-              }}
-              onMouseOver={(e) => {
-                e.currentTarget.style.borderColor = 'var(--primary)';
-                e.currentTarget.style.boxShadow = '0 6px 12px -2px rgba(0,0,0,0.05)';
-                e.currentTarget.style.transform = 'translateY(-2px)';
-              }}
-              onMouseOut={(e) => {
-                e.currentTarget.style.borderColor = 'var(--border-color)';
-                e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.02)';
-                e.currentTarget.style.transform = 'translateY(0)';
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{
-                  width: '36px',
-                  height: '36px',
-                  borderRadius: '10px',
-                  background: '#e0e7ff',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '1.2rem'
-                }}>
-                  📚
-                </div>
-                <span style={{
-                  fontSize: '1rem',
-                  fontWeight: '700',
-                  color: 'var(--text-main)'
-                }}>
-                  관련 법령 자료 보기
-                </span>
-              </div>
-              <div style={{
-                width: '28px',
-                height: '28px',
-                borderRadius: '6px',
-                background: 'var(--bg-light)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}>
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="var(--text-muted)"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  style={{
-                    transform: showLegalResources ? 'rotate(180deg)' : 'rotate(0deg)',
-                    transition: 'transform 0.3s'
-                  }}
-                >
-                  <polyline points="6 9 12 15 18 9"></polyline>
-                </svg>
-              </div>
-            </div>
-
-            {/* 펼쳐진 내용 */}
-            {showLegalResources && (
-              <div
-                className="animate-enter"
-                style={{
-                  marginTop: '12px',
-                  padding: '20px',
-                  background: 'var(--bg-card)',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: '12px',
-                  boxShadow: 'var(--shadow-sm)'
-                }}
-              >
-                {/* 업무 메뉴얼 */}
-                <div style={{ marginBottom: '24px' }}>
-                  <h4 style={{
-                    fontSize: '0.9rem',
-                    fontWeight: '700',
-                    color: 'var(--text-main)',
-                    marginBottom: '12px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px'
-                  }}>
-                    <span>📚</span>
-                    <span>업무 메뉴얼</span>
-                  </h4>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <a
-                      href="https://drive.google.com/file/d/1I6j4VkHEeDzKc6YvfTcv8Wl48LAzbSsN/preview"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        padding: '10px 14px',
-                        background: 'var(--bg-main)',
-                        border: '1px solid var(--border-color)',
-                        borderRadius: '8px',
-                        color: 'var(--text-main)',
-                        textDecoration: 'none',
-                        fontSize: '0.85rem',
-                        fontWeight: '500',
-                        transition: 'all 0.2s',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between'
-                      }}
-                      onMouseOver={(e) => {
-                        e.currentTarget.style.borderColor = 'var(--primary)';
-                        e.currentTarget.style.backgroundColor = 'var(--primary-glow)';
-                      }}
-                      onMouseOut={(e) => {
-                        e.currentTarget.style.borderColor = 'var(--border-color)';
-                        e.currentTarget.style.backgroundColor = 'var(--bg-main)';
-                      }}
-                    >
-                      <span>• 경기도교육청 학원 업무 메뉴얼</span>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                        <polyline points="15 3 21 3 21 9"></polyline>
-                        <line x1="10" y1="14" x2="21" y2="3"></line>
-                      </svg>
-                    </a>
-                    <a
-                      href="https://drive.google.com/file/d/1ppixrFV1wEFBXTicg_-muU81mn8Gvn8E/preview"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        padding: '10px 14px',
-                        background: 'var(--bg-main)',
-                        border: '1px solid var(--border-color)',
-                        borderRadius: '8px',
-                        color: 'var(--text-main)',
-                        textDecoration: 'none',
-                        fontSize: '0.85rem',
-                        fontWeight: '500',
-                        transition: 'all 0.2s',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between'
-                      }}
-                      onMouseOver={(e) => {
-                        e.currentTarget.style.borderColor = 'var(--primary)';
-                        e.currentTarget.style.backgroundColor = 'var(--primary-glow)';
-                      }}
-                      onMouseOut={(e) => {
-                        e.currentTarget.style.borderColor = 'var(--border-color)';
-                        e.currentTarget.style.backgroundColor = 'var(--bg-main)';
-                      }}
-                    >
-                      <span>• 서울특별시교육청 학원 업무 메뉴얼</span>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                        <polyline points="15 3 21 3 21 9"></polyline>
-                        <line x1="10" y1="14" x2="21" y2="3"></line>
-                      </svg>
-                    </a>
-                  </div>
-                </div>
-
-                {/* 주요 법령 */}
-                <div style={{ marginBottom: '24px' }}>
-                  <h4 style={{
-                    fontSize: '0.9rem',
-                    fontWeight: '700',
-                    color: 'var(--text-main)',
-                    marginBottom: '12px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px'
-                  }}>
-                    <span>📖</span>
-                    <span>주요 법령</span>
-                  </h4>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {[
-                      { label: '학원법', href: 'https://www.law.go.kr/법령/학원의설립·운영및과외교습에관한법률' },
-                      { label: '학원법 시행령', href: 'https://www.law.go.kr/법령/학원의설립·운영및과외교습에관한법률시행령' },
-                      { label: '학원법 시행규칙', href: 'https://www.law.go.kr/법령/학원의설립·운영및과외교습에관한법률시행규칙' },
-                      { label: '경기도 학원 조례', href: 'https://www.law.go.kr/자치법규/경기도학원의설립ㆍ운영및과외교습에관한조례/(7741,20230807)' },
-                      { label: '경기도 학원 조례 시행규칙', href: 'https://www.law.go.kr/자치법규/경기도학원의설립ㆍ운영및과외교습에관한조례시행규칙/(980,20250901)' },
-                    ].map(({ label, href }) => (
-                      <a
-                        key={label}
-                        href={href}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{
-                          padding: '10px 14px',
-                          background: 'var(--bg-main)',
-                          border: '1px solid var(--border-color)',
-                          borderRadius: '8px',
-                          color: 'var(--text-main)',
-                          textDecoration: 'none',
-                          fontSize: '0.85rem',
-                          fontWeight: '500',
-                          transition: 'all 0.2s',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between'
-                        }}
-                        onMouseOver={(e) => {
-                          e.currentTarget.style.borderColor = 'var(--primary)';
-                          e.currentTarget.style.backgroundColor = 'var(--primary-glow)';
-                        }}
-                        onMouseOut={(e) => {
-                          e.currentTarget.style.borderColor = 'var(--border-color)';
-                          e.currentTarget.style.backgroundColor = 'var(--bg-main)';
-                        }}
-                      >
-                        <span>• {label}</span>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                          <polyline points="15 3 21 3 21 9"></polyline>
-                          <line x1="10" y1="14" x2="21" y2="3"></line>
-                        </svg>
-                      </a>
-                    ))}
-                  </div>
-                </div>
-
-                {/* 관련 법령 */}
-                <div>
-                  <h4 style={{
-                    fontSize: '0.9rem',
-                    fontWeight: '700',
-                    color: 'var(--text-main)',
-                    marginBottom: '12px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px'
-                  }}>
-                    <span>⚖️</span>
-                    <span>관련 법령</span>
-                  </h4>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {[
-                      { label: '고등교육법', href: 'https://www.law.go.kr/법령/고등교육법' },
-                      { label: '교육환경 보호에 관한 법률', href: 'https://www.law.go.kr/법령/교육환경보호에관한법률' },
-                      { label: '아동복지법', href: 'https://www.law.go.kr/법령/아동복지법' },
-                      { label: '청소년성보호법', href: 'https://www.law.go.kr/법령/아동·청소년의성보호에관한법률' },
-                      { label: '질서위반행위규제법', href: 'https://www.law.go.kr/법령/질서위반행위규제법' },
-                      { label: '민원 처리에 관한 법률', href: 'https://www.law.go.kr/법령/민원처리에관한법률' },
-                      { label: '출입국관리법', href: 'https://www.law.go.kr/법령/출입국관리법' },
-                      { label: '행정절차법', href: 'https://www.law.go.kr/법령/행정절차법' },
-                      { label: '어린이안전관리에 관한 법률', href: 'https://www.law.go.kr/법령/어린이안전관리에관한법률' },
-                    ].map(({ label, href }) => (
-                      <a
-                        key={label}
-                        href={href}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{
-                          padding: '10px 14px',
-                          background: 'var(--bg-main)',
-                          border: '1px solid var(--border-color)',
-                          borderRadius: '8px',
-                          color: 'var(--text-main)',
-                          textDecoration: 'none',
-                          fontSize: '0.85rem',
-                          fontWeight: '500',
-                          transition: 'all 0.2s',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between'
-                        }}
-                        onMouseOver={(e) => {
-                          e.currentTarget.style.borderColor = 'var(--primary)';
-                          e.currentTarget.style.backgroundColor = 'var(--primary-glow)';
-                        }}
-                        onMouseOut={(e) => {
-                          e.currentTarget.style.borderColor = 'var(--border-color)';
-                          e.currentTarget.style.backgroundColor = 'var(--bg-main)';
-                        }}
-                      >
-                        <span>• {label}</span>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                          <polyline points="15 3 21 3 21 9"></polyline>
-                          <line x1="10" y1="14" x2="21" y2="3"></line>
-                        </svg>
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              </div>
+              </>
             )}
-          </div>
+          </main>
+        )}
+      </div>
 
-          {/* 행정처분/과태료 1차 적발 기준 아코디언 */}
-          <div style={{ marginTop: '10px' }}>
-            <InspectionStandardAccordion />
-          </div>
-
-          {/* 지도점검 버튼 */}
-          <div
-            onClick={() => setShowInspection(true)}
-            style={{
-              marginTop: '10px',
-              padding: '12px 16px',
-              background: 'var(--bg-card)',
-              border: '1px solid var(--border-color)',
-              borderRadius: '14px',
-              cursor: 'pointer',
-              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '10px',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
-            }}
-            onMouseOver={(e) => {
-              e.currentTarget.style.borderColor = '#1e3a8a';
-              e.currentTarget.style.boxShadow = '0 6px 12px -2px rgba(30,58,138,0.1)';
-              e.currentTarget.style.transform = 'translateY(-2px)';
-            }}
-            onMouseOut={(e) => {
-              e.currentTarget.style.borderColor = 'var(--border-color)';
-              e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.02)';
-              e.currentTarget.style.transform = 'translateY(0)';
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', position: 'relative', zIndex: 1 }}>
-              <div style={{
-                width: '36px',
-                height: '36px',
-                borderRadius: '10px',
-                background: '#eff6ff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '1.2rem'
-              }}>
-                📊
-              </div>
-              <div>
-                <div style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--text-main)' }}>
-                  지도점검 업무관리
-                </div>
-              </div>
-            </div>
-            <div style={{
-              width: '28px',
-              height: '28px',
-              borderRadius: '6px',
-              background: 'var(--bg-light)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              position: 'relative',
-              zIndex: 1
-            }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="9 18 15 12 9 6"></polyline>
-              </svg>
-            </div>
-          </div>
-
-          {/* 학원 교습소 지도 버튼 */}
-          <div
-            onClick={() => setShowMap(true)}
-            style={{
-              marginTop: '10px',
-              padding: '12px 16px',
-              background: 'var(--bg-card)',
-              border: '1px solid var(--border-color)',
-              borderRadius: '14px',
-              cursor: 'pointer',
-              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '10px',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
-            }}
-            onMouseOver={(e) => {
-              e.currentTarget.style.borderColor = '#10b981';
-              e.currentTarget.style.boxShadow = '0 6px 12px -2px rgba(16,185,129,0.1)';
-              e.currentTarget.style.transform = 'translateY(-2px)';
-            }}
-            onMouseOut={(e) => {
-              e.currentTarget.style.borderColor = 'var(--border-color)';
-              e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.02)';
-              e.currentTarget.style.transform = 'translateY(0)';
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', position: 'relative', zIndex: 1 }}>
-              <div style={{
-                width: '36px',
-                height: '36px',
-                borderRadius: '10px',
-                background: '#ecfdf5',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '1.2rem'
-              }}>
-                🗺️
-              </div>
-              <div>
-                <div style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--text-main)' }}>
-                  학원 등 분포지도
-                </div>
-              </div>
-            </div>
-            <div style={{
-              width: '28px',
-              height: '28px',
-              borderRadius: '6px',
-              background: 'var(--bg-light)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              position: 'relative',
-              zIndex: 1
-            }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="9 18 15 12 9 6"></polyline>
-              </svg>
-            </div>
-          </div>
-        </div>
-      )}
-      </>
-      )}
-
-      {backToast && (
-        <div style={{
-          position: 'fixed',
-          bottom: '60px',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          backgroundColor: 'rgba(20,20,20,0.92)',
-          color: '#fff',
-          padding: '13px 28px',
-          borderRadius: '24px',
-          fontSize: '0.95rem',
-          fontWeight: '600',
-          whiteSpace: 'nowrap',
-          zIndex: 2147483647,
-          pointerEvents: 'none',
-          boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
-        }}>
-          한 번 더 누르면 앱이 종료됩니다
-        </div>
-      )}
+      {backToastEl}
     </div>
+  );
+}
+
+// 왼쪽 메뉴 — 넓은 화면은 세로 메뉴, 좁은 화면은 머리띠 아래 가로 메뉴줄
+const NAV = [
+  {
+    group: '조회',
+    items: [
+      { id: 'search', label: '학원 검색', icon: 'search' },
+      { id: 'map', label: '학원 등 분포지도', icon: 'map' },
+    ],
+  },
+  {
+    group: '지도점검',
+    items: [
+      { id: 'inspection', label: '지도점검 업무관리', icon: 'clipboard' },
+      { id: 'area', label: '면적계산', icon: 'ruler' },
+    ],
+  },
+  {
+    group: '교습비',
+    items: [{ id: 'tuition', label: '교습비 계산·게시표', icon: 'calc' }],
+  },
+  {
+    group: '참고',
+    items: [
+      { id: 'law', label: '관련 법령 자료', icon: 'book' },
+      { id: 'sanction', label: '행정처분·과태료 기준', icon: 'scale' },
+    ],
+  },
+];
+
+// 각 화면 머리 — 제목과 한 줄 설명
+const PAGE_HEAD = {
+  search: { title: '학원 검색', desc: '학원명·운영자·주소·등록번호로 학원, 교습소, 개인과외교습자를 찾습니다.' },
+  area: { title: '면적계산', desc: '강의실 치수를 적으면 실별 면적과 합계를 계산합니다.' },
+  law: { title: '관련 법령 자료', desc: '업무 매뉴얼과 법령 원문을 새 창으로 엽니다.' },
+  sanction: { title: '행정처분·과태료 기준', desc: '위반 유형별 1차 적발 시 행정처분과 과태료입니다.' },
+};
+
+function NavIcon({ name }) {
+  const paths = {
+    search: <><circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></>,
+    map: <><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6" /><line x1="8" y1="2" x2="8" y2="18" /><line x1="16" y1="6" x2="16" y2="22" /></>,
+    clipboard: <><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" /><rect x="8" y="2" width="8" height="4" rx="1" /><path d="m9 14 2 2 4-4" /></>,
+    ruler: <><path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.4 2.4 0 0 1 0-3.4l2.6-2.6a2.4 2.4 0 0 1 3.4 0Z" /><path d="m14.5 12.5 2-2" /><path d="m11.5 9.5 2-2" /><path d="m8.5 6.5 2-2" /><path d="m17.5 15.5 2-2" /></>,
+    calc: <><rect x="4" y="2" width="16" height="20" rx="2" /><line x1="8" y1="6" x2="16" y2="6" /><line x1="8" y1="11" x2="8" y2="11" /><line x1="12" y1="11" x2="12" y2="11" /><line x1="16" y1="11" x2="16" y2="11" /><line x1="8" y1="15" x2="8" y2="15" /><line x1="12" y1="15" x2="12" y2="15" /><line x1="16" y1="15" x2="16" y2="18" /><line x1="8" y1="18" x2="12" y2="18" /></>,
+    book: <><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></>,
+    scale: <><path d="M12 3v18" /><path d="M5 21h14" /><path d="m3 13 3-7 3 7a3 3 0 0 1-6 0Z" /><path d="m15 13 3-7 3 7a3 3 0 0 1-6 0Z" /><path d="M6 6h12" /></>,
+  };
+  return (
+    <svg className="sidenav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {paths[name]}
+    </svg>
+  );
+}
+
+// 관련 법령 자료 — 업무 매뉴얼, 주요 법령, 관련 법령 (모두 새 창)
+const LAW_SECTIONS = [
+  {
+    title: '업무 매뉴얼',
+    links: [
+      { label: '경기도교육청 학원 업무 매뉴얼', href: 'https://drive.google.com/file/d/1I6j4VkHEeDzKc6YvfTcv8Wl48LAzbSsN/preview' },
+      { label: '서울특별시교육청 학원 업무 매뉴얼', href: 'https://drive.google.com/file/d/1ppixrFV1wEFBXTicg_-muU81mn8Gvn8E/preview' },
+    ],
+  },
+  {
+    title: '주요 법령',
+    links: [
+      { label: '학원법', href: 'https://www.law.go.kr/법령/학원의설립·운영및과외교습에관한법률' },
+      { label: '학원법 시행령', href: 'https://www.law.go.kr/법령/학원의설립·운영및과외교습에관한법률시행령' },
+      { label: '학원법 시행규칙', href: 'https://www.law.go.kr/법령/학원의설립·운영및과외교습에관한법률시행규칙' },
+      { label: '경기도 학원 조례', href: 'https://www.law.go.kr/자치법규/경기도학원의설립ㆍ운영및과외교습에관한조례/(7741,20230807)' },
+      { label: '경기도 학원 조례 시행규칙', href: 'https://www.law.go.kr/자치법규/경기도학원의설립ㆍ운영및과외교습에관한조례시행규칙/(980,20250901)' },
+    ],
+  },
+  {
+    title: '관련 법령',
+    links: [
+      { label: '고등교육법', href: 'https://www.law.go.kr/법령/고등교육법' },
+      { label: '교육환경 보호에 관한 법률', href: 'https://www.law.go.kr/법령/교육환경보호에관한법률' },
+      { label: '아동복지법', href: 'https://www.law.go.kr/법령/아동복지법' },
+      { label: '청소년성보호법', href: 'https://www.law.go.kr/법령/아동·청소년의성보호에관한법률' },
+      { label: '질서위반행위규제법', href: 'https://www.law.go.kr/법령/질서위반행위규제법' },
+      { label: '민원 처리에 관한 법률', href: 'https://www.law.go.kr/법령/민원처리에관한법률' },
+      { label: '출입국관리법', href: 'https://www.law.go.kr/법령/출입국관리법' },
+      { label: '행정절차법', href: 'https://www.law.go.kr/법령/행정절차법' },
+      { label: '어린이안전관리에 관한 법률', href: 'https://www.law.go.kr/법령/어린이안전관리에관한법률' },
+    ],
+  },
+];
+
+function LegalResourcesPage() {
+  return (
+    <>
+      {LAW_SECTIONS.map(section => (
+        <section key={section.title} className="card">
+          <h2 className="card-title">{section.title}</h2>
+          <ul className="link-list">
+            {section.links.map(({ label, href }) => (
+              <li key={label}>
+                <a className="link-row" href={href} target="_blank" rel="noopener noreferrer">
+                  <span>{label}</span>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
+                  </svg>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
+    </>
   );
 }
 
