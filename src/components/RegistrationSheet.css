@@ -7,12 +7,17 @@
   --reg-fill-focus: #fff3bf;
 }
 
-/* PC: 앱 폭(600px)보다 넓게 펼쳐 한 과목을 한 줄에 */
+/* PC: 본문 폭보다 넓게 펼쳐 한 과목을 한 줄에 — 쓸 수 있는 폭 안에서 가운데 */
 @media (min-width: 960px) {
   .reg-sheet-wrap {
-    width: min(1120px, calc(100vw - 48px));
-    margin-left: calc((100% - min(1120px, calc(100vw - 48px))) / 2);
+    --reg-w: min(1120px, calc(100vw - 48px));
+    width: var(--reg-w);
+    margin-left: calc((100% - var(--reg-w)) / 2);
   }
+}
+/* 왼쪽 메뉴가 보이는 폭에서는 메뉴를 뺀 자리만 쓴다 (메뉴 밑으로 파고들지 않게) */
+@media (min-width: 1024px) {
+  .reg-sheet-wrap { --reg-w: min(1120px, calc(100vw - var(--nav-width) - 48px)); }
 }
 
 .reg-sheet-guide {
@@ -251,7 +256,7 @@
   font-weight: 800;
   cursor: pointer;
 }
-.reg-add:hover { background: #eef2ff; border-color: #6366f1; color: #4338ca; }
+.reg-add:hover { background: var(--primary-soft); border-color: var(--primary); color: var(--primary); }
 
 /* ── 기타 할인사항 ── */
 .reg-discount {
@@ -285,7 +290,7 @@
   padding: 10px 12px;
   border: 1px solid #cbd5e1;
   background: #f8fafc;
-  font-size: 0.92rem;
+  font-size: 1rem;
   line-height: 1.55;
   color: #334155;
   word-break: keep-all;
@@ -307,7 +312,7 @@
   font-size: 1.2rem;
   font-weight: 800;
   cursor: pointer;
-  box-shadow: 0 3px 10px rgba(29, 78, 216, 0.3);
+  box-shadow: none;
 }
 .reg-print:hover { background: #1e40af; }
 

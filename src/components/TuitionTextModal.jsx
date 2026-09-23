@@ -58,25 +58,26 @@ export default function TuitionTextModal({ text, academyName, onClose }) {
             >
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '10px' }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: '1.05rem', fontWeight: '800', color: '#c2410c' }}>
+                        <div style={{ fontSize: '1.15rem', fontWeight: '800', color: 'var(--text-main)' }}>
                             네이버 플레이스용 텍스트
                         </div>
                         {academyName && (
-                            <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '2px' }}>{academyName}</div>
+                            <div style={{ fontSize: '1rem', color: 'var(--text-muted)', marginTop: '2px' }}>{academyName}</div>
                         )}
                     </div>
                     <button
+                        type="button"
                         onClick={onClose}
                         aria-label="닫기"
                         style={{
                             background: 'none', border: 'none', cursor: 'pointer',
                             fontSize: '1.2rem', color: 'var(--text-muted)',
-                            padding: '2px 6px', lineHeight: 1, borderRadius: '6px', flexShrink: 0,
+                            width: '46px', height: '46px', padding: 0, lineHeight: 1, borderRadius: '8px', flexShrink: 0,
                         }}
                     >✕</button>
                 </div>
 
-                <div style={{ fontSize: '0.83rem', color: 'var(--text-muted)', marginBottom: '10px', lineHeight: 1.5 }}>
+                <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '10px', lineHeight: 1.5 }}>
                     아래 내용을 복사해 네이버 플레이스 소개글에 붙여넣으세요. 필요하면 직접 고칠 수 있습니다.
                 </div>
 
@@ -88,35 +89,24 @@ export default function TuitionTextModal({ text, academyName, onClose }) {
                         flex: 1, minHeight: '240px', resize: 'vertical',
                         width: '100%', padding: '12px',
                         fontFamily: "'D2Coding', 'Consolas', 'Menlo', monospace",
-                        fontSize: '0.86rem', lineHeight: 1.7,
+                        fontSize: '1rem', lineHeight: 1.7,
                         color: 'var(--text-main)',
                         backgroundColor: 'var(--bg-light)',
-                        border: '1.5px solid var(--border-color)',
+                        border: '1px solid var(--border-strong)',
                         borderRadius: '10px',
                         whiteSpace: 'pre-wrap', overflowY: 'auto',
                     }}
                 />
 
                 <div style={{ display: 'flex', gap: '10px', marginTop: '14px' }}>
+                    {/* 복사되면 초록 — '됐다' 뜻 */}
                     <button
+                        type="button"
+                        className="btn btn-primary"
                         onClick={copy}
-                        style={{
-                            flex: 2, padding: '12px 10px',
-                            backgroundColor: copied ? '#16a34a' : '#ea580c',
-                            color: '#fff', border: 'none', borderRadius: '10px',
-                            fontSize: '0.95rem', fontWeight: '700', cursor: 'pointer',
-                            transition: 'background-color 0.15s',
-                        }}
+                        style={{ flex: 2, ...(copied ? { backgroundColor: 'var(--ok)', borderColor: 'var(--ok)' } : {}) }}
                     >{copied ? '✓ 복사됨!' : '복사하기'}</button>
-                    <button
-                        onClick={onClose}
-                        style={{
-                            flex: 1, padding: '12px 10px',
-                            backgroundColor: 'transparent', color: 'var(--text-muted)',
-                            border: '1.5px solid var(--border-color)', borderRadius: '10px',
-                            fontSize: '0.95rem', fontWeight: '700', cursor: 'pointer',
-                        }}
-                    >닫기</button>
+                    <button type="button" className="btn btn-outline" onClick={onClose} style={{ flex: 1 }}>닫기</button>
                 </div>
             </div>
         </div>,

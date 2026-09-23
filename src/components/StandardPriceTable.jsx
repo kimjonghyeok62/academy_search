@@ -7,51 +7,34 @@ export default function StandardPriceTable({ onBack }) {
   const average = rated.length ? (rated.reduce((sum, r) => sum + r.rate, 0) / rated.length).toFixed(2) : '';
 
   return (
-    <div style={{ maxWidth: '900px', margin: '0 auto', padding: '20px', backgroundColor: '#fff', minHeight: '100vh', fontFamily: 'sans-serif' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
-        <h2 style={{ fontSize: '1.4rem', fontWeight: 'bold', color: '#111827', margin: 0 }}>
-          {region ? `${officeName} 학원·교습소 교습비 세부내역` : '학원·교습소 교습비 세부내역'}
-        </h2>
-        <button 
-          onClick={onBack}
-          style={{
-            padding: '8px 16px',
-            backgroundColor: '#1d4ed8',
-            color: '#fff',
-            border: 'none',
-            borderRadius: '6px',
-            fontWeight: '600',
-            cursor: 'pointer',
-            fontSize: '0.95rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px'
-          }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M19 12H5M12 19l-7-7 7-7"/>
-          </svg>
-          홈페이지로 돌아가기
-        </button>
+    <div className="animate-enter">
+      <button type="button" className="btn btn-outline btn-sm" onClick={onBack} style={{ marginBottom: '14px' }}>
+        ← 교습비 계산·게시표로
+      </button>
+      <div className="page-head">
+        <h1 className="page-title">
+          {region ? `${officeName} 교습비 기준단가` : '교습비 기준단가'}
+        </h1>
+        <p className="page-desc">학원·교습소 교습과정별 분당 기준단가입니다.</p>
       </div>
-      
+
       {!region ? (
-        <div style={{ padding: '14px', marginBottom: '40px', backgroundColor: '#fffbeb', border: '1px solid #fcd34d', borderRadius: '8px', color: '#92400e' }}>
-          첫 화면 맨 위에서 지역(교육지원청)을 먼저 선택하세요.
+        <div className="alert is-warn" style={{ marginBottom: '32px' }}>
+          앞 화면 위쪽에서 지역(교육지원청)을 먼저 고르세요.
         </div>
       ) : !rows.length ? (
-        <div style={{ padding: '14px', marginBottom: '40px', backgroundColor: '#fffbeb', border: '1px solid #fcd34d', borderRadius: '8px', color: '#92400e' }}>
+        <div className="alert is-warn" style={{ marginBottom: '32px' }}>
           {officeName}은(는) 아직 기준단가가 입력되지 않았습니다. 관할 교육지원청에 문의하세요.
         </div>
       ) : (
       <>
-      <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px', fontSize: '0.9rem', color: '#4b5563', marginBottom: '10px', fontWeight: '500' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px', fontSize: '1rem', color: 'var(--text-muted)', marginBottom: '10px', fontWeight: '500' }}>
         <span>개인과외 시간당 기준: {tutoringHourlyRate > 0 ? `${tutoringHourlyRate.toLocaleString()}원` : '미입력'}</span>
         <span>(단위: 원)</span>
       </div>
 
-      <div style={{ overflowX: 'auto', marginBottom: '40px', borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
+      <div style={{ overflowX: 'auto', marginBottom: '40px', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: 'var(--bg-card)' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '1rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
           <thead>
             <tr style={{ backgroundColor: '#f8fafc', borderBottom: '2px solid #cbd5e1' }}>
               <th style={{ padding: '12px 10px', borderRight: '1px solid #e2e8f0', color: '#334155' }}>시도</th>
@@ -84,16 +67,9 @@ export default function StandardPriceTable({ onBack }) {
       </>
       )}
 
-      <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#111827', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1d4ed8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="10"></circle>
-          <line x1="12" y1="16" x2="12" y2="12"></line>
-          <line x1="12" y1="8" x2="12.01" y2="8"></line>
-        </svg>
-        설명
-      </h3>
-      <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem', textAlign: 'left', minWidth: '600px' }}>
+      <h2 className="card-title" style={{ marginBottom: '12px' }}>교습과정 설명</h2>
+      <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: 'var(--bg-card)' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '1rem', textAlign: 'left', minWidth: '600px' }}>
           <thead>
             <tr style={{ backgroundColor: '#f8fafc', borderBottom: '2px solid #cbd5e1' }}>
               <th style={{ padding: '12px', borderRight: '1px solid #e2e8f0', color: '#334155', textAlign: 'center', width: '15%' }}>종류</th>
