@@ -836,3 +836,37 @@ h3 {
   text-decoration: underline;
   cursor: pointer;
 }
+
+/* ── 지도점검 업무관리 ── */
+.insp-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  margin-bottom: 14px;
+}
+
+/* 두세 개 중 하나 고르기 (관할 지역 등) */
+.seg {
+  display: inline-flex;
+  flex-shrink: 0;
+  padding: 3px;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: #fff;
+}
+.seg-btn {
+  min-width: 72px;
+  min-height: 44px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 1.0625rem;
+  font-weight: 700;
+}
+.seg-btn:hover { background: #f1f5f9; border-color: transparent; }
+.seg-btn.is-on,
+.seg-btn.is-on:hover { background: var(--navy); color: #fff; }

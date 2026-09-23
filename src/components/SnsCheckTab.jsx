@@ -46,7 +46,7 @@ const fmtLeft = (sec) => (sec >= 60 ? `${Math.ceil(sec / 60)}분` : `${sec}초`)
 
 const Chip = ({ label, active, onClick, count, color }) => (
     <button onClick={onClick} style={{
-        padding: '6px 12px', borderRadius: '999px', fontSize: '0.82rem', cursor: 'pointer',
+        padding: '6px 12px', borderRadius: '999px', fontSize: '0.9rem', cursor: 'pointer',
         border: '1px solid', borderColor: active ? (color || 'var(--primary)') : 'var(--border-color)',
         background: active ? (color || 'var(--primary)') : 'transparent',
         color: active ? 'white' : 'var(--text-muted)', fontWeight: active ? '700' : '500', whiteSpace: 'nowrap',
@@ -56,7 +56,7 @@ const Chip = ({ label, active, onClick, count, color }) => (
 // sticky 셀은 borderCollapse 표에서 border 가 사라지고 tr 배경도 따라오지 않는다.
 // 그래서 배경색과 아래 경계선(inset shadow)을 셀마다 직접 준다.
 const thBase = {
-    padding: '9px 10px', fontSize: '0.8rem', fontWeight: '700', color: 'var(--text-muted)',
+    padding: '9px 10px', fontSize: '0.9rem', fontWeight: '700', color: 'var(--text-muted)',
     whiteSpace: 'nowrap', background: BG_STRIPE,
     boxShadow: 'inset 0 -1px 0 var(--border-color)',
 };
@@ -85,7 +85,7 @@ const SAVE_COLOR = { retrying: '#f59e0b', failed: '#ef4444' };
 
 const noticeInput = (w) => ({
     // box-sizing 을 주지 않으면 padding·border 만큼 카드 밖으로 삐져나온다
-    width: w ? `${w}px` : '100%', boxSizing: 'border-box', padding: '5px 8px', fontSize: '0.8rem',
+    width: w ? `${w}px` : '100%', boxSizing: 'border-box', padding: '5px 8px', fontSize: '0.9rem',
     border: '1px solid var(--border-color)', borderRadius: '7px',
     background: 'var(--bg-card)', color: 'var(--text-main)', fontFamily: 'inherit',
 });
@@ -743,7 +743,7 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                 <div style={{ fontWeight: '700', color: '#ef4444', marginBottom: '8px' }}>
                     ⚠ 저장된 점검 결과를 불러오지 못했습니다
                 </div>
-                <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>
                     {loadError}
                     <br />점검 시트가 1,000줄이 넘어 가끔 응답이 늦습니다. 잠시 뒤 다시 눌러 보세요 —
                     <br />지금까지 조사한 내용과 확인 마감 표시는 시트에 그대로 있습니다.
@@ -751,7 +751,7 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                 <button onClick={reload} style={{
                     marginTop: '14px', padding: '8px 18px', borderRadius: '8px',
                     border: '1px solid var(--primary)', background: 'var(--primary)', color: 'white',
-                    fontSize: '0.85rem', fontWeight: '700', cursor: 'pointer',
+                    fontSize: '0.9rem', fontWeight: '700', cursor: 'pointer',
                 }}>다시 불러오기</button>
             </div>
         );
@@ -766,21 +766,21 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                 제목 줄만 남기고 접어 두되, 편 상태는 기억한다 */}
             <div style={{ background: 'var(--bg-card)', borderRadius: '14px', padding: '12px 16px', border: '1px solid var(--border-color)', marginBottom: '12px', boxShadow: 'var(--shadow-sm)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: '0.95rem', fontWeight: '800' }}>📣 네이버 교습비·등록번호 게시점검</span>
+                    <span style={{ fontSize: '1rem', fontWeight: '800' }}>📣 네이버 교습비·등록번호 게시점검</span>
                     <button onClick={toggleIntro} style={{
                         background: 'none', border: '1px solid var(--border-color)', borderRadius: '999px',
-                        padding: '3px 10px', color: 'var(--text-muted)', fontSize: '0.76rem',
+                        padding: '3px 10px', color: 'var(--text-muted)', fontSize: '0.85rem',
                         fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap',
                     }}>{introOpen ? '사용법 접기 ▴' : '사용법 보기 ▾'}</button>
                     {lastCheckedAt && (
-                        <span style={{ marginLeft: 'auto', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                        <span style={{ marginLeft: 'auto', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
                             최근 조사: <b>{fmtWhen(lastCheckedAt)}</b>
                         </span>
                     )}
                 </div>
 
                 {introOpen && (
-                    <ol style={{ margin: '10px 0 0', paddingInlineStart: '20px', fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.75 }}>
+                    <ol style={{ margin: '10px 0 0', paddingInlineStart: '20px', fontSize: '0.9rem', color: 'var(--text-muted)', lineHeight: 1.75 }}>
                         <li><b>무엇을 보나</b> — 네이버플레이스의 가격 메뉴·가격표 이미지·소개글과,
                             플레이스 홈에 링크된 블로그·홈페이지·카페·인스타그램. 링크가 없는 채널은 따로 검색하지 않습니다.</li>
                         <li><b>표 읽는 법</b> — 채널마다 <b>번호</b>(= 등록·신고번호)와 <b>교습비</b> 두 칸입니다.
@@ -793,7 +793,7 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                         <li><b>확정 위반이 아닙니다</b> — 자동 판정이라 안내·점검 우선순위 참고 자료입니다.
                             동명 학원이나 지점이 있으면 <b>확인불가</b>로 남습니다.
                             <b> 학원명</b>을 누르면 상세화면(SNS 탭에 판정 근거 전부),
-                            비고의 <b style={{ color: '#7c3aed' }}>공동운영</b> 학원명을 누르면 이 표의 그 학원 행으로 옮겨 갑니다.</li>
+                            비고의 <b style={{ color: '#1d4ed8' }}>공동운영</b> 학원명을 누르면 이 표의 그 학원 행으로 옮겨 갑니다.</li>
                         <li><b>주소를 누르면 네이버지도</b>가 열립니다 — ‘이 주소의 장소’를 펼치면 그 건물 업체가 다 보여,
                             이름이 달라 자동으로 못 찾은 플레이스를 찾아 <b>플레이스 지정</b>에 넣을 수 있습니다.</li>
                         <li><b>직접 확인해 고치기</b> — O/X 칸을 누르면 <b>자동값 → O → <span style={{ color: '#d97706' }}>△</span> → X → 없음 → 자동값</b>.
@@ -817,7 +817,7 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
             <div style={{ background: 'var(--bg-card)', borderRadius: '14px', padding: '12px 14px', border: '1px solid var(--border-color)', marginBottom: '12px', boxShadow: 'var(--shadow-sm)' }}>
                 <div style={{ display: 'flex', gap: '6px', marginBottom: '10px' }}>
                     <Chip label={`🏫 학원 ${aActiveList.length}`} active={typeTab === '학원'} onClick={() => setTypeTab('학원')} color="#3b82f6" />
-                    <Chip label={`🏠 교습소 ${hActiveList.length}`} active={typeTab === '교습소'} onClick={() => setTypeTab('교습소')} color="#8b5cf6" />
+                    <Chip label={`🏠 교습소 ${hActiveList.length}`} active={typeTab === '교습소'} onClick={() => setTypeTab('교습소')} color="#1d4ed8" />
                 </div>
 
                 {/* 700곳이 넘는 표에서 한 곳을 찾으려면 눈으로 훑는 수밖에 없었다 */}
@@ -826,14 +826,14 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                         onKeyDown={(e) => { if (e.key === 'Escape') setQuery(''); }}
                         placeholder={`🔍 학원명 · ${numberLabel} · 플레이스명으로 찾기`}
                         style={{
-                            flex: '1 1 220px', minWidth: 0, padding: '7px 11px', fontSize: '0.84rem',
+                            flex: '1 1 220px', minWidth: 0, padding: '7px 11px', fontSize: '0.9rem',
                             border: '1px solid var(--border-color)', borderRadius: '8px',
                             background: 'var(--bg-card)', color: 'var(--text-main)',
                         }} />
                     {query && (
                         <button onClick={() => setQuery('')} style={{
                             background: 'none', border: 'none', color: 'var(--text-muted)',
-                            fontSize: '0.8rem', cursor: 'pointer', whiteSpace: 'nowrap',
+                            fontSize: '0.9rem', cursor: 'pointer', whiteSpace: 'nowrap',
                         }}>지우기</button>
                     )}
                 </div>
@@ -849,7 +849,7 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                             style={{
                                 marginLeft: 'auto', padding: '5px 12px', borderRadius: '999px',
                                 border: '1px solid #f59e0b', background: '#fffbeb', color: '#b45309',
-                                fontSize: '0.8rem', fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap',
+                                fontSize: '0.9rem', fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap',
                             }}>
                             조건에서 벗어난 {leftNotes.size}곳 정리
                         </button>
@@ -858,14 +858,14 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
 
                 {/* 판정과 별개의 축이다 — '미이행 중 아직 확인 못 한 곳' 같은 조합을 만들 수 있어야 한다 */}
                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '10px' }}>
-                    <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: '700' }}>확인</span>
+                    <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: '700' }}>확인</span>
                     {DONE_FILTERS.map(f => (
                         <Chip key={f} label={f} active={doneFilter === f}
                             count={f === '확인완료' ? doneCount : f === '미확인' ? rows.length - doneCount : rows.length}
                             onClick={() => setDoneFilter(f)} color={f === '확인완료' ? DONE_COLOR : undefined} />
                     ))}
                     <div style={{ flex: '1 1 140px', minWidth: '120px' }}>
-                        <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginBottom: '3px' }}>
+                        <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '3px' }}>
                             확인 완료 <b style={{ color: DONE_COLOR }}>{doneCount}</b> / {rows.length} ({donePct}%)
                         </div>
                         <div style={{ height: '5px', borderRadius: '3px', background: 'var(--border-color)', overflow: 'hidden' }}>
@@ -876,15 +876,15 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
 
                 {running ? (
                     <div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', marginBottom: '4px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', marginBottom: '4px' }}>
                             <span style={{ color: 'var(--text-muted)' }}>조사 중… {progress.done} / {progress.total}</span>
-                            <button onClick={() => { stopRef.current = true; }} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '0.82rem', fontWeight: '700', cursor: 'pointer' }}>중단</button>
+                            <button onClick={() => { stopRef.current = true; }} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '0.9rem', fontWeight: '700', cursor: 'pointer' }}>중단</button>
                         </div>
                         <div style={{ height: '6px', borderRadius: '3px', background: 'var(--border-color)', overflow: 'hidden' }}>
                             <div style={{ height: '100%', width: `${progress.total ? (progress.done / progress.total) * 100 : 0}%`, background: wait ? '#f59e0b' : 'var(--primary)', transition: 'width .3s' }} />
                         </div>
                         {wait && (
-                            <div style={{ fontSize: '0.8rem', color: '#f59e0b', marginTop: '6px', lineHeight: 1.7 }}>
+                            <div style={{ fontSize: '0.9rem', color: '#f59e0b', marginTop: '6px', lineHeight: 1.7 }}>
                                 ⏸ 네이버가 요청을 잠시 막았습니다 — <b>{fmtLeft(wait.left)} 뒤 자동으로 이어서 진행</b>합니다 ({wait.nth}번째 대기).
                                 <br />여기 계실 필요 없습니다. 탭만 열어두시면 끝까지 알아서 돕니다. 지금까지 결과는 이미 저장돼 있습니다.
                             </div>
@@ -896,12 +896,12 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                             🔍 조사 필요 {stale.length}곳
                         </button>
                         <button onClick={runAll} style={btnStyle('#64748b')}>전체 다시 조사 ({rows.length}곳)</button>
-                        <button onClick={saveRound} style={btnStyle('#7c3aed')}
+                        <button onClick={saveRound} style={btnStyle('#1d4ed8')}
                             title="지금 판정을 회차로 쌓아 둡니다. 다시 조사하면 칸이 덮여 지난 상태가 사라지므로, 재조사 전에 한 번 눌러 두세요 (거르개와 관계없이 전체를 저장합니다)">
                             📌 회차 저장 ({allRows.length}곳)
                         </button>
                         {paperRows.length > 0 && (
-                            <button onClick={downloadWorksheet} style={btnStyle('#0d9488')}
+                            <button onClick={downloadWorksheet} style={btnStyle('#1d4ed8')}
                                 title="지금 화면에 걸린 조건 그대로, 학원·교습소를 두 시트에 담아 내려받습니다 (확인불가·해당없음 제외)">
                                 📋 점검표 엑셀 ({paperRows.length}곳)
                             </button>
@@ -910,7 +910,7 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                 )}
 
                 {snapshotState && (
-                    <div style={{ marginTop: '8px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                    <div style={{ marginTop: '8px', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
                         {snapshotState}
                     </div>
                 )}
@@ -919,14 +919,14 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                 <div style={{ marginTop: '10px' }}>
                     <button onClick={() => setNoticeOpen(!noticeOpen)} style={{
                         background: 'none', border: '1px solid var(--border-color)', borderRadius: '999px',
-                        padding: '3px 10px', color: 'var(--text-muted)', fontSize: '0.76rem',
+                        padding: '3px 10px', color: 'var(--text-muted)', fontSize: '0.85rem',
                         fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit',
                     }}>{noticeOpen ? '⚙ 문자 설정 접기 ▴' : '⚙ 문자 설정 ▾'}</button>
 
                     {noticeOpen && (
                         <div style={{
                             marginTop: '8px', display: 'flex', gap: '10px', flexWrap: 'wrap',
-                            alignItems: 'flex-end', fontSize: '0.78rem', color: 'var(--text-muted)',
+                            alignItems: 'flex-end', fontSize: '0.85rem', color: 'var(--text-muted)',
                         }}>
                             <label style={noticeField}>
                                 문의 전화
@@ -945,7 +945,7 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                                 <input value={notice.guideUrl} onChange={e => changeNotice({ guideUrl: e.target.value })}
                                     style={noticeInput()} />
                             </label>
-                            <div style={{ flexBasis: '100%', fontSize: '0.76rem', lineHeight: 1.6 }}>
+                            <div style={{ flexBasis: '100%', fontSize: '0.85rem', lineHeight: 1.6 }}>
                                 표의 <b>✉ 문자</b> 를 누르면 이 값들이 든 문구가 복사됩니다 — 문자마당 창에 붙여넣으세요.
                                 문구에는 그 학원에서 <b>X 인 칸만</b> 들어가고, 판정과 달리 <b>번호도 함께</b> 안내합니다.
                                 (값은 이 브라우저에만 남습니다)
@@ -958,7 +958,7 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
 
                 {/* 직접 고친 값의 저장 상태 — 예전에는 실패해도 아무 말 없이 값만 되돌아갔다 */}
                 {saveLabel && (
-                    <div style={{ fontSize: '0.8rem', marginTop: '8px', color: SAVE_COLOR[saveInfo.status] || 'var(--text-muted)' }}>
+                    <div style={{ fontSize: '0.9rem', marginTop: '8px', color: SAVE_COLOR[saveInfo.status] || 'var(--text-muted)' }}>
                         {saveLabel}
                         {saveInfo.pending > 0 && saveInfo.status !== 'saved' && ` (${saveInfo.pending}건)`}
                         {saveInfo.status === 'failed' && (
@@ -967,28 +967,28 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                                 <button onClick={() => queue.retry()} style={{
                                     marginLeft: '8px', padding: '2px 8px', borderRadius: '6px',
                                     border: '1px solid #ef4444', background: 'none', color: '#ef4444',
-                                    fontSize: '0.76rem', fontWeight: '700', cursor: 'pointer',
+                                    fontSize: '0.85rem', fontWeight: '700', cursor: 'pointer',
                                 }}>다시 저장</button>
                             </>
                         )}
                     </div>
                 )}
-                {refreshing && <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '6px' }}>저장해 둔 결과를 먼저 보여드리는 중 · 최신 내용을 확인하고 있습니다…</div>}
+                {refreshing && <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginTop: '6px' }}>저장해 둔 결과를 먼저 보여드리는 중 · 최신 내용을 확인하고 있습니다…</div>}
                 {/* 캐시로는 그리고 있지만 최신 내용을 못 받아온 상태 — 언제 것인지 모르는 표를
                     말없이 보여주면, 방금 시트에서 바뀐 것이 화면에 없어도 알 길이 없다 */}
                 {loadError && !refreshing && (
-                    <div style={{ fontSize: '0.8rem', color: '#ef4444', marginTop: '6px' }}>
+                    <div style={{ fontSize: '0.9rem', color: '#ef4444', marginTop: '6px' }}>
                         ⚠ 최신 내용을 불러오지 못했습니다 — 지금 보시는 표는 저장해 둔 이전 결과입니다 ({loadError})
                         <button onClick={reload} style={{
                             marginLeft: '8px', padding: '2px 8px', borderRadius: '6px',
                             border: '1px solid #ef4444', background: 'none', color: '#ef4444',
-                            fontSize: '0.76rem', fontWeight: '700', cursor: 'pointer',
+                            fontSize: '0.85rem', fontWeight: '700', cursor: 'pointer',
                         }}>다시 불러오기</button>
                     </div>
                 )}
-                {saveState && <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '8px' }}>{saveState}</div>}
+                {saveState && <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginTop: '8px' }}>{saveState}</div>}
                 {!running && (
-                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '6px', lineHeight: 1.7 }}>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '6px', lineHeight: 1.7 }}>
                         <b>조사 필요</b> = 한 번도 안 본 곳 + 조사한 지 {RECHECK_DAYS}일 지난 곳
                         + 예전 방식으로 조사해 번호가 <b>오기재로 잘못 남은 곳</b>. 게시 상태는 자주 바뀌지 않아서,
                         최근에 본 곳까지 매번 다시 도는 것이 네이버 차단의 가장 큰 원인이었습니다.
@@ -1045,7 +1045,7 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                     </thead>
                     <tbody>
                         {visible.length === 0 && (
-                            <tr><td colSpan={8 + CH_GROUPS.length * 2} style={{ padding: '28px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
+                            <tr><td colSpan={8 + CH_GROUPS.length * 2} style={{ padding: '28px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
                                 {search.trim() ? `'${search.trim()}' 에 해당하는 ${typeTab}이(가) 없습니다.` : `해당하는 ${typeTab}이(가) 없습니다.`}
                             </td></tr>
                         )}
@@ -1092,7 +1092,7 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                         {/* 표 끝에 닿으면 다음 묶음을 이어 붙인다 (한 번에 다 그리면 첫 화면이 멈춘다) */}
                         {more > 0 && (
                             <tr ref={sentinelRef}>
-                                <td colSpan={9 + CH_GROUPS.length * 2} style={{ padding: '18px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
+                                <td colSpan={9 + CH_GROUPS.length * 2} style={{ padding: '18px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
                                     남은 {more}곳을 불러오는 중…
                                 </td>
                             </tr>
@@ -1114,5 +1114,5 @@ const josaRo = (word) => {
 
 const btnStyle = (bg) => ({
     padding: '8px 14px', borderRadius: '8px', border: 'none', background: bg,
-    color: 'white', fontSize: '0.84rem', fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap',
+    color: 'white', fontSize: '0.9rem', fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap',
 });

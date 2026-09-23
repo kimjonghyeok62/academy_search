@@ -287,13 +287,13 @@ function CropDialog({ blob, onApply, onCancel }) {
         background: 'var(--bg-main)', borderRadius: '16px', padding: '20px',
         maxWidth: '800px', width: '95%', boxShadow: '0 20px 60px rgba(0,0,0,0.5)'
       }}>
-        <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '10px' }}>
+        <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '1rem', marginBottom: '10px' }}>
           드래그로 영역 선택 / 선택 후 사각형 안쪽을 드래그하면 이동
         </p>
         <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', marginBottom: '10px', flexWrap: 'wrap' }}>
           {Object.keys(ASPECTS).map(label => (
             <button key={label} onClick={() => handleAspectChange(label)} style={{
-              padding: '5px 12px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '0.85rem',
+              padding: '5px 12px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '0.9rem',
               background: selAspect === label ? 'var(--primary)' : 'var(--bg-card)',
               color: selAspect === label ? 'white' : 'var(--text-muted)', fontWeight: '600'
             }}>{label}</button>
@@ -306,7 +306,7 @@ function CropDialog({ blob, onApply, onCancel }) {
           onMouseDown={onMouseDown}
           onMouseMove={onMouseMove}
         />
-        <p style={{ textAlign: 'center', color: 'var(--primary)', fontSize: '0.85rem', margin: '8px 0' }}>
+        <p style={{ textAlign: 'center', color: 'var(--primary)', fontSize: '0.9rem', margin: '8px 0' }}>
           {infoText}
         </p>
         <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', marginTop: '8px' }}>
@@ -518,7 +518,7 @@ export default function PhotoRenamePage({ onBack, embedded = false }) {
             borderRadius: '16px', padding: '40px', textAlign: 'center', marginBottom: '20px'
           }}>
             <div style={{ fontSize: '2.5rem', marginBottom: '12px' }}>📁</div>
-            <p style={{ color: 'var(--text-muted)', marginBottom: '16px', fontSize: '0.95rem' }}>
+            <p style={{ color: 'var(--text-muted)', marginBottom: '16px', fontSize: '1rem' }}>
               학원 사진이 들어있는 폴더를 선택하세요
             </p>
             <input
@@ -560,7 +560,7 @@ export default function PhotoRenamePage({ onBack, embedded = false }) {
               marginBottom: '16px', border: '1px solid var(--border-color)'
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>진행 현황</span>
+                <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>진행 현황</span>
                 <span style={{ color: 'var(--primary)', fontWeight: '700' }}>
                   {Math.min(currentIdx, images.length)} / {images.length}
                 </span>
@@ -591,7 +591,7 @@ export default function PhotoRenamePage({ onBack, embedded = false }) {
                         alt="preview"
                         style={{ maxWidth: '100%', maxHeight: '360px', borderRadius: '8px', objectFit: 'contain' }}
                       />
-                      <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '8px', textAlign: 'center' }}>
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '8px', textAlign: 'center' }}>
                         {cur.file.name}
                       </p>
                     </>
@@ -604,7 +604,7 @@ export default function PhotoRenamePage({ onBack, embedded = false }) {
                 <div style={{ flex: '1 1 280px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   {/* AI 결과 */}
                   <div style={{ background: 'var(--bg-card)', borderRadius: '12px', padding: '14px', border: '1px solid var(--border-color)' }}>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '6px' }}>AI 인식 결과 (수정 가능)</p>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '6px' }}>AI 인식 결과 (수정 가능)</p>
                     <input
                       ref={nameInputRef}
                       value={nameInput}
@@ -618,12 +618,12 @@ export default function PhotoRenamePage({ onBack, embedded = false }) {
                         boxSizing: 'border-box'
                       }}
                     />
-                    <p style={{ color: aiStatusColor, fontSize: '0.82rem', marginTop: '6px' }}>{aiStatus}</p>
+                    <p style={{ color: aiStatusColor, fontSize: '0.9rem', marginTop: '6px' }}>{aiStatus}</p>
                   </div>
 
                   {/* 이미지 편집 */}
                   <div style={{ background: 'var(--bg-card)', borderRadius: '12px', padding: '14px', border: '1px solid var(--border-color)' }}>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '8px' }}>이미지 편집</p>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '8px' }}>이미지 편집</p>
                     <div style={{ display: 'flex', gap: '6px', marginBottom: '6px' }}>
                       <button onClick={() => handleRotate(-90)} style={btnStyle('var(--bg-main)')}>↺ 좌회전</button>
                       <button onClick={() => handleRotate(90)} style={btnStyle('var(--bg-main)')}>↻ 우회전</button>
@@ -646,7 +646,7 @@ export default function PhotoRenamePage({ onBack, embedded = false }) {
                       onChange={e => setResizeEnabled(e.target.checked)}
                       style={{ width: '16px', height: '16px', cursor: 'pointer' }}
                     />
-                    <span style={{ color: 'var(--text-main)', fontSize: '0.9rem', fontWeight: '500' }}>
+                    <span style={{ color: 'var(--text-main)', fontSize: '1rem', fontWeight: '500' }}>
                       리사이징 (630×472px, 200 DPI)
                     </span>
                   </label>
@@ -668,7 +668,7 @@ export default function PhotoRenamePage({ onBack, embedded = false }) {
                     style={{
                       padding: '12px', background: 'var(--bg-card)', color: 'var(--text-main)',
                       border: '1px solid var(--border-color)', borderRadius: '12px',
-                      fontWeight: '600', cursor: analyzing ? 'not-allowed' : 'pointer', fontSize: '0.95rem'
+                      fontWeight: '600', cursor: analyzing ? 'not-allowed' : 'pointer', fontSize: '1rem'
                     }}
                   >⏭ 건너뜀</button>
                 </div>
@@ -701,7 +701,7 @@ export default function PhotoRenamePage({ onBack, embedded = false }) {
                 <button onClick={handleZipDownload} style={{
                   padding: '10px 20px', background: 'var(--bg-card)', color: 'var(--primary)',
                   border: '1px solid var(--primary)', borderRadius: '10px',
-                  fontWeight: '600', cursor: 'pointer', fontSize: '0.9rem'
+                  fontWeight: '600', cursor: 'pointer', fontSize: '1rem'
                 }}>📦 지금까지 저장된 {savedCount}장 ZIP 다운로드</button>
               </div>
             )}
@@ -725,6 +725,6 @@ function btnStyle(bg) {
   return {
     flex: 1, padding: '9px', background: bg, color: 'var(--text-main)',
     border: '1px solid var(--border-color)', borderRadius: '8px',
-    fontWeight: '600', cursor: 'pointer', fontSize: '0.9rem'
+    fontWeight: '600', cursor: 'pointer', fontSize: '1rem'
   };
 }

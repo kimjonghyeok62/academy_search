@@ -22,7 +22,7 @@ import { buildRiskContext, runRiskChecks, crossSignals } from '../utils/riskChec
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title);
 
 // ── 색상 팔레트 ──
-const COLORS = ['#6366f1', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#14b8a6', '#f97316', '#ec4899', '#84cc16'];
+const COLORS = ['#1d4ed8', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#1d4ed8', '#1d4ed8', '#f97316', '#475569', '#84cc16'];
 const VIOL_COLORS = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#14b8a6', '#3b82f6', '#8b5cf6', '#ec4899', '#06b6d4', '#10b981'];
 const CURRENT_YEAR = '2026';
 
@@ -117,7 +117,7 @@ function DoughnutChart({ title, labels, data, colors }) {
     const bg = colors || COLORS;
     return (
         <div style={{ background: 'var(--bg-card)', borderRadius: '14px', padding: '16px', border: '1px solid var(--border-color)' }}>
-            <div style={{ fontSize: '0.82rem', fontWeight: '700', color: 'var(--text-muted)', marginBottom: '8px' }}>{title}</div>
+            <div style={{ fontSize: '0.9rem', fontWeight: '700', color: 'var(--text-muted)', marginBottom: '8px' }}>{title}</div>
             <Doughnut
                 data={{ labels, datasets: [{ data, backgroundColor: labels.map((_, i) => bg[i % bg.length] + 'cc'), borderColor: labels.map((_, i) => bg[i % bg.length]), borderWidth: 1 }] }}
                 options={{ responsive: true, plugins: { legend: { position: 'bottom', labels: { font: { size: 10 }, color: '#94a3b8', padding: 6 } } } }}
@@ -131,12 +131,12 @@ function StatCard({ icon, label, value, color, sub }) {
     return (
         <div style={{ background: 'var(--bg-card)', borderRadius: '12px', padding: '14px 16px', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)' }}>
             <div style={{ fontSize: '1.4rem', marginBottom: '6px' }}>{icon}</div>
-            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: '600', marginBottom: '4px' }}>{label}</div>
+            <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: '600', marginBottom: '4px' }}>{label}</div>
             <div style={{ fontSize: '1.3rem', fontWeight: '800', color: color || 'var(--text-main)' }}>{value}</div>
             {sub && sub.length > 0 && (
                 <div style={{ marginTop: '7px', display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
                     {sub.map((s, i) => (
-                        <div key={i} style={{ fontSize: '0.68rem', fontWeight: '700', color: s.color || '#64748b', background: s.bg || '#f1f5f9', borderRadius: '4px', padding: '2px 6px', border: `1px solid ${s.border || '#e2e8f0'}` }}>
+                        <div key={i} style={{ fontSize: '0.85rem', fontWeight: '700', color: s.color || '#64748b', background: s.bg || '#f1f5f9', borderRadius: '4px', padding: '2px 6px', border: `1px solid ${s.border || '#e2e8f0'}` }}>
                             {s.label} <span>{s.value}</span>
                         </div>
                     ))}
@@ -232,12 +232,12 @@ function DetailModal({ row, index, onClose }) {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         <div>
                             <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '8px' }}>
-                                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', background: 'var(--bg-main)', padding: '2px 8px', borderRadius: '10px', border: '1px solid var(--border-color)' }}>#{index + 1}</span>
-                                {type && <span style={{ fontSize: '0.72rem', padding: '2px 10px', borderRadius: '10px', background: 'var(--primary-glow)', color: 'var(--primary)', fontWeight: '700' }}>{type}</span>}
-                                {hasViol && <span style={{ fontSize: '0.72rem', padding: '2px 10px', borderRadius: '10px', background: '#fef2f2', color: '#ef4444', fontWeight: '700' }}>⚠️ 위반</span>}
+                                <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', background: 'var(--bg-main)', padding: '2px 8px', borderRadius: '10px', border: '1px solid var(--border-color)' }}>#{index + 1}</span>
+                                {type && <span style={{ fontSize: '0.85rem', padding: '2px 10px', borderRadius: '10px', background: 'var(--primary-glow)', color: 'var(--primary)', fontWeight: '700' }}>{type}</span>}
+                                {hasViol && <span style={{ fontSize: '0.85rem', padding: '2px 10px', borderRadius: '10px', background: '#fef2f2', color: '#ef4444', fontWeight: '700' }}>⚠️ 위반</span>}
                             </div>
                             <div style={{ fontSize: '1.2rem', fontWeight: '800', color: 'var(--text-main)', marginBottom: '4px' }}>{name || '(이름없음)'}</div>
-                            <div style={{ fontSize: '0.83rem', color: 'var(--text-muted)' }}>📅 {date}</div>
+                            <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>📅 {date}</div>
                         </div>
                         <button onClick={onClose} style={{
                             background: 'var(--bg-main)', border: '1px solid var(--border-color)',
@@ -250,7 +250,7 @@ function DetailModal({ row, index, onClose }) {
                 {/* 모달 바디 */}
                 <div style={{ padding: '16px 20px 24px' }}>
                     {fields.length === 0 ? (
-                        <div style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)', fontSize: '0.9rem' }}>상세 정보가 없습니다</div>
+                        <div style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)', fontSize: '1rem' }}>상세 정보가 없습니다</div>
                     ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                             {fields.map((f, i) => (
@@ -262,8 +262,8 @@ function DetailModal({ row, index, onClose }) {
                                 }}>
                                     <span style={{ fontSize: '1rem', flexShrink: 0, marginTop: '1px' }}>{f.icon}</span>
                                     <div>
-                                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: '600', marginBottom: '2px' }}>{f.label}</div>
-                                        <div style={{ fontSize: '0.9rem', color: f.highlight ? '#dc2626' : 'var(--text-main)', fontWeight: f.highlight ? '700' : '500', lineHeight: 1.5 }}>{f.value}</div>
+                                        <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: '600', marginBottom: '2px' }}>{f.label}</div>
+                                        <div style={{ fontSize: '1rem', color: f.highlight ? '#dc2626' : 'var(--text-main)', fontWeight: f.highlight ? '700' : '500', lineHeight: 1.5 }}>{f.value}</div>
                                     </div>
                                 </div>
                             ))}
@@ -610,8 +610,8 @@ function StatsTableCard({ pastGroupedRows, title, subtitle, typeFilter, violItem
 
     if (monthData.length === 0) return (
         <div style={{ marginTop: '24px', background: 'var(--bg-card)', borderRadius: '16px', padding: '24px 16px', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)', textAlign: 'center' }}>
-            <div style={{ fontSize: '0.85rem', fontWeight: '800', color: 'var(--text-main)', marginBottom: '10px' }}>{title}</div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>({CURRENT_YEAR}년 등록된 데이터가 없습니다)</div>
+            <div style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--text-main)', marginBottom: '10px' }}>{title}</div>
+            <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>({CURRENT_YEAR}년 등록된 데이터가 없습니다)</div>
         </div>
     );
 
@@ -667,8 +667,8 @@ function StatsTableCard({ pastGroupedRows, title, subtitle, typeFilter, violItem
     const HEADER_H = 30; // 헤더 행 높이(px) - sticky top 계산용
     const W_MO = 40, W_WK = 40, W_TYPE = 80;
 
-    const BASE_TH = { padding: '5px 7px', border: '1px solid #cbd5e1', textAlign: 'center', fontSize: '0.68rem', fontWeight: '700', lineHeight: 1.4 };
-    const BASE_TD = { padding: '4px 7px', border: '1px solid #e2e8f0', textAlign: 'center', fontSize: '0.7rem', whiteSpace: 'nowrap' };
+    const BASE_TH = { padding: '5px 7px', border: '1px solid #cbd5e1', textAlign: 'center', fontSize: '0.85rem', fontWeight: '700', lineHeight: 1.4 };
+    const BASE_TD = { padding: '4px 7px', border: '1px solid #e2e8f0', textAlign: 'center', fontSize: '0.85rem', whiteSpace: 'nowrap' };
     const nv = (v) => (v > 0 ? v : '');
 
     // sticky 헤더 (top 위치는 행 번호 × 행높이)
@@ -678,13 +678,13 @@ function StatsTableCard({ pastGroupedRows, title, subtitle, typeFilter, violItem
     // sticky 헤더 + 왼쪽 모서리 (헤더의 고정 열)
     const sTH_L = (row, left, extra = {}) => ({ ...sTH(row, extra), left, zIndex: 20 });
 
-    const CAT_BG = { '시설': '#fef9f9', '교습비등': '#fff7f0', '강사등': '#f0fdf4', '운영': '#f5f3ff', '기타': '#f8fafc' };
-    const CAT_COLOR = { '시설': '#b91c1c', '교습비등': '#c2410c', '강사등': '#15803d', '운영': '#6d28d9', '기타': '#475569' };
+    const CAT_BG = { '시설': '#fef9f9', '교습비등': '#fff7f0', '강사등': '#f0fdf4', '운영': '#eff6ff', '기타': '#f8fafc' };
+    const CAT_COLOR = { '시설': '#b91c1c', '교습비등': '#c2410c', '강사등': '#15803d', '운영': '#1e40af', '기타': '#475569' };
     const PURPOSE_STYLE = {
         '국민신문고': { background: '#fff7ed', color: '#c2410c' },
-        '불법사교육': { background: '#fdf4ff', color: '#7c3aed' },
+        '불법사교육': { background: '#fdf4ff', color: '#1d4ed8' },
         '특별점검':  { background: '#fef2f2', color: '#b91c1c' },
-        '지도점검':  { background: '#eef2ff', color: '#3730a3' },
+        '지도점검':  { background: '#eff6ff', color: '#1e3a8a' },
     };
 
     const headerRows = showDetail ? 3 : 2;
@@ -711,7 +711,7 @@ function StatsTableCard({ pastGroupedRows, title, subtitle, typeFilter, violItem
     ].filter(Boolean);
 
     // 버튼 공통 스타일
-    const btnBase = { padding: '4px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.72rem', cursor: 'pointer', fontWeight: '600', transition: 'all 0.15s' };
+    const btnBase = { padding: '4px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem', cursor: 'pointer', fontWeight: '600', transition: 'all 0.15s' };
     const btnActive = { ...btnBase, background: '#3b82f6', color: '#fff', borderColor: '#3b82f6' };
     const btnGhost = { ...btnBase, background: '#f8fafc', color: '#64748b' };
 
@@ -721,8 +721,8 @@ function StatsTableCard({ pastGroupedRows, title, subtitle, typeFilter, violItem
             {/* ── 카드 헤더 ── */}
             <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: '0.85rem', fontWeight: '800', color: 'var(--text-main)' }}>{title}</span>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: '400' }}>{subtitle}</span>
+                    <span style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--text-main)' }}>{title}</span>
+                    <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: '400' }}>{subtitle}</span>
                 </div>
                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
                     {/* 요약/상세 토글 */}
@@ -740,7 +740,7 @@ function StatsTableCard({ pastGroupedRows, title, subtitle, typeFilter, violItem
 
             {/* ── 테이블 (가로+세로 스크롤, 헤더/열 고정) ── */}
             <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: '72vh', border: '1px solid #cbd5e1', borderRadius: '8px' }}>
-                <table style={{ borderCollapse: 'collapse', fontSize: '0.7rem' }}>
+                <table style={{ borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                     <thead>
                         {/* 행1: 최상위 헤더 */}
                         <tr style={{ background: '#dde4ef' }}>
@@ -765,15 +765,15 @@ function StatsTableCard({ pastGroupedRows, title, subtitle, typeFilter, violItem
                             <th rowSpan={showDetail ? 2 : 1} style={sTH(1, { background: '#fef2f2', minWidth: '34px' })}>계</th>
                             {showDetail
                                 ? catGroups.map(g => (
-                                    <th key={g.cat} colSpan={g.items.length} style={sTH(1, { background: CAT_BG[g.cat] || '#f8fafc', color: CAT_COLOR[g.cat] || '#475569', fontSize: '0.65rem' })}>{g.cat}</th>
+                                    <th key={g.cat} colSpan={g.items.length} style={sTH(1, { background: CAT_BG[g.cat] || '#f8fafc', color: CAT_COLOR[g.cat] || '#475569', fontSize: '0.85rem' })}>{g.cat}</th>
                                 ))
                                 : usedViolCats.map(cat => (
-                                    <th key={cat} style={sTH(1, { background: CAT_BG[cat] || '#f8fafc', color: CAT_COLOR[cat] || '#475569', fontSize: '0.65rem', minWidth: '48px' })}>{cat}</th>
+                                    <th key={cat} style={sTH(1, { background: CAT_BG[cat] || '#f8fafc', color: CAT_COLOR[cat] || '#475569', fontSize: '0.85rem', minWidth: '48px' })}>{cat}</th>
                                 ))
                             }
                             <th rowSpan={showDetail ? 2 : 1} style={sTH(1, { background: '#eff6ff', minWidth: '34px' })}>계</th>
                             {usedAdminTypes.map(t => (
-                                <th key={t} rowSpan={showDetail ? 2 : 1} style={sTH(1, { background: '#f0f6ff', color: '#374151', fontSize: '0.62rem', minWidth: '54px', whiteSpace: 'normal' })}>{t}</th>
+                                <th key={t} rowSpan={showDetail ? 2 : 1} style={sTH(1, { background: '#f0f6ff', color: '#374151', fontSize: '0.85rem', minWidth: '54px', whiteSpace: 'normal' })}>{t}</th>
                             ))}
                         </tr>
 
@@ -786,7 +786,7 @@ function StatsTableCard({ pastGroupedRows, title, subtitle, typeFilter, violItem
                                 <th style={sTH_L(2, W_MO + W_WK,{ background: '#dde4ef', minWidth: `${W_TYPE}px` })}></th>
 
                                 {usedViolItems.map(item => (
-                                    <th key={item.code} style={sTH(2, { background: CAT_BG[item.cat] || '#f8fafc', color: CAT_COLOR[item.cat] || '#475569', fontSize: '0.62rem', minWidth: '64px', whiteSpace: 'normal', fontWeight: '600' })}>{item.label}</th>
+                                    <th key={item.code} style={sTH(2, { background: CAT_BG[item.cat] || '#f8fafc', color: CAT_COLOR[item.cat] || '#475569', fontSize: '0.85rem', minWidth: '64px', whiteSpace: 'normal', fontWeight: '600' })}>{item.label}</th>
                                 ))}
                             </tr>
                         )}
@@ -798,7 +798,7 @@ function StatsTableCard({ pastGroupedRows, title, subtitle, typeFilter, violItem
                             return (
                                 <React.Fragment key={mData.mo}>
                                     {/* ── 월 소계 행 (항상 표시, 클릭으로 펼치기) ── */}
-                                    <tr style={{ background: '#eef2ff', borderTop: '2px solid #c7d2fe', cursor: 'pointer' }}
+                                    <tr style={{ background: '#eff6ff', borderTop: '2px solid #bfdbfe', cursor: 'pointer' }}
                                         onClick={() => toggleMonth(mData.mo)}>
                                         <td style={sTD_L(0, { background: '#dde4ef', fontWeight: '800', color: '#1e3a8a', textAlign: 'center', minWidth: `${W_MO}px` })}>
                                             {mData.mo}월
@@ -806,7 +806,7 @@ function StatsTableCard({ pastGroupedRows, title, subtitle, typeFilter, violItem
                                         <td style={sTD_L(W_MO, { background: '#dde4ef', textAlign: 'center', fontSize: '1rem', minWidth: `${W_WK}px` })}>
                                             {isExpanded ? '▼' : '▶'}
                                         </td>
-                                        <td style={sTD_L(W_MO + W_WK, { background: '#eef2ff', fontWeight: '700', color: '#3730a3', textAlign: 'center', fontSize: '0.68rem', minWidth: `${W_TYPE}px` })}>
+                                        <td style={sTD_L(W_MO + W_WK, { background: '#eff6ff', fontWeight: '700', color: '#1e3a8a', textAlign: 'center', fontSize: '0.85rem', minWidth: `${W_TYPE}px` })}>
                                             월 소계
                                         </td>
                                         {dataCells(mData.monthTotal, `m${mData.mo}`)}
@@ -820,8 +820,8 @@ function StatsTableCard({ pastGroupedRows, title, subtitle, typeFilter, violItem
                                                 return (
                                                     <tr key={p.purpose} style={{ borderBottom: '1px solid #f1f5f9' }}>
                                                         <td style={sTD_L(0, { background: '#f8fafc', minWidth: `${W_MO}px` })}></td>
-                                                        <td style={sTD_L(W_MO, { background: '#f8fafc', color: '#94a3b8', fontSize: '0.67rem', minWidth: `${W_WK}px` })}>{wData.wk}주</td>
-                                                        <td style={sTD_L(W_MO + W_WK, { ...ps, fontWeight: '700', fontSize: '0.68rem', minWidth: `${W_TYPE}px` })}>{p.purpose}</td>
+                                                        <td style={sTD_L(W_MO, { background: '#f8fafc', color: '#94a3b8', fontSize: '0.85rem', minWidth: `${W_WK}px` })}>{wData.wk}주</td>
+                                                        <td style={sTD_L(W_MO + W_WK, { ...ps, fontWeight: '700', fontSize: '0.85rem', minWidth: `${W_TYPE}px` })}>{p.purpose}</td>
                                                         {dataCells(p.d, `${mData.mo}-${wData.wk}-${p.purpose}`)}
                                                     </tr>
                                                 );
@@ -830,8 +830,8 @@ function StatsTableCard({ pastGroupedRows, title, subtitle, typeFilter, violItem
                                             {wData.weekTotal && (
                                                 <tr style={{ background: '#f1f5f9', borderTop: '1px dashed #cbd5e1' }}>
                                                     <td style={sTD_L(0, { background: '#f1f5f9', minWidth: `${W_MO}px` })}></td>
-                                                    <td style={sTD_L(W_MO, { background: '#f1f5f9', color: '#475569', fontSize: '0.67rem', fontWeight: '600', minWidth: `${W_WK}px` })}>{wData.wk}주</td>
-                                                    <td style={sTD_L(W_MO + W_WK, { background: '#f1f5f9', color: '#475569', fontWeight: '600', fontSize: '0.67rem', minWidth: `${W_TYPE}px` })}>소계</td>
+                                                    <td style={sTD_L(W_MO, { background: '#f1f5f9', color: '#475569', fontSize: '0.85rem', fontWeight: '600', minWidth: `${W_WK}px` })}>{wData.wk}주</td>
+                                                    <td style={sTD_L(W_MO + W_WK, { background: '#f1f5f9', color: '#475569', fontWeight: '600', fontSize: '0.85rem', minWidth: `${W_TYPE}px` })}>소계</td>
                                                     {dataCells(wData.weekTotal, `wt-${mData.mo}-${wData.wk}`)}
                                                 </tr>
                                             )}
@@ -860,14 +860,14 @@ function StatsTableCard({ pastGroupedRows, title, subtitle, typeFilter, violItem
                         onClick={e => e.stopPropagation()}
                     >
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                            <span style={{ fontWeight: '800', fontSize: '0.78rem', color: 'var(--text-main)' }}>{popup.title}</span>
-                            <button onClick={() => setPopup(null)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.85rem', lineHeight: 1, padding: '0 2px' }}>✕</button>
+                            <span style={{ fontWeight: '800', fontSize: '0.85rem', color: 'var(--text-main)' }}>{popup.title}</span>
+                            <button onClick={() => setPopup(null)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.9rem', lineHeight: 1, padding: '0 2px' }}>✕</button>
                         </div>
-                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '6px' }}>{popup.names.length}개 기관</div>
+                        <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '6px' }}>{popup.names.length}개 기관</div>
                         {popup.names.length === 0
-                            ? <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>목록 없음</div>
+                            ? <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>목록 없음</div>
                             : popup.names.map((n, i) => (
-                                <div key={i} style={{ padding: '4px 0', borderBottom: i < popup.names.length - 1 ? '1px solid var(--border-color)' : 'none', fontSize: '0.74rem', color: 'var(--text-main)' }}>{n}</div>
+                                <div key={i} style={{ padding: '4px 0', borderBottom: i < popup.names.length - 1 ? '1px solid var(--border-color)' : 'none', fontSize: '0.85rem', color: 'var(--text-main)' }}>{n}</div>
                             ))
                         }
                     </div>
@@ -1097,10 +1097,10 @@ function TabRecent({ region, academies, onSelectAcademy, initialPage = 0, initia
     }, [groupedRows]);
 
     const PURPOSE_COLORS = {
-        '국민신문고': { bg: '#fff7ed', border: '#fed7aa', text: '#c2410c', dot: '#f97316' },
-        '특별점검': { bg: '#fef2f2', border: '#fecaca', text: '#b91c1c', dot: '#ef4444' },
-        '기획점검': { bg: '#f0fdf4', border: '#bbf7d0', text: '#15803d', dot: '#22c55e' },
-        '지도점검': { bg: '#eef2ff', border: '#c7d2fe', text: '#3730a3', dot: '#6366f1' },
+        '국민신문고': { bg: '#f1f5f9', border: '#e2e8f0', text: '#334155', dot: '#1b2b4b' },
+        '특별점검': { bg: '#f1f5f9', border: '#e2e8f0', text: '#334155', dot: '#1b2b4b' },
+        '기획점검': { bg: '#f1f5f9', border: '#e2e8f0', text: '#334155', dot: '#1b2b4b' },
+        '지도점검': { bg: '#f1f5f9', border: '#e2e8f0', text: '#334155', dot: '#1b2b4b' },
     };
     const PURPOSE_ORDER = ['국민신문고', '특별점검', '기획점검', '지도점검'];
 
@@ -1124,34 +1124,34 @@ function TabRecent({ region, academies, onSelectAcademy, initialPage = 0, initia
                             return (
                                 <div key={p} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 14px', borderRadius: '20px', background: c.bg, border: `1px solid ${c.border}` }}>
                                     <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: c.dot, flexShrink: 0 }} />
-                                    <span style={{ fontSize: '0.78rem', color: c.text, fontWeight: '700' }}>{p}</span>
-                                    <span style={{ fontSize: '0.9rem', fontWeight: '800', color: c.text }}>{purposeMap[p]}건</span>
+                                    <span style={{ fontSize: '0.85rem', color: c.text, fontWeight: '700' }}>{p}</span>
+                                    <span style={{ fontSize: '1rem', fontWeight: '800', color: c.text }}>{purposeMap[p]}건</span>
                                 </div>
                             );
                         })}
                         {Object.entries(purposeMap).filter(([p]) => !PURPOSE_ORDER.includes(p)).map(([p, cnt]) => (
                             <div key={p} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 14px', borderRadius: '20px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-                                <span style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: '700' }}>{p}</span>
-                                <span style={{ fontSize: '0.9rem', fontWeight: '800', color: '#475569' }}>{cnt}건</span>
+                                <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: '700' }}>{p}</span>
+                                <span style={{ fontSize: '1rem', fontWeight: '800', color: '#475569' }}>{cnt}건</span>
                             </div>
                         ))}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                             <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
-                                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: '600' }}>총 점검</span>
-                                <span style={{ fontSize: '1.4rem', fontWeight: '800', color: '#6366f1' }}>{pastGroupedRows.length}</span>
-                                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>건</span>
-                                <span style={{ fontSize: '0.72rem', color: '#94a3b8', marginLeft: '6px' }}>기준일: {TODAY_DATE.getFullYear()}.{String(TODAY_DATE.getMonth()+1).padStart(2,'0')}.{String(TODAY_DATE.getDate()).padStart(2,'0')}.</span>
+                                <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: '600' }}>총 점검</span>
+                                <span style={{ fontSize: '1.4rem', fontWeight: '800', color: 'var(--primary)' }}>{pastGroupedRows.length}</span>
+                                <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>건</span>
+                                <span style={{ fontSize: '0.85rem', color: '#94a3b8', marginLeft: '6px' }}>기준일: {TODAY_DATE.getFullYear()}.{String(TODAY_DATE.getMonth()+1).padStart(2,'0')}.{String(TODAY_DATE.getDate()).padStart(2,'0')}.</span>
                             </div>
                             {totalInspTarget > 0 && (
                                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 8px', background: '#f8fafc', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-                                    <span style={{ fontSize: '0.67rem', color: '#3b82f6', fontWeight: '700' }}>교과학원 {inspSubjectCount}</span>
-                                    <span style={{ fontSize: '0.65rem', color: '#94a3b8' }}>+</span>
-                                    <span style={{ fontSize: '0.67rem', color: '#10b981', fontWeight: '700' }}>교습소 {inspHagwonCount}</span>
-                                    <span style={{ fontSize: '0.65rem', color: '#94a3b8' }}>=</span>
-                                    <span style={{ fontSize: '0.72rem', color: 'var(--text-main)', fontWeight: '800' }}>{totalInspTarget}개</span>
-                                    <span style={{ fontSize: '0.63rem', color: '#94a3b8' }}>대상</span>
+                                    <span style={{ fontSize: '0.85rem', color: 'var(--primary)', fontWeight: '700' }}>교과학원 {inspSubjectCount}</span>
+                                    <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>+</span>
+                                    <span style={{ fontSize: '0.85rem', color: 'var(--navy-soft)', fontWeight: '700' }}>교습소 {inspHagwonCount}</span>
+                                    <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>=</span>
+                                    <span style={{ fontSize: '0.85rem', color: 'var(--text-main)', fontWeight: '800' }}>{totalInspTarget}개</span>
+                                    <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>대상</span>
                                 </div>
                             )}
                         </div>
@@ -1160,22 +1160,22 @@ function TabRecent({ region, academies, onSelectAcademy, initialPage = 0, initia
                             {/* 전체 점검률 */}
                             <div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
-                                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '600' }}>
+                                    <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: '600' }}>
                                         전체 점검률
                                     </span>
-                                    <span style={{ fontSize: '0.9rem', fontWeight: '800', color: '#6366f1' }}>{inspRate}%</span>
+                                    <span style={{ fontSize: '1rem', fontWeight: '800', color: 'var(--primary)' }}>{inspRate}%</span>
                                 </div>
-                                <div style={{ height: '6px', borderRadius: '99px', background: '#bfdbfe', overflow: 'hidden' }}>
-                                    <div style={{ height: '100%', borderRadius: '99px', width: `${Math.min(inspRate, 100)}%`, background: '#6366f1', transition: 'width 0.6s ease' }} />
+                                <div style={{ height: '6px', borderRadius: '99px', background: '#dbeafe', overflow: 'hidden' }}>
+                                    <div style={{ height: '100%', borderRadius: '99px', width: `${Math.min(inspRate, 100)}%`, background: 'var(--primary)', transition: 'width 0.6s ease' }} />
                                 </div>
                             </div>
                             {/* 목표 점검률 */}
                             <div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
-                                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '600' }}>
-                                        목표 점검률 <span style={{ fontSize: '0.7rem' }}>(목표 {targetAcademyCount}개, 49% 기준)</span>
+                                    <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: '600' }}>
+                                        목표 점검률 <span style={{ fontSize: '0.85rem' }}>(목표 {targetAcademyCount}개, 49% 기준)</span>
                                     </span>
-                                    <span style={{ fontSize: '0.9rem', fontWeight: '800', color: '#10b981' }}>{targetRate}%</span>
+                                    <span style={{ fontSize: '1rem', fontWeight: '800', color: '#10b981' }}>{targetRate}%</span>
                                 </div>
                                 <div style={{ height: '6px', borderRadius: '99px', background: '#d1fae5', overflow: 'hidden' }}>
                                     <div style={{ height: '100%', borderRadius: '99px', width: `${Math.min(targetRate, 100)}%`, background: '#10b981', transition: 'width 0.6s ease' }} />
@@ -1192,7 +1192,7 @@ function TabRecent({ region, academies, onSelectAcademy, initialPage = 0, initia
                                         display: 'flex',
                                         justifyContent: 'space-between',
                                         alignItems: 'center',
-                                        fontSize: '0.75rem',
+                                        fontSize: '0.85rem',
                                         color: 'var(--text-main)',
                                         fontWeight: '600'
                                     }}
@@ -1203,7 +1203,7 @@ function TabRecent({ region, academies, onSelectAcademy, initialPage = 0, initia
                                     </svg>
                                 </div>
                                 {showMonthlyDrop && (
-                                    <div style={{ padding: '8px 10px', background: 'white', borderTop: '1px solid #e2e8f0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                    <div style={{ padding: '8px 10px', background: 'white', borderTop: '1px solid #e2e8f0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                                         <div style={{ marginBottom: '6px', fontWeight: '700', color: 'var(--primary)' }}>📊 점검 완료: 총 {uniqueAcademyCount}개소</div>
                                         {monthlyStats.length > 0 ? (
                                             <ul style={{ margin: 0, paddingLeft: '16px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
@@ -1233,22 +1233,22 @@ function TabRecent({ region, academies, onSelectAcademy, initialPage = 0, initia
                 <>
                     {/* 가로 스크롤 래퍼 */}
                     <div style={{ borderRadius: '16px', border: '1px solid var(--border-color)', overflowX: 'auto', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
-                        <table style={{ width: '100%', minWidth: '580px', borderCollapse: 'collapse', fontSize: '0.83rem' }}>
+                        <table style={{ width: '100%', minWidth: '580px', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                             <thead>
-                                <tr style={{ background: 'linear-gradient(180deg,#f8fafc 0%,#f1f5f9 100%)', borderBottom: '2px solid var(--border-color)' }}>
-                                    <th style={{ padding: '9px 8px', width: '28px', color: '#64748b', fontWeight: '700', fontSize: '0.72rem', whiteSpace: 'nowrap', textAlign: 'center', background: 'transparent', position: 'sticky', left: 0, zIndex: 2, backgroundImage: 'linear-gradient(180deg,#f8fafc,#f1f5f9)' }}>#</th>
+                                <tr style={{ background: '#f8fafc', borderBottom: '2px solid var(--border-color)' }}>
+                                    <th style={{ padding: '9px 8px', width: '28px', color: '#64748b', fontWeight: '700', fontSize: '0.85rem', whiteSpace: 'nowrap', textAlign: 'center', background: 'transparent', position: 'sticky', left: 0, zIndex: 2, backgroundColor: '#f8fafc' }}>#</th>
                                     <th style={{
-                                        padding: '9px 10px', width: '90px', color: '#64748b', fontWeight: '700', fontSize: '0.72rem',
+                                        padding: '9px 10px', width: '90px', color: '#64748b', fontWeight: '700', fontSize: '0.85rem',
                                         whiteSpace: 'nowrap',
-                                        backgroundImage: 'linear-gradient(180deg,#f8fafc,#f1f5f9)'
+                                        backgroundColor: '#f8fafc'
                                     }}>점검일</th>
                                     <th style={{
-                                        padding: '9px 10px', width: '120px', color: '#64748b', fontWeight: '700', fontSize: '0.72rem',
+                                        padding: '9px 10px', width: '120px', color: '#64748b', fontWeight: '700', fontSize: '0.85rem',
                                         whiteSpace: 'nowrap', position: 'sticky', left: '28px', zIndex: 2,
                                         boxShadow: '2px 0 6px rgba(0,0,0,0.07)',
-                                        backgroundImage: 'linear-gradient(180deg,#f8fafc,#f1f5f9)'
+                                        backgroundColor: '#f8fafc'
                                     }}>학원명</th>
-                                    <th style={{ padding: '9px 12px', color: '#64748b', fontWeight: '700', fontSize: '0.72rem', whiteSpace: 'nowrap', background: 'transparent' }}>지도·위반 내용</th>
+                                    <th style={{ padding: '9px 12px', color: '#64748b', fontWeight: '700', fontSize: '0.85rem', whiteSpace: 'nowrap', background: 'transparent' }}>지도·위반 내용</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -1274,11 +1274,11 @@ function TabRecent({ region, academies, onSelectAcademy, initialPage = 0, initia
                                             key={i}
                                             onClick={isFuture ? undefined : () => { setSelectedRow(g.row); setSelectedIndex(globalIdx); }}
                                             style={{ borderBottom: `1px solid ${g.hasViol && !isFuture ? '#fce4e4' : 'var(--border-color)'}`, background: rowBg, cursor: isFuture ? 'default' : 'pointer', transition: 'all 0.12s', opacity: isFuture ? 0.55 : 1 }}
-                                            onMouseEnter={isFuture ? undefined : (e => { e.currentTarget.style.background = '#eef2ff'; e.currentTarget.style.boxShadow = 'inset 0 0 0 1px #c7d2fe'; })}
+                                            onMouseEnter={isFuture ? undefined : (e => { e.currentTarget.style.background = '#eff6ff'; e.currentTarget.style.boxShadow = 'inset 0 0 0 1px #bfdbfe'; })}
                                             onMouseLeave={isFuture ? undefined : (e => { e.currentTarget.style.background = rowBg; e.currentTarget.style.boxShadow = 'none'; })}
                                         >
                                             {/* 연번 */}
-                                            <td style={{ padding: '8px 6px', textAlign: 'center', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: '600', verticalAlign: 'middle', position: 'sticky', left: 0, zIndex: 1, background: rowBg }}>{rowNum}</td>
+                                            <td style={{ padding: '8px 6px', textAlign: 'center', fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: '600', verticalAlign: 'middle', position: 'sticky', left: 0, zIndex: 1, background: rowBg }}>{rowNum}</td>
                                             {/* 점검일 */}
                                             <td style={{
                                                 padding: '8px 10px',
@@ -1287,10 +1287,10 @@ function TabRecent({ region, academies, onSelectAcademy, initialPage = 0, initia
                                                 verticalAlign: 'middle',
                                                 whiteSpace: 'nowrap',
                                             }}>
-                                                <div style={{ fontSize: '0.72rem', color: isFuture ? '#94a3b8' : '#64748b', fontWeight: '600', letterSpacing: '0.01em' }}>
+                                                <div style={{ fontSize: '0.85rem', color: isFuture ? '#94a3b8' : '#64748b', fontWeight: '600', letterSpacing: '0.01em' }}>
                                                     {dateFmt}
                                                 </div>
-                                                {isFuture && <div style={{ fontSize: '0.62rem', color: '#94a3b8', marginTop: '2px' }}>예정</div>}
+                                                {isFuture && <div style={{ fontSize: '0.85rem', color: '#94a3b8', marginTop: '2px' }}>예정</div>}
                                             </td>
                                             {/* 학원명 sticky */}
                                             <td style={{
@@ -1305,7 +1305,7 @@ function TabRecent({ region, academies, onSelectAcademy, initialPage = 0, initia
                                                     const nameStyle = {
                                                         display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
                                                         overflow: 'hidden', wordBreak: 'break-all',
-                                                        fontSize: '0.82rem', fontWeight: '800',
+                                                        fontSize: '0.9rem', fontWeight: '800',
                                                         color: isFuture ? '#94a3b8' : 'var(--text-main)'
                                                     };
                                                     if (!academies || !onSelectAcademy || isFuture) {
@@ -1328,12 +1328,12 @@ function TabRecent({ region, academies, onSelectAcademy, initialPage = 0, initia
                                                     {g.items.map((item, ii) => (
                                                         <div key={ii} style={{
                                                             display: 'inline-flex', alignItems: 'flex-start', gap: '5px',
-                                                            fontSize: '0.79rem', lineHeight: 1.45,
+                                                            fontSize: '0.85rem', lineHeight: 1.45,
                                                         }}>
                                                             {item.isViol ? (
-                                                                <span style={{ display: 'inline-block', padding: '1px 6px', borderRadius: '5px', background: '#fee2e2', color: '#dc2626', fontSize: '0.65rem', fontWeight: '800', whiteSpace: 'nowrap', flexShrink: 0, marginTop: '2px' }}>위반</span>
+                                                                <span style={{ display: 'inline-block', padding: '1px 6px', borderRadius: '5px', background: '#fee2e2', color: '#dc2626', fontSize: '0.85rem', fontWeight: '800', whiteSpace: 'nowrap', flexShrink: 0, marginTop: '2px' }}>위반</span>
                                                             ) : (
-                                                                <span style={{ display: 'inline-block', padding: '1px 6px', borderRadius: '5px', background: '#e0f2fe', color: '#0369a1', fontSize: '0.65rem', fontWeight: '700', whiteSpace: 'nowrap', flexShrink: 0, marginTop: '2px' }}>지도</span>
+                                                                <span style={{ display: 'inline-block', padding: '1px 6px', borderRadius: '5px', background: '#eff6ff', color: '#1e40af', fontSize: '0.85rem', fontWeight: '700', whiteSpace: 'nowrap', flexShrink: 0, marginTop: '2px' }}>지도</span>
                                                             )}
                                                             <span style={{
                                                                 color: item.isViol ? '#991b1b' : '#374151',
@@ -1360,17 +1360,17 @@ function TabRecent({ region, academies, onSelectAcademy, initialPage = 0, initia
                     {totalPages > 1 && (
                         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', marginTop: '14px', flexWrap: 'wrap' }}>
                             <button onClick={() => { setPage(0); onPageChange?.(0); }} disabled={page === 0}
-                                style={{ padding: '5px 10px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', color: page === 0 ? '#cbd5e1' : 'var(--text-main)', cursor: page === 0 ? 'default' : 'pointer', fontSize: '0.8rem' }}>«</button>
+                                style={{ minHeight: '46px', minWidth: '46px', padding: '0 10px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', color: page === 0 ? '#cbd5e1' : 'var(--text-main)', cursor: page === 0 ? 'default' : 'pointer', fontSize: '0.9rem' }}>«</button>
                             <button onClick={() => { const np = Math.max(0, page - 1); setPage(np); onPageChange?.(np); }} disabled={page === 0}
-                                style={{ padding: '5px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', color: page === 0 ? '#cbd5e1' : 'var(--text-main)', cursor: page === 0 ? 'default' : 'pointer', fontSize: '0.8rem' }}>‹ 이전</button>
-                            <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', padding: '0 4px' }}>
+                                style={{ minHeight: '46px', minWidth: '46px', padding: '0 12px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', color: page === 0 ? '#cbd5e1' : 'var(--text-main)', cursor: page === 0 ? 'default' : 'pointer', fontSize: '0.9rem' }}>‹ 이전</button>
+                            <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)', padding: '0 4px' }}>
                                 {page + 1} / {totalPages}
-                                <span style={{ fontSize: '0.75rem', marginLeft: '4px' }}>(총 {groupedRows.length}건)</span>
+                                <span style={{ fontSize: '0.85rem', marginLeft: '4px' }}>(총 {groupedRows.length}건)</span>
                             </span>
                             <button onClick={() => { const np = Math.min(totalPages - 1, page + 1); setPage(np); onPageChange?.(np); }} disabled={page >= totalPages - 1}
-                                style={{ padding: '5px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', color: page >= totalPages - 1 ? '#cbd5e1' : 'var(--text-main)', cursor: page >= totalPages - 1 ? 'default' : 'pointer', fontSize: '0.8rem' }}>다음 ›</button>
+                                style={{ minHeight: '46px', minWidth: '46px', padding: '0 12px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', color: page >= totalPages - 1 ? '#cbd5e1' : 'var(--text-main)', cursor: page >= totalPages - 1 ? 'default' : 'pointer', fontSize: '0.9rem' }}>다음 ›</button>
                             <button onClick={() => { const np = totalPages - 1; setPage(np); onPageChange?.(np); }} disabled={page >= totalPages - 1}
-                                style={{ padding: '5px 10px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', color: page >= totalPages - 1 ? '#cbd5e1' : 'var(--text-main)', cursor: page >= totalPages - 1 ? 'default' : 'pointer', fontSize: '0.8rem' }}>»</button>
+                                style={{ minHeight: '46px', minWidth: '46px', padding: '0 10px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', color: page >= totalPages - 1 ? '#cbd5e1' : 'var(--text-main)', cursor: page >= totalPages - 1 ? 'default' : 'pointer', fontSize: '0.9rem' }}>»</button>
                         </div>
                     )}
                 </>
@@ -1689,14 +1689,14 @@ function TabStats({ region, statRows, academies, privateTutors, academyClosures,
     if (loading) return <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>⏳ 데이터 로딩 중...</div>;
 
     const Th = ({ children, colSpan, rowSpan, style }) => (
-        <th colSpan={colSpan} rowSpan={rowSpan} style={{ padding: '9px 12px', fontSize: '0.78rem', fontWeight: '700', color: 'var(--text-muted)', background: 'var(--bg-main)', borderBottom: '2px solid var(--border-color)', textAlign: 'left', whiteSpace: 'nowrap', ...style }}>{children}</th>
+        <th colSpan={colSpan} rowSpan={rowSpan} style={{ padding: '9px 12px', fontSize: '0.85rem', fontWeight: '700', color: 'var(--text-muted)', background: 'var(--bg-main)', borderBottom: '2px solid var(--border-color)', textAlign: 'left', whiteSpace: 'nowrap', ...style }}>{children}</th>
     );
     const Td = ({ children, style, onClick }) => (
-        <td onClick={onClick} style={{ padding: '8px 12px', fontSize: '0.84rem', borderBottom: '1px solid var(--border-color)', ...style }}>{children}</td>
+        <td onClick={onClick} style={{ padding: '8px 12px', fontSize: '0.9rem', borderBottom: '1px solid var(--border-color)', ...style }}>{children}</td>
     );
     const Section = ({ title, children }) => (
         <div style={{ background: 'var(--bg-card)', borderRadius: '16px', padding: '18px 20px', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)', marginBottom: '14px' }}>
-            <div style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--text-main)', marginBottom: '14px', paddingBottom: '8px', borderBottom: '2px solid var(--primary)' }}>{title}</div>
+            <div style={{ fontSize: '1rem', fontWeight: '800', color: 'var(--text-main)', marginBottom: '14px', paddingBottom: '8px', borderBottom: '2px solid var(--primary)' }}>{title}</div>
             {children}
         </div>
     );
@@ -1708,7 +1708,7 @@ function TabStats({ region, statRows, academies, privateTutors, academyClosures,
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(130px,1fr))', gap: '10px' }}>
                     <StatCard icon="🏫" label="학원"     value={aActiveList.length.toLocaleString() + '개'} color="#3b82f6" />
                     <StatCard icon="📖" label="교습소"   value={hActiveList.length.toLocaleString() + '개'} color="#10b981" />
-                    <StatCard icon="👤" label="개인과외" value={pList.length.toLocaleString() + '명'} color="#8b5cf6" />
+                    <StatCard icon="👤" label="개인과외" value={pList.length.toLocaleString() + '명'} color="#1d4ed8" />
                     <StatCard icon="🏢" label="합계"     value={(aActiveList.length + hActiveList.length + pList.length).toLocaleString() + '개'} color="#f59e0b" />
                 </div>
             </Section>
@@ -1722,7 +1722,7 @@ function TabStats({ region, statRows, academies, privateTutors, academyClosures,
                                 <Th rowSpan={2}>연도</Th>
                                 <Th colSpan={2} style={{ textAlign: 'center', borderBottom: '1px solid var(--border-color)', color: '#3b82f6' }}>학원</Th>
                                 <Th colSpan={2} style={{ textAlign: 'center', borderBottom: '1px solid var(--border-color)', color: '#10b981', borderLeft: '2px solid var(--border-color)' }}>교습소</Th>
-                                <Th colSpan={2} style={{ textAlign: 'center', borderBottom: '1px solid var(--border-color)', color: '#8b5cf6', borderLeft: '2px solid var(--border-color)' }}>과외</Th>
+                                <Th colSpan={2} style={{ textAlign: 'center', borderBottom: '1px solid var(--border-color)', color: '#1d4ed8', borderLeft: '2px solid var(--border-color)' }}>과외</Th>
                             </tr>
                             <tr>
                                 <Th style={{ padding: '9px 3px 9px 12px' }}>누적<span style={{ fontSize: '0.72em', opacity: 0.75, marginLeft: '2px' }}>(교과)</span></Th>
@@ -1752,22 +1752,22 @@ function TabStats({ region, statRows, academies, privateTutors, academyClosures,
                                     <Td onClick={() => setYearDrill({ year: s.year, kind: 'academy' })} style={{ color: s.aNew > 0 ? '#3b82f6' : s.aNew < 0 ? '#ef4444' : 'var(--text-muted)', fontWeight: '400', padding: '8px 12px 8px 3px', cursor: 'pointer', textDecoration: 'underline dotted' }}>{s.aNew > 0 ? '+' + s.aNew : s.aNew < 0 ? String(s.aNew) : '-'}</Td>
                                     <Td style={{ color: s.hActive > 0 ? '#10b981' : 'var(--text-muted)', fontWeight: '700', padding: '8px 3px 8px 14px', borderLeft: '2px solid var(--border-color)' }}>{s.hActive > 0 ? s.hActive.toLocaleString() : '-'}</Td>
                                     <Td onClick={() => setYearDrill({ year: s.year, kind: 'hagwon' })} style={{ color: s.hNew > 0 ? '#10b981' : s.hNew < 0 ? '#ef4444' : 'var(--text-muted)', fontWeight: '400', padding: '8px 12px 8px 3px', cursor: 'pointer', textDecoration: 'underline dotted' }}>{s.hNew > 0 ? '+' + s.hNew : s.hNew < 0 ? String(s.hNew) : '-'}</Td>
-                                    <Td style={{ color: s.pActive > 0 ? '#8b5cf6' : 'var(--text-muted)', fontWeight: '700', padding: '8px 3px 8px 14px', borderLeft: '2px solid var(--border-color)' }}>{s.pActive > 0 ? s.pActive.toLocaleString() : '-'}</Td>
-                                    <Td onClick={() => s.pNew !== 0 && setYearDrill({ year: s.year, kind: 'priv' })} style={{ color: s.pNew > 0 ? '#8b5cf6' : s.pNew < 0 ? '#ef4444' : 'var(--text-muted)', fontWeight: '400', padding: '8px 12px 8px 3px', cursor: s.pNew !== 0 ? 'pointer' : 'default', textDecoration: s.pNew !== 0 ? 'underline dotted' : 'none' }}>{s.pNew > 0 ? '+' + s.pNew : s.pNew < 0 ? String(s.pNew) : '-'}</Td>
+                                    <Td style={{ color: s.pActive > 0 ? '#1d4ed8' : 'var(--text-muted)', fontWeight: '700', padding: '8px 3px 8px 14px', borderLeft: '2px solid var(--border-color)' }}>{s.pActive > 0 ? s.pActive.toLocaleString() : '-'}</Td>
+                                    <Td onClick={() => s.pNew !== 0 && setYearDrill({ year: s.year, kind: 'priv' })} style={{ color: s.pNew > 0 ? '#1d4ed8' : s.pNew < 0 ? '#ef4444' : 'var(--text-muted)', fontWeight: '400', padding: '8px 12px 8px 3px', cursor: s.pNew !== 0 ? 'pointer' : 'default', textDecoration: s.pNew !== 0 ? 'underline dotted' : 'none' }}>{s.pNew > 0 ? '+' + s.pNew : s.pNew < 0 ? String(s.pNew) : '-'}</Td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
                 </div>
-                <div style={{ marginTop: '6px', fontSize: '0.75rem', color: 'var(--text-muted)', paddingLeft: '2px' }}>
+                <div style={{ marginTop: '6px', fontSize: '0.85rem', color: 'var(--text-muted)', paddingLeft: '2px' }}>
                     ※ (교과)는 학교교과교습학원의 갯수를 말함. 증감 = 해당 연도 개원 − 폐원 순증감 (학원·교습소). 증감 숫자를 누르면 목록을 볼 수 있습니다.
                 </div>
                 {yearDrill && yearDrillData && (() => {
                     const kindLabel = { academy: '학원', hagwon: '교습소', priv: '과외' };
                     return (
-                        <div style={{ marginTop: '10px', border: '1px solid var(--border-color)', borderRadius: '10px', padding: '12px 14px', background: 'var(--bg-card)', fontSize: '0.82rem' }}>
+                        <div style={{ marginTop: '10px', border: '1px solid var(--border-color)', borderRadius: '10px', padding: '12px 14px', background: 'var(--bg-card)', fontSize: '0.9rem' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                                <strong style={{ fontSize: '0.85rem' }}>{yearDrill.year}년 {kindLabel[yearDrill.kind]} 상세</strong>
+                                <strong style={{ fontSize: '0.9rem' }}>{yearDrill.year}년 {kindLabel[yearDrill.kind]} 상세</strong>
                                 <button onClick={() => setYearDrill(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.1rem', color: 'var(--text-muted)', lineHeight: 1, padding: '0 2px' }}>✕</button>
                             </div>
                             {yearDrillData.opened.length > 0 && (
@@ -1790,7 +1790,7 @@ function TabStats({ region, statRows, academies, privateTutors, academyClosures,
             {/* 섹션 3 */}
             <Section title="📚 교습 분야별 분포 (상위 15)">
                 {categoryStats.length === 0
-                    ? <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', padding: '16px 0' }}>분야 데이터 없음</div>
+                    ? <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem', padding: '16px 0' }}>분야 데이터 없음</div>
                     : <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '420px' }}>
                             <thead><tr>
@@ -1809,12 +1809,12 @@ function TabStats({ region, statRows, academies, privateTutors, academyClosures,
                                         <Td style={{ fontWeight: '700', whiteSpace: 'nowrap' }}>{s.cat}</Td>
                                         <Td style={{ color: '#3b82f6', whiteSpace: 'nowrap' }}>{s.academy > 0 ? s.academy : '-'}</Td>
                                         <Td style={{ color: '#10b981', whiteSpace: 'nowrap' }}>{s.hagwon  > 0 ? s.hagwon  : '-'}</Td>
-                                        <Td style={{ color: '#8b5cf6', whiteSpace: 'nowrap' }}>{s.priv    > 0 ? s.priv    : '-'}</Td>
+                                        <Td style={{ color: '#1d4ed8', whiteSpace: 'nowrap' }}>{s.priv    > 0 ? s.priv    : '-'}</Td>
                                         <Td style={{ fontWeight: '700', whiteSpace: 'nowrap' }}>{s.total}</Td>
                                         <Td style={{ whiteSpace: 'nowrap' }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                                 <div style={{ height: '6px', width: Math.max(2, s.pct * 0.6) + 'px', background: 'var(--primary)', borderRadius: '3px', flexShrink: 0 }} />
-                                                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{s.pct}%</span>
+                                                <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{s.pct}%</span>
                                             </div>
                                         </Td>
                                     </tr>
@@ -1836,7 +1836,7 @@ function TabStats({ region, statRows, academies, privateTutors, academyClosures,
                                 <thead><tr>
                                     <Th>연도</Th>
                                     <Th>학원</Th><Th>교습소</Th><Th>과외</Th><Th>합계</Th>
-                                    <Th style={{ color: '#64748b' }}>대상<br/><span style={{ fontSize: '0.65rem', fontWeight: '500', opacity: 0.8 }}>교과+교습소</span></Th>
+                                    <Th style={{ color: '#64748b' }}>대상<br/><span style={{ fontSize: '0.85rem', fontWeight: '500', opacity: 0.8 }}>교과+교습소</span></Th>
                                     <Th>점검률</Th><Th>위반건수</Th><Th>행정처분</Th><Th>과태료(만원)</Th>
                                 </tr></thead>
                                 <tbody>
@@ -1854,11 +1854,11 @@ function TabStats({ region, statRows, academies, privateTutors, academyClosures,
                                                 <Td style={{ fontWeight: '700', color: s.year === CURRENT_YEAR ? 'var(--primary)' : 'var(--text-main)' }}>{s.year}년{s.year === CURRENT_YEAR ? ' ★' : ''}</Td>
                                                 <Td style={{ color: '#3b82f6' }}>{s.academy > 0 ? s.academy : '-'}</Td>
                                                 <Td style={{ color: '#10b981' }}>{s.hagwon  > 0 ? s.hagwon  : '-'}</Td>
-                                                <Td style={{ color: '#8b5cf6' }}>{s.priv    > 0 ? s.priv    : '-'}</Td>
+                                                <Td style={{ color: '#1d4ed8' }}>{s.priv    > 0 ? s.priv    : '-'}</Td>
                                                 <Td style={{ fontWeight: '700' }}>{s.total}</Td>
                                                 <Td style={{ whiteSpace: 'nowrap' }}>
                                                     {denom > 0 ? (
-                                                        <span style={{ fontSize: '0.8rem', color: '#475569', fontWeight: '600' }}>
+                                                        <span style={{ fontSize: '0.9rem', color: '#475569', fontWeight: '600' }}>
                                                             {ys?.aSchoolActive > 0 && (
                                                                 <span style={{ color: '#3b82f6' }}>{ys.aSchoolActive}</span>
                                                             )}
@@ -1874,7 +1874,7 @@ function TabStats({ region, statRows, academies, privateTutors, academyClosures,
                                                 </Td>
                                                 <Td><span style={{ color: crColor, fontWeight: '700' }}>{checkRate !== null ? checkRate + '%' : '-'}</span></Td>
                                                 <Td style={{ color: s.viol > 0 ? '#ef4444' : 'var(--text-muted)', fontWeight: s.viol > 0 ? '700' : '400' }}>{s.viol > 0 ? s.viol : '-'}</Td>
-                                                <Td style={{ color: s.punish > 0 ? '#8b5cf6' : 'var(--text-muted)' }}>{s.punish > 0 ? s.punish + '건' : '-'}</Td>
+                                                <Td style={{ color: s.punish > 0 ? '#1d4ed8' : 'var(--text-muted)' }}>{s.punish > 0 ? s.punish + '건' : '-'}</Td>
                                                 <Td style={{ color: s.fine > 0 ? '#f59e0b' : 'var(--text-muted)', fontWeight: s.fine > 0 ? '700' : '400' }}>{s.fine > 0 ? s.fine.toLocaleString() : '-'}</Td>
                                             </tr>
                                         );
@@ -1889,7 +1889,7 @@ function TabStats({ region, statRows, academies, privateTutors, academyClosures,
             {/* 섹션 5 */}
             <Section title="🗺️ 동별 기관 분포">
                 {dongStats.length === 0
-                    ? <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>동 데이터 없음</div>
+                    ? <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>동 데이터 없음</div>
                     : <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                             <thead><tr><Th>동/읍/면</Th><Th>학원</Th><Th>교습소</Th><Th>과외</Th><Th>합계</Th></tr></thead>
@@ -1906,16 +1906,16 @@ function TabStats({ region, statRows, academies, privateTutors, academyClosures,
                                         </Td>
                                         <Td style={{ color: dimStyle ? 'var(--text-muted)' : '#3b82f6' }}>{s.academy > 0 ? s.academy : '-'}</Td>
                                         <Td style={{ color: dimStyle ? 'var(--text-muted)' : '#10b981' }}>{s.hagwon  > 0 ? s.hagwon  : '-'}</Td>
-                                        <Td style={{ color: dimStyle ? 'var(--text-muted)' : '#8b5cf6' }}>{s.priv    > 0 ? s.priv    : '-'}</Td>
+                                        <Td style={{ color: dimStyle ? 'var(--text-muted)' : '#1d4ed8' }}>{s.priv    > 0 ? s.priv    : '-'}</Td>
                                         <Td style={{ fontWeight: '800', color: dimStyle ? 'var(--text-muted)' : undefined }}>{s.total}</Td>
                                     </tr>
                                     );
                                 })}
-                                <tr style={{ background: 'rgba(99,102,241,0.06)', borderTop: '2px solid var(--border-color)' }}>
+                                <tr style={{ background: 'rgba(29,78,216,0.06)', borderTop: '2px solid var(--border-color)' }}>
                                     <Td style={{ fontWeight: '800' }}>합계</Td>
                                     <Td style={{ color: '#3b82f6', fontWeight: '800' }}>{dongStats.reduce((s, r) => s + r.academy, 0).toLocaleString()}</Td>
                                     <Td style={{ color: '#10b981', fontWeight: '800' }}>{dongStats.reduce((s, r) => s + r.hagwon,  0).toLocaleString()}</Td>
-                                    <Td style={{ color: '#8b5cf6', fontWeight: '800' }}>{dongStats.reduce((s, r) => s + r.priv,    0).toLocaleString()}</Td>
+                                    <Td style={{ color: '#1d4ed8', fontWeight: '800' }}>{dongStats.reduce((s, r) => s + r.priv,    0).toLocaleString()}</Td>
                                     <Td style={{ fontWeight: '800' }}>{dongStats.reduce((s, r) => s + r.total, 0).toLocaleString()}</Td>
                                 </tr>
                             </tbody>
@@ -2144,15 +2144,16 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
     }, [zipAllItems, zipLookups, zipLoading]);
 
     const Th = ({ children, style }) => (
-        <th style={{ padding: '7px 10px', fontSize: '0.74rem', fontWeight: '700', color: 'var(--text-muted)', background: 'var(--bg-main)', borderBottom: '2px solid var(--border-color)', textAlign: 'left', whiteSpace: 'nowrap', ...style }}>{children}</th>
+        <th style={{ padding: '7px 10px', fontSize: '0.85rem', fontWeight: '700', color: 'var(--text-muted)', background: 'var(--bg-main)', borderBottom: '2px solid var(--border-color)', textAlign: 'left', whiteSpace: 'nowrap', ...style }}>{children}</th>
     );
     const Td = ({ children, style, onClick }) => (
-        <td style={{ padding: '6px 10px', fontSize: '0.8rem', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap', ...style }} onClick={onClick}>{children}</td>
+        <td style={{ padding: '6px 10px', fontSize: '0.9rem', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap', ...style }} onClick={onClick}>{children}</td>
     );
     const Badge = ({ count, color }) => (
-        <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: '22px', height: '20px', borderRadius: '10px', padding: '0 6px', background: count > 0 ? (color || '#ef4444') : '#94a3b8', color: 'white', fontSize: '0.72rem', fontWeight: '800' }}>{count}</span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: '26px', height: '24px', borderRadius: '12px', padding: '0 8px', background: count > 0 ? (color || '#ef4444') : '#94a3b8', color: 'white', fontSize: '0.85rem', fontWeight: '800' }}>{count}</span>
     );
-    const typeColor = (t) => t === '학원' ? '#3b82f6' : t === '교습소' ? '#10b981' : '#8b5cf6';
+    // 구분은 한 가지 강조색의 짙고 옅음으로만 — 초록은 '적정' 뜻이라 쓰지 않는다
+    const typeColor = (t) => t === '학원' ? '#1d4ed8' : t === '교습소' ? '#243a63' : '#64748b';
 
     // 학원명 클릭 → 상세화면 이동
     const NameLink = ({ id, type, name }) => {
@@ -2170,14 +2171,14 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
 
     // 주소 클릭 → 네이버지도 새 탭
     const AddrLink = ({ address }) => {
-        if (!address) return <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>-</span>;
+        if (!address) return <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>-</span>;
         return (
             <a
                 href={`https://map.naver.com/p/search/${encodeURIComponent(address)}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={(e) => e.stopPropagation()}
-                style={{ fontSize: '0.74rem', color: '#2563eb', textDecoration: 'underline', textUnderlineOffset: '2px', lineHeight: '1.4', wordBreak: 'keep-all' }}
+                style={{ fontSize: '0.85rem', color: '#2563eb', textDecoration: 'underline', textUnderlineOffset: '2px', lineHeight: '1.4', wordBreak: 'keep-all' }}
             >{address}</a>
         );
     };
@@ -2268,15 +2269,15 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
     }, [riskItems, riskCross]);
 
     const GROUP_LABEL = { A: '경력조회 취약', B: '초과징수', C: '허위·과대광고', D: '게시 의무', E: '실태 미신고' };
-    const GROUP_COLOR = { A: '#dc2626', B: '#ea580c', C: '#7c3aed', D: '#f59e0b', E: '#64748b' };
+    const GROUP_COLOR = { A: '#dc2626', B: '#ea580c', C: '#1d4ed8', D: '#f59e0b', E: '#64748b' };
 
     /** 겹쳐 걸린 신호 수 — 한 곳이 여러 항목에 잡혔다면 그만큼 먼저 나가야 한다 */
     const CrossChip = ({ row, selfId }) => {
         const set = riskCross.get(`${row.type}|${row.id}`);
         const n = set ? set.size - (set.has(selfId) ? 1 : 0) : 0;
-        if (n <= 0) return <span style={{ color: 'var(--text-muted)', fontSize: '0.76rem' }}>-</span>;
+        if (n <= 0) return <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>-</span>;
         return (
-            <span style={{ fontSize: '0.71rem', padding: '1px 6px', borderRadius: '4px', background: '#fee2e2', color: '#dc2626', fontWeight: '700' }}>
+            <span style={{ fontSize: '0.85rem', padding: '1px 6px', borderRadius: '4px', background: '#fee2e2', color: '#dc2626', fontWeight: '700' }}>
                 +{n}
             </span>
         );
@@ -2286,39 +2287,39 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
         const isOpen = openSections[item.id];
         const badge = item.rows.length;
         return (
-            <div style={{ background: 'var(--bg-card)', borderRadius: '14px', padding: '14px 16px', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)', marginBottom: '12px' }}>
+            <div style={{ background: 'var(--bg-card)', borderRadius: '12px', padding: '6px 16px', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)', marginBottom: '12px' }}>
                 <button onClick={() => toggleSection(item.id)} style={{ width: '100%', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', background: 'none', border: 'none', cursor: 'pointer', padding: 0, gap: '8px' }}>
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', minWidth: 0 }}>
                         <div style={{ paddingTop: '1px' }}>
                             {item.pending
-                                ? <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: '22px', height: '20px', borderRadius: '10px', padding: '0 6px', background: '#cbd5e1', color: 'white', fontSize: '0.68rem', fontWeight: '800' }}>…</span>
+                                ? <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: '22px', height: '20px', borderRadius: '10px', padding: '0 6px', background: '#cbd5e1', color: 'white', fontSize: '0.85rem', fontWeight: '800' }}>…</span>
                                 : <Badge count={badge} color={item.color} />}
                         </div>
                         <div style={{ textAlign: 'left', minWidth: 0 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                                <span style={{ fontSize: '0.7rem', fontWeight: '800', color: GROUP_COLOR[item.group], background: 'var(--bg-main)', border: '1px solid var(--border-color)', borderRadius: '4px', padding: '1px 5px' }}>{GROUP_LABEL[item.group]}</span>
-                                <span style={{ fontSize: '0.88rem', fontWeight: '700', color: 'var(--text-main)' }}>{item.title}</span>
+                                <span style={{ fontSize: '0.85rem', fontWeight: '800', color: GROUP_COLOR[item.group], background: 'var(--bg-main)', border: '1px solid var(--border-color)', borderRadius: '4px', padding: '1px 5px' }}>{GROUP_LABEL[item.group]}</span>
+                                <span style={{ fontSize: '0.9rem', fontWeight: '700', color: 'var(--text-main)' }}>{item.title}</span>
                             </div>
-                            <div style={{ fontSize: '0.71rem', color: 'var(--text-muted)', marginTop: '2px', lineHeight: 1.45 }}>
+                            <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '2px', lineHeight: 1.45 }}>
                                 {item.ref}{item.sanction ? ` · ${item.sanction}` : ''}
                             </div>
                         </div>
                     </div>
-                    <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', flexShrink: 0 }}>{isOpen ? '▲' : '▼'}</span>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem', flexShrink: 0 }}>{isOpen ? '▲' : '▼'}</span>
                 </button>
                 {isOpen && (
-                    <div style={{ marginTop: '10px' }}>
+                    <div style={{ margin: '6px 0 10px' }}>
                         {item.note && (
-                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '8px', lineHeight: 1.5 }}>{item.note}</div>
+                            <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '8px', lineHeight: 1.5 }}>{item.note}</div>
                         )}
                         {item.pending ? (
-                            <div style={{ fontSize: '0.8rem', color: '#f59e0b', fontWeight: '600', padding: '4px 0' }}>
+                            <div style={{ fontSize: '0.9rem', color: '#f59e0b', fontWeight: '600', padding: '4px 0' }}>
                                 {item.needsInstructors && !instructorsReady ? '강사 명단을 불러오는 중입니다 — 잠시 뒤 다시 확인하세요'
                                     : snsError ? `SNS 조사 결과를 읽지 못했습니다 (${snsError})`
                                         : 'SNS 조사 결과를 불러오는 중입니다'}
                             </div>
                         ) : badge === 0 ? (
-                            <div style={{ fontSize: '0.82rem', color: '#10b981', fontWeight: '600', padding: '4px 0' }}>✓ 해당 없음</div>
+                            <div style={{ fontSize: '0.9rem', color: '#10b981', fontWeight: '600', padding: '4px 0' }}>✓ 해당 없음</div>
                         ) : (
                             <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -2328,13 +2329,13 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
                                     <tbody>
                                         {item.rows.map((r, i) => (
                                             <tr key={`${r.type}-${r.id}-${i}`} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
-                                                <Td><span style={{ color: typeColor(r.type), fontWeight: '700', fontSize: '0.78rem' }}>{r.type}</span></Td>
-                                                <Td style={{ color: 'var(--text-muted)', fontSize: '0.74rem' }}>{r.id || '-'}</Td>
+                                                <Td><span style={{ color: typeColor(r.type), fontWeight: '700', fontSize: '0.85rem' }}>{r.type}</span></Td>
+                                                <Td style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{r.id || '-'}</Td>
                                                 <Td><NameLink id={r.id} type={r.type} name={r.name} /></Td>
-                                                <Td style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>{r.phone || '-'}</Td>
+                                                <Td style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{r.phone || '-'}</Td>
                                                 <Td style={{ whiteSpace: 'normal', minWidth: '260px', lineHeight: 1.5 }}>
                                                     <span style={{ color: item.color, fontWeight: '600' }}>{r.detail}</span>
-                                                    {r.reason ? <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>{r.reason}</div> : null}
+                                                    {r.reason ? <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '2px' }}>{r.reason}</div> : null}
                                                 </Td>
                                                 <Td style={{ textAlign: 'center' }}><CrossChip row={r} selfId={item.id} /></Td>
                                             </tr>
@@ -2353,18 +2354,18 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
         const isOpen = openSections[id];
         if (badge === 0 && !alwaysShow) return null;
         return (
-            <div style={{ background: 'var(--bg-card)', borderRadius: '14px', padding: '14px 16px', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)', marginBottom: '12px' }}>
-                <button onClick={() => toggleSection(id)} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+            <div style={{ background: 'var(--bg-card)', borderRadius: '12px', padding: '6px 16px', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)', marginBottom: '12px' }}>
+                <button onClick={() => toggleSection(id)} style={{ width: '100%', minHeight: '46px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'none', border: 'none', borderRadius: 0, cursor: 'pointer', padding: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <Badge count={badge} color={badgeColor} />
-                        <span style={{ fontSize: '0.88rem', fontWeight: '700', color: 'var(--text-main)', textAlign: 'left' }}>{title}</span>
+                        <span style={{ fontSize: '1.0625rem', fontWeight: '800', color: 'var(--text-main)', textAlign: 'left' }}>{title}</span>
                     </div>
-                    <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginLeft: '8px', flexShrink: 0 }}>{isOpen ? '▲' : '▼'}</span>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginLeft: '8px', flexShrink: 0 }}>{isOpen ? '▲' : '▼'}</span>
                 </button>
                 {isOpen && (
-                    <div style={{ marginTop: '10px' }}>
+                    <div style={{ margin: '6px 0 10px' }}>
                         {badge === 0
-                            ? <div style={{ fontSize: '0.82rem', color: '#10b981', fontWeight: '600', padding: '4px 0' }}>✓ 이상 없음</div>
+                            ? <div style={{ fontSize: '0.9rem', color: '#10b981', fontWeight: '600', padding: '4px 0' }}>✓ 이상 없음</div>
                             : <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid var(--border-color)' }}>{children}</div>
                         }
                     </div>
@@ -2375,7 +2376,7 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
 
     const reviewSubTabBtn = (on) => ({
         flex: 1, padding: '9px 12px', background: 'none', border: 'none', cursor: 'pointer',
-        fontSize: '0.85rem', fontWeight: on ? '800' : '600',
+        fontSize: '0.9rem', fontWeight: on ? '800' : '600',
         color: on ? 'var(--primary)' : 'var(--text-muted)',
         borderBottom: on ? '2px solid var(--primary)' : '2px solid transparent',
     });
@@ -2392,18 +2393,18 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
                 <div>
                     {/* 요약 헤더 */}
                     <div style={{ background: 'var(--bg-card)', borderRadius: '14px', padding: '14px 16px', border: '1px solid var(--border-color)', marginBottom: '14px', boxShadow: 'var(--shadow-sm)' }}>
-                        <div style={{ fontSize: '0.88rem', fontWeight: '800', color: 'var(--text-main)', marginBottom: '8px' }}>🚨 민원 취약 기관</div>
-                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: '1.6' }}>
+                        <div style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--text-main)', marginBottom: '8px' }}>🚨 민원 취약 기관</div>
+                        <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: '1.6' }}>
                             외부인이 인터넷만 보고 신고할 수 있는 위반 단서입니다. 처분이 무거운 항목이 위에 옵니다.
                             <br />
                             개원 학원·교습소 중 <strong style={{ color: '#dc2626' }}>{riskStats.flagged}곳</strong>이 한 가지 이상 걸렸고,
                             그중 <strong style={{ color: '#dc2626' }}>{riskStats.multi}곳</strong>은 신호가 둘 이상 겹칩니다 — 이곳부터 나가는 것이 좋습니다.
                             <br />
-                            <span style={{ fontSize: '0.74rem' }}>
+                            <span style={{ fontSize: '0.85rem' }}>
                                 ※ 경력조회를 실제로 했는지는 데이터에 없습니다. 조회 의무가 생기는데 인력 신고가 부실한 곳을 고른 것이므로, 점검 나가서 조회 대장을 확인해야 합니다.
                             </span>
                             <br />
-                            <span style={{ fontSize: '0.74rem' }}>
+                            <span style={{ fontSize: '0.85rem' }}>
                                 ※ 광고 문구는 SNS 조사를 <strong>다시 돌린 기관부터</strong> 채워집니다
                                 {snsError ? ` (현재 SNS 결과를 읽지 못함: ${snsError})`
                                     : snsRows ? ` (현재 SNS 조사 결과 ${snsRows.length}건 반영)` : ' (SNS 결과 불러오는 중)'}.
@@ -2419,8 +2420,8 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
             <div>
             {/* 요약 헤더 */}
             <div style={{ background: 'var(--bg-card)', borderRadius: '14px', padding: '14px 16px', border: '1px solid var(--border-color)', marginBottom: '14px', boxShadow: 'var(--shadow-sm)' }}>
-                <div style={{ fontSize: '0.88rem', fontWeight: '800', color: 'var(--text-main)', marginBottom: '8px' }}>🔬 데이터 품질 검토</div>
-                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: '1.6' }}>
+                <div style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--text-main)', marginBottom: '8px' }}>🔬 데이터 품질 검토</div>
+                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: '1.6' }}>
                     학원 {aList.length}개 · 교습소 {hActiveList.length}개 · 개인과외 {pList.length}명 대상 검토 중.
                     주소 변환 실패 항목은 지도 페이지를 먼저 방문한 경우에만 표시됩니다.
                 </div>
@@ -2435,11 +2436,11 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
                     <tbody>
                         {dateReversals.map((a, i) => (
                             <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
-                                <Td style={{ color: 'var(--text-muted)', fontSize: '0.74rem' }}>{a.regNum || '-'}</Td>
+                                <Td style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{a.regNum || '-'}</Td>
                                 <Td style={{ fontWeight: '600' }}>{a.name || '-'}</Td>
                                 <Td style={{ color: '#ef4444', fontWeight: '600' }}>{a.regDate}</Td>
                                 <Td style={{ color: '#f59e0b', fontWeight: '600' }}>{a.closeDate}</Td>
-                                <Td style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{a.address}</Td>
+                                <Td style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{a.address}</Td>
                             </tr>
                         ))}
                     </tbody>
@@ -2455,8 +2456,8 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
                     <tbody>
                         {geoFailures.map((a, i) => (
                             <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
-                                <Td><span style={{ color: typeColor(a.type), fontWeight: '700', fontSize: '0.78rem' }}>{a.type}</span></Td>
-                                <Td style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{a.id || '-'}</Td>
+                                <Td><span style={{ color: typeColor(a.type), fontWeight: '700', fontSize: '0.85rem' }}>{a.type}</span></Td>
+                                <Td style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{a.id || '-'}</Td>
                                 <Td><NameLink id={a.id} type={a.type} name={a.name} /></Td>
                                 <Td><AddrLink address={a.address} /></Td>
                             </tr>
@@ -2474,8 +2475,8 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
                     <tbody>
                         {dongUnclassified.map((a, i) => (
                             <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
-                                <Td style={{ whiteSpace: 'nowrap' }}><span style={{ color: typeColor(a.type), fontWeight: '700', fontSize: '0.78rem' }}>{a.type}</span></Td>
-                                <Td style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{a.id || '-'}</Td>
+                                <Td style={{ whiteSpace: 'nowrap' }}><span style={{ color: typeColor(a.type), fontWeight: '700', fontSize: '0.85rem' }}>{a.type}</span></Td>
+                                <Td style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{a.id || '-'}</Td>
                                 <Td><NameLink id={a.id} type={a.type} name={a.name} /></Td>
                                 <Td><AddrLink address={a.address} /></Td>
                             </tr>
@@ -2485,7 +2486,7 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
             </ReviewSection>
 
             {/* 3. 연락처 누락 */}
-            <ReviewSection id="noContact" title="연락처 누락 (전화번호·핸드폰)" badge={noContact.length} badgeColor="#8b5cf6">
+            <ReviewSection id="noContact" title="연락처 누락 (전화번호·핸드폰)" badge={noContact.length} badgeColor="#1b2b4b">
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead><tr>
                         <Th>구분</Th><Th>등록번호</Th><Th>명칭</Th><Th>누락 항목</Th>
@@ -2493,10 +2494,10 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
                     <tbody>
                         {noContact.map((a, i) => (
                             <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
-                                <Td><span style={{ color: typeColor(a.type), fontWeight: '700', fontSize: '0.78rem' }}>{a.type}</span></Td>
-                                <Td style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{a.id || '-'}</Td>
+                                <Td><span style={{ color: typeColor(a.type), fontWeight: '700', fontSize: '0.85rem' }}>{a.type}</span></Td>
+                                <Td style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{a.id || '-'}</Td>
                                 <Td><NameLink id={a.id} type={a.type} name={a.name} /></Td>
-                                <Td style={{ color: '#8b5cf6', fontWeight: '600' }}>{a.issue}</Td>
+                                <Td style={{ color: '#1d4ed8', fontWeight: '600' }}>{a.issue}</Td>
                             </tr>
                         ))}
                     </tbody>
@@ -2512,7 +2513,7 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
                     <tbody>
                         {hagwonClosureMissing.map((a, i) => (
                             <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
-                                <Td style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{a.id || '-'}</Td>
+                                <Td style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{a.id || '-'}</Td>
                                 <Td><NameLink id={a.id} type="교습소" name={a.name} /></Td>
                                 <Td style={{ color: '#f59e0b', fontWeight: '600' }}>{a.status}</Td>
                             </tr>
@@ -2530,7 +2531,7 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
                     <tbody>
                         {duplicateRegs.map((a, i) => (
                             <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
-                                <Td style={{ fontSize: '0.74rem', color: '#ef4444', fontWeight: '700' }}>{a.id}</Td>
+                                <Td style={{ fontSize: '0.85rem', color: '#ef4444', fontWeight: '700' }}>{a.id}</Td>
                                 <Td><NameLink id={a.id} type="학원" name={a.name} /></Td>
                                 <Td><AddrLink address={a.address} /></Td>
                             </tr>
@@ -2542,11 +2543,11 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
             {/* 8. 우편번호 불일치 */}
             <ReviewSection id="zipIssues" title="우편번호 불일치 (Kakao 검증)" badge={zipDisplayed.length} badgeColor="#f59e0b" alwaysShow>
                 <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                    <button onClick={startZipLookup} disabled={zipLoading} style={{ padding: '5px 14px', borderRadius: '8px', border: 'none', background: zipLoading ? '#94a3b8' : 'var(--primary)', color: 'white', fontWeight: '700', fontSize: '0.8rem', cursor: zipLoading ? 'default' : 'pointer' }}>
+                    <button onClick={startZipLookup} disabled={zipLoading} style={{ padding: '5px 14px', borderRadius: '8px', border: 'none', background: zipLoading ? '#94a3b8' : 'var(--primary)', color: 'white', fontWeight: '700', fontSize: '0.9rem', cursor: zipLoading ? 'default' : 'pointer' }}>
                         {zipLoading ? `조회 중... (${zipProgress}/${zipAllItems.length})` : `Kakao API로 전체 ${zipAllItems.length}건 우편번호 검증`}
                     </button>
                     {Object.keys(zipLookups).length > 0 && !zipLoading && (
-                        <span style={{ fontSize: '0.78rem', color: '#10b981', fontWeight: '600' }}>✓ {Object.keys(zipLookups).length}건 조회 완료 · 불일치 {zipDisplayed.length}건</span>
+                        <span style={{ fontSize: '0.85rem', color: '#10b981', fontWeight: '600' }}>✓ {Object.keys(zipLookups).length}건 조회 완료 · 불일치 {zipDisplayed.length}건</span>
                     )}
                 </div>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -2559,8 +2560,8 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
                             const correct = zipLookups[key];
                             return (
                                 <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
-                                    <Td><span style={{ color: typeColor(a.type), fontWeight: '700', fontSize: '0.78rem' }}>{a.type}</span></Td>
-                                    <Td style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{a.id || '-'}</Td>
+                                    <Td><span style={{ color: typeColor(a.type), fontWeight: '700', fontSize: '0.85rem' }}>{a.type}</span></Td>
+                                    <Td style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{a.id || '-'}</Td>
                                     <Td><NameLink id={a.id} type={a.type} name={a.name} /></Td>
                                     <Td style={{ color: '#ef4444', fontWeight: '600' }}>{a.currentZip || '(없음)'}</Td>
                                     <Td style={{ color: correct === '조회실패' ? '#ef4444' : correct ? '#10b981' : 'var(--text-muted)', fontWeight: correct && correct !== '조회실패' ? '700' : '400' }}>
@@ -2574,7 +2575,7 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
             </ReviewSection>
 
             {/* 7. 필수 정보 누락 */}
-            <ReviewSection id="missingInfo" title="필수 정보 누락 (등록일·주소·설립자·우편번호)" badge={missingInfo.length} badgeColor="#8b5cf6">
+            <ReviewSection id="missingInfo" title="필수 정보 누락 (등록일·주소·설립자·우편번호)" badge={missingInfo.length} badgeColor="#1b2b4b">
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead><tr>
                         <Th>구분</Th><Th>등록번호</Th><Th>명칭</Th><Th>누락 항목</Th>
@@ -2582,10 +2583,10 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
                     <tbody>
                         {missingInfo.map((a, i) => (
                             <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
-                                <Td><span style={{ color: typeColor(a.type), fontWeight: '700', fontSize: '0.78rem' }}>{a.type}</span></Td>
-                                <Td style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{a.id || '-'}</Td>
+                                <Td><span style={{ color: typeColor(a.type), fontWeight: '700', fontSize: '0.85rem' }}>{a.type}</span></Td>
+                                <Td style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{a.id || '-'}</Td>
                                 <Td><NameLink id={a.id} type={a.type} name={a.name} /></Td>
-                                <Td style={{ color: '#8b5cf6' }}>{a.missing}</Td>
+                                <Td style={{ color: '#1d4ed8' }}>{a.missing}</Td>
                             </tr>
                         ))}
                     </tbody>
@@ -2601,11 +2602,11 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
                     <tbody>
                         {insCountMismatch.map((a, i) => (
                             <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
-                                <Td><span style={{ color: typeColor(a.type), fontWeight: '700', fontSize: '0.78rem' }}>{a.type}</span></Td>
-                                <Td style={{ color: 'var(--text-muted)', fontSize: '0.74rem' }}>{a.id || '-'}</Td>
+                                <Td><span style={{ color: typeColor(a.type), fontWeight: '700', fontSize: '0.85rem' }}>{a.type}</span></Td>
+                                <Td style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{a.id || '-'}</Td>
                                 <Td><NameLink id={a.id} type={a.type} name={a.name} /></Td>
-                                <Td style={{ fontWeight: '700', color: '#0369a1', textAlign: 'center' }}>{a.insCount}명</Td>
-                                <Td style={{ fontWeight: '700', color: '#7c3aed', textAlign: 'center' }}>{a.regCount}명</Td>
+                                <Td style={{ fontWeight: '700', color: '#1e40af', textAlign: 'center' }}>{a.insCount}명</Td>
+                                <Td style={{ fontWeight: '700', color: '#1d4ed8', textAlign: 'center' }}>{a.regCount}명</Td>
                                 <Td style={{ fontWeight: '700', color: a.diff > 0 ? '#10b981' : '#ef4444', textAlign: 'center' }}>
                                     {a.diff > 0 ? `+${a.diff}` : a.diff}명
                                 </Td>
@@ -2618,7 +2619,7 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
             {/* 8c-2. 날짜를 못 읽은 칸 — 원본 시트 형식이 바뀌면 여기 숫자가 오른다 */}
             <ReviewSection id="badDate" title="날짜를 못 읽은 칸" badge={badDate.length} badgeColor="#ef4444" alwaysShow>
                 {/* 0건이어도 보여 준다 — 지켜보고 있다는 것 자체가 이 검사의 값이다 */}
-                <div style={{ padding: '8px 0 12px', fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: '1.6' }}>
+                <div style={{ padding: '8px 0 12px', fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: '1.6' }}>
                     값은 있는데 날짜로 읽히지 않는 칸입니다. <b>0이 정상</b>이고, 숫자가 오르면 원본 시트가
                     날짜 형식을 바꾼 것입니다 (보험 만료일·미점검 판정이 조용히 틀어집니다).
                 </div>
@@ -2629,10 +2630,10 @@ function TabReview({ region, academies, privateTutors, academyClosures, onSelect
                     <tbody>
                         {badDate.map((a, i) => (
                             <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
-                                <Td><span style={{ color: typeColor(a.type), fontWeight: '700', fontSize: '0.78rem' }}>{a.type}</span></Td>
-                                <Td style={{ color: 'var(--text-muted)', fontSize: '0.74rem' }}>{a.id || '-'}</Td>
+                                <Td><span style={{ color: typeColor(a.type), fontWeight: '700', fontSize: '0.85rem' }}>{a.type}</span></Td>
+                                <Td style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{a.id || '-'}</Td>
                                 <Td><NameLink id={a.id} type={a.type} name={a.name} /></Td>
-                                <Td style={{ color: '#ef4444', fontSize: '0.76rem' }}>{a.cells}</Td>
+                                <Td style={{ color: '#ef4444', fontSize: '0.85rem' }}>{a.cells}</Td>
                             </tr>
                         ))}
                     </tbody>
@@ -3406,16 +3407,17 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
         return next;
     });
 
-    const typeColor = (t) => t === '학원' ? '#3b82f6' : t === '교습소' ? '#8b5cf6' : '#10b981';
+    // 구분은 한 가지 강조색의 짙고 옅음으로만 — 초록은 '적정' 뜻이라 쓰지 않는다
+    const typeColor = (t) => t === '학원' ? '#1d4ed8' : t === '교습소' ? '#243a63' : '#64748b';
 
     const Th = ({ children, style }) => (
-        <th style={{ padding: '7px 10px', fontSize: '0.74rem', fontWeight: '700', color: 'var(--text-muted)', background: 'var(--bg-main)', borderBottom: '2px solid var(--border-color)', textAlign: 'left', whiteSpace: 'nowrap', ...style }}>{children}</th>
+        <th style={{ padding: '7px 10px', fontSize: '0.85rem', fontWeight: '700', color: 'var(--text-muted)', background: 'var(--bg-main)', borderBottom: '2px solid var(--border-color)', textAlign: 'left', whiteSpace: 'nowrap', ...style }}>{children}</th>
     );
     const Td = ({ children, style, onClick }) => (
-        <td style={{ padding: '6px 10px', fontSize: '0.8rem', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap', ...style }} onClick={onClick}>{children}</td>
+        <td style={{ padding: '6px 10px', fontSize: '0.9rem', borderBottom: '1px solid var(--border-color)', whiteSpace: 'nowrap', ...style }} onClick={onClick}>{children}</td>
     );
     const Badge = ({ count, color }) => (
-        <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: '22px', height: '20px', borderRadius: '10px', padding: '0 6px', background: count > 0 ? (color || '#ef4444') : '#94a3b8', color: 'white', fontSize: '0.72rem', fontWeight: '800' }}>{count}</span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: '26px', height: '24px', borderRadius: '12px', padding: '0 8px', background: count > 0 ? (color || '#ef4444') : '#94a3b8', color: 'white', fontSize: '0.85rem', fontWeight: '800' }}>{count}</span>
     );
     const showCopyToast = (text) => {
         setCopyToast(text);
@@ -3474,18 +3476,18 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
     const CautionSection = ({ id, title, badge, badgeColor, children }) => {
         const isOpen = openSections[id];
         return (
-            <div style={{ background: 'var(--bg-card)', borderRadius: '14px', padding: '14px 16px', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)', marginBottom: '12px' }}>
-                <button onClick={() => toggleSection(id)} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+            <div style={{ background: 'var(--bg-card)', borderRadius: '12px', padding: '6px 16px', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)', marginBottom: '12px' }}>
+                <button onClick={() => toggleSection(id)} style={{ width: '100%', minHeight: '46px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'none', border: 'none', borderRadius: 0, cursor: 'pointer', padding: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <Badge count={badge} color={badgeColor} />
-                        <span style={{ fontSize: '0.88rem', fontWeight: '700', color: 'var(--text-main)', textAlign: 'left' }}>{title}</span>
+                        <span style={{ fontSize: '1.0625rem', fontWeight: '800', color: 'var(--text-main)', textAlign: 'left' }}>{title}</span>
                     </div>
-                    <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginLeft: '8px', flexShrink: 0 }}>{isOpen ? '▲' : '▼'}</span>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginLeft: '8px', flexShrink: 0 }}>{isOpen ? '▲' : '▼'}</span>
                 </button>
                 {isOpen && (
-                    <div style={{ marginTop: '10px' }}>
+                    <div style={{ margin: '6px 0 10px' }}>
                         {badge === 0
-                            ? <div style={{ fontSize: '0.82rem', color: '#10b981', fontWeight: '600', padding: '4px 0' }}>✓ 이상 없음</div>
+                            ? <div style={{ fontSize: '0.9rem', color: '#10b981', fontWeight: '600', padding: '4px 0' }}>✓ 이상 없음</div>
                             : <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid var(--border-color)' }}>{children}</div>
                         }
                     </div>
@@ -3536,7 +3538,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
         return parts;
     };
     const ReasonTags = ({ reasons }) => reasons.length === 0 ? null : (
-        <div style={{ fontSize: '0.71rem', color: 'var(--text-muted)', marginTop: '2px', lineHeight: 1.4, whiteSpace: 'normal' }}>
+        <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '2px', lineHeight: 1.4, whiteSpace: 'normal' }}>
             {reasons.join(' · ')}
         </div>
     );
@@ -3545,7 +3547,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
         const tel = a.founder?.mobile || a.founder?.phone || '';
         if (!name && !tel) return null;
         return (
-            <div style={{ fontSize: '0.71rem', marginTop: '1px', lineHeight: 1.5 }}>
+            <div style={{ fontSize: '0.85rem', marginTop: '1px', lineHeight: 1.5 }}>
                 {name && <span style={{ color: 'var(--text-muted)' }}>{name}</span>}
                 {name && tel && <span style={{ color: 'var(--text-muted)' }}> · </span>}
                 {tel && <a href={`tel:${tel}`} onClick={e => e.stopPropagation()} style={{ color: '#3b82f6', fontWeight: '600', textDecoration: 'none' }}>{tel}</a>}
@@ -3555,7 +3557,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
     // 학원/교습소 분리 서브 헤더
     const TypeSubHeader = ({ label, count, color, colSpan }) => (
         <tr>
-            <td colSpan={colSpan} style={{ padding: '4px 10px 2px 14px', fontSize: '0.73rem', fontWeight: '800', color, background: color + '10', borderBottom: '1px solid var(--border-color)' }}>
+            <td colSpan={colSpan} style={{ padding: '4px 10px 2px 14px', fontSize: '0.85rem', fontWeight: '800', color, background: color + '10', borderBottom: '1px solid var(--border-color)' }}>
                 {label} <span style={{ fontWeight: '400', color: 'var(--text-muted)' }}>({count})</span>
             </td>
         </tr>
@@ -3901,41 +3903,41 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
         <div style={{ position: 'relative' }}>
             {/* 복사 토스트 */}
             {copyToast && (
-                <div style={{ position: 'fixed', bottom: '80px', left: '50%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.75)', color: '#fff', padding: '8px 18px', borderRadius: '20px', fontSize: '0.82rem', fontWeight: '600', zIndex: 9999, whiteSpace: 'nowrap', pointerEvents: 'none' }}>
+                <div style={{ position: 'fixed', bottom: '80px', left: '50%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.75)', color: '#fff', padding: '8px 18px', borderRadius: '20px', fontSize: '0.9rem', fontWeight: '600', zIndex: 9999, whiteSpace: 'nowrap', pointerEvents: 'none' }}>
                     복사되었습니다: {copyToast}
                 </div>
             )}
             {/* 요약 헤더 */}
-            <div style={{ background: 'var(--bg-card)', borderRadius: '14px', padding: '14px 16px', border: '1px solid var(--border-color)', marginBottom: '14px', boxShadow: 'var(--shadow-sm)' }}>
-                <div style={{ fontSize: '0.88rem', fontWeight: '800', color: 'var(--text-main)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    ⚠️ 운영 위반 점검
-                    <a href="https://docs.google.com/spreadsheets/d/1zSGd9TBcJRculSJzUoZ2N8bB2iENuCI0x9KBpyfXMUo/edit?gid=1946422008#gid=1946422008" target="_blank" rel="noreferrer" style={{ fontSize: '0.75rem', fontWeight: '700', color: '#2563eb', textDecoration: 'underline', cursor: 'pointer' }}>시트</a>
+            <div style={{ background: 'var(--bg-card)', borderRadius: '12px', padding: '14px 16px', border: '1px solid var(--border-color)', marginBottom: '14px', boxShadow: 'var(--shadow-sm)' }}>
+                <div style={{ fontSize: '1.0625rem', fontWeight: '800', color: 'var(--text-main)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    운영 위반 점검
+                    <a href="https://docs.google.com/spreadsheets/d/1zSGd9TBcJRculSJzUoZ2N8bB2iENuCI0x9KBpyfXMUo/edit?gid=1946422008#gid=1946422008" target="_blank" rel="noreferrer" style={{ fontSize: '0.85rem', fontWeight: '700', color: '#2563eb', textDecoration: 'underline', cursor: 'pointer' }}>시트</a>
                 </div>
-                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: '1.6' }}>
+                <div style={{ fontSize: '1rem', color: 'var(--text-muted)', lineHeight: '1.6' }}>
                     학원 {aList.length}개 · 교습소 {hActiveList.length}개 대상 점검 중.
                 </div>
             </div>
 
             {/* 점검 경로 */}
-            <div style={{ background: 'var(--bg-card)', borderRadius: '14px', padding: '14px 16px', border: '1px solid var(--border-color)', marginBottom: '12px', boxShadow: 'var(--shadow-sm)' }}>
-                <button onClick={() => toggleSection('route')} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+            <div style={{ background: 'var(--bg-card)', borderRadius: '12px', padding: '6px 16px', border: '1px solid var(--border-color)', marginBottom: '12px', boxShadow: 'var(--shadow-sm)' }}>
+                <button onClick={() => toggleSection('route')} style={{ width: '100%', minHeight: '46px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <Badge count={planDateMap.size} color="#0ea5e9" />
-                        <span style={{ fontSize: '0.88rem', fontWeight: '800', color: 'var(--text-main)', textAlign: 'left' }}>🗺️ 점검 경로</span>
+                        <Badge count={planDateMap.size} color="#1b2b4b" />
+                        <span style={{ fontSize: '1.0625rem', fontWeight: '800', color: 'var(--text-main)', textAlign: 'left' }}>점검 경로</span>
                     </div>
-                    <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginLeft: '8px', flexShrink: 0 }}>{openSections.route ? '▲' : '▼'}</span>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginLeft: '8px', flexShrink: 0 }}>{openSections.route ? '▲' : '▼'}</span>
                 </button>
                 {openSections.route && (<div style={{ cursor: 'pointer' }} onClick={() => toggleSection('route')}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginTop: '10px' }}>
                     {allRawRows.length > 0 && planDateMap.size === 0 && (
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>계획된 점검 일정 없음</span>
+                        <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>계획된 점검 일정 없음</span>
                     )}
                     {planDateMap.size > 0 && (
                         <select
                             value={routeDate}
                             onClick={e => e.stopPropagation()}
                             onChange={e => { setRouteDate(e.target.value); onRouteDateChange?.(e.target.value); }}
-                            style={{ fontSize: '0.78rem', padding: '4px 8px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-light)', color: 'var(--text-main)', cursor: 'pointer' }}
+                            style={{ fontSize: '0.85rem', padding: '4px 8px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-light)', color: 'var(--text-main)', cursor: 'pointer' }}
                         >
                             <option value="">날짜 선택...</option>
                             {[...planDateMap.entries()].sort(([a],[b]) => a.localeCompare(b)).map(([date, rows]) => (
@@ -3946,23 +3948,23 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                     <button
                         onClick={e => { e.stopPropagation(); loadInspectedNames(); }}
                         title="구글시트에서 최신 일정 다시 불러오기"
-                        style={{ fontSize: '0.8rem', padding: '3px 8px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-light)', color: 'var(--text-muted)', cursor: 'pointer' }}
+                        style={{ fontSize: '0.9rem', padding: '3px 8px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-light)', color: 'var(--text-muted)', cursor: 'pointer' }}
                     >↺</button>
                     {manualOrderMap.has(routeDate) && (
                         <button
                             onClick={e => { e.stopPropagation(); resetRouteOrder(); }}
                             title="수동 순서를 초기화하고 자동 정렬로 돌아가기"
-                            style={{ fontSize: '0.75rem', padding: '3px 8px', borderRadius: '6px', border: '1px solid #f97316', background: '#fff7ed', color: '#f97316', cursor: 'pointer', fontWeight: '700' }}
+                            style={{ fontSize: '0.85rem', padding: '3px 8px', borderRadius: '6px', border: '1px solid #f97316', background: '#fff7ed', color: '#f97316', cursor: 'pointer', fontWeight: '700' }}
                         >순서 초기화</button>
                     )}
                 </div>
                 {routeDate && routeAcademiesSorted.length === 0 && (
-                    <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: '8px' }}>매칭된 학원이 없습니다. 학원명을 확인해주세요.</div>
+                    <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginTop: '8px' }}>매칭된 학원이 없습니다. 학원명을 확인해주세요.</div>
                 )}
                 {routeDate && routeAcademiesSorted.length > 0 && (
                     <div style={{ marginTop: '12px' }}>
                         <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid var(--border-color)', marginBottom: '10px' }} onClick={e => e.stopPropagation()}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                                 <thead>
                                     <tr>
                                         <Th style={{ width: '32px', textAlign: 'center' }}>#</Th>
@@ -4012,15 +4014,15 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                                                 onTouchStart={e => handleTouchStart(e, i)}
                                                 onTouchEnd={() => handleTouchEnd(routeAcademiesFinal)}
                                                 style={{
-                                                    background: isDragOver ? 'rgba(99,102,241,0.1)' : i % 2 === 0 ? 'transparent' : 'var(--bg-main)',
+                                                    background: isDragOver ? 'rgba(29,78,216,0.1)' : i % 2 === 0 ? 'transparent' : 'var(--bg-main)',
                                                     opacity: isDragging ? 0.4 : 1,
-                                                    borderTop: isDragOver ? '2px solid #6366f1' : undefined,
+                                                    borderTop: isDragOver ? '2px solid #1d4ed8' : undefined,
                                                     cursor: 'grab',
                                                 }}
                                             >
                                                 <Td style={{ textAlign: 'center', fontWeight: '800', color: '#f97316', userSelect: 'none' }}>
                                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px' }}>
-                                                        <span style={{ color: '#cbd5e1', fontSize: '0.75rem', lineHeight: 1 }}>⠿</span>
+                                                        <span style={{ color: '#cbd5e1', fontSize: '0.85rem', lineHeight: 1 }}>⠿</span>
                                                         {a._order}
                                                     </div>
                                                 </Td>
@@ -4035,17 +4037,17 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                                                         ? <span style={{ color: '#10b981', fontWeight: '700', whiteSpace: 'nowrap' }}>{moveLabel}</span>
                                                         : <span style={{ color: 'var(--text-muted)' }}>-</span>}
                                                 </Td>
-                                                <Td style={{ color: 'var(--text-muted)', fontSize: '0.68rem' }}>
-                                                    {a._schedule && <div style={{ fontSize: '0.78rem', color: '#3b82f6', fontWeight: '600', marginBottom: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a._schedule}</div>}
+                                                <Td style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                                                    {a._schedule && <div style={{ fontSize: '0.85rem', color: '#3b82f6', fontWeight: '600', marginBottom: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a._schedule}</div>}
                                                     {shortAddr(a.address)}
                                                 </Td>
-                                                <Td style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{a.founder?.name || '-'}</Td>
-                                                <Td style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>
+                                                <Td style={{ fontSize: '0.85rem', whiteSpace: 'nowrap' }}>{a.founder?.name || '-'}</Td>
+                                                <Td style={{ fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
                                                     {(a.founder?.mobile || a.founder?.phone)
                                                         ? <a href={`tel:${a.founder?.mobile || a.founder?.phone}`} onClick={e => e.stopPropagation()} style={{ color: '#3b82f6', fontWeight: '600', textDecoration: 'none' }}>{a.founder?.mobile || a.founder?.phone}</a>
                                                         : '-'}
                                                 </Td>
-                                                <Td style={{ fontSize: '0.78rem', whiteSpace: 'nowrap', textAlign: 'right' }}>
+                                                <Td style={{ fontSize: '0.85rem', whiteSpace: 'nowrap', textAlign: 'right' }}>
                                                     {a._uninspectedPeriod
                                                         ? <span style={{ fontWeight: '700', color: (() => {
                                                             const s = a._uninspectedPeriod;
@@ -4082,22 +4084,22 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
             />
 
             {/* G. 주간 점검 일정 추천 — 맨 위로 이동 */}
-            <CautionSection id="weeklyPlan" title="📋 점검 일정 추천 (이번 주 + 4주)" badge={weeklyPlan.length} badgeColor="#14b8a6">
+            <CautionSection id="weeklyPlan" title="점검 일정 추천 (이번 주 + 4주)" badge={weeklyPlan.length} badgeColor="#1b2b4b">
                 {weeklyPlan.length === 0
-                    ? <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', padding: '8px 0' }}>우선순위 데이터 없음</div>
+                    ? <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', padding: '8px 0' }}>우선순위 데이터 없음</div>
                     : <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                         {weeklyPlan.map((wk, wi) => {
-                            const typeColors = { 방학: '#3b82f6', 시험기간: '#f59e0b', 평상시: '#10b981' };
-                            const typeColor2 = typeColors[wk.weekType] || '#6366f1';
+                            const typeColors = { 방학: '#1d4ed8', 시험기간: '#b45309', 평상시: '#64748b' };
+                            const typeColor2 = typeColors[wk.weekType] || '#64748b';
                             return (
                             <div key={wi} style={{ border: '1px solid var(--border-color)', borderRadius: '10px', overflow: 'hidden' }}>
                                 {/* 주차 헤더 */}
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'var(--bg-main)', borderBottom: '1px solid var(--border-color)', flexWrap: 'wrap' }}>
-                                    <span style={{ fontWeight: '800', fontSize: '0.85rem' }}>{wi === 0 ? '이번 주' : `+${wi}주`}</span>
-                                    <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{wk.label}</span>
-                                    <span style={{ fontSize: '0.74rem', padding: '2px 7px', borderRadius: '8px', background: typeColor2 + '22', color: typeColor2, fontWeight: '700' }}>{wk.weekType}</span>
-                                    {wk.hasMidnight && <span style={{ fontSize: '0.74rem', padding: '2px 7px', borderRadius: '8px', background: '#1e293b', color: '#94a3b8', fontWeight: '700' }}>🌙 심야점검 포함</span>}
-                                    <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginLeft: 'auto' }}>일반 {wk.academies.length}개{wk.hasMidnight ? ` + 심야 ${wk.midnightList.length}개` : ''}</span>
+                                    <span style={{ fontWeight: '800', fontSize: '0.9rem' }}>{wi === 0 ? '이번 주' : `+${wi}주`}</span>
+                                    <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{wk.label}</span>
+                                    <span style={{ fontSize: '0.85rem', padding: '2px 7px', borderRadius: '8px', background: typeColor2 + '22', color: typeColor2, fontWeight: '700' }}>{wk.weekType}</span>
+                                    {wk.hasMidnight && <span style={{ fontSize: '0.85rem', padding: '2px 7px', borderRadius: '8px', background: '#1e293b', color: '#94a3b8', fontWeight: '700' }}>🌙 심야점검 포함</span>}
+                                    <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginLeft: 'auto' }}>일반 {wk.academies.length}개{wk.hasMidnight ? ` + 심야 ${wk.midnightList.length}개` : ''}</span>
                                 </div>
                                 {/* 일반 점검 목록 */}
                                 {wk.academies.length > 0 && (() => {
@@ -4106,18 +4108,18 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                                     const acType = (a) => a.category === '교습소' ? '교습소' : '학원';
                                     const renderRow = (a, ai) => (
                                         <tr key={`${a.id}_${ai}`} style={{ background: ai % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
-                                            <NavCell id={a.id} type={acType(a)} style={{ color: 'var(--text-muted)', fontSize: '0.76rem' }}>{ai + 1}</NavCell>
+                                            <NavCell id={a.id} type={acType(a)} style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{ai + 1}</NavCell>
                                             <Td style={{ position: 'sticky', left: 0, zIndex: 1, background: 'var(--bg-card)', maxWidth: '130px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                 <NameLink id={a.id} type={acType(a)} name={a.name} />
                                             </Td>
                                             <NavCell id={a.id} type={acType(a)} style={{ whiteSpace: 'nowrap' }}>
-                                                <div style={{ fontSize: '0.75rem', color: 'var(--text-main)', fontWeight: '600' }}>{a.founder?.name || '-'}</div>
-                                                {(a.founder?.mobile || a.founder?.phone) && <span style={{ color: '#3b82f6', fontWeight: '600', fontSize: '0.75rem' }}>{a.founder?.mobile || a.founder?.phone}</span>}
+                                                <div style={{ fontSize: '0.85rem', color: 'var(--text-main)', fontWeight: '600' }}>{a.founder?.name || '-'}</div>
+                                                {(a.founder?.mobile || a.founder?.phone) && <span style={{ color: '#3b82f6', fontWeight: '600', fontSize: '0.85rem' }}>{a.founder?.mobile || a.founder?.phone}</span>}
                                             </NavCell>
-                                            <NavCell id={a.id} type={acType(a)} style={{ color: 'var(--text-muted)', fontSize: '0.76rem' }}>{shortAddr(a.address)}</NavCell>
-                                            <NavCell id={a.id} type={acType(a)}>{a.hasIns ? <span style={{ fontSize: '0.71rem', padding: '1px 5px', borderRadius: '4px', background: '#fef3c7', color: '#d97706', fontWeight: '700' }}>⚠️보험</span> : <span style={{ color: '#10b981', fontSize: '0.78rem' }}>✓</span>}</NavCell>
-                                            <NavCell id={a.id} type={acType(a)}>{a.viol > 0 ? <span style={{ fontSize: '0.71rem', padding: '1px 5px', borderRadius: '4px', background: '#fee2e2', color: '#dc2626', fontWeight: '700' }}>{a.viol}건</span> : <span style={{ color: 'var(--text-muted)', fontSize: '0.76rem' }}>-</span>}</NavCell>
-                                            <NavCell id={a.id} type={acType(a)} style={{ color: a.score >= 0.7 ? '#ef4444' : a.score >= 0.4 ? '#f97316' : 'var(--text-muted)', fontWeight: '700', fontSize: '0.78rem' }}>{Math.round(a.score * 100)}</NavCell>
+                                            <NavCell id={a.id} type={acType(a)} style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{shortAddr(a.address)}</NavCell>
+                                            <NavCell id={a.id} type={acType(a)}>{a.hasIns ? <span style={{ fontSize: '0.85rem', padding: '1px 5px', borderRadius: '4px', background: '#fef3c7', color: '#d97706', fontWeight: '700' }}>⚠️보험</span> : <span style={{ color: '#10b981', fontSize: '0.85rem' }}>✓</span>}</NavCell>
+                                            <NavCell id={a.id} type={acType(a)}>{a.viol > 0 ? <span style={{ fontSize: '0.85rem', padding: '1px 5px', borderRadius: '4px', background: '#fee2e2', color: '#dc2626', fontWeight: '700' }}>{a.viol}건</span> : <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>-</span>}</NavCell>
+                                            <NavCell id={a.id} type={acType(a)} style={{ color: a.score >= 0.7 ? '#ef4444' : a.score >= 0.4 ? '#f97316' : 'var(--text-muted)', fontWeight: '700', fontSize: '0.85rem' }}>{Math.round(a.score * 100)}</NavCell>
                                         </tr>
                                     );
                                     return (
@@ -4130,7 +4132,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                                             <tbody>
                                                 {acItems.length > 0 && <TypeSubHeader label="🏫 학원" count={acItems.length} color="#3b82f6" colSpan={7} />}
                                                 {acItems.map((a, ai) => renderRow(a, ai))}
-                                                {hgItems.length > 0 && <TypeSubHeader label="🏠 교습소" count={hgItems.length} color="#8b5cf6" colSpan={7} />}
+                                                {hgItems.length > 0 && <TypeSubHeader label="🏠 교습소" count={hgItems.length} color="#1d4ed8" colSpan={7} />}
                                                 {hgItems.map((a, ai) => renderRow(a, ai))}
                                             </tbody>
                                         </table>
@@ -4144,23 +4146,23 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                                     const acTypeM = (a) => a.category === '교습소' ? '교습소' : '학원';
                                     const renderRow = (a, ai) => (
                                         <tr key={`${a.id}_${ai}`} style={{ background: ai % 2 === 0 ? 'transparent' : 'var(--bg-main)' }}>
-                                            <NavCell id={a.id} type={acTypeM(a)} style={{ color: 'var(--text-muted)', fontSize: '0.76rem', width: '22px' }}>{ai + 1}</NavCell>
+                                            <NavCell id={a.id} type={acTypeM(a)} style={{ color: 'var(--text-muted)', fontSize: '0.85rem', width: '22px' }}>{ai + 1}</NavCell>
                                             <Td style={{ position: 'sticky', left: 0, zIndex: 1, background: 'var(--bg-card)', maxWidth: '130px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                 <NameLink id={a.id} type={acTypeM(a)} name={a.name} />
                                             </Td>
                                             <NavCell id={a.id} type={acTypeM(a)} style={{ whiteSpace: 'nowrap' }}>
-                                                <div style={{ fontSize: '0.75rem', color: 'var(--text-main)', fontWeight: '600' }}>{a.founder?.name || '-'}</div>
-                                                {(a.founder?.mobile || a.founder?.phone) && <span style={{ color: '#3b82f6', fontWeight: '600', fontSize: '0.75rem' }}>{a.founder?.mobile || a.founder?.phone}</span>}
+                                                <div style={{ fontSize: '0.85rem', color: 'var(--text-main)', fontWeight: '600' }}>{a.founder?.name || '-'}</div>
+                                                {(a.founder?.mobile || a.founder?.phone) && <span style={{ color: '#3b82f6', fontWeight: '600', fontSize: '0.85rem' }}>{a.founder?.mobile || a.founder?.phone}</span>}
                                             </NavCell>
-                                            <NavCell id={a.id} type={acTypeM(a)} style={{ color: 'var(--text-muted)', fontSize: '0.76rem' }}>{shortAddr(a.address)}</NavCell>
-                                            <NavCell id={a.id} type={acTypeM(a)}>{a.hasIns ? <span style={{ fontSize: '0.71rem', padding: '1px 5px', borderRadius: '4px', background: '#fef3c7', color: '#d97706', fontWeight: '700' }}>⚠️보험</span> : <span style={{ color: '#10b981', fontSize: '0.78rem' }}>✓</span>}</NavCell>
-                                            <NavCell id={a.id} type={acTypeM(a)}>{a.viol > 0 ? <span style={{ fontSize: '0.71rem', padding: '1px 5px', borderRadius: '4px', background: '#fee2e2', color: '#dc2626', fontWeight: '700' }}>{a.viol}건</span> : <span style={{ color: 'var(--text-muted)', fontSize: '0.76rem' }}>-</span>}</NavCell>
-                                            <NavCell id={a.id} type={acTypeM(a)} style={{ color: '#64748b', fontWeight: '700', fontSize: '0.78rem' }}>{Math.round(a.score * 100)}</NavCell>
+                                            <NavCell id={a.id} type={acTypeM(a)} style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{shortAddr(a.address)}</NavCell>
+                                            <NavCell id={a.id} type={acTypeM(a)}>{a.hasIns ? <span style={{ fontSize: '0.85rem', padding: '1px 5px', borderRadius: '4px', background: '#fef3c7', color: '#d97706', fontWeight: '700' }}>⚠️보험</span> : <span style={{ color: '#10b981', fontSize: '0.85rem' }}>✓</span>}</NavCell>
+                                            <NavCell id={a.id} type={acTypeM(a)}>{a.viol > 0 ? <span style={{ fontSize: '0.85rem', padding: '1px 5px', borderRadius: '4px', background: '#fee2e2', color: '#dc2626', fontWeight: '700' }}>{a.viol}건</span> : <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>-</span>}</NavCell>
+                                            <NavCell id={a.id} type={acTypeM(a)} style={{ color: '#64748b', fontWeight: '700', fontSize: '0.85rem' }}>{Math.round(a.score * 100)}</NavCell>
                                         </tr>
                                     );
                                     return (
                                         <div style={{ borderTop: '1px dashed var(--border-color)', background: 'rgba(30,41,59,0.04)' }}>
-                                            <div style={{ padding: '5px 12px', fontSize: '0.76rem', fontWeight: '700', color: '#64748b' }}>🌙 심야점검 대상 ({wk.midnightList.length}개)</div>
+                                            <div style={{ padding: '5px 12px', fontSize: '0.85rem', fontWeight: '700', color: '#64748b' }}>🌙 심야점검 대상 ({wk.midnightList.length}개)</div>
                                             <div style={{ overflowX: 'auto' }}>
                                             <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '360px' }}>
                                                 <thead><tr>
@@ -4170,7 +4172,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                                                 <tbody>
                                                     {acM.length > 0 && <TypeSubHeader label="🏫 학원" count={acM.length} color="#3b82f6" colSpan={7} />}
                                                     {acM.map((a, ai) => renderRow(a, ai))}
-                                                    {hgM.length > 0 && <TypeSubHeader label="🏠 교습소" count={hgM.length} color="#8b5cf6" colSpan={7} />}
+                                                    {hgM.length > 0 && <TypeSubHeader label="🏠 교습소" count={hgM.length} color="#1d4ed8" colSpan={7} />}
                                                     {hgM.map((a, ai) => renderRow(a, ai))}
                                                 </tbody>
                                             </table>
@@ -4186,17 +4188,17 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
             </CautionSection>
 
             {/* D. 2년 이상 미점검 (동별 아코디언) */}
-            <CautionSection id="overdue" title="📅 2년 이상 미점검 학원·교습소 (동별)" badge={overdueList.length} badgeColor="#f59e0b">
+            <CautionSection id="overdue" title="2년 이상 미점검 학원·교습소 (동별)" badge={overdueList.length} badgeColor="#f59e0b">
                 {(() => {
                     // 동별 학원 색상 팔레트 (초록 제외 — 교습소와 구분)
                     const DONG_AC_PALETTES = [
                         { bg: '#dbeafe', border: '#2563eb' },  // 파랑
-                        { bg: '#e0e7ff', border: '#6366f1' },  // 인디고
-                        { bg: '#ede9fe', border: '#7c3aed' },  // 보라
-                        { bg: '#fce7f3', border: '#db2777' },  // 핑크
+                        { bg: '#dbeafe', border: '#1d4ed8' },  // 인디고
+                        { bg: '#dbeafe', border: '#1d4ed8' },  // 보라
+                        { bg: '#fce7f3', border: '#475569' },  // 핑크
                         { bg: '#fff7ed', border: '#ea580c' },  // 오렌지
                         { bg: '#fef9c3', border: '#b45309' },  // 노랑
-                        { bg: '#e0f2fe', border: '#0284c7' },  // 하늘
+                        { bg: '#eff6ff', border: '#1d4ed8' },  // 하늘
                         { bg: '#f1f5f9', border: '#475569' },  // 슬레이트
                     ];
                     const HG_COLOR = { bg: '#f0fdf4', border: '#10b981' };  // 교습소 고정 초록
@@ -4207,25 +4209,25 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                         const aType = a.category === '교습소' ? '교습소' : '학원';
                         return (
                             <tr key={`${a.id}_${rowNum}`} style={{ opacity: done ? 0.5 : 1, background: rowBg, borderLeft: `3px solid ${rowBorder}` }}>
-                                <Td style={{ color: 'var(--text-muted)', fontWeight: '700', fontSize: '0.76rem', textAlign: 'center', paddingLeft: '4px' }}>{rowNum}</Td>
+                                <Td style={{ color: 'var(--text-muted)', fontWeight: '700', fontSize: '0.85rem', textAlign: 'center', paddingLeft: '4px' }}>{rowNum}</Td>
                                 <Td style={{ position: 'sticky', left: 0, zIndex: 1, background: rowBg, maxWidth: '130px', overflow: 'hidden', whiteSpace: 'nowrap' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0 }}>
                                         <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, flexShrink: 1 }}>
                                             <NameLink id={a.id} type={aType} name={a.name} />
                                         </span>
-                                        {done && <span style={{ fontSize: '0.67rem', color: '#6366f1', fontWeight: '700', flexShrink: 0 }}>(완료)</span>}
+                                        {done && <span style={{ fontSize: '0.85rem', color: '#1d4ed8', fontWeight: '700', flexShrink: 0 }}>(완료)</span>}
                                     </div>
                                 </Td>
                                 <NavCell id={a.id} type={aType} style={{ whiteSpace: 'nowrap' }}>
-                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-main)', fontWeight: '600' }}>{a.founder?.name || '-'}</div>
-                                    {(a.founder?.mobile || a.founder?.phone) && <span style={{ color: '#3b82f6', fontWeight: '600', fontSize: '0.75rem' }}>{a.founder?.mobile || a.founder?.phone}</span>}
+                                    <div style={{ fontSize: '0.85rem', color: 'var(--text-main)', fontWeight: '600' }}>{a.founder?.name || '-'}</div>
+                                    {(a.founder?.mobile || a.founder?.phone) && <span style={{ color: '#3b82f6', fontWeight: '600', fontSize: '0.85rem' }}>{a.founder?.mobile || a.founder?.phone}</span>}
                                 </NavCell>
                                 <Td style={{ color: a.months >= 36 ? '#ef4444' : '#f59e0b', fontWeight: '800', whiteSpace: 'nowrap' }}>
                                     {a.neverInspected ? '미점검' : `${Math.floor(a.months/12)>0?Math.floor(a.months/12)+'년 ':''}${a.months%12>0?a.months%12+'개월':''}`}
                                 </Td>
-                                <Td>{a.hasIns ? <span style={{ fontSize: '0.71rem', padding: '1px 5px', borderRadius: '4px', background: '#fef3c7', color: '#d97706', fontWeight: '700' }}>⚠️보험</span> : <span style={{ color: '#10b981', fontSize: '0.78rem' }}>✓</span>}</Td>
-                                <Td>{a.viol > 0 ? <span style={{ fontSize: '0.71rem', padding: '1px 5px', borderRadius: '4px', background: '#fee2e2', color: '#dc2626', fontWeight: '700' }}>{a.viol}건</span> : <span style={{ color: 'var(--text-muted)', fontSize: '0.76rem' }}>-</span>}</Td>
-                                <Td style={{ color: 'var(--text-muted)', fontSize: '0.76rem', whiteSpace: 'nowrap' }}>
+                                <Td>{a.hasIns ? <span style={{ fontSize: '0.85rem', padding: '1px 5px', borderRadius: '4px', background: '#fef3c7', color: '#d97706', fontWeight: '700' }}>⚠️보험</span> : <span style={{ color: '#10b981', fontSize: '0.85rem' }}>✓</span>}</Td>
+                                <Td>{a.viol > 0 ? <span style={{ fontSize: '0.85rem', padding: '1px 5px', borderRadius: '4px', background: '#fee2e2', color: '#dc2626', fontWeight: '700' }}>{a.viol}건</span> : <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>-</span>}</Td>
+                                <Td style={{ color: 'var(--text-muted)', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
                                     {a.neverInspected ? `등록: ${a.regDate || '-'}` : (lastD ? `${lastD.getFullYear()}.${String(lastD.getMonth()+1).padStart(2,'0')}.${String(lastD.getDate()).padStart(2,'0')}` : '-')}
                                 </Td>
                             </tr>
@@ -4248,20 +4250,20 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                                     {/* 동 헤더 — 클릭으로 접기/펼치기 */}
                                     <div
                                         onClick={() => toggleDong(dong)}
-                                        style={{ fontWeight: '700', padding: '7px 12px', fontSize: '0.8rem', color: 'var(--text-main)', background: 'var(--bg-main)', borderBottom: isExpanded ? '1px solid var(--border-color)' : 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', userSelect: 'none' }}
+                                        style={{ fontWeight: '700', padding: '7px 12px', fontSize: '0.9rem', color: 'var(--text-main)', background: 'var(--bg-main)', borderBottom: isExpanded ? '1px solid var(--border-color)' : 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', userSelect: 'none' }}
                                     >
                                         <span>
                                             📍 {dong}
-                                            {acItems.length > 0 && <span style={{ marginLeft: '6px', fontSize: '0.73rem', color: acColor.border, fontWeight: '700' }}>학원 {acItems.length}</span>}
-                                            {hgItems.length > 0 && <span style={{ marginLeft: '4px', fontSize: '0.73rem', color: HG_COLOR.border, fontWeight: '700' }}>교습소 {hgItems.length}</span>}
+                                            {acItems.length > 0 && <span style={{ marginLeft: '6px', fontSize: '0.85rem', color: acColor.border, fontWeight: '700' }}>학원 {acItems.length}</span>}
+                                            {hgItems.length > 0 && <span style={{ marginLeft: '4px', fontSize: '0.85rem', color: HG_COLOR.border, fontWeight: '700' }}>교습소 {hgItems.length}</span>}
                                         </span>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                             <button
                                                 onClick={e => { e.stopPropagation(); handleOverdueDongRefresh(dong); }}
                                                 disabled={overdueRefreshing}
-                                                style={{ fontSize: '0.69rem', padding: '1px 6px', borderRadius: '5px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', cursor: 'pointer', color: 'var(--text-muted)', fontWeight: '600' }}
+                                                style={{ fontSize: '0.85rem', padding: '1px 6px', borderRadius: '5px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', cursor: 'pointer', color: 'var(--text-muted)', fontWeight: '600' }}
                                             >{overdueRefreshing ? '⟳' : '↺ 새로고침'}</button>
-                                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{isExpanded ? '▲' : '▼'}</span>
+                                            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{isExpanded ? '▲' : '▼'}</span>
                                         </div>
                                     </div>
                                     {/* 펼쳐진 경우만 테이블 표시 */}
@@ -4291,16 +4293,16 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
             </CautionSection>
 
             {/* D-2. 2년 미만 미점검 (동별 아코디언) */}
-            <CautionSection id="underdue" title="🕐 2년 미만 미점검 학원·교습소 (동별)" badge={underdueList.length} badgeColor="#3b82f6">
+            <CautionSection id="underdue" title="2년 미만 미점검 학원·교습소 (동별)" badge={underdueList.length} badgeColor="#1b2b4b">
                 {(() => {
                     const DONG_AC_PALETTES = [
                         { bg: '#dbeafe', border: '#2563eb' },
-                        { bg: '#e0e7ff', border: '#6366f1' },
-                        { bg: '#ede9fe', border: '#7c3aed' },
-                        { bg: '#fce7f3', border: '#db2777' },
+                        { bg: '#dbeafe', border: '#1d4ed8' },
+                        { bg: '#dbeafe', border: '#1d4ed8' },
+                        { bg: '#fce7f3', border: '#475569' },
                         { bg: '#fff7ed', border: '#ea580c' },
                         { bg: '#fef9c3', border: '#b45309' },
-                        { bg: '#e0f2fe', border: '#0284c7' },
+                        { bg: '#eff6ff', border: '#1d4ed8' },
                         { bg: '#f1f5f9', border: '#475569' },
                     ];
                     const HG_COLOR = { bg: '#f0fdf4', border: '#10b981' };
@@ -4311,25 +4313,25 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                         const aType = a.category === '교습소' ? '교습소' : '학원';
                         return (
                             <tr key={`${a.id}_${rowNum}`} style={{ opacity: done ? 0.5 : 1, background: rowBg, borderLeft: `3px solid ${rowBorder}` }}>
-                                <Td style={{ color: 'var(--text-muted)', fontWeight: '700', fontSize: '0.76rem', textAlign: 'center', paddingLeft: '4px' }}>{rowNum}</Td>
+                                <Td style={{ color: 'var(--text-muted)', fontWeight: '700', fontSize: '0.85rem', textAlign: 'center', paddingLeft: '4px' }}>{rowNum}</Td>
                                 <Td style={{ position: 'sticky', left: 0, zIndex: 1, background: rowBg, maxWidth: '130px', overflow: 'hidden', whiteSpace: 'nowrap' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0 }}>
                                         <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, flexShrink: 1 }}>
                                             <NameLink id={a.id} type={aType} name={a.name} />
                                         </span>
-                                        {done && <span style={{ fontSize: '0.67rem', color: '#6366f1', fontWeight: '700', flexShrink: 0 }}>(완료)</span>}
+                                        {done && <span style={{ fontSize: '0.85rem', color: '#1d4ed8', fontWeight: '700', flexShrink: 0 }}>(완료)</span>}
                                     </div>
                                 </Td>
                                 <NavCell id={a.id} type={aType} style={{ whiteSpace: 'nowrap' }}>
-                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-main)', fontWeight: '600' }}>{a.founder?.name || '-'}</div>
-                                    {(a.founder?.mobile || a.founder?.phone) && <span style={{ color: '#3b82f6', fontWeight: '600', fontSize: '0.75rem' }}>{a.founder?.mobile || a.founder?.phone}</span>}
+                                    <div style={{ fontSize: '0.85rem', color: 'var(--text-main)', fontWeight: '600' }}>{a.founder?.name || '-'}</div>
+                                    {(a.founder?.mobile || a.founder?.phone) && <span style={{ color: '#3b82f6', fontWeight: '600', fontSize: '0.85rem' }}>{a.founder?.mobile || a.founder?.phone}</span>}
                                 </NavCell>
                                 <Td style={{ color: a.months >= 12 ? '#f59e0b' : '#3b82f6', fontWeight: '800', whiteSpace: 'nowrap' }}>
                                     {a.neverInspected ? '미점검' : `${Math.floor(a.months/12)>0?Math.floor(a.months/12)+'년 ':''}${a.months%12>0?a.months%12+'개월':''}`}
                                 </Td>
-                                <Td>{a.hasIns ? <span style={{ fontSize: '0.71rem', padding: '1px 5px', borderRadius: '4px', background: '#fef3c7', color: '#d97706', fontWeight: '700' }}>⚠️보험</span> : <span style={{ color: '#10b981', fontSize: '0.78rem' }}>✓</span>}</Td>
-                                <Td>{a.viol > 0 ? <span style={{ fontSize: '0.71rem', padding: '1px 5px', borderRadius: '4px', background: '#fee2e2', color: '#dc2626', fontWeight: '700' }}>{a.viol}건</span> : <span style={{ color: 'var(--text-muted)', fontSize: '0.76rem' }}>-</span>}</Td>
-                                <Td style={{ color: 'var(--text-muted)', fontSize: '0.76rem', whiteSpace: 'nowrap' }}>
+                                <Td>{a.hasIns ? <span style={{ fontSize: '0.85rem', padding: '1px 5px', borderRadius: '4px', background: '#fef3c7', color: '#d97706', fontWeight: '700' }}>⚠️보험</span> : <span style={{ color: '#10b981', fontSize: '0.85rem' }}>✓</span>}</Td>
+                                <Td>{a.viol > 0 ? <span style={{ fontSize: '0.85rem', padding: '1px 5px', borderRadius: '4px', background: '#fee2e2', color: '#dc2626', fontWeight: '700' }}>{a.viol}건</span> : <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>-</span>}</Td>
+                                <Td style={{ color: 'var(--text-muted)', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
                                     {a.neverInspected ? `등록: ${a.regDate || '-'}` : (lastD ? `${lastD.getFullYear()}.${String(lastD.getMonth()+1).padStart(2,'0')}.${String(lastD.getDate()).padStart(2,'0')}` : '-')}
                                 </Td>
                             </tr>
@@ -4351,20 +4353,20 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                                 <div key={dong} style={{ border: '1px solid var(--border-color)', borderRadius: '8px', marginBottom: '8px', overflow: 'hidden' }}>
                                     <div
                                         onClick={() => toggleUnderdueDong(dong)}
-                                        style={{ fontWeight: '700', padding: '7px 12px', fontSize: '0.8rem', color: 'var(--text-main)', background: 'var(--bg-main)', borderBottom: isExpanded ? '1px solid var(--border-color)' : 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', userSelect: 'none' }}
+                                        style={{ fontWeight: '700', padding: '7px 12px', fontSize: '0.9rem', color: 'var(--text-main)', background: 'var(--bg-main)', borderBottom: isExpanded ? '1px solid var(--border-color)' : 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', userSelect: 'none' }}
                                     >
                                         <span>
                                             📍 {dong}
-                                            {acItems.length > 0 && <span style={{ marginLeft: '6px', fontSize: '0.73rem', color: acColor.border, fontWeight: '700' }}>학원 {acItems.length}</span>}
-                                            {hgItems.length > 0 && <span style={{ marginLeft: '4px', fontSize: '0.73rem', color: HG_COLOR.border, fontWeight: '700' }}>교습소 {hgItems.length}</span>}
+                                            {acItems.length > 0 && <span style={{ marginLeft: '6px', fontSize: '0.85rem', color: acColor.border, fontWeight: '700' }}>학원 {acItems.length}</span>}
+                                            {hgItems.length > 0 && <span style={{ marginLeft: '4px', fontSize: '0.85rem', color: HG_COLOR.border, fontWeight: '700' }}>교습소 {hgItems.length}</span>}
                                         </span>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                             <button
                                                 onClick={e => { e.stopPropagation(); handleUnderdueDongRefresh(dong); }}
                                                 disabled={underdueRefreshing}
-                                                style={{ fontSize: '0.69rem', padding: '1px 6px', borderRadius: '5px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', cursor: 'pointer', color: 'var(--text-muted)', fontWeight: '600' }}
+                                                style={{ fontSize: '0.85rem', padding: '1px 6px', borderRadius: '5px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', cursor: 'pointer', color: 'var(--text-muted)', fontWeight: '600' }}
                                             >{underdueRefreshing ? '⟳' : '↺ 새로고침'}</button>
-                                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{isExpanded ? '▲' : '▼'}</span>
+                                            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{isExpanded ? '▲' : '▼'}</span>
                                         </div>
                                     </div>
                                     {isExpanded && (
@@ -4391,16 +4393,16 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
             </CautionSection>
 
             {/* D-3. 1~2년 미점검 (동별+건물별 아코디언) */}
-            <CautionSection id="bybuilding" title="🏢 1~2년 미점검 학원·교습소 (동별, 건물별)" badge={byBuildingList.length} badgeColor="#8b5cf6">
+            <CautionSection id="bybuilding" title="1~2년 미점검 학원·교습소 (동별, 건물별)" badge={byBuildingList.length} badgeColor="#1b2b4b">
                 {(() => {
                     const DONG_AC_PALETTES = [
                         { bg: '#dbeafe', border: '#2563eb' },
-                        { bg: '#e0e7ff', border: '#6366f1' },
-                        { bg: '#ede9fe', border: '#7c3aed' },
-                        { bg: '#fce7f3', border: '#db2777' },
+                        { bg: '#dbeafe', border: '#1d4ed8' },
+                        { bg: '#dbeafe', border: '#1d4ed8' },
+                        { bg: '#fce7f3', border: '#475569' },
                         { bg: '#fff7ed', border: '#ea580c' },
                         { bg: '#fef9c3', border: '#b45309' },
-                        { bg: '#e0f2fe', border: '#0284c7' },
+                        { bg: '#eff6ff', border: '#1d4ed8' },
                         { bg: '#f1f5f9', border: '#475569' },
                     ];
                     const HG_COLOR = { bg: '#f0fdf4', border: '#10b981' };
@@ -4411,25 +4413,25 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                         const aType = a.category === '교습소' ? '교습소' : '학원';
                         return (
                             <tr key={`${a.id}_${rowNum}`} style={{ opacity: done ? 0.5 : 1, background: rowBg, borderLeft: `3px solid ${rowBorder}` }}>
-                                <Td style={{ color: 'var(--text-muted)', fontWeight: '700', fontSize: '0.76rem', textAlign: 'center', paddingLeft: '4px' }}>{rowNum}</Td>
+                                <Td style={{ color: 'var(--text-muted)', fontWeight: '700', fontSize: '0.85rem', textAlign: 'center', paddingLeft: '4px' }}>{rowNum}</Td>
                                 <Td style={{ position: 'sticky', left: 0, zIndex: 1, background: rowBg, maxWidth: '130px', overflow: 'hidden', whiteSpace: 'nowrap' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0 }}>
                                         <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, flexShrink: 1 }}>
                                             <NameLink id={a.id} type={aType} name={a.name} />
                                         </span>
-                                        {done && <span style={{ fontSize: '0.67rem', color: '#6366f1', fontWeight: '700', flexShrink: 0 }}>(완료)</span>}
+                                        {done && <span style={{ fontSize: '0.85rem', color: '#1d4ed8', fontWeight: '700', flexShrink: 0 }}>(완료)</span>}
                                     </div>
                                 </Td>
                                 <NavCell id={a.id} type={aType} style={{ whiteSpace: 'nowrap' }}>
-                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-main)', fontWeight: '600' }}>{a.founder?.name || '-'}</div>
-                                    {(a.founder?.mobile || a.founder?.phone) && <span style={{ color: '#3b82f6', fontWeight: '600', fontSize: '0.75rem' }}>{a.founder?.mobile || a.founder?.phone}</span>}
+                                    <div style={{ fontSize: '0.85rem', color: 'var(--text-main)', fontWeight: '600' }}>{a.founder?.name || '-'}</div>
+                                    {(a.founder?.mobile || a.founder?.phone) && <span style={{ color: '#3b82f6', fontWeight: '600', fontSize: '0.85rem' }}>{a.founder?.mobile || a.founder?.phone}</span>}
                                 </NavCell>
                                 <Td style={{ color: '#f59e0b', fontWeight: '800', whiteSpace: 'nowrap' }}>
                                     {a.neverInspected ? '미점검' : `${Math.floor(a.months/12)>0?Math.floor(a.months/12)+'년 ':''}${a.months%12>0?a.months%12+'개월':''}`}
                                 </Td>
-                                <Td>{a.hasIns ? <span style={{ fontSize: '0.71rem', padding: '1px 5px', borderRadius: '4px', background: '#fef3c7', color: '#d97706', fontWeight: '700' }}>⚠️보험</span> : <span style={{ color: '#10b981', fontSize: '0.78rem' }}>✓</span>}</Td>
-                                <Td>{a.viol > 0 ? <span style={{ fontSize: '0.71rem', padding: '1px 5px', borderRadius: '4px', background: '#fee2e2', color: '#dc2626', fontWeight: '700' }}>{a.viol}건</span> : <span style={{ color: 'var(--text-muted)', fontSize: '0.76rem' }}>-</span>}</Td>
-                                <Td style={{ color: 'var(--text-muted)', fontSize: '0.76rem', whiteSpace: 'nowrap' }}>
+                                <Td>{a.hasIns ? <span style={{ fontSize: '0.85rem', padding: '1px 5px', borderRadius: '4px', background: '#fef3c7', color: '#d97706', fontWeight: '700' }}>⚠️보험</span> : <span style={{ color: '#10b981', fontSize: '0.85rem' }}>✓</span>}</Td>
+                                <Td>{a.viol > 0 ? <span style={{ fontSize: '0.85rem', padding: '1px 5px', borderRadius: '4px', background: '#fee2e2', color: '#dc2626', fontWeight: '700' }}>{a.viol}건</span> : <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>-</span>}</Td>
+                                <Td style={{ color: 'var(--text-muted)', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
                                     {a.neverInspected ? `등록: ${a.regDate || '-'}` : (lastD ? `${lastD.getFullYear()}.${String(lastD.getMonth()+1).padStart(2,'0')}.${String(lastD.getDate()).padStart(2,'0')}` : '-')}
                                 </Td>
                             </tr>
@@ -4450,21 +4452,21 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                                     {/* 동 헤더 */}
                                     <div
                                         onClick={() => toggleByBuildingDong(dong)}
-                                        style={{ fontWeight: '700', padding: '7px 12px', fontSize: '0.8rem', color: 'var(--text-main)', background: 'var(--bg-main)', borderBottom: isDongExpanded ? '1px solid var(--border-color)' : 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', userSelect: 'none' }}
+                                        style={{ fontWeight: '700', padding: '7px 12px', fontSize: '0.9rem', color: 'var(--text-main)', background: 'var(--bg-main)', borderBottom: isDongExpanded ? '1px solid var(--border-color)' : 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', userSelect: 'none' }}
                                     >
                                         <span>
                                             📍 {dong}
-                                            {acCount > 0 && <span style={{ marginLeft: '6px', fontSize: '0.73rem', color: acColor.border, fontWeight: '700' }}>학원 {acCount}</span>}
-                                            {hgCount > 0 && <span style={{ marginLeft: '4px', fontSize: '0.73rem', color: HG_COLOR.border, fontWeight: '700' }}>교습소 {hgCount}</span>}
-                                            <span style={{ marginLeft: '6px', fontSize: '0.71rem', color: 'var(--text-muted)', fontWeight: '500' }}>({buildings.length}개 건물)</span>
+                                            {acCount > 0 && <span style={{ marginLeft: '6px', fontSize: '0.85rem', color: acColor.border, fontWeight: '700' }}>학원 {acCount}</span>}
+                                            {hgCount > 0 && <span style={{ marginLeft: '4px', fontSize: '0.85rem', color: HG_COLOR.border, fontWeight: '700' }}>교습소 {hgCount}</span>}
+                                            <span style={{ marginLeft: '6px', fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: '500' }}>({buildings.length}개 건물)</span>
                                         </span>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                             <button
                                                 onClick={e => { e.stopPropagation(); handleByBuildingDongRefresh(dong); }}
                                                 disabled={byBuildingRefreshing}
-                                                style={{ fontSize: '0.69rem', padding: '1px 6px', borderRadius: '5px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', cursor: 'pointer', color: 'var(--text-muted)', fontWeight: '600' }}
+                                                style={{ fontSize: '0.85rem', padding: '1px 6px', borderRadius: '5px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', cursor: 'pointer', color: 'var(--text-muted)', fontWeight: '600' }}
                                             >{byBuildingRefreshing ? '⟳' : '↺ 새로고침'}</button>
-                                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{isDongExpanded ? '▲' : '▼'}</span>
+                                            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{isDongExpanded ? '▲' : '▼'}</span>
                                         </div>
                                     </div>
                                     {/* 건물별 중첩 아코디언 */}
@@ -4480,14 +4482,14 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                                                     <div key={bldgKey} style={{ border: '1px solid var(--border-color)', borderRadius: '6px', overflow: 'hidden' }}>
                                                         <div
                                                             onClick={() => toggleByBuildingBuilding(bldgKey)}
-                                                            style={{ padding: '5px 10px', fontSize: '0.77rem', fontWeight: '600', color: 'var(--text-main)', background: 'var(--bg-card)', borderBottom: isBldgExpanded ? '1px solid var(--border-color)' : 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', userSelect: 'none' }}
+                                                            style={{ padding: '5px 10px', fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-main)', background: 'var(--bg-card)', borderBottom: isBldgExpanded ? '1px solid var(--border-color)' : 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', userSelect: 'none' }}
                                                         >
                                                             <span>
                                                                 🏢 {building}
-                                                                {bldgAcCount > 0 && <span style={{ marginLeft: '6px', fontSize: '0.71rem', color: acColor.border, fontWeight: '700' }}>학원 {bldgAcCount}</span>}
-                                                                {bldgHgCount > 0 && <span style={{ marginLeft: '4px', fontSize: '0.71rem', color: HG_COLOR.border, fontWeight: '700' }}>교습소 {bldgHgCount}</span>}
+                                                                {bldgAcCount > 0 && <span style={{ marginLeft: '6px', fontSize: '0.85rem', color: acColor.border, fontWeight: '700' }}>학원 {bldgAcCount}</span>}
+                                                                {bldgHgCount > 0 && <span style={{ marginLeft: '4px', fontSize: '0.85rem', color: HG_COLOR.border, fontWeight: '700' }}>교습소 {bldgHgCount}</span>}
                                                             </span>
-                                                            <span style={{ fontSize: '0.73rem', color: 'var(--text-muted)' }}>{isBldgExpanded ? '▲' : '▼'}</span>
+                                                            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{isBldgExpanded ? '▲' : '▼'}</span>
                                                         </div>
                                                         {isBldgExpanded && (
                                                             <div style={{ overflowX: 'auto' }}>
@@ -4518,7 +4520,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
             </CautionSection>
 
             {/* C. 점검 우선순위 (신설미점검 포함) */}
-            <CautionSection id="risk" title="🎯 점검 우선순위 (학원 100·교습소 60)" badge={Math.min(riskList.filter(a=>a.category!=='교습소'&&!(a.name||'').trim().endsWith('독서실')).length,100)+Math.min(riskList.filter(a=>a.category==='교습소').length,60)} badgeColor="#6366f1">
+            <CautionSection id="risk" title="점검 우선순위 (학원 100·교습소 60)" badge={Math.min(riskList.filter(a=>a.category!=='교습소'&&!(a.name||'').trim().endsWith('독서실')).length,100)+Math.min(riskList.filter(a=>a.category==='교습소').length,60)} badgeColor="#1b2b4b">
                 {(() => {
                     const allAcItems = riskList.filter(a => a.category !== '교습소' && !(a.name || '').trim().endsWith('독서실'));
                     const allHgItems = riskList.filter(a => a.category === '교습소');
@@ -4555,50 +4557,50 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                         const done = isInsp2026(a);
                         return (
                             <tr key={`${a.id}_${i}`} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-main)', opacity: done ? 0.5 : 1 }}>
-                                <NavCell id={a.id} type={riskType(a)} style={{ color: i < 3 ? '#ef4444' : 'var(--text-muted)', fontWeight: '800', fontSize: '0.78rem' }}>{i + 1}</NavCell>
+                                <NavCell id={a.id} type={riskType(a)} style={{ color: i < 3 ? '#ef4444' : 'var(--text-muted)', fontWeight: '800', fontSize: '0.85rem' }}>{i + 1}</NavCell>
                                 <Td style={{ position: 'sticky', left: 0, zIndex: 1, background: 'var(--bg-card)', overflow: 'hidden', whiteSpace: 'nowrap' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0 }}>
                                         <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, flexShrink: 1 }}>
                                             <NameLink id={a.id} type={riskType(a)} name={a.name} />
                                         </span>
-                                        {done && <span style={{ fontSize: '0.67rem', color: '#6366f1', fontWeight: '700', flexShrink: 0 }}>(완료)</span>}
+                                        {done && <span style={{ fontSize: '0.85rem', color: '#1d4ed8', fontWeight: '700', flexShrink: 0 }}>(완료)</span>}
                                     </div>
                                 </Td>
                                 <NavCell id={a.id} type={riskType(a)} style={{ whiteSpace: 'nowrap' }}>
-                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-main)', fontWeight: '600' }}>{a.founder?.name || '-'}</div>
-                                    {(a.founder?.mobile || a.founder?.phone) && <span style={{ color: '#3b82f6', fontWeight: '600', fontSize: '0.75rem' }}>{a.founder?.mobile || a.founder?.phone}</span>}
+                                    <div style={{ fontSize: '0.85rem', color: 'var(--text-main)', fontWeight: '600' }}>{a.founder?.name || '-'}</div>
+                                    {(a.founder?.mobile || a.founder?.phone) && <span style={{ color: '#3b82f6', fontWeight: '600', fontSize: '0.85rem' }}>{a.founder?.mobile || a.founder?.phone}</span>}
                                 </NavCell>
                                 <NavCell id={a.id} type={riskType(a)} style={{ whiteSpace: 'nowrap' }}>
-                                    <div style={{ fontSize: '0.72rem', fontWeight: '600', color: (a.status || '').includes('휴') ? '#f59e0b' : 'var(--text-muted)' }}>{a.status || '-'}</div>
-                                    {a.statusDate && <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{a.statusDate}</span>}
+                                    <div style={{ fontSize: '0.85rem', fontWeight: '600', color: (a.status || '').includes('휴') ? '#f59e0b' : 'var(--text-muted)' }}>{a.status || '-'}</div>
+                                    {a.statusDate && <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{a.statusDate}</span>}
                                 </NavCell>
-                                <NavCell id={a.id} type={riskType(a)} style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>{a.dong || '-'}</NavCell>
-                                <NavCell id={a.id} type={riskType(a)} style={{ fontWeight: '700', fontSize: '0.78rem', color: a.months >= 36 ? '#ef4444' : a.months >= 24 ? '#f59e0b' : 'var(--text-muted)' }}>{fmtMonths(a)}</NavCell>
-                                <NavCell id={a.id} type={riskType(a)}>{a.hasIns ? <span style={{ fontSize: '0.71rem', padding: '1px 5px', borderRadius: '4px', background: '#fef3c7', color: '#d97706', fontWeight: '700' }}>⚠️보험</span> : <span style={{ color: '#10b981', fontSize: '0.78rem' }}>✓</span>}</NavCell>
-                                <NavCell id={a.id} type={riskType(a)}>{a.viol > 0 ? <span style={{ fontSize: '0.71rem', padding: '1px 5px', borderRadius: '4px', background: '#fee2e2', color: '#dc2626', fontWeight: '700' }}>{a.viol}건</span> : <span style={{ color: 'var(--text-muted)', fontSize: '0.76rem' }}>-</span>}</NavCell>
-                                <NavCell id={a.id} type={riskType(a)} style={{ fontWeight: '700', fontSize: '0.78rem', color: a.score >= 0.7 ? '#ef4444' : a.score >= 0.4 ? '#f97316' : 'var(--text-main)' }}>{Math.round(a.score * 100)}</NavCell>
+                                <NavCell id={a.id} type={riskType(a)} style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{a.dong || '-'}</NavCell>
+                                <NavCell id={a.id} type={riskType(a)} style={{ fontWeight: '700', fontSize: '0.85rem', color: a.months >= 36 ? '#ef4444' : a.months >= 24 ? '#f59e0b' : 'var(--text-muted)' }}>{fmtMonths(a)}</NavCell>
+                                <NavCell id={a.id} type={riskType(a)}>{a.hasIns ? <span style={{ fontSize: '0.85rem', padding: '1px 5px', borderRadius: '4px', background: '#fef3c7', color: '#d97706', fontWeight: '700' }}>⚠️보험</span> : <span style={{ color: '#10b981', fontSize: '0.85rem' }}>✓</span>}</NavCell>
+                                <NavCell id={a.id} type={riskType(a)}>{a.viol > 0 ? <span style={{ fontSize: '0.85rem', padding: '1px 5px', borderRadius: '4px', background: '#fee2e2', color: '#dc2626', fontWeight: '700' }}>{a.viol}건</span> : <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>-</span>}</NavCell>
+                                <NavCell id={a.id} type={riskType(a)} style={{ fontWeight: '700', fontSize: '0.85rem', color: a.score >= 0.7 ? '#ef4444' : a.score >= 0.4 ? '#f97316' : 'var(--text-main)' }}>{Math.round(a.score * 100)}</NavCell>
                             </tr>
                         );
                     };
                     const SubAccordion = ({ label, color, items, isOpen, setOpen, onRefresh, onDownload, dateLabel }) => (
                         <div style={{ border: '1px solid var(--border-color)', borderRadius: '8px', marginBottom: '8px', overflow: 'hidden' }}>
                             <div style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'var(--bg-main)', cursor: 'pointer' }} onClick={() => setOpen(v => !v)}>
-                                <span style={{ fontWeight: '700', fontSize: '0.82rem', color }}>{label}</span>
-                                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{items.length}개</span>
+                                <span style={{ fontWeight: '700', fontSize: '0.9rem', color }}>{label}</span>
+                                <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{items.length}개</span>
                                 <button
                                     onClick={e => { e.stopPropagation(); onDownload(); }}
-                                    style={{ marginLeft: 'auto', fontSize: '0.72rem', padding: '2px 8px', borderRadius: '6px', border: '1px solid #10b98155', background: 'var(--bg-card)', cursor: 'pointer', color: '#10b981', fontWeight: '700' }}
+                                    style={{ marginLeft: 'auto', fontSize: '0.85rem', padding: '2px 8px', borderRadius: '6px', border: '1px solid #10b98155', background: 'var(--bg-card)', cursor: 'pointer', color: '#10b981', fontWeight: '700' }}
                                 >
                                     📥 엑셀
                                 </button>
                                 <button
                                     onClick={e => { e.stopPropagation(); onRefresh(); }}
                                     disabled={riskRefreshing}
-                                    style={{ fontSize: '0.72rem', padding: '2px 8px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', cursor: 'pointer', color: 'var(--text-muted)', fontWeight: '600' }}
+                                    style={{ fontSize: '0.85rem', padding: '2px 8px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', cursor: 'pointer', color: 'var(--text-muted)', fontWeight: '600' }}
                                 >
                                     {riskRefreshing ? '⟳' : '새로고침'}
                                 </button>
-                                <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', flexShrink: 0 }}>{isOpen ? '▲' : '▼'}</span>
+                                <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem', flexShrink: 0 }}>{isOpen ? '▲' : '▼'}</span>
                             </div>
                             {isOpen && (
                                 <div style={{ overflowX: 'auto' }}>
@@ -4621,7 +4623,7 @@ function TabCaution({ region, academies, privateTutors, academyClosures, onSelec
                     return (
                         <div style={{ padding: '4px 0' }}>
                             <SubAccordion label="🏫 학원" color="#3b82f6" items={acDisplayItems} isOpen={riskAcOpen} setOpen={setRiskAcOpen} onRefresh={() => handleRiskRefresh('ac')} onDownload={() => downloadRiskExcel(acDisplayItems, '학원')} dateLabel="개원/휴원/폐원일" />
-                            <SubAccordion label="🏠 교습소" color="#8b5cf6" items={hgDisplayItems} isOpen={riskHgOpen} setOpen={setRiskHgOpen} onRefresh={() => handleRiskRefresh('hg')} onDownload={() => downloadRiskExcel(hgDisplayItems, '교습소')} dateLabel="개소/휴소/폐소일" />
+                            <SubAccordion label="🏠 교습소" color="#1d4ed8" items={hgDisplayItems} isOpen={riskHgOpen} setOpen={setRiskHgOpen} onRefresh={() => handleRiskRefresh('hg')} onDownload={() => downloadRiskExcel(hgDisplayItems, '교습소')} dateLabel="개소/휴소/폐소일" />
                         </div>
                     );
                 })()}
@@ -4636,7 +4638,7 @@ function TabPlaceholder({ label }) {
         <div style={{ textAlign: 'center', padding: '80px 20px', color: 'var(--text-muted)' }}>
             <div style={{ fontSize: '2.2rem', marginBottom: '12px' }}>🚧</div>
             <div style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--text-main)' }}>{label} 탭</div>
-            <div style={{ fontSize: '0.85rem', marginTop: '8px' }}>곧 추가될 기능입니다</div>
+            <div style={{ fontSize: '0.9rem', marginTop: '8px' }}>곧 추가될 기능입니다</div>
         </div>
     );
 }
@@ -4647,7 +4649,7 @@ function TabPlaceholder({ label }) {
 // ───────────────────────────────────────────────
 const INSP_STATE_KEY = 'inspectionPageState';
 
-export default function InspectionPage({ onBack, academies, privateTutors, onSelectAcademy, onShowRouteMap, initialTab, supplementLoading }) {
+export default function InspectionPage({ academies, privateTutors, onSelectAcademy, onShowRouteMap, initialTab, supplementLoading }) {
     const [region, setRegion] = useState(() => {
         try { return JSON.parse(sessionStorage.getItem(INSP_STATE_KEY))?.region || '하남'; } catch { return '하남'; }
     });
@@ -4709,7 +4711,17 @@ export default function InspectionPage({ onBack, academies, privateTutors, onSel
     }, [region, activeTab, onSelectAcademy]);
 
     const TABS      = ['계획', '완료', '통계', '검토', 'SNS', '사진', '면적', '성과'];
-    const TAB_ICONS = ['⚠️', '🕐', '📊', '🔬', '📣', '', '', '🏅'];
+    // 탭마다 한 줄 설명 (화면 머리에 보인다)
+    const TAB_DESC = [
+        '점검 일정·경로와 오래 점검하지 않은 곳을 봅니다.',
+        '지난 점검 결과를 최근 순으로 봅니다.',
+        '동별·유형별 점검 현황을 셉니다.',
+        '민원 취약 항목과 자료 오류를 찾습니다.',
+        '학원 SNS·플레이스 광고의 표시 사항을 확인합니다.',
+        '점검 사진 파일 이름을 한꺼번에 바꿉니다.',
+        '강의실 치수를 적으면 면적을 계산합니다.',
+        '안내 전후 게시율 변화를 회차별로 봅니다.',
+    ];
 
     useEffect(() => {
         fetchAcademyClosureData()
@@ -4844,44 +4856,32 @@ export default function InspectionPage({ onBack, academies, privateTutors, onSel
     }, [region]);
 
     const regionBtn = (r) => (
-        <button key={r} onClick={() => setRegion(r)} style={{
-            padding: '5px 16px', borderRadius: '20px', border: '1.5px solid',
-            borderColor: region === r ? 'var(--primary)' : 'var(--border-color)',
-            background: region === r ? 'var(--primary)' : 'transparent',
-            color: region === r ? 'white' : 'var(--text-muted)',
-            fontWeight: '700', fontSize: '0.82rem', cursor: 'pointer',
-        }}>{r}</button>
+        <button key={r} type="button" onClick={() => setRegion(r)} className={`seg-btn${region === r ? ' is-on' : ''}`} aria-pressed={region === r}>{r}</button>
     );
 
     return (
-        <div style={{ minHeight: '100vh', background: 'var(--bg-main)', padding: '0 0 60px 0' }}>
-            {/* 헤더 */}
-            <div style={{ padding: '0 16px', position: 'sticky', top: 'var(--sticky-top, 0px)', zIndex: 100, background: 'var(--bg-card)', borderBottom: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0 8px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <button onClick={onBack} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', fontWeight: '600', padding: '4px 0' }}>
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
-                            홈
-                        </button>
-                        <span style={{ fontSize: '1rem', fontWeight: '800', color: 'var(--text-main)' }}>🔍 지도점검 업무관리</span>
-                    </div>
-                    {/* 지역 토글 */}
-                    <div style={{ display: 'flex', gap: '6px' }}>
-                        {['하남', '광주'].map(regionBtn)}
-                    </div>
+        <div className="insp-page">
+            {/* 머리 — 제목, 지금 탭의 한 줄 설명, 관할 지역 */}
+            <div className="insp-head">
+                <div>
+                    <h1 className="page-title">지도점검 업무관리</h1>
+                    <p className="page-desc">{TAB_DESC[activeTab]}</p>
                 </div>
-                {/* 탭 */}
-                <div style={{ display: 'flex', gap: '2px', overflowX: 'auto', paddingBottom: '2px' }}>
-                    {TABS.map((tab, i) => (
-                        <button key={tab} onClick={() => setActiveTab(i)} style={{ padding: '7px 8px', borderRadius: '8px 8px 0 0', border: '1px solid', borderBottom: 'none', borderColor: activeTab === i ? 'var(--primary)' : 'var(--border-color)', background: activeTab === i ? 'var(--primary)' : 'transparent', color: activeTab === i ? 'white' : 'var(--text-muted)', fontWeight: activeTab === i ? '700' : '500', fontSize: '0.8rem', cursor: 'pointer', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <span>{TAB_ICONS[i]}</span><span>{tab}</span>
-                        </button>
-                    ))}
+                <div className="seg" role="group" aria-label="관할 지역">
+                    {['하남', '광주'].map(regionBtn)}
                 </div>
+            </div>
+            {/* 탭 — 머리띠 밑에 붙어 따라온다 (학원 상세와 같은 탭 줄) */}
+            <div className="tabs-container">
+                {TABS.map((tab, i) => (
+                    <button key={tab} type="button" className={`tab-btn ${activeTab === i ? 'active' : ''}`} onClick={() => setActiveTab(i)}>
+                        {tab}
+                    </button>
+                ))}
             </div>
 
             {/* 탭 콘텐츠 */}
-            <div style={{ padding: '20px 16px' }}>
+            <div>
                 {errorStat ? (
                     <div style={{ textAlign: 'center', padding: '40px', color: '#ef4444' }}>{errorStat}</div>
                 ) : (

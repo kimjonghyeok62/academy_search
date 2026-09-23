@@ -13,7 +13,7 @@ export default function SnsOxBadge({ value, manual }) {
         // 직접 넣은 값은 O/X 와 똑같이 파란색·밑줄로 표시해야 다시 조사해도 남는 값임이 보인다.
         return (
             <span style={{
-                fontSize: '0.8rem',
+                fontSize: '0.9rem',
                 fontWeight: manual ? '700' : '400',
                 color: manual ? MANUAL_COLOR : 'var(--text-muted)',
                 borderBottom: manual ? `2px solid ${MANUAL_COLOR}` : 'none',
@@ -25,11 +25,11 @@ export default function SnsOxBadge({ value, manual }) {
     if (value === '안함') {
         return (
             <span title="자동 조사 대상이 아닙니다 — 링크로 직접 확인하세요"
-                style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>안함</span>
+                style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>안함</span>
         );
     }
     if (value !== 'O' && value !== 'X' && value !== '?' && value !== '△') {
-        return <span style={{ fontSize: '0.9rem', color: 'var(--border-color)' }}>–</span>;
+        return <span style={{ fontSize: '1rem', color: 'var(--border-color)' }}>–</span>;
     }
     // △ 는 O·X 와 한눈에 갈라져 보여야 하므로, 직접 넣은 값이어도 파란색 대신 제 색(주황)을 쓴다.
     // 대신 밑줄로 '직접 넣은 값' 임을 알린다 — 자동 조사가 금액을 대조해 붙인 △ 와 구분된다.
@@ -39,7 +39,7 @@ export default function SnsOxBadge({ value, manual }) {
                 ? '올렸으나 신고 내용과 다릅니다 (허위기재) — 직접 확인한 값입니다'
                 : '올린 금액 중에 신고한 교습비와 같은 금액이 하나도 없습니다 (허위기재) — 대조창에서 확인 후 O 로 바꿀 수 있습니다'}
                 style={{
-                    fontWeight: '800', fontSize: '0.95rem', color: '#d97706',
+                    fontWeight: '800', fontSize: '1rem', color: '#d97706',
                     borderBottom: manual ? '2px solid #d97706' : 'none',
                     paddingBottom: manual ? '1px' : 0,
                 }}>△</span>
@@ -47,7 +47,7 @@ export default function SnsOxBadge({ value, manual }) {
     }
     return (
         <span style={{
-            fontWeight: '800', fontSize: '0.95rem',
+            fontWeight: '800', fontSize: '1rem',
             color: manual ? MANUAL_COLOR
                 : value === 'O' ? '#10b981' : value === 'X' ? '#ef4444' : 'var(--text-muted)',
             // 색만으로 알리지 않도록 밑줄도 함께 둔다

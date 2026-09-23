@@ -18,21 +18,21 @@ const card = {
     borderRadius: '12px', padding: '16px', marginBottom: '14px',
 };
 const h2 = { fontSize: '1rem', fontWeight: 700, margin: '0 0 4px' };
-const sub = { fontSize: '0.82rem', color: 'var(--text-muted)', margin: '0 0 12px' };
+const sub = { fontSize: '0.9rem', color: 'var(--text-muted)', margin: '0 0 12px' };
 const num = { fontSize: '1.6rem', fontWeight: 700, lineHeight: 1.2 };
 
 const fmtPct = (v) => (v === null || v === undefined ? '—' : `${v}%`);
 
 /** 가로 막대 하나 — 값이 없으면 자리만 남긴다 */
-function Bar({ label, count, total, color = '#4f46e5' }) {
+function Bar({ label, count, total, color = '#1d4ed8' }) {
     const w = total > 0 ? Math.round((count / total) * 100) : 0;
     return (
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-            <div style={{ width: '120px', fontSize: '0.85rem', textAlign: 'right', flexShrink: 0 }}>{label}</div>
+            <div style={{ width: '120px', fontSize: '0.9rem', textAlign: 'right', flexShrink: 0 }}>{label}</div>
             <div style={{ flex: 1, background: 'var(--border-color)', borderRadius: '4px', height: '18px', overflow: 'hidden' }}>
                 <div style={{ width: `${w}%`, height: '100%', background: color }} />
             </div>
-            <div style={{ width: '84px', fontSize: '0.85rem', color: 'var(--text-muted)', flexShrink: 0 }}>
+            <div style={{ width: '84px', fontSize: '0.9rem', color: 'var(--text-muted)', flexShrink: 0 }}>
                 {count}곳 · {w}%
             </div>
         </div>
@@ -112,7 +112,7 @@ export default function PerformanceTab() {
         return (
             <div style={{ textAlign: 'center', padding: '40px', color: '#dc2626' }}>
                 성과 자료를 읽지 못했습니다 — {data.error}
-                <div style={{ marginTop: '6px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                <div style={{ marginTop: '6px', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
                     잠시 뒤 이 탭을 다시 열어 주세요.
                 </div>
             </div>
@@ -139,7 +139,7 @@ export default function PerformanceTab() {
                 ) : (
                     <>
                         <div style={{ overflowX: 'auto' }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.86rem' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                                 <thead>
                                     <tr style={{ borderBottom: '2px solid var(--border-color)' }}>
                                         <th style={{ textAlign: 'left', padding: '6px' }}>회차</th>
@@ -235,7 +235,7 @@ export default function PerformanceTab() {
             <div style={{ ...card, display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                 <button onClick={exportExcel} style={{
                     padding: '9px 14px', borderRadius: '8px', border: 'none', cursor: 'pointer',
-                    background: '#0d9488', color: '#fff', fontWeight: 700, fontSize: '0.85rem',
+                    background: '#1d4ed8', color: '#fff', fontWeight: 700, fontSize: '0.9rem',
                 }}>
                     📊 성과 엑셀 내려받기
                 </button>

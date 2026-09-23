@@ -21,7 +21,7 @@ import OxBadge from './SnsOxBadge';
 
 const Td = ({ children, style, onClick, title }) => (
     <td onClick={onClick} title={title} style={{
-        padding: '10px', fontSize: '0.86rem', lineHeight: 1.5, color: 'var(--text-main)',
+        padding: '10px', fontSize: '0.9rem', lineHeight: 1.5, color: 'var(--text-main)',
         borderTop: '1px solid var(--border-color)', ...style,
     }}>{children}</td>
 );
@@ -92,7 +92,7 @@ function SnsCheckRow({
     };
 
     // 공동운영에서 눌러 찾아온 행 — 어디로 왔는지 잠깐 보여준다
-    const base = highlight ? '#ede9fe' : index % 2 === 1 ? BG_ROW : BG_STRIPE;
+    const base = highlight ? '#dbeafe' : index % 2 === 1 ? BG_ROW : BG_STRIPE;
     const rowBg = done && !highlight ? doneTint(base) : base;
 
     // 같은 플레이스·블로그를 쓰는 다른 학원 (이름 + 이동할 학원 객체)
@@ -118,16 +118,16 @@ function SnsCheckRow({
                 ...(isNarrow ? { background: rowBg } : stickyTd(0, rowBg)),
                 // 마감한 행 왼쪽에 초록 선 — 옅은 배경색만으로는 다크 테마에서 잘 안 보인다
                 ...(done ? { boxShadow: `inset 3px 0 0 ${DONE_COLOR}` } : null),
-                color: 'var(--text-muted)', fontSize: '0.78rem', textAlign: 'center',
+                color: 'var(--text-muted)', fontSize: '0.85rem', textAlign: 'center',
             }}>{index}</Td>
             <Td style={{ ...(isNarrow ? { background: rowBg } : stickyTd(W_NUM, rowBg)), wordBreak: 'keep-all' }}>
                 {academy && onSelectAcademy ? (
                     <span onClick={() => onSelectAcademy(academy)}
-                        style={{ fontSize: '0.9rem', fontWeight: '700', color: 'var(--primary)', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '2px' }}>
+                        style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--primary)', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '2px' }}>
                         {target.name}
                     </span>
                 ) : (
-                    <span style={{ fontSize: '0.9rem', fontWeight: '700' }}>{target.name}</span>
+                    <span style={{ fontSize: '1rem', fontWeight: '700' }}>{target.name}</span>
                 )}
                 {/* 플레이스에 뜬 주소가 이 학원의 주소가 맞는지 링크를 열기 전에 눈으로 맞춰 본다.
                     시·도와 뒤의 (법정동, 건물명) 은 떼고 도로명·번지·호수만 남긴다 — 두 주소를 가르는 부분이다.
@@ -138,7 +138,7 @@ function SnsCheckRow({
                         title={`${target.address}
 눌러서 네이버지도에서 열기 — ‘이 주소의 장소’ 로 이 건물 업체를 볼 수 있습니다`}
                         style={{
-                            display: 'block', marginTop: '2px', fontSize: '0.72rem',
+                            display: 'block', marginTop: '2px', fontSize: '0.85rem',
                             color: 'var(--text-muted)', textDecoration: 'underline dotted',
                             textUnderlineOffset: '2px', cursor: 'pointer',
                         }}>
@@ -149,13 +149,13 @@ function SnsCheckRow({
                     <div title="조건을 바꾸거나 위쪽 '정리' 를 누르면 목록에서 빠집니다"
                         style={{
                             display: 'inline-block', marginTop: '3px', padding: '1px 8px', borderRadius: '999px',
-                            background: '#fef3c7', color: '#92400e', fontSize: '0.72rem', fontWeight: '800',
+                            background: '#fef3c7', color: '#92400e', fontSize: '0.85rem', fontWeight: '800',
                         }}>
                         ✓ {leftNote}
                     </div>
                 )}
                 {result?.플레이스명 && result.플레이스명 !== target.name && (
-                    <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>→ {result.플레이스명}</div>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>→ {result.플레이스명}</div>
                 )}
                 {/* 전화번호를 따로 열로 두면 표가 화면을 넘어간다. 미이행 학원에 전화를 걸 때
                     어차피 이름과 함께 보게 되는 값이라 이 칸에 붙여 둔다. */}
@@ -165,10 +165,10 @@ function SnsCheckRow({
                         ? <button onClick={copyTel} title="눌러서 '-' 없는 번호를 복사합니다"
                             style={{
                                 ...linkStyle, background: 'none', border: 'none', padding: 0,
-                                fontFamily: 'inherit', fontSize: '0.78rem', cursor: 'pointer',
+                                fontFamily: 'inherit', fontSize: '0.85rem', cursor: 'pointer',
                                 ...(telFlash ? { color: telFlash.warn ? '#ef4444' : DONE_COLOR } : null),
                             }}>☎ {telFlash ? telFlash.text : target.contact}</button>
-                        : <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>☎ –</span>}
+                        : <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>☎ –</span>}
                     {/* 학원마다 빠진 것이 달라 일괄 문구를 쓸 수 없다 — 이 학원의 X 칸만 넣어
                         만든 문구를 클립보드에 담는다. 문자마당 창에 붙여넣으면 끝난다. */}
                     {noticeCount > 0 && (
@@ -182,10 +182,10 @@ function SnsCheckRow({
                             style={{
                                 background: 'none', fontFamily: 'inherit', whiteSpace: 'nowrap',
                                 border: '1px solid', borderRadius: '999px', padding: '1px 7px',
-                                fontSize: '0.72rem', fontWeight: '700',
+                                fontSize: '0.85rem', fontWeight: '700',
                                 borderColor: flash?.warn ? '#ef4444' : 'var(--border-color)',
                                 color: !target.contact ? 'var(--border-color)'
-                                    : flash ? (flash.warn ? '#ef4444' : DONE_COLOR) : '#7c3aed',
+                                    : flash ? (flash.warn ? '#ef4444' : DONE_COLOR) : '#1d4ed8',
                                 cursor: target.contact ? 'pointer' : 'default',
                             }}>
                             {flash ? flash.text : `✉ 문자 ${noticeCount}`}
@@ -193,7 +193,7 @@ function SnsCheckRow({
                     )}
                 </div>
             </Td>
-            <Td style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{target.regNo}</Td>
+            <Td style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>{target.regNo}</Td>
 
             {cells.map((c) => (
                 <Td key={c.key}
@@ -205,7 +205,7 @@ function SnsCheckRow({
             ))}
 
             <Td>
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', fontSize: '0.8rem' }}>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', fontSize: '0.9rem' }}>
                     {/* 신고한 교습비를 새 창에 띄운다 — 표는 '올렸는가'(O/X)만 보여주지만
                         담당자가 알고 싶은 것은 '올린 금액이 신고액과 같은가'다.
                         openTuitionCompare 는 리액트 상태와 무관한 함수라 새 prop 이 필요 없다 (React.memo 유지) */}
@@ -216,8 +216,8 @@ function SnsCheckRow({
                             : '마스터 자료에 없는 학원이라 신고 교습비를 찾을 수 없습니다'}
                         style={{
                             ...linkStyle, background: 'none', border: 'none', padding: 0,
-                            fontSize: '0.8rem', fontFamily: 'inherit',
-                            color: academy ? '#0d9488' : 'var(--text-muted)',
+                            fontSize: '0.9rem', fontFamily: 'inherit',
+                            color: academy ? '#1d4ed8' : 'var(--text-muted)',
                             cursor: academy ? 'pointer' : 'default',
                         }}>💰 교습비</button>
                     {/* 지정·비고·조사로 알고 있는 플레이스가 있으면 그곳을, 없으면 이름·주소 검색을 연다 */}
@@ -233,12 +233,12 @@ function SnsCheckRow({
                     {!result && <a href={blogSearchUrl(target.name, region)} target="_blank" rel="noreferrer" style={linkStyle}>블로그검색</a>}
                 </div>
             </Td>
-            <Td style={{ fontSize: '0.8rem', color: '#ef4444', wordBreak: 'keep-all' }}>
+            <Td style={{ fontSize: '0.9rem', color: '#ef4444', wordBreak: 'keep-all' }}>
                 {/* 공동 운영(플레이스·블로그를 함께 쓰는 곳) — 어느 학원인지 이름을 다 보여주고
                     누르면 이 표의 그 학원 행으로 옮겨 간다 (상세화면으로 나가지 않는다).
                     학원명 칸은 좁아 이름이 잘려 보이지 않았다. */}
                 {siblings.length > 0 && (
-                    <div style={{ color: '#7c3aed', fontWeight: '600', marginBottom: '4px' }}>
+                    <div style={{ color: '#1d4ed8', fontWeight: '600', marginBottom: '4px' }}>
                         🔗 공동운영: {siblings.map((sib, si) => (
                             <span key={sib.key}>
                                 {si > 0 && ' · '}
@@ -253,7 +253,7 @@ function SnsCheckRow({
                 )}
                 {remark}
                 {dup && result && (
-                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '2px' }}>
                         함께 운영하는 곳이 아니라면 아래 <b>플레이스 지정</b> 으로 바로잡아 주세요
                     </div>
                 )}
@@ -262,7 +262,7 @@ function SnsCheckRow({
                 <div style={{ marginTop: remark ? '5px' : 0 }}>
                     {/* 지금 무엇으로 조사하고 있는지 — 이 값이 곧 상세화면·시트의 '플레이스지정' 이다 */}
                     {curUrl && (
-                        <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginBottom: '3px' }}>
+                        <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '3px' }}>
                             📍 조사에 쓰는 플레이스{' '}
                             {/* 비고 칸이 좁아 주소를 통째로 두면 번호 한가운데서 줄이 잘린다.
                                 전체 주소는 툴팁과, '플레이스 지정'을 눌렀을 때 입력칸에 그대로 들어 있다. */}
@@ -282,19 +282,19 @@ function SnsCheckRow({
                                 }}
                                 placeholder="플레이스 주소 (place/숫자) 또는 naver.me 공유주소"
                                 style={{
-                                    flex: '1 1 150px', minWidth: 0, padding: '5px 8px', fontSize: '0.78rem',
+                                    flex: '1 1 150px', minWidth: 0, padding: '5px 8px', fontSize: '0.85rem',
                                     border: '1px solid var(--border-color)', borderRadius: '7px',
                                     background: 'var(--bg-card)', color: 'var(--text-main)',
                                 }} />
                             <button onClick={() => onPinSave(target)} disabled={running} style={{
                                 padding: '5px 10px', borderRadius: '7px', border: 'none',
                                 background: running ? 'var(--border-color)' : 'var(--primary)',
-                                color: 'white', fontSize: '0.76rem', fontWeight: '700',
+                                color: 'white', fontSize: '0.85rem', fontWeight: '700',
                                 cursor: running ? 'default' : 'pointer', whiteSpace: 'nowrap',
                             }}>지정</button>
                             <button onClick={onPinCancel} style={{
                                 background: 'none', border: 'none', color: 'var(--text-muted)',
-                                fontSize: '0.76rem', cursor: 'pointer',
+                                fontSize: '0.85rem', cursor: 'pointer',
                             }}>취소</button>
                             {/* 주소가 잘못됐을 때 — 조작부(표 한참 위)가 아니라 누른 자리 바로 밑에 띄운다.
                                 위에만 뜨면 아래쪽 행에서 누른 사람은 아무 일도 안 일어난 줄 안다. */}
@@ -302,12 +302,12 @@ function SnsCheckRow({
                                 <div style={{
                                     flexBasis: '100%', marginTop: '4px', padding: '6px 8px',
                                     background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '7px',
-                                    color: '#b91c1c', fontSize: '0.74rem', lineHeight: 1.6,
+                                    color: '#b91c1c', fontSize: '0.85rem', lineHeight: 1.6,
                                 }}>
                                     ⚠ {pinError.message}
                                     {pinError.query && (
                                         <> <a href={placeSearchUrl(pinError.query, region)} target="_blank" rel="noreferrer"
-                                            style={{ ...linkStyle, fontSize: '0.74rem' }}>
+                                            style={{ ...linkStyle, fontSize: '0.85rem' }}>
                                             ‘{pinError.query}’ 네이버에서 열기 ↗
                                         </a></>
                                     )}
@@ -318,12 +318,12 @@ function SnsCheckRow({
                         // 없다고 확인해 준 곳 — 지정할 대상 자체가 없으므로 지정 UI 를 치우고
                         // 되돌릴 길만 남긴다 (잘못 눌렀을 수 있다)
                         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                            <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                                 🚫 네이버플레이스 없음{noPlaceAt(result) ? ` · ${fmtDay(noPlaceAt(result))} 확인` : ''}
                             </span>
                             <button onClick={() => onToggleNoPlace(result)} style={{
                                 background: 'none', border: 'none', color: 'var(--text-muted)',
-                                fontSize: '0.74rem', fontWeight: '600', cursor: 'pointer', textDecoration: 'underline',
+                                fontSize: '0.85rem', fontWeight: '600', cursor: 'pointer', textDecoration: 'underline',
                             }}>되돌리기</button>
                         </div>
                     ) : (
@@ -333,7 +333,7 @@ function SnsCheckRow({
                                     title={`검색된 업체: ${result.플레이스명 || result.플레이스ID} — 이 학원이 맞으면 눌러 확정하세요 (확정해야 판정이 나옵니다)`}
                                     style={{
                                         background: 'none', border: '1px solid #10b981', borderRadius: '6px',
-                                        padding: '3px 7px', color: '#10b981', fontSize: '0.74rem',
+                                        padding: '3px 7px', color: '#10b981', fontSize: '0.85rem',
                                         fontWeight: '700', cursor: running ? 'default' : 'pointer', whiteSpace: 'nowrap',
                                     }}>✔ 이 플레이스 맞음</button>
                             )}
@@ -341,13 +341,13 @@ function SnsCheckRow({
                                 title="네이버플레이스 주소(또는 지도앱 공유주소)를 넣으면 그 플레이스로 조사합니다"
                                 style={{
                                     background: 'none', border: '1px solid var(--border-color)', borderRadius: '6px',
-                                    padding: '3px 7px', color: '#3b82f6', fontSize: '0.74rem',
+                                    padding: '3px 7px', color: '#3b82f6', fontSize: '0.85rem',
                                     fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap',
                                 }}>📍 {pinned ? '플레이스 바꾸기' : '플레이스 지정'}</button>
                             {pinned && (
                                 <button onClick={() => onPinClear(target, result)} disabled={running} style={{
                                     background: 'none', border: 'none', color: 'var(--text-muted)',
-                                    fontSize: '0.74rem', fontWeight: '600',
+                                    fontSize: '0.85rem', fontWeight: '600',
                                     cursor: running ? 'default' : 'pointer', textDecoration: 'underline',
                                 }}>지정 해제</button>
                             )}
@@ -358,7 +358,7 @@ function SnsCheckRow({
                                     title="찾아봤는데 이 학원은 네이버플레이스가 아예 없을 때 누르세요 — 판정에서 빠지고 다시 조사하지 않습니다"
                                     style={{
                                         background: 'none', border: '1px solid var(--border-color)', borderRadius: '6px',
-                                        padding: '3px 7px', color: 'var(--text-muted)', fontSize: '0.74rem',
+                                        padding: '3px 7px', color: 'var(--text-muted)', fontSize: '0.85rem',
                                         fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap',
                                     }}>🚫 플레이스 없음</button>
                             )}
@@ -369,7 +369,7 @@ function SnsCheckRow({
             {/* 보험 — 마스터 자료에서 계산한 값이라 이 화면에서는 고칠 수 없다.
                 점검하러 가기 전에 보험이 끊긴 곳인지 함께 보라고 여기 둔다 (검토 탭과 같은 기준) */}
             <Td title={ins.title} style={{
-                ...CENTER, whiteSpace: 'nowrap', fontSize: '0.78rem', fontWeight: '700',
+                ...CENTER, whiteSpace: 'nowrap', fontSize: '0.85rem', fontWeight: '700',
                 color: ins.unknown ? 'var(--border-color)' : ins.expired || ins.missing ? INS_BAD_COLOR : INS_OK_COLOR,
             }}>
                 {/* 색만으로 알리지 않는다 — 만료·미가입에는 표시를 붙인다 */}
@@ -378,7 +378,7 @@ function SnsCheckRow({
 
             {/* 적요 — 담당자가 진행사항을 적는 칸. 마감한 행에서도 고칠 수 있다
                 (마감은 O/X 만 잠근다. '다음 주에 올린다더라' 같은 것은 마감 뒤에도 적을 일이 생긴다) */}
-            <Td style={{ fontSize: '0.78rem', lineHeight: 1.45, wordBreak: 'keep-all' }}>
+            <Td style={{ fontSize: '0.85rem', lineHeight: 1.45, wordBreak: 'keep-all' }}>
                 {memoOpen ? (
                     <div>
                         <input autoFocus value={memoInput} maxLength={MEMO_MAX}
@@ -389,7 +389,7 @@ function SnsCheckRow({
                             }}
                             placeholder="진행사항·특이사항"
                             style={{
-                                width: '100%', boxSizing: 'border-box', padding: '4px 6px', fontSize: '0.76rem',
+                                width: '100%', boxSizing: 'border-box', padding: '4px 6px', fontSize: '0.85rem',
                                 border: '1px solid var(--border-color)', borderRadius: '6px',
                                 background: 'var(--bg-card)', color: 'var(--text-main)',
                             }} />
@@ -397,13 +397,13 @@ function SnsCheckRow({
                             <button onClick={() => onMemoSave(result)} style={{
                                 padding: '3px 8px', borderRadius: '6px', border: 'none',
                                 background: 'var(--primary)', color: 'white',
-                                fontSize: '0.72rem', fontWeight: '700', cursor: 'pointer',
+                                fontSize: '0.85rem', fontWeight: '700', cursor: 'pointer',
                             }}>저장</button>
                             <button onClick={onMemoCancel} style={{
                                 background: 'none', border: 'none', color: 'var(--text-muted)',
-                                fontSize: '0.72rem', cursor: 'pointer',
+                                fontSize: '0.85rem', cursor: 'pointer',
                             }}>취소</button>
-                            <span style={{ marginLeft: 'auto', fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                            <span style={{ marginLeft: 'auto', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                                 {memoInput.length}/{MEMO_MAX}
                             </span>
                         </div>
@@ -422,7 +422,7 @@ function SnsCheckRow({
                         style={{
                             background: 'none', border: 'none', padding: 0, fontFamily: 'inherit',
                             color: result ? 'var(--text-muted)' : 'var(--border-color)',
-                            fontSize: '0.76rem', cursor: result ? 'pointer' : 'default',
+                            fontSize: '0.85rem', cursor: result ? 'pointer' : 'default',
                         }}>＋ 적요</button>
                 )}
             </Td>
@@ -435,7 +435,7 @@ function SnsCheckRow({
                             : done ? '확인 완료로 마감돼 있습니다 — 눌러서 해제하면 다시 고칠 수 있습니다'
                                 : '이 학원을 다 확인했다면 눌러 마감하세요 (O/X 가 잠깁니다)'}
                         style={{
-                            borderRadius: '6px', padding: '5px 6px', fontSize: '0.76rem', fontWeight: '700',
+                            borderRadius: '6px', padding: '5px 6px', fontSize: '0.85rem', fontWeight: '700',
                             whiteSpace: 'nowrap', cursor: result ? 'pointer' : 'default',
                             border: done ? 'none' : '1px solid var(--border-color)',
                             background: done ? DONE_COLOR : 'none',
@@ -443,7 +443,7 @@ function SnsCheckRow({
                         }}>{done ? '✓ 완료' : '마감'}</button>
                     {/* '눌러 해제' 는 위 단추의 툴팁이 이미 말한다 — 좁은 열에 두 번 적지 않는다 */}
                     {done && (
-                        <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)' }}>
+                        <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                             {fmtDay(doneAt(result))}
                         </div>
                     )}
@@ -451,8 +451,8 @@ function SnsCheckRow({
                         title="이 학원만 다시 조사합니다"
                         style={{
                             background: 'none', border: '1px solid var(--border-color)', borderRadius: '6px',
-                            padding: '4px 6px', color: running ? 'var(--text-muted)' : '#0ea5e9',
-                            fontSize: '0.8rem', fontWeight: '700', whiteSpace: 'nowrap',
+                            padding: '4px 6px', color: running ? 'var(--text-muted)' : '#1d4ed8',
+                            fontSize: '0.9rem', fontWeight: '700', whiteSpace: 'nowrap',
                             cursor: running ? 'default' : 'pointer',
                         }}>↻</button>
                 </div>

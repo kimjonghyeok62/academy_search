@@ -62,27 +62,27 @@ function ObligationRow({ label, cell, detail, detailColor, onToggle, disabled, l
                 cursor: disabled ? 'default' : 'pointer', userSelect: 'none',
             }}>
             <span style={{
-                flexShrink: 0, width: '22px', textAlign: 'center', fontWeight: '800', fontSize: '0.95rem',
+                flexShrink: 0, width: '22px', textAlign: 'center', fontWeight: '800', fontSize: '1rem',
                 color: manual ? MANUAL_COLOR : unknown ? 'var(--text-muted)' : differs ? '#d97706' : ok ? '#10b981' : '#ef4444',
                 borderBottom: manual ? `2px solid ${MANUAL_COLOR}` : 'none',
             }}>{manual ? value : unknown ? '–' : differs ? '△' : ok ? '✓' : '✕'}</span>
             <div style={{ flex: 1 }}>
-                <div style={{ fontSize: '0.84rem', fontWeight: '600', color: 'var(--text-main)' }}>
+                <div style={{ fontSize: '0.9rem', fontWeight: '600', color: 'var(--text-main)' }}>
                     {label}
                     {manual && (
                         <span style={{
-                            marginLeft: '6px', fontSize: '0.7rem', fontWeight: '800', color: 'white',
+                            marginLeft: '6px', fontSize: '0.85rem', fontWeight: '800', color: 'white',
                             background: MANUAL_COLOR, borderRadius: '999px', padding: '1px 7px',
                         }}>직접 확인함</span>
                     )}
                 </div>
                 {manual ? (
-                    <div style={{ fontSize: '0.76rem', color: MANUAL_COLOR, marginTop: '2px' }}>
+                    <div style={{ fontSize: '0.85rem', color: MANUAL_COLOR, marginTop: '2px' }}>
                         담당자가 직접 확인해 <b>{value}</b> 로 두었습니다
                         {cell.auto && cell.auto !== value && ` (자동 조사값: ${AUTO_LABEL[cell.auto] || cell.auto})`}
                     </div>
                 ) : (
-                    detail && <div style={{ fontSize: '0.76rem', color: detailColor || 'var(--text-muted)', marginTop: '2px' }}>{detail}</div>
+                    detail && <div style={{ fontSize: '0.85rem', color: detailColor || 'var(--text-muted)', marginTop: '2px' }}>{detail}</div>
                 )}
             </div>
         </div>
@@ -358,9 +358,9 @@ export default function SnsDetailPanel({ academy, region = '하남', allAcademie
         <button onClick={() => openTuitionCompare(academy, result, { region, numberLabel })}
             title="신고한 교습비를 새 창에 띄웁니다 — 네이버 창과 나란히 놓고 금액이 같은지 확인하세요"
             style={{
-                padding: '8px 12px', borderRadius: '8px', border: '1px solid #0d9488',
-                background: 'transparent', color: '#0d9488',
-                fontSize: '0.82rem', fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap',
+                padding: '8px 12px', borderRadius: '8px', border: '1px solid #1d4ed8',
+                background: 'transparent', color: '#1d4ed8',
+                fontSize: '0.9rem', fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap',
             }}>💰 교습비 대조</button>
     );
 
@@ -371,9 +371,9 @@ export default function SnsDetailPanel({ academy, region = '하남', allAcademie
             title={`신고하신 내용으로 만든 게시표입니다 (담당자 확인용)
 ${links.form}`}
             style={{
-                padding: '8px 12px', borderRadius: '8px', border: '1px solid #0d9488',
-                background: 'transparent', color: '#0d9488', textDecoration: 'none',
-                fontSize: '0.82rem', fontWeight: '700', whiteSpace: 'nowrap',
+                padding: '8px 12px', borderRadius: '8px', border: '1px solid #1d4ed8',
+                background: 'transparent', color: '#1d4ed8', textDecoration: 'none',
+                fontSize: '0.9rem', fontWeight: '700', whiteSpace: 'nowrap',
             }}>📄 게시표 예시</a>
     ) : null;
 
@@ -384,10 +384,10 @@ ${links.form}`}
                     : '빠진 것만 넣은 안내 문자를 만들어 보여줍니다 — 보고 나서 복사하세요'}
             style={{
                 padding: '8px 12px', borderRadius: '8px', whiteSpace: 'nowrap',
-                border: `1px solid ${noticeCount ? '#7c3aed' : 'var(--border-color)'}`,
+                border: `1px solid ${noticeCount ? '#1d4ed8' : 'var(--border-color)'}`,
                 background: 'transparent',
-                color: noticeCount ? '#7c3aed' : 'var(--border-color)',
-                fontSize: '0.82rem', fontWeight: '700',
+                color: noticeCount ? '#1d4ed8' : 'var(--border-color)',
+                fontSize: '0.9rem', fontWeight: '700',
                 cursor: noticeCount ? 'pointer' : 'default',
             }}>✉ 안내 문자{noticeCount ? ` ${noticeCount}` : ''}{smsOpen ? ' ▴' : ''}</button>
     );
@@ -396,7 +396,7 @@ ${links.form}`}
         <button onClick={() => runCheck()} disabled={running} style={{
             padding: '8px 14px', borderRadius: '8px', border: 'none',
             background: running ? 'var(--border-color)' : 'var(--primary)', color: 'white',
-            fontSize: '0.82rem', fontWeight: '700', cursor: running ? 'default' : 'pointer',
+            fontSize: '0.9rem', fontWeight: '700', cursor: running ? 'default' : 'pointer',
         }}>{running ? '조사 중…' : result ? '🔄 다시 조사' : '🔍 지금 조사'}</button>
     );
 
@@ -404,7 +404,7 @@ ${links.form}`}
         <button onClick={toggleDone}
             title={done ? '눌러서 해제하면 다시 고칠 수 있습니다' : '다 확인했다면 눌러 마감하세요 (O/X 가 잠깁니다)'}
             style={{
-                padding: '8px 12px', borderRadius: '8px', fontSize: '0.82rem', fontWeight: '700',
+                padding: '8px 12px', borderRadius: '8px', fontSize: '0.9rem', fontWeight: '700',
                 cursor: 'pointer', whiteSpace: 'nowrap',
                 border: done ? 'none' : '1px solid var(--border-color)',
                 background: done ? DONE_COLOR : 'transparent',
@@ -422,8 +422,8 @@ ${links.form}`}
             <div style={card}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                     <div>
-                        <div style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--text-main)' }}>📣 네이버 게시 의무 점검</div>
-                        <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginTop: '3px' }}>
+                        <div style={{ fontSize: '1rem', fontWeight: '800', color: 'var(--text-main)' }}>📣 네이버 게시 의무 점검</div>
+                        <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '3px' }}>
                             네이버플레이스와, 플레이스 홈에 링크된 블로그·홈페이지·인스타그램에
                             교습비와 {numberLabel}를 게시했는지 확인합니다.
                             {result && <><br />O/X 줄을 <b>누르면</b> 직접 확인한 값으로 바꿀 수 있습니다 (자동값 → O → X → 없음 → 자동값).</>}
@@ -438,29 +438,29 @@ ${links.form}`}
                         {runBtn}
                     </div>
                 </div>
-                {refreshing && <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '8px' }}>↻ 지난번에 불러온 결과입니다 — 최신 내용을 확인하는 중…</div>}
-                {message && <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '10px' }}>{message}</div>}
+                {refreshing && <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '8px' }}>↻ 지난번에 불러온 결과입니다 — 최신 내용을 확인하는 중…</div>}
+                {message && <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '10px' }}>{message}</div>}
             </div>
 
             {/* 안내 문자 — 표는 자리가 없어 툴팁으로 보여줬지만, 여기서는 보내기 전에 눈으로 읽는다 */}
             {smsOpen && smsText && (
-                <div style={{ ...card, borderLeft: '4px solid #7c3aed' }}>
+                <div style={{ ...card, borderLeft: '4px solid #1d4ed8' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginBottom: '8px' }}>
-                        <div style={{ fontSize: '0.86rem', fontWeight: '800' }}>✉ 안내 문자 — 빠진 {noticeCount}가지</div>
+                        <div style={{ fontSize: '0.9rem', fontWeight: '800' }}>✉ 안내 문자 — 빠진 {noticeCount}가지</div>
                         <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                             {/* 바이트 수를 미리 보여준다 — 붙여넣고 보내기를 누른 뒤에 알면 통째로 다시 해야 한다 */}
-                            <span style={{ fontSize: '0.76rem', fontWeight: '700', color: smsOver ? '#ef4444' : 'var(--text-muted)' }}>
+                            <span style={{ fontSize: '0.85rem', fontWeight: '700', color: smsOver ? '#ef4444' : 'var(--text-muted)' }}>
                                 {smsSize.toLocaleString('ko-KR')}B / {LMS_LIMIT.toLocaleString('ko-KR')}B
                             </span>
                             <button onClick={copySms} style={{
                                 padding: '6px 12px', borderRadius: '8px', border: 'none',
-                                background: smsFlash?.warn ? '#ef4444' : smsFlash ? DONE_COLOR : '#7c3aed',
-                                color: 'white', fontSize: '0.8rem', fontWeight: '700', cursor: 'pointer',
+                                background: smsFlash?.warn ? '#ef4444' : smsFlash ? DONE_COLOR : '#1d4ed8',
+                                color: 'white', fontSize: '0.9rem', fontWeight: '700', cursor: 'pointer',
                             }}>{smsFlash ? smsFlash.text : '복사'}</button>
                         </div>
                     </div>
                     {smsOver && (
-                        <div style={{ fontSize: '0.78rem', color: '#ef4444', marginBottom: '6px', lineHeight: 1.6 }}>
+                        <div style={{ fontSize: '0.85rem', color: '#ef4444', marginBottom: '6px', lineHeight: 1.6 }}>
                             ⚠ LMS 한도를 넘었습니다 — 문자마당이 받아 주지 않을 수 있습니다.
                             ⚙ 문자 설정에서 교습과정 목록이나 안내 링크를 빼면 줄어듭니다.
                         </div>
@@ -469,9 +469,9 @@ ${links.form}`}
                         margin: 0, padding: '10px 12px', maxHeight: '340px', overflow: 'auto',
                         background: 'var(--bg-main)', border: '1px solid var(--border-color)', borderRadius: '8px',
                         whiteSpace: 'pre-wrap', wordBreak: 'break-all',
-                        fontFamily: 'inherit', fontSize: '0.78rem', lineHeight: 1.7, color: 'var(--text-main)',
+                        fontFamily: 'inherit', fontSize: '0.85rem', lineHeight: 1.7, color: 'var(--text-main)',
                     }}>{smsText}</pre>
-                    <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '8px', lineHeight: 1.7 }}>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '8px', lineHeight: 1.7 }}>
                         {target.contact
                             ? <>☎ {target.contact} 로 보낼 문구입니다 — 문자마당 창에 붙여넣으세요.</>
                             : <b style={{ color: '#f59e0b' }}>☎ 연락처가 없습니다 — 문자마당에서 받는 번호를 직접 넣으세요.</b>}
@@ -482,9 +482,9 @@ ${links.form}`}
 
             {/* 공동 운영 — 플레이스·블로그를 함께 쓰는 학원 */}
             {siblings.length > 0 && (
-                <div style={{ ...card, borderLeft: '4px solid #7c3aed' }}>
-                    <div style={{ fontSize: '0.84rem', color: 'var(--text-main)', lineHeight: 1.7 }}>
-                        <b style={{ color: '#7c3aed' }}>🔗 공동운영</b> — {siblings.map((sib, i) => (
+                <div style={{ ...card, borderLeft: '4px solid #1d4ed8' }}>
+                    <div style={{ fontSize: '0.9rem', color: 'var(--text-main)', lineHeight: 1.7 }}>
+                        <b style={{ color: '#1d4ed8' }}>🔗 공동운영</b> — {siblings.map((sib, i) => (
                             <span key={sib.key}>
                                 {i > 0 && ' · '}
                                 {sib.academy && onSelectAcademy
@@ -493,7 +493,7 @@ ${links.form}`}
                                     : <b>{sib.name}</b>}
                             </span>
                         ))} 와(과) 플레이스·블로그를 함께 씁니다.
-                        <br /><span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                        <br /><span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                             같은 채널을 보고 판정하므로 교습비 값은 서로 같습니다. {numberLabel}는 학원마다 자기 번호가 게시돼 있어야 하므로 따로 봅니다.
                         </span>
                     </div>
@@ -501,7 +501,7 @@ ${links.form}`}
             )}
 
             {!result ? (
-                <div style={{ ...card, textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.84rem', padding: '28px 16px' }}>
+                <div style={{ ...card, textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.9rem', padding: '28px 16px' }}>
                     아직 조사한 적이 없습니다. 위 <b>지금 조사</b> 버튼을 누르면 5~10초 뒤 결과가 나옵니다.
                 </div>
             ) : (
@@ -510,26 +510,26 @@ ${links.form}`}
                     <div style={{ ...card, borderLeft: `4px solid ${VERDICT_COLOR[verdict] || 'var(--border-color)'}` }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                             <span style={{ fontSize: '1.05rem', fontWeight: '800', color: VERDICT_COLOR[verdict] }}>{verdict}</span>
-                            <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>{fmtWhen(result.checkedAt)} 기준</span>
+                            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{fmtWhen(result.checkedAt)} 기준</span>
                         </div>
                         {result.미이행사유 && (
-                            <div style={{ fontSize: '0.82rem', color: '#ef4444', marginTop: '8px', lineHeight: 1.6 }}>{result.미이행사유}</div>
+                            <div style={{ fontSize: '0.9rem', color: '#ef4444', marginTop: '8px', lineHeight: 1.6 }}>{result.미이행사유}</div>
                         )}
                         {hasManual && (
-                            <div style={{ fontSize: '0.78rem', color: MANUAL_COLOR, marginTop: '8px', lineHeight: 1.6 }}>
+                            <div style={{ fontSize: '0.85rem', color: MANUAL_COLOR, marginTop: '8px', lineHeight: 1.6 }}>
                                 담당자가 직접 확인한 값이 반영된 판정입니다
                                 {verdict !== result.판정 && ` (자동 판정은 ${result.판정})`}.
                             </div>
                         )}
                         {verdict === '확인불가' && (
-                            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '8px', lineHeight: 1.6 }}>
+                            <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginTop: '8px', lineHeight: 1.6 }}>
                                 {placeUnconfirmed
                                     ? <>찾아온 플레이스가 이 학원이 맞는지 확정되지 않아 판정만 보류했습니다.
                                         아래 <b>맞습니다 — 이 플레이스로 확정</b>을 누르면 판정까지 나옵니다.</>
                                     : '자동 매칭이 확실하지 않아 판정을 보류했습니다. 아래 링크로 직접 확인해 주세요.'}
                             </div>
                         )}
-                        <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '8px' }}>
+                        <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '8px' }}>
                             자동 판정이라 확정 위반이 아닙니다. 안내·점검 우선순위 참고용으로만 쓰세요.
                         </div>
                     </div>
@@ -537,12 +537,12 @@ ${links.form}`}
                     {/* 네이버플레이스 */}
                     <div style={card}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                            <div style={{ fontSize: '0.86rem', fontWeight: '800' }}>📍 네이버플레이스</div>
+                            <div style={{ fontSize: '0.9rem', fontWeight: '800' }}>📍 네이버플레이스</div>
                             <a href={placeOpenUrl(result, academy.name, academy.address)} target="_blank" rel="noreferrer"
-                                style={{ fontSize: '0.78rem', color: '#3b82f6', fontWeight: '600', textDecoration: 'none' }}>열기 ↗</a>
+                                style={{ fontSize: '0.85rem', color: '#3b82f6', fontWeight: '600', textDecoration: 'none' }}>열기 ↗</a>
                         </div>
                         {result.플레이스명 && (
-                            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '4px' }}>
+                            <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '4px' }}>
                                 검색된 업체: {result.플레이스명}
                                 {placeUnconfirmed && <span style={{ color: '#f59e0b' }}> (동일 업체인지 확인 필요)</span>}
                                 {pinned && <span style={{ color: MANUAL_COLOR, fontWeight: '700' }}> · 직접 지정함</span>}
@@ -555,7 +555,7 @@ ${links.form}`}
                                 background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.45)',
                                 borderRadius: '10px', padding: '10px 12px', margin: '6px 0 2px',
                             }}>
-                                <div style={{ fontSize: '0.8rem', color: 'var(--text-main)', lineHeight: 1.6 }}>
+                                <div style={{ fontSize: '0.9rem', color: 'var(--text-main)', lineHeight: 1.6 }}>
                                     <b>이 업체가 {academy.name || '이 학원'} 이 맞습니까?</b>{' '}
                                     {result.matchStatus === 'address'
                                         ? <>이름으로는 찾지 못해 <b>등록 주소로 그 건물 업체를 훑어</b> 이름이 가장 비슷한 곳을 골라온 것입니다
@@ -568,13 +568,13 @@ ${links.form}`}
                                     <button onClick={confirmPlace} disabled={running} style={{
                                         padding: '6px 12px', borderRadius: '8px', border: 'none',
                                         background: running ? 'var(--border-color)' : '#10b981', color: 'white',
-                                        fontSize: '0.8rem', fontWeight: '700', cursor: running ? 'default' : 'pointer',
+                                        fontSize: '0.9rem', fontWeight: '700', cursor: running ? 'default' : 'pointer',
                                     }}>맞습니다 — 이 플레이스로 확정</button>
                                 </div>
                             </div>
                         )}
                         {!placeFound ? (
-                            <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', paddingTop: '8px', borderTop: '1px solid var(--border-color)' }}>
+                            <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', paddingTop: '8px', borderTop: '1px solid var(--border-color)' }}>
                                 네이버플레이스에서 찾지 못했습니다. 아래 <b>직접 지정</b>에 플레이스 주소를 붙여넣으면 그 플레이스로 조사합니다.
                             </div>
                         ) : (
@@ -605,7 +605,7 @@ ${links.form}`}
                             여기 보이는 주소가 곧 표의 '플레이스 지정' 이고 구글시트 '플레이스지정' 열의 값이다. */}
                         <div style={{ borderTop: '1px solid var(--border-color)', marginTop: '4px', paddingTop: '8px' }}>
                             {curUrl && (
-                                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '6px', wordBreak: 'break-all' }}>
+                                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '6px', wordBreak: 'break-all' }}>
                                     현재 조사에 쓰는 플레이스{' '}
                                     <a href={placeMapUrl(curUrl)} target="_blank" rel="noreferrer"
                                         style={{ color: '#3b82f6', fontWeight: '600', textDecoration: 'none' }}>
@@ -621,32 +621,32 @@ ${links.form}`}
                                     <input value={pinInput} onChange={(e) => setPinInput(e.target.value)}
                                         placeholder="네이버플레이스 주소 붙여넣기 (또는 번호)"
                                         style={{
-                                            flex: '1 1 220px', minWidth: 0, padding: '6px 9px', fontSize: '0.8rem',
+                                            flex: '1 1 220px', minWidth: 0, padding: '6px 9px', fontSize: '0.9rem',
                                             border: '1px solid var(--border-color)', borderRadius: '8px',
                                             background: 'var(--bg-card)', color: 'var(--text-main)',
                                         }} />
                                     <button onClick={() => savePin(pinInput)} disabled={running} style={{
                                         padding: '6px 12px', borderRadius: '8px', border: 'none', background: 'var(--primary)',
-                                        color: 'white', fontSize: '0.8rem', fontWeight: '700', cursor: 'pointer',
+                                        color: 'white', fontSize: '0.9rem', fontWeight: '700', cursor: 'pointer',
                                     }}>지정하고 다시 조사</button>
                                     <button onClick={() => { setPinOpen(false); setPinInput(''); }} style={{
                                         padding: '6px 10px', borderRadius: '8px', border: '1px solid var(--border-color)',
-                                        background: 'none', color: 'var(--text-muted)', fontSize: '0.8rem', cursor: 'pointer',
+                                        background: 'none', color: 'var(--text-muted)', fontSize: '0.9rem', cursor: 'pointer',
                                     }}>취소</button>
                                 </div>
                             ) : (
                                 <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
                                     <button onClick={() => { setPinOpen(true); setPinInput(curUrl); }} style={{
                                         background: 'none', border: '1px solid var(--border-color)', borderRadius: '8px',
-                                        padding: '5px 10px', color: '#3b82f6', fontSize: '0.78rem', fontWeight: '700', cursor: 'pointer',
+                                        padding: '5px 10px', color: '#3b82f6', fontSize: '0.85rem', fontWeight: '700', cursor: 'pointer',
                                     }}>이 플레이스가 아닐 경우 — 직접 지정</button>
                                     {pinned && (
                                         <button onClick={clearPin} disabled={running} style={{
                                             background: 'none', border: 'none', color: 'var(--text-muted)',
-                                            fontSize: '0.78rem', fontWeight: '600', cursor: 'pointer', textDecoration: 'underline',
+                                            fontSize: '0.85rem', fontWeight: '600', cursor: 'pointer', textDecoration: 'underline',
                                         }}>지정 해제</button>
                                     )}
-                                    <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                                    <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                                         1호점·2호점처럼 이름이 비슷한 곳은 잘못 잡힐 수 있습니다. 지정하면 다시 조사해도 그 플레이스만 봅니다.
                                     </span>
                                 </div>
@@ -657,8 +657,8 @@ ${links.form}`}
                     {/* 플레이스 홈에 걸린 링크 — 블로그·홈페이지·인스타그램 각각 */}
                     {channels.length === 0 ? (
                         <div style={card}>
-                            <div style={{ fontSize: '0.86rem', fontWeight: '800', marginBottom: '6px' }}>🔗 연결된 채널</div>
-                            <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                            <div style={{ fontSize: '0.9rem', fontWeight: '800', marginBottom: '6px' }}>🔗 연결된 채널</div>
+                            <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>
                                 네이버플레이스 홈에 걸린 블로그·홈페이지·인스타그램 링크가 없습니다.
                                 링크가 없는 채널은 <b>따로 검색하지 않습니다</b> — 이름이 비슷한 다른 학원의 블로그를 잘못 집는 일을 막기 위해서입니다.
                             </div>
@@ -670,18 +670,18 @@ ${links.form}`}
                         return (
                             <div key={`${c.url}-${i}`} style={card}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                                    <div style={{ fontSize: '0.86rem', fontWeight: '800' }}>
+                                    <div style={{ fontSize: '0.9rem', fontWeight: '800' }}>
                                         {CHANNEL_ICON[c.종류] || '🔗'} {c.유형}
                                     </div>
                                     <a href={c.url} target="_blank" rel="noreferrer"
-                                        style={{ fontSize: '0.78rem', color: '#3b82f6', fontWeight: '600', textDecoration: 'none' }}>열기 ↗</a>
+                                        style={{ fontSize: '0.85rem', color: '#3b82f6', fontWeight: '600', textDecoration: 'none' }}>열기 ↗</a>
                                 </div>
-                                <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginBottom: '4px', wordBreak: 'break-all' }}>
+                                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '4px', wordBreak: 'break-all' }}>
                                     {shortUrl(c.url)}
                                     {c.조사범위 && <span> · 조사 범위: {c.조사범위}</span>}
                                 </div>
                                 {c.번호대조 === '확인불가' ? (
-                                    <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', paddingTop: '8px', borderTop: '1px solid var(--border-color)', lineHeight: 1.6 }}>
+                                    <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', paddingTop: '8px', borderTop: '1px solid var(--border-color)', lineHeight: 1.6 }}>
                                         {c.비고 || '내용을 읽지 못해 판정을 보류했습니다.'} 위 <b>열기</b>로 직접 확인해 주세요.
                                     </div>
                                 ) : (
@@ -703,7 +703,7 @@ ${links.form}`}
                                                     : `${c.조사범위}에서 번호를 찾지 못했습니다`}
                                             detailColor={c.번호대조 === '불일치' ? '#ef4444' : undefined} />
                                         {c.소개글 && (
-                                            <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '6px', whiteSpace: 'pre-wrap', background: 'var(--bg-main)', borderRadius: '8px', padding: '8px 10px' }}>
+                                            <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '6px', whiteSpace: 'pre-wrap', background: 'var(--bg-main)', borderRadius: '8px', padding: '8px 10px' }}>
                                                 {c.소개글}
                                             </div>
                                         )}
