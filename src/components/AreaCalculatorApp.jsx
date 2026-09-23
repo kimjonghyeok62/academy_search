@@ -40,13 +40,9 @@ function calcRoomTotal(room) {
 let _id = 1
 const genId = () => _id++
 
+// 강의실 번호 배지 — 방마다 색을 달리하지 않고 남색 하나
 const ROOM_COLORS = [
-  { from: '#60a5fa', to: '#3b82f6' }, // 파란 파스텔
-  { from: '#a78bfa', to: '#8b5cf6' }, // 보라 파스텔
-  { from: '#34d399', to: '#10b981' }, // 초록 파스텔
-  { from: '#fb923c', to: '#f97316' }, // 주황 파스텔
-  { from: '#f472b6', to: '#ec4899' }, // 핑크 파스텔
-  { from: '#2dd4bf', to: '#14b8a6' }, // 청록 파스텔
+  { from: 'var(--navy)', to: 'var(--navy)' },
 ]
 
 function newZone(type = 'add') {
@@ -156,10 +152,10 @@ export default function AreaCalculatorApp({ embedded = false }) {
               return (
                 <div key={room.id} style={S.gtRow}>
                   <div style={S.gtRoomLeft}>
-                    <span style={{ ...S.gtBadge, background: `linear-gradient(135deg, ${c.from}, ${c.to})` }}>{idx + 1}</span>
-                    <span style={{ ...S.gtRoomName, color: c.to }}>{room.name || `강의실 ${idx + 1}`}</span>
+                    <span style={{ ...S.gtBadge, background: c.to }}>{idx + 1}</span>
+                    <span style={{ ...S.gtRoomName, color: 'var(--text-main)' }}>{room.name || `강의실 ${idx + 1}`}</span>
                   </div>
-                  <span style={{ ...S.gtVal, color: c.to }}>{total.toFixed(2)} ㎡</span>
+                  <span style={{ ...S.gtVal, color: 'var(--text-main)' }}>{total.toFixed(2)} ㎡</span>
                 </div>
               )
             })}
@@ -189,25 +185,25 @@ function RoomCard({ room, idx, color, onNameChange, onAddZone, onRemoveZone, onU
       if (!result) return
       const isSub = zone.type === 'subtract'
       if (first) {
-        parts.push({ text: result.rounded.toFixed(2), color: '#4a90d9' })
+        parts.push({ text: result.rounded.toFixed(2), color: ADD_COLOR })
         first = false
       } else {
-        parts.push({ text: isSub ? ' − ' : ' + ', color: '#bbb' })
-        parts.push({ text: result.rounded.toFixed(2), color: isSub ? '#e07050' : '#4a90d9' })
+        parts.push({ text: isSub ? ' − ' : ' + ', color: '#94a3b8' })
+        parts.push({ text: result.rounded.toFixed(2), color: isSub ? SUB_COLOR : ADD_COLOR })
       }
     })
-    parts.push({ text: ' = ', color: '#bbb' })
-    parts.push({ text: total.toFixed(2) + ' ㎡', color: '#1a1f2e' })
+    parts.push({ text: ' = ', color: '#94a3b8' })
+    parts.push({ text: total.toFixed(2) + ' ㎡', color: '#0f172a' })
     formulaParts = parts
   } else if (hasFormula) {
-    formulaParts = [{ text: total.toFixed(2) + ' ㎡', color: '#1a1f2e' }]
+    formulaParts = [{ text: total.toFixed(2) + ' ㎡', color: '#0f172a' }]
   }
 
   return (
     <div style={S.card}>
       <div style={S.cardHead}>
         <div style={S.cardHeadLeft}>
-          <span style={{ ...S.cardIdx, background: `linear-gradient(135deg, ${color.from}, ${color.to})`, boxShadow: `0 1px 3px ${color.to}66` }}>{idx + 1}</span>
+          <span style={{ ...S.cardIdx, background: color.to }}>{idx + 1}</span>
           <input
             style={S.roomName}
             type="text"
@@ -238,7 +234,7 @@ function RoomCard({ room, idx, color, onNameChange, onAddZone, onRemoveZone, onU
 
       {formulaParts && (
         <div style={S.formulaBar}>
-          <span style={{ ...S.formulaLabel, background: `linear-gradient(135deg, ${color.from}, ${color.to})`, boxShadow: `0 1px 3px ${color.to}55` }}>소계</span>
+          <span style={S.formulaLabel}>소계</span>
           <span style={S.formulaText}>
             {formulaParts.slice(0, -2).map((p, i) => (
               <span key={i} style={{ color: p.color }}>{p.text}</span>
@@ -264,7 +260,7 @@ function ZoneRow({ zone, zIdx, onUpdate, onRemove, canRemove }) {
     <div style={{ ...S.zone, ...(isSub ? S.zoneSub : {}) }}>
       <div style={S.zoneAccent(isSub)} />
       <div style={S.zoneLine}>
-        <span style={{ ...S.prefix, color: isSub ? '#e07050' : '#4a90d9' }}>{isSub ? '−' : '+'}</span>
+        <span style={{ ...S.prefix, color: isSub ? SUB_COLOR : ADD_COLOR }}>{isSub ? '−' : '+'}</span>
         {isSub ? (
           <input
             style={S.labelInput}
@@ -293,7 +289,7 @@ function CalcInline({ result, isSub }) {
   const { raw, rounded } = result
   const rawStr = raw.toFixed(3)
   const needsRound = Math.abs(raw - rounded) >= 0.0005
-  const resultColor = isSub ? '#e07050' : '#4a90d9'
+  const resultColor = isSub ? SUB_COLOR : ADD_COLOR
 
   return (
     <span style={S.calcInline}>
@@ -323,8 +319,8 @@ function NumInput({ value, onChange, placeholder, zoneId, field, onComplete }) {
   }
 
   const handleFocus = (e) => {
-    e.target.style.borderColor = '#4a90d9'
-    e.target.style.boxShadow = '0 0 0 3px rgba(74,144,217,0.15)'
+    e.target.style.borderColor = ADD_COLOR
+    e.target.style.boxShadow = '0 0 0 3px #bfdbfe'
     e.target.select()
     setTimeout(() => {
       e.target.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -344,118 +340,124 @@ function NumInput({ value, onChange, placeholder, zoneId, field, onComplete }) {
       value={value}
       onChange={handleChange}
       onFocus={handleFocus}
-      onBlur={e => { e.target.style.borderColor = '#e0e0e0'; e.target.style.boxShadow = 'none' }}
+      onBlur={e => { e.target.style.borderColor = '#cbd5e1'; e.target.style.boxShadow = 'none' }}
     />
   )
 }
 
 
+// 모양 — 앱 공통 색(남색·파랑 하나)과 글자 단계를 따른다. 그라데이션·방마다 다른 색은 쓰지 않는다.
+// 더하는 구역은 파랑, 빼는 기둥은 회색으로만 가른다 (빨강은 '초과' 뜻이라 쓰지 않는다).
+const ADD_COLOR = '#1d4ed8'
+const SUB_COLOR = '#475569'
+
 const S = {
   wrap: {
-    maxWidth: 480,
+    maxWidth: 640,
     margin: '0 auto',
-    fontFamily: "'Apple SD Gothic Neo', 'Noto Sans KR', -apple-system, sans-serif",
-    background: '#eef0f4',
+    background: 'var(--bg-light)',
     minHeight: '100vh',
     paddingBottom: 48,
   },
   header: {
-    background: 'linear-gradient(135deg, #3a7bd5 0%, #5a9ee8 100%)',
+    background: 'var(--navy)',
     padding: '16px',
     position: 'sticky',
     top: 0,
     zIndex: 100,
-    boxShadow: '0 2px 12px rgba(58,123,213,0.35)',
   },
   headerInner: {
     display: 'flex',
     alignItems: 'center',
     gap: 8,
   },
-  headerIcon: { fontSize: 20 },
-  headerTitle: { color: '#fff', fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em' },
-  body: { padding: '14px 4px 0', display: 'flex', flexDirection: 'column', gap: 10 },
+  headerIcon: { display: 'none' },
+  headerTitle: { color: '#fff', fontSize: '1.15rem', fontWeight: 800 },
+  body: { padding: '0', display: 'flex', flexDirection: 'column', gap: 14 },
 
   card: {
-    background: 'white',
+    background: 'var(--bg-card)',
+    border: '1px solid var(--border-color)',
     borderRadius: 12,
     overflow: 'visible',
-    boxShadow: '0 2px 12px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.05)',
+    boxShadow: 'var(--shadow-sm)',
   },
   cardHead: {
-    background: 'linear-gradient(to right, #f8f9fb, #f3f5f8)',
-    borderBottom: '1px solid #e8eaee',
-    padding: '7px 8px 7px 12px',
+    background: '#f8fafc',
+    borderBottom: '1px solid var(--border-color)',
+    borderRadius: '12px 12px 0 0',
+    padding: '8px 8px 8px 14px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 8,
     overflow: 'visible',
   },
   cardHeadLeft: {
     display: 'flex',
     alignItems: 'center',
     gap: 10,
-    flex: 1,
+    flex: '1 1 140px',
     minWidth: 0,
   },
   cardIdx: {
-    width: 22,
-    height: 22,
+    width: 28,
+    height: 28,
     borderRadius: '50%',
-    background: 'linear-gradient(135deg, #4a90d9, #357abd)',
+    background: 'var(--navy)',
     color: 'white',
-    fontSize: 11,
-    fontWeight: 700,
+    fontSize: '0.9rem',
+    fontWeight: 800,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
-    boxShadow: '0 1px 3px rgba(74,144,217,0.4)',
   },
   roomName: {
     flex: 1,
+    minWidth: 0,
+    minHeight: 40,
     background: 'transparent',
     border: 'none',
-    color: '#1a1f2e',
-    fontSize: 14,
-    fontWeight: 600,
+    color: 'var(--text-main)',
+    fontSize: '1.0625rem',
+    fontWeight: 700,
     outline: 'none',
     padding: '0',
   },
   removeBtn: {
     background: 'none',
     border: 'none',
-    color: '#bbb',
-    width: 26,
-    height: 26,
+    color: 'var(--text-muted)',
+    width: 46,
+    height: 46,
     cursor: 'pointer',
-    fontSize: 12,
+    fontSize: '1rem',
     flexShrink: 0,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: '50%',
+    borderRadius: 10,
+    padding: 0,
   },
 
-  tape: { display: 'flex', flexDirection: 'column', gap: 6, padding: '8px 4px' },
+  tape: { display: 'flex', flexDirection: 'column', gap: 8, padding: '10px' },
   zone: {
     display: 'flex',
     position: 'relative',
     overflow: 'hidden',
-    borderRadius: 6,
+    borderRadius: 10,
     background: '#fff',
-    boxShadow: '0 3px 8px rgba(0,0,0,0.13), 0 1px 2px rgba(0,0,0,0.08)',
+    border: '1px solid var(--border-color)',
   },
   zoneSub: {
-    background: '#faf4f1',
-    boxShadow: 'inset 0 1px 4px rgba(180,90,60,0.10), 0 0 0 1px rgba(200,100,60,0.10)',
+    background: '#f8fafc',
   },
   zoneAccent: (isSub) => ({
-    width: 3,
+    width: 4,
     flexShrink: 0,
-    background: isSub
-      ? 'linear-gradient(to bottom, #e07050, #c85a38)'
-      : 'linear-gradient(to bottom, #4a90d9, #357abd)',
+    background: isSub ? SUB_COLOR : ADD_COLOR,
   }),
   zoneInner: {
     flex: 1,
@@ -465,43 +467,42 @@ const S = {
     flex: 1,
     display: 'flex',
     alignItems: 'center',
-    padding: '9px 4px 9px 4px',
-    gap: 4,
+    padding: '6px 6px 6px 8px',
+    gap: 6,
     flexWrap: 'wrap',
   },
   zoneLeft: { display: 'flex', alignItems: 'center', gap: 6 },
-  prefix: { fontSize: 15, fontWeight: 700, lineHeight: 1 },
-  zoneNum: { fontSize: 14, color: '#888', fontWeight: 600, letterSpacing: '-0.02em', whiteSpace: 'nowrap', width: 44, display: 'inline-block' },
+  prefix: { fontSize: '1.15rem', fontWeight: 800, lineHeight: 1, width: 14, textAlign: 'center' },
+  zoneNum: { fontSize: '1rem', color: 'var(--text-muted)', fontWeight: 700, whiteSpace: 'nowrap', width: 44, display: 'inline-block' },
   labelInput: {
-    fontSize: 14,
-    color: '#666',
-    fontWeight: 600,
+    fontSize: '1rem',
+    color: 'var(--text-muted)',
+    fontWeight: 700,
     border: 'none',
     outline: 'none',
     width: 44,
+    minHeight: 40,
     background: 'transparent',
     padding: '1px 0',
-    letterSpacing: '-0.02em',
   },
   shapeSelect: {
-    fontSize: 13,
+    fontSize: '1rem',
     padding: '4px 7px',
-    borderRadius: 5,
-    border: '1px solid #e0e0e0',
+    borderRadius: 8,
+    border: '1px solid var(--border-strong)',
     background: 'white',
-    color: '#222',
+    color: 'var(--text-main)',
     fontWeight: 700,
     cursor: 'pointer',
-    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
   },
   removeSmall: {
     background: 'none',
     border: 'none',
-    color: '#ccc',
-    width: 22,
-    height: 22,
+    color: 'var(--text-muted)',
+    width: 40,
+    height: 46,
     cursor: 'pointer',
-    fontSize: 12,
+    fontSize: '1rem',
     flexShrink: 0,
     padding: 0,
     display: 'flex',
@@ -517,81 +518,79 @@ const S = {
     flexWrap: 'wrap',
   },
   numInput: {
-    width: 50,
-    padding: '3px 2px',
-    fontSize: 16,
+    width: 72,
+    minHeight: 46,
+    padding: '0 4px',
+    fontSize: '1.0625rem',
     textAlign: 'center',
-    border: '1px solid #e0e0e0',
-    borderRadius: 7,
+    border: '1px solid var(--border-strong)',
+    borderRadius: 10,
     outline: 'none',
-    fontWeight: 500,
-    color: '#1a1f2e',
-    background: '#fafbfc',
+    fontWeight: 600,
+    color: 'var(--text-main)',
+    background: '#fff',
+    boxSizing: 'border-box',
     transition: 'border-color 0.15s, box-shadow 0.15s',
     MozAppearance: 'textfield',
-    boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.06)',
   },
-  op: { fontSize: 15, color: '#c0c4cc', fontWeight: 400 },
-  unit: { fontSize: 13, color: '#c0c4cc' },
-  small: { fontSize: 14, color: '#c0c4cc' },
+  op: { fontSize: '1.0625rem', color: 'var(--text-muted)', fontWeight: 400 },
+  unit: { fontSize: '1rem', color: 'var(--text-muted)' },
+  small: { fontSize: '1rem', color: 'var(--text-muted)' },
 
   calcInline: {
     display: 'inline-flex',
     alignItems: 'center',
     gap: 3,
   },
-  calcEq: { fontSize: 13, color: '#bbb' },
-  calcRawTxt: { fontSize: 12, color: '#bbb', fontFamily: 'monospace' },
-  calcArrowTxt: { fontSize: 12, color: '#c8c8c8' },
-  calcResult: { fontSize: 15, fontWeight: 700, fontFamily: 'monospace' },
-  calcUnit: { fontSize: 12, color: '#aaa' },
+  calcEq: { fontSize: '1rem', color: 'var(--text-muted)' },
+  calcRawTxt: { fontSize: '0.9rem', color: 'var(--text-muted)', fontFamily: 'monospace' },
+  calcArrowTxt: { fontSize: '0.9rem', color: 'var(--text-muted)' },
+  calcResult: { fontSize: '1.0625rem', fontWeight: 800, fontVariantNumeric: 'tabular-nums' },
+  calcUnit: { fontSize: '0.9rem', color: 'var(--text-muted)' },
 
   formulaBar: {
-    background: 'linear-gradient(to right, #f5f7fa, #f0f2f6)',
-    borderTop: '1px solid #e8eaee',
-    padding: '6px 8px',
+    background: '#f8fafc',
+    borderTop: '1px solid var(--border-color)',
+    borderRadius: '0 0 12px 12px',
+    padding: '10px 14px',
     display: 'flex',
     alignItems: 'baseline',
     flexWrap: 'wrap',
-    gap: 5,
+    gap: 6,
   },
   formulaLabel: {
-    fontSize: 11,
+    fontSize: '0.9rem',
     color: 'white',
-    background: 'linear-gradient(135deg, #7c3aed, #6d28d9)',
-    padding: '2px 7px',
-    borderRadius: 10,
+    background: 'var(--navy)',
+    padding: '2px 10px',
+    borderRadius: 999,
     fontWeight: 700,
-    letterSpacing: '0.02em',
     flexShrink: 0,
-    boxShadow: '0 1px 3px rgba(109,40,217,0.35)',
   },
   formulaText: {
-    fontSize: 15,
-    fontFamily: 'monospace',
-    letterSpacing: '-0.04em',
+    fontSize: '1.0625rem',
+    fontVariantNumeric: 'tabular-nums',
     fontWeight: 700,
   },
 
   cardFoot: {
-    borderTop: '1px solid #edf0f4',
+    borderTop: '1px solid var(--border-color)',
   },
   addZoneBtnSm: {
-    padding: '5px 10px',
-    border: 'none',
-    background: 'linear-gradient(135deg, #4a90d9, #357abd)',
-    color: 'white',
-    borderRadius: 7,
-    fontSize: 12,
+    minHeight: 46,
+    padding: '0 12px',
+    border: `1px solid ${ADD_COLOR}`,
+    background: '#fff',
+    color: ADD_COLOR,
+    borderRadius: 10,
+    fontSize: '1rem',
     fontWeight: 700,
     cursor: 'pointer',
-    lineHeight: 1.4,
-    boxShadow: '0 3px 8px rgba(74,144,217,0.45), 0 1px 2px rgba(74,144,217,0.3)',
-    letterSpacing: '-0.01em',
+    whiteSpace: 'nowrap',
   },
   subZoneBtnSm: {
-    background: 'linear-gradient(135deg, #e07050, #c85a38)',
-    boxShadow: '0 3px 8px rgba(200,90,56,0.4), 0 1px 2px rgba(200,90,56,0.25)',
+    border: '1px solid var(--border-strong)',
+    color: SUB_COLOR,
   },
 
   roomTotal: {
@@ -600,35 +599,34 @@ const S = {
     alignItems: 'center',
     padding: '10px 14px 12px',
   },
-  rtLabel: { fontSize: 12, color: '#aaa', letterSpacing: '0.02em' },
-  rtVal: { fontSize: 18, fontWeight: 700, color: '#1a1f2e', fontFamily: 'monospace' },
+  rtLabel: { fontSize: '0.9rem', color: 'var(--text-muted)' },
+  rtVal: { fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-main)', fontVariantNumeric: 'tabular-nums' },
 
   addRoomBtn: {
     width: '100%',
-    padding: '13px',
-    background: 'linear-gradient(135deg, #3a7bd5, #5a9ee8)',
+    minHeight: 50,
+    padding: '0 16px',
+    background: 'var(--primary)',
     color: 'white',
     border: 'none',
     borderRadius: 10,
-    fontSize: 14,
-    fontWeight: 500,
+    fontSize: '1.0625rem',
+    fontWeight: 700,
     cursor: 'pointer',
-    boxShadow: '0 2px 8px rgba(58,123,213,0.35)',
-    letterSpacing: '-0.01em',
   },
 
   grandTotal: {
-    background: 'white',
+    background: 'var(--bg-card)',
+    border: '1px solid var(--border-color)',
     borderRadius: 12,
-    padding: '16px',
-    boxShadow: '0 2px 12px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.05)',
+    padding: '18px',
+    boxShadow: 'var(--shadow-sm)',
   },
   gtTitle: {
-    fontSize: 15,
-    color: '#1a1f2e',
-    fontWeight: 700,
+    fontSize: '1.15rem',
+    color: 'var(--text-main)',
+    fontWeight: 800,
     marginBottom: 12,
-    letterSpacing: '-0.01em',
   },
   gtRows: {
     display: 'flex',
@@ -640,36 +638,38 @@ const S = {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: '6px 10px',
+    minHeight: 44,
+    padding: '0 12px',
     borderRadius: 8,
-    background: '#f8f9fb',
+    background: '#f8fafc',
   },
   gtRoomLeft: {
     display: 'flex',
     alignItems: 'center',
     gap: 8,
+    minWidth: 0,
   },
   gtBadge: {
-    width: 20,
-    height: 20,
+    width: 26,
+    height: 26,
     borderRadius: '50%',
     color: 'white',
-    fontSize: 11,
-    fontWeight: 700,
+    fontSize: '0.9rem',
+    fontWeight: 800,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
   },
-  gtRoomName: { fontSize: 13, fontWeight: 600 },
-  gtVal: { fontSize: 14, fontFamily: 'monospace', fontWeight: 600 },
+  gtRoomName: { fontSize: '1.0625rem', fontWeight: 700 },
+  gtVal: { fontSize: '1.0625rem', fontWeight: 700, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' },
   gtFinal: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderTop: '1px solid #e8eaee',
+    borderTop: '1px solid var(--border-color)',
     paddingTop: 12,
   },
-  gtFinalLabel: { fontSize: 13, color: '#888', fontWeight: 500 },
-  gtFinalVal: { fontSize: 22, fontWeight: 700, color: '#1a1f2e', fontFamily: 'monospace' },
+  gtFinalLabel: { fontSize: '1.0625rem', color: 'var(--text-muted)', fontWeight: 700 },
+  gtFinalVal: { fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-main)', fontVariantNumeric: 'tabular-nums' },
 }
