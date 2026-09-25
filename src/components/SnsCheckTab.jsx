@@ -760,29 +760,42 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
     const donePct = rows.length ? Math.round((doneCount / rows.length) * 100) : 0;
     const saveLabel = SAVE_LABEL[saveInfo.status];
 
+    // 조사 필요 단추 설명 — 예전엔 조작부 밑에 늘 두 줄로 깔려 있었다. 이제 단추 풍선말과 사용법에 둔다
+    const staleHelp = `한 번도 안 본 곳 + 조사한 지 ${RECHECK_DAYS}일 지난 곳 + 예전 방식으로 조사해 번호가 오기재로 잘못 남은 곳 (확인 마감한 곳은 빠짐)`
+        + (stale.length > 30 ? ` · 약 ${Math.ceil(stale.length * 10 / 60)}분 걸립니다` : '');
+
     return (
         <div>
-            {/* 안내 — 15줄짜리 설명이 표를 화면 밖으로 밀어냈다.
-                제목 줄만 남기고 접어 두되, 편 상태는 기억한다 */}
+            {/* 조작부 — 한 카드에 세 줄: ① 제목·사용법·최근 조사·문자 설정 ② 학원/교습소·찾기·할 일 단추 ③ 거르개·진행률 */}
             <div style={{ background: 'var(--bg-card)', borderRadius: '14px', padding: '12px 16px', border: '1px solid var(--border-color)', marginBottom: '12px', boxShadow: 'var(--shadow-sm)' }}>
+                {/* ① 제목 줄 */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                     <span style={{ fontSize: '1rem', fontWeight: '800' }}>📣 네이버 교습비·등록번호 게시점검</span>
-                    <button onClick={toggleIntro} style={{
-                        background: 'none', border: '1px solid var(--border-color)', borderRadius: '999px',
-                        padding: '3px 10px', color: 'var(--text-muted)', fontSize: '0.85rem',
-                        fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap',
-                    }}>{introOpen ? '사용법 접기 ▴' : '사용법 보기 ▾'}</button>
-                    {lastCheckedAt && (
-                        <span style={{ marginLeft: 'auto', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
-                            최근 조사: <b>{fmtWhen(lastCheckedAt)}</b>
-                        </span>
-                    )}
+                    <button onClick={toggleIntro} style={pillBtn}>{introOpen ? '사용법 접기 ▴' : '사용법 보기 ▾'}</button>
+                    <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                        {lastCheckedAt && (
+                            <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+                                최근 조사 <b>{fmtWhen(lastCheckedAt)}</b>
+                            </span>
+                        )}
+                        {/* 문자 문구에 들어가는 값. 한 번 정해 두면 이 브라우저에 남는다 */}
+                        <button onClick={() => setNoticeOpen(!noticeOpen)} style={pillBtn}>
+                            {noticeOpen ? '⚙ 문자 설정 접기 ▴' : '⚙ 문자 설정 ▾'}
+                        </button>
+                    </span>
                 </div>
 
+                {/* 안내 — 15줄짜리 설명이 표를 화면 밖으로 밀어냈다.
+                    제목 줄만 남기고 접어 두되, 편 상태는 기억한다 */}
                 {introOpen && (
                     <ol style={{ margin: '10px 0 0', paddingInlineStart: '20px', fontSize: '0.9rem', color: 'var(--text-muted)', lineHeight: 1.75 }}>
                         <li><b>무엇을 보나</b> — 네이버플레이스의 가격 메뉴·가격표 이미지·소개글과,
                             플레이스 홈에 링크된 블로그·홈페이지·카페·인스타그램. 링크가 없는 채널은 따로 검색하지 않습니다.</li>
+                        <li><b>조사 필요</b> = 한 번도 안 본 곳 + 조사한 지 {RECHECK_DAYS}일 지난 곳
+                            + 예전 방식으로 조사해 번호가 <b>오기재로 잘못 남은 곳</b>. 게시 상태는 자주 바뀌지 않아서,
+                            최근에 본 곳까지 매번 다시 도는 것이 네이버 차단의 가장 큰 원인이었습니다.
+                            <b> 확인 마감한 곳은 대상에서 빠집니다.</b>
+                            네이버가 막으면 <b>화면이 알아서 기다렸다 이어서 진행</b>합니다. 지켜보실 필요 없이 탭만 열어두시면 됩니다.</li>
                         <li><b>표 읽는 법</b> — 채널마다 <b>번호</b>(= 등록·신고번호)와 <b>교습비</b> 두 칸입니다.
                             <b> 이행·미이행은 교습비만으로 판정</b>합니다 — 번호 미게시는 시정명령 사항이라 X 로 보여주되 미이행으로 잡지 않습니다.</li>
                         <li><b><span style={{ color: '#d97706' }}>△</span> 는 금액이 다른 곳</b> — 교습비를 올리기는 했는데
@@ -809,63 +822,129 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                             다시 조사해도 지워지지 않습니다. <b>마감한 뒤에도 고칠 수 있습니다.</b></li>
                         <li><b style={{ color: DONE_COLOR }}>확인 마감</b> — 한 학원을 다 보셨으면 맨 오른쪽 <b>확인</b> 열의 <b>마감</b>.
                             그 행의 O/X 가 <b>잠겨 잘못 눌러도 바뀌지 않고</b> 진행률로 남습니다. 고치려면 <b>✓ 완료</b>를 눌러 해제하세요.</li>
+                        <li><b>📌 회차 저장</b> — 지금 판정을 회차로 쌓아 둡니다. 다시 조사하면 칸이 덮여 지난 상태가 사라지므로 재조사 전에 한 번 눌러 두세요.
+                            <b> 📋 점검표 엑셀</b>은 지금 걸린 조건 그대로 학원·교습소를 두 시트에 담아 내려받습니다 (확인불가·해당없음 제외).</li>
                     </ol>
                 )}
-            </div>
 
-            {/* 조작부 */}
-            <div style={{ background: 'var(--bg-card)', borderRadius: '14px', padding: '12px 14px', border: '1px solid var(--border-color)', marginBottom: '12px', boxShadow: 'var(--shadow-sm)' }}>
-                <div style={{ display: 'flex', gap: '6px', marginBottom: '10px' }}>
-                    <Chip label={`🏫 학원 ${aActiveList.length}`} active={typeTab === '학원'} onClick={() => setTypeTab('학원')} color="#3b82f6" />
-                    <Chip label={`🏠 교습소 ${hActiveList.length}`} active={typeTab === '교습소'} onClick={() => setTypeTab('교습소')} color="#1d4ed8" />
-                </div>
+                {noticeOpen && (
+                    <div style={{
+                        marginTop: '10px', padding: '10px 12px', borderRadius: '10px', background: BG_STRIPE,
+                        display: 'flex', gap: '10px', flexWrap: 'wrap',
+                        alignItems: 'flex-end', fontSize: '0.85rem', color: 'var(--text-muted)',
+                    }}>
+                        <label style={noticeField}>
+                            문의 전화
+                            <input value={notice.tel} onChange={e => changeNotice({ tel: e.target.value })}
+                                style={noticeInput(140)} />
+                        </label>
+                        <label style={noticeField}>
+                            수정 기한 (오늘부터 며칠)
+                            <input type="number" min="0" max="60" value={notice.days}
+                                onChange={e => changeNotice({ days: Math.min(60, Math.max(0, Number(e.target.value) || 0)) })}
+                                style={noticeInput(72)} />
+                        </label>
+                        <span style={{ paddingBottom: '7px' }}>→ <b>{noticeDeadline(notice.days)}</b>까지</span>
+                        <label style={{ ...noticeField, flex: '1 1 260px', minWidth: 0 }}>
+                            교육지원청 게시 안내 링크
+                            <input value={notice.guideUrl} onChange={e => changeNotice({ guideUrl: e.target.value })}
+                                style={noticeInput()} />
+                        </label>
+                        <div style={{ flexBasis: '100%', fontSize: '0.85rem', lineHeight: 1.6 }}>
+                            표의 <b>✉ 문자</b> 를 누르면 이 값들이 든 문구가 복사됩니다 — 문자마당 창에 붙여넣으세요.
+                            문구에는 그 학원에서 <b>X 인 칸만</b> 들어가고, 판정과 달리 <b>번호도 함께</b> 안내합니다.
+                            (값은 이 브라우저에만 남습니다)
+                            <br /><b>안내 링크</b> 를 비우면 문자에서 그 줄이 통째로 빠집니다 (주소가 길어 서너 줄을 먹습니다).
+                            LMS 한도는 {LMS_LIMIT.toLocaleString('ko-KR')}바이트입니다.
+                        </div>
+                    </div>
+                )}
 
-                {/* 700곳이 넘는 표에서 한 곳을 찾으려면 눈으로 훑는 수밖에 없었다 */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
-                    <input value={query} onChange={(e) => setQuery(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === 'Escape') setQuery(''); }}
-                        placeholder={`🔍 학원명 · ${numberLabel} · 플레이스명으로 찾기`}
-                        style={{
-                            flex: '1 1 220px', minWidth: 0, padding: '7px 11px', fontSize: '0.9rem',
-                            border: '1px solid var(--border-color)', borderRadius: '8px',
-                            background: 'var(--bg-card)', color: 'var(--text-main)',
-                        }} />
-                    {query && (
-                        <button onClick={() => setQuery('')} style={{
-                            background: 'none', border: 'none', color: 'var(--text-muted)',
-                            fontSize: '0.9rem', cursor: 'pointer', whiteSpace: 'nowrap',
-                        }}>지우기</button>
+                <div style={{ height: '1px', background: 'var(--border-color)', margin: '12px -16px' }} />
+
+                {/* ② 학원/교습소 · 찾기 · 할 일 단추 */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '10px' }}>
+                    <div style={{ display: 'inline-flex', padding: '3px', borderRadius: '10px', background: BG_STRIPE, border: '1px solid var(--border-color)' }}>
+                        {[['학원', aActiveList.length], ['교습소', hActiveList.length]].map(([t, n]) => (
+                            <button key={t} onClick={() => setTypeTab(t)} aria-pressed={typeTab === t} style={{
+                                padding: '6px 14px', borderRadius: '7px', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap',
+                                fontSize: '0.9rem', fontWeight: typeTab === t ? '800' : '600',
+                                background: typeTab === t ? 'var(--bg-card)' : 'transparent',
+                                color: typeTab === t ? 'var(--text-main)' : 'var(--text-muted)',
+                                boxShadow: typeTab === t ? 'var(--shadow-sm)' : 'none',
+                            }}>{t} {n}</button>
+                        ))}
+                    </div>
+
+                    {/* 700곳이 넘는 표에서 한 곳을 찾으려면 눈으로 훑는 수밖에 없었다 */}
+                    <div style={{ flex: '1 1 240px', minWidth: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <input value={query} onChange={(e) => setQuery(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Escape') setQuery(''); }}
+                            placeholder={`🔍 학원명 · ${numberLabel} · 플레이스명으로 찾기`}
+                            style={{
+                                flex: '1 1 auto', minWidth: 0, padding: '7px 11px', fontSize: '0.9rem',
+                                border: '1px solid var(--border-color)', borderRadius: '8px',
+                                background: 'var(--bg-card)', color: 'var(--text-main)',
+                            }} />
+                        {query && (
+                            <button onClick={() => setQuery('')} style={{
+                                background: 'none', border: 'none', color: 'var(--text-muted)',
+                                fontSize: '0.9rem', cursor: 'pointer', whiteSpace: 'nowrap',
+                            }}>지우기</button>
+                        )}
+                    </div>
+
+                    {/* 할 일 단추 — 늘 누르는 '조사 필요' 하나만 채운 파랑, 나머지는 테두리 단추 */}
+                    {!running && (
+                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                            <button onClick={runStale} disabled={!stale.length} title={staleHelp}
+                                style={btnStyle(stale.length ? 'var(--primary)' : 'var(--border-color)')}>
+                                🔍 조사 필요 {stale.length}곳
+                            </button>
+                            <button onClick={runAll} style={outlineBtn} title={`지금 보는 ${typeTab} ${rows.length}곳을 모두 다시 조사합니다 (오래 걸리고 네이버 차단이 잦습니다)`}>
+                                전체 다시 조사 {rows.length}곳
+                            </button>
+                            <button onClick={saveRound} style={outlineBtn}
+                                title="지금 판정을 회차로 쌓아 둡니다. 다시 조사하면 칸이 덮여 지난 상태가 사라지므로, 재조사 전에 한 번 눌러 두세요 (거르개와 관계없이 전체를 저장합니다)">
+                                📌 회차 저장 {allRows.length}곳
+                            </button>
+                            {paperRows.length > 0 && (
+                                <button onClick={downloadWorksheet} style={outlineBtn}
+                                    title="지금 화면에 걸린 조건 그대로, 학원·교습소를 두 시트에 담아 내려받습니다 (확인불가·해당없음 제외)">
+                                    📋 점검표 엑셀 {paperRows.length}곳
+                                </button>
+                            )}
+                        </div>
                     )}
                 </div>
 
-                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                {/* ③ 거르개 — 판정과 확인은 별개의 축이다 ('미이행 중 아직 확인 못 한 곳' 같은 조합) */}
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+                    <span style={filterLabel}>판정</span>
                     {FILTERS.map(f => (
                         <Chip key={f} label={f} count={counts[f] || 0} active={filter === f}
                             onClick={() => setFilter(f)} color={VERDICT_COLOR[f]} />
+                    ))}
+                    <span style={{ width: '1px', height: '22px', background: 'var(--border-color)', margin: '0 6px' }} />
+                    <span style={filterLabel}>확인</span>
+                    {DONE_FILTERS.map(f => (
+                        <Chip key={f} label={f} active={doneFilter === f}
+                            count={f === '확인완료' ? doneCount : f === '미확인' ? rows.length - doneCount : rows.length}
+                            onClick={() => setDoneFilter(f)} color={f === '확인완료' ? DONE_COLOR : undefined} />
                     ))}
                     {leftNotes.size > 0 && (
                         <button onClick={() => setKept({ key: '', rows: new Set() })}
                             title="조건에서 벗어났지만 확인하시라고 남겨 둔 줄을 목록에서 뺍니다"
                             style={{
-                                marginLeft: 'auto', padding: '5px 12px', borderRadius: '999px',
+                                padding: '5px 12px', borderRadius: '999px',
                                 border: '1px solid #f59e0b', background: '#fffbeb', color: '#b45309',
                                 fontSize: '0.9rem', fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap',
                             }}>
                             조건에서 벗어난 {leftNotes.size}곳 정리
                         </button>
                     )}
-                </div>
-
-                {/* 판정과 별개의 축이다 — '미이행 중 아직 확인 못 한 곳' 같은 조합을 만들 수 있어야 한다 */}
-                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '10px' }}>
-                    <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: '700' }}>확인</span>
-                    {DONE_FILTERS.map(f => (
-                        <Chip key={f} label={f} active={doneFilter === f}
-                            count={f === '확인완료' ? doneCount : f === '미확인' ? rows.length - doneCount : rows.length}
-                            onClick={() => setDoneFilter(f)} color={f === '확인완료' ? DONE_COLOR : undefined} />
-                    ))}
-                    <div style={{ flex: '1 1 140px', minWidth: '120px' }}>
-                        <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '3px' }}>
+                    <div style={{ marginLeft: 'auto', flex: '0 1 220px', minWidth: '160px' }}>
+                        <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '3px', whiteSpace: 'nowrap' }}>
                             확인 완료 <b style={{ color: DONE_COLOR }}>{doneCount}</b> / {rows.length} ({donePct}%)
                         </div>
                         <div style={{ height: '5px', borderRadius: '3px', background: 'var(--border-color)', overflow: 'hidden' }}>
@@ -874,8 +953,8 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                     </div>
                 </div>
 
-                {running ? (
-                    <div>
+                {running && (
+                    <div style={{ marginTop: '12px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', marginBottom: '4px' }}>
                             <span style={{ color: 'var(--text-muted)' }}>조사 중… {progress.done} / {progress.total}</span>
                             <button onClick={() => { stopRef.current = true; }} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '0.9rem', fontWeight: '700', cursor: 'pointer' }}>중단</button>
@@ -883,28 +962,15 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                         <div style={{ height: '6px', borderRadius: '3px', background: 'var(--border-color)', overflow: 'hidden' }}>
                             <div style={{ height: '100%', width: `${progress.total ? (progress.done / progress.total) * 100 : 0}%`, background: wait ? '#f59e0b' : 'var(--primary)', transition: 'width .3s' }} />
                         </div>
-                        {wait && (
+                        {wait ? (
                             <div style={{ fontSize: '0.9rem', color: '#f59e0b', marginTop: '6px', lineHeight: 1.7 }}>
                                 ⏸ 네이버가 요청을 잠시 막았습니다 — <b>{fmtLeft(wait.left)} 뒤 자동으로 이어서 진행</b>합니다 ({wait.nth}번째 대기).
                                 <br />여기 계실 필요 없습니다. 탭만 열어두시면 끝까지 알아서 돕니다. 지금까지 결과는 이미 저장돼 있습니다.
                             </div>
-                        )}
-                    </div>
-                ) : (
-                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                        <button onClick={runStale} disabled={!stale.length} style={btnStyle(stale.length ? 'var(--primary)' : 'var(--border-color)')}>
-                            🔍 조사 필요 {stale.length}곳
-                        </button>
-                        <button onClick={runAll} style={btnStyle('#64748b')}>전체 다시 조사 ({rows.length}곳)</button>
-                        <button onClick={saveRound} style={btnStyle('#1d4ed8')}
-                            title="지금 판정을 회차로 쌓아 둡니다. 다시 조사하면 칸이 덮여 지난 상태가 사라지므로, 재조사 전에 한 번 눌러 두세요 (거르개와 관계없이 전체를 저장합니다)">
-                            📌 회차 저장 ({allRows.length}곳)
-                        </button>
-                        {paperRows.length > 0 && (
-                            <button onClick={downloadWorksheet} style={btnStyle('#1d4ed8')}
-                                title="지금 화면에 걸린 조건 그대로, 학원·교습소를 두 시트에 담아 내려받습니다 (확인불가·해당없음 제외)">
-                                📋 점검표 엑셀 ({paperRows.length}곳)
-                            </button>
+                        ) : (
+                            <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '6px' }}>
+                                네이버가 막으면 화면이 알아서 기다렸다 이어서 진행합니다. 탭만 열어두시면 됩니다.
+                            </div>
                         )}
                     </div>
                 )}
@@ -914,47 +980,6 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                         {snapshotState}
                     </div>
                 )}
-
-                {/* 문자 문구에 들어가는 값. 한 번 정해 두면 이 브라우저에 남는다 */}
-                <div style={{ marginTop: '10px' }}>
-                    <button onClick={() => setNoticeOpen(!noticeOpen)} style={{
-                        background: 'none', border: '1px solid var(--border-color)', borderRadius: '999px',
-                        padding: '3px 10px', color: 'var(--text-muted)', fontSize: '0.85rem',
-                        fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit',
-                    }}>{noticeOpen ? '⚙ 문자 설정 접기 ▴' : '⚙ 문자 설정 ▾'}</button>
-
-                    {noticeOpen && (
-                        <div style={{
-                            marginTop: '8px', display: 'flex', gap: '10px', flexWrap: 'wrap',
-                            alignItems: 'flex-end', fontSize: '0.85rem', color: 'var(--text-muted)',
-                        }}>
-                            <label style={noticeField}>
-                                문의 전화
-                                <input value={notice.tel} onChange={e => changeNotice({ tel: e.target.value })}
-                                    style={noticeInput(140)} />
-                            </label>
-                            <label style={noticeField}>
-                                수정 기한 (오늘부터 며칠)
-                                <input type="number" min="0" max="60" value={notice.days}
-                                    onChange={e => changeNotice({ days: Math.min(60, Math.max(0, Number(e.target.value) || 0)) })}
-                                    style={noticeInput(72)} />
-                            </label>
-                            <span style={{ paddingBottom: '7px' }}>→ <b>{noticeDeadline(notice.days)}</b>까지</span>
-                            <label style={{ ...noticeField, flex: '1 1 260px', minWidth: 0 }}>
-                                교육지원청 게시 안내 링크
-                                <input value={notice.guideUrl} onChange={e => changeNotice({ guideUrl: e.target.value })}
-                                    style={noticeInput()} />
-                            </label>
-                            <div style={{ flexBasis: '100%', fontSize: '0.85rem', lineHeight: 1.6 }}>
-                                표의 <b>✉ 문자</b> 를 누르면 이 값들이 든 문구가 복사됩니다 — 문자마당 창에 붙여넣으세요.
-                                문구에는 그 학원에서 <b>X 인 칸만</b> 들어가고, 판정과 달리 <b>번호도 함께</b> 안내합니다.
-                                (값은 이 브라우저에만 남습니다)
-                                <br /><b>안내 링크</b> 를 비우면 문자에서 그 줄이 통째로 빠집니다 (주소가 길어 서너 줄을 먹습니다).
-                                LMS 한도는 {LMS_LIMIT.toLocaleString('ko-KR')}바이트입니다.
-                            </div>
-                        </div>
-                    )}
-                </div>
 
                 {/* 직접 고친 값의 저장 상태 — 예전에는 실패해도 아무 말 없이 값만 되돌아갔다 */}
                 {saveLabel && (
@@ -973,11 +998,11 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                         )}
                     </div>
                 )}
-                {refreshing && <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginTop: '6px' }}>저장해 둔 결과를 먼저 보여드리는 중 · 최신 내용을 확인하고 있습니다…</div>}
+                {refreshing && <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '8px' }}>저장해 둔 결과를 먼저 보여드리는 중 · 최신 내용을 확인하고 있습니다…</div>}
                 {/* 캐시로는 그리고 있지만 최신 내용을 못 받아온 상태 — 언제 것인지 모르는 표를
                     말없이 보여주면, 방금 시트에서 바뀐 것이 화면에 없어도 알 길이 없다 */}
                 {loadError && !refreshing && (
-                    <div style={{ fontSize: '0.9rem', color: '#ef4444', marginTop: '6px' }}>
+                    <div style={{ fontSize: '0.9rem', color: '#ef4444', marginTop: '8px' }}>
                         ⚠ 최신 내용을 불러오지 못했습니다 — 지금 보시는 표는 저장해 둔 이전 결과입니다 ({loadError})
                         <button onClick={reload} style={{
                             marginLeft: '8px', padding: '2px 8px', borderRadius: '6px',
@@ -987,16 +1012,6 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                     </div>
                 )}
                 {saveState && <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginTop: '8px' }}>{saveState}</div>}
-                {!running && (
-                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '6px', lineHeight: 1.7 }}>
-                        <b>조사 필요</b> = 한 번도 안 본 곳 + 조사한 지 {RECHECK_DAYS}일 지난 곳
-                        + 예전 방식으로 조사해 번호가 <b>오기재로 잘못 남은 곳</b>. 게시 상태는 자주 바뀌지 않아서,
-                        최근에 본 곳까지 매번 다시 도는 것이 네이버 차단의 가장 큰 원인이었습니다.
-                        <b> 확인 마감한 곳은 대상에서 빠집니다.</b>
-                        {stale.length > 30 && <> 지금 대상은 약 {Math.ceil(stale.length * 10 / 60)}분 걸립니다.</>}
-                        <br />네이버가 막으면 <b>화면이 알아서 기다렸다 이어서 진행</b>합니다. 지켜보실 필요 없이 탭만 열어두시면 됩니다.
-                    </div>
-                )}
             </div>
 
             {/* 결과 표 — 헤더 2줄은 위에, 연번·학원명은 왼쪽에 고정된다 */}
@@ -1116,3 +1131,15 @@ const btnStyle = (bg) => ({
     padding: '8px 14px', borderRadius: '8px', border: 'none', background: bg,
     color: 'white', fontSize: '0.9rem', fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap',
 });
+// 늘 누르지는 않는 단추 — 채운 색 단추가 넷이나 나란히 있으면 무엇을 눌러야 할지 흐려진다
+const outlineBtn = {
+    padding: '7px 13px', borderRadius: '8px', border: '1px solid var(--border-strong)', background: 'var(--bg-card)',
+    color: 'var(--text-body)', fontSize: '0.9rem', fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap',
+};
+// 사용법·문자 설정처럼 펼치는 작은 단추
+const pillBtn = {
+    background: 'none', border: '1px solid var(--border-color)', borderRadius: '999px',
+    padding: '3px 10px', color: 'var(--text-muted)', fontSize: '0.85rem',
+    fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit',
+};
+const filterLabel = { fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: '700' };
