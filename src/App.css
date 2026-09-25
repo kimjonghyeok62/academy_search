@@ -154,6 +154,24 @@ h3 {
   white-space: nowrap;
 }
 .topbar-btn:hover { background: rgba(255, 255, 255, 0.12); border-color: rgba(255, 255, 255, 0.55); }
+/* 전체 너비 화면(SNS)에서 숨긴 메뉴를 여는 단추 — 넓은 화면에서만 */
+.topbar-menu {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  min-height: 42px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: transparent;
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.topbar-menu:hover { background: rgba(255, 255, 255, 0.12); border-color: rgba(255, 255, 255, 0.55); }
+.topbar-menu + .topbar-brand { margin-right: auto; }
 
 /* ── 몸통: 왼쪽 메뉴 + 오른쪽 내용 ── */
 .shell-body {
@@ -221,6 +239,31 @@ h3 {
 .page.is-detail { max-width: 960px; }
 /* 제 머리·여백을 따로 가진 화면(지도점검)은 내용 칸을 그대로 쓴다 */
 .page.is-flush { max-width: none; padding: 0; }
+
+.sidenav-backdrop { display: none; }
+/* SNS 탭 — 표가 넓어 왼쪽 메뉴를 숨기고 전체 너비로 쓴다 (넓은 화면만, 메뉴는 ☰ 서랍) */
+@media (min-width: 1024px) {
+  .topbar-menu { display: inline-flex; }
+  .shell-body.is-full { grid-template-columns: minmax(0, 1fr); }
+  .shell-body.is-full .sidenav { display: none; }
+  .shell-body.is-full.is-drawer .sidenav {
+    display: flex;
+    position: fixed;
+    left: 0;
+    top: var(--topbar-h);
+    z-index: 45;
+    width: var(--nav-width);
+    box-shadow: 8px 0 24px rgba(15, 23, 42, 0.18);
+  }
+  .page.is-full { max-width: none; }
+  .sidenav-backdrop {
+    display: block;
+    position: fixed;
+    inset: var(--topbar-h) 0 0 0;
+    z-index: 44;
+    background: rgba(15, 23, 42, 0.35);
+  }
+}
 
 .page-head { margin-bottom: 20px; }
 .page-title { font-size: 1.5rem; font-weight: 800; color: var(--text-main); }
