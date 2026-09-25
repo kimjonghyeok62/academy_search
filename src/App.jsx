@@ -8,7 +8,6 @@ import InspectionStandardAccordion from './components/InspectionStandardAccordio
 import InspectionPage from './components/InspectionPage';
 import KakaoMapPage from './components/KakaoMapPage';
 import TuitionPrintPage from './components/TuitionPrintPage';
-import AreaCalculatorApp from './components/AreaCalculatorApp';
 import { placeMapSearchUrl } from './utils/snsCheck';
 
 class ErrorBoundary extends React.Component {
@@ -52,9 +51,12 @@ function App() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const searchInputRef = useRef(null);
   const [dataAsOf, setDataAsOf] = useState(''); // 데이터 기준일
-  const [extraPage, setExtraPage] = useState(null); // 메뉴 화면: 'law' | 'sanction' | 'area'
+  const [extraPage, setExtraPage] = useState(null); // 메뉴 화면: 'law' | 'sanction'
   const [showInspection, setShowInspection] = useState(false); // 지도점검 화면
   const [inspectionInitialTab, setInspectionInitialTab] = useState(undefined); // 지도점검 초기 탭
+  const [inspectionTabRequest, setInspectionTabRequest] = useState(undefined); // 메뉴에서 고른 지도점검 탭 { tab, seq }
+  const [inspectionTab, setInspectionTab] = useState(null); // 지금 열린 지도점검 탭 (SNS면 전체 너비)
+  const [navDrawer, setNavDrawer] = useState(false); // 전체 너비 화면에서 메뉴 서랍 열림
   const [showMap, setShowMap] = useState(false); // 맵 화면
   const [detailOrigin, setDetailOrigin] = useState('main'); // 상세화면 진입 출처 ('main' 또는 'inspection' 또는 'map')
   const [focusAcademy, setFocusAcademy] = useState(null); // 지도에서 포커스할 학원
@@ -186,6 +188,15 @@ function App() {
     if (box.left < navBox.left + 12) nav.scrollLeft -= navBox.left + 12 - box.left;
     else if (box.right > navBox.right - 12) nav.scrollLeft += box.right - (navBox.right - 12);
   }, [showInspection, showTuitionPrint, showMap, extraPage, selectedAcademy, detailOrigin]);
+
+  // 메뉴 서랍 — 탭을 옮기면 닫고, Esc로도 닫는다
+  useEffect(() => { setNavDrawer(false); }, [inspectionTab]);
+  useEffect(() => {
+    if (!navDrawer) return;
+    const onKey = (e) => { if (e.key === 'Escape') setNavDrawer(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [navDrawer]);
 
   // 상세 화면이 내용 칸에 들어오므로 스크롤을 챙긴다 — 열면 맨 위, 검색 목록으로 돌아오면 보던 자리
   const listScrollRef = useRef(0);
@@ -672,10 +683,18 @@ function App() {
     setRouteAcademies(null);
     setSavedMapState(null);
     setMapReturnState(null);
+    setInspectionTab(null);
+    setNavDrawer(false);
     if (id === 'map') setShowMap(true);
-    else if (id === 'inspection') setShowInspection(true);
+    else if (id === 'inspection' || id === 'sns') {
+      // 이미 지도점검 화면이면 탭만 옮긴다 (계획 탭 / SNS 탭)
+      const tab = id === 'sns' ? SNS_TAB : 0;
+      if (id === 'sns') setInspectionInitialTab(SNS_TAB);
+      setInspectionTabRequest(prev => ({ tab, seq: (prev?.seq || 0) + 1 }));
+      setShowInspection(true);
+    }
     else if (id === 'tuition') setShowTuitionPrint(true);
-    else if (id === 'law' || id === 'sanction' || id === 'area') setExtraPage(id);
+    else if (id === 'law' || id === 'sanction') setExtraPage(id);
     window.scrollTo(0, 0);
   };
 
@@ -731,7 +750,10 @@ function App() {
         : extraPage || 'search';
   const head = PAGE_HEAD[page];
   // 상세 화면에서는 들어온 곳(검색·지도점검·분포지도)의 메뉴를 켜 둔다
-  const navId = page !== 'detail' ? page
+  // SNS 탭은 표가 넓어 왼쪽 메뉴를 숨기고 전체 너비로 쓴다 (메뉴는 머리띠 ☰ 서랍으로)
+  const fullWidth = page === 'inspection' && inspectionTab === SNS_TAB;
+  const navId = fullWidth ? 'sns'
+    : page !== 'detail' ? page
     : detailOrigin === 'inspection' ? 'inspection'
       : detailOrigin === 'map' ? 'map'
         : 'search';
@@ -785,6 +807,20 @@ function App() {
     <div className="shell">
       {/* 머리띠 */}
       <header className="topbar">
+        {fullWidth && (
+          <button
+            type="button"
+            className="topbar-menu"
+            onClick={() => setNavDrawer(v => !v)}
+            aria-expanded={navDrawer}
+            title="메뉴 열기"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true">
+              <line x1="4" y1="6" x2="20" y2="6" /><line x1="4" y1="12" x2="20" y2="12" /><line x1="4" y1="18" x2="20" y2="18" />
+            </svg>
+            메뉴
+          </button>
+        )}
         <button type="button" className="topbar-brand" onClick={goHome} title="첫 화면으로">
           <span className="topbar-logo" aria-hidden="true">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -806,7 +842,8 @@ function App() {
         </div>
       </header>
 
-      <div className="shell-body">
+      <div className={`shell-body${fullWidth ? ' is-full' : ''}${fullWidth && navDrawer ? ' is-drawer' : ''}`}>
+        {fullWidth && navDrawer && <div className="sidenav-backdrop" onClick={() => setNavDrawer(false)} aria-hidden="true" />}
         {/* 메뉴 */}
         <nav className="sidenav" aria-label="메뉴">
           {NAV.map(g => (
@@ -830,11 +867,13 @@ function App() {
 
         {/* 지도점검 — 표가 넓어 넓은 폭을 쓴다 */}
         {page === 'inspection' && (
-          <main className="page is-wide">
+          <main className={`page ${fullWidth ? 'is-full' : 'is-wide'}`}>
             <InspectionPage
               academies={academies}
               privateTutors={privateTutors}
               initialTab={inspectionInitialTab}
+              tabRequest={inspectionTabRequest}
+              onTabChange={setInspectionTab}
               supplementLoading={supplementLoading}
               onSelectAcademy={(academy, tab) => {
                 setDetailOrigin('inspection');
@@ -872,8 +911,6 @@ function App() {
             {page === 'law' && <LegalResourcesPage />}
 
             {page === 'sanction' && <InspectionStandardAccordion embedded />}
-
-            {page === 'area' && <AreaCalculatorApp embedded={true} />}
 
             {page === 'search' && (
               <>
@@ -1031,6 +1068,9 @@ function App() {
   );
 }
 
+// 지도점검 탭 중 SNS 탭 번호 (InspectionPage TABS 순서)
+const SNS_TAB = 4;
+
 // 왼쪽 메뉴 — 넓은 화면은 세로 메뉴, 좁은 화면은 머리띠 아래 가로 메뉴줄
 const NAV = [
   {
@@ -1044,7 +1084,7 @@ const NAV = [
     group: '지도점검',
     items: [
       { id: 'inspection', label: '지도점검 업무관리', icon: 'clipboard' },
-      { id: 'area', label: '면적계산', icon: 'ruler' },
+      { id: 'sns', label: 'SNS 게시점검', icon: 'sns' },
     ],
   },
   {
@@ -1063,7 +1103,6 @@ const NAV = [
 // 각 화면 머리 — 제목과 한 줄 설명
 const PAGE_HEAD = {
   search: { title: '학원 검색', desc: '학원명·운영자·주소·등록번호로 학원, 교습소, 개인과외교습자를 찾습니다.' },
-  area: { title: '면적계산', desc: '강의실 치수를 적으면 실별 면적과 합계를 계산합니다.' },
   law: { title: '관련 법령 자료', desc: '업무 매뉴얼과 법령 원문을 새 창으로 엽니다.' },
   sanction: { title: '행정처분·과태료 기준', desc: '위반 유형별 1차 적발 시 행정처분과 과태료입니다.' },
 };
@@ -1074,6 +1113,7 @@ function NavIcon({ name }) {
     map: <><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6" /><line x1="8" y1="2" x2="8" y2="18" /><line x1="16" y1="6" x2="16" y2="22" /></>,
     clipboard: <><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" /><rect x="8" y="2" width="8" height="4" rx="1" /><path d="m9 14 2 2 4-4" /></>,
     ruler: <><path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.4 2.4 0 0 1 0-3.4l2.6-2.6a2.4 2.4 0 0 1 3.4 0Z" /><path d="m14.5 12.5 2-2" /><path d="m11.5 9.5 2-2" /><path d="m8.5 6.5 2-2" /><path d="m17.5 15.5 2-2" /></>,
+    sns: <><path d="m3 11 18-5v12L3 14v-3z" /><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" /></>,
     calc: <><rect x="4" y="2" width="16" height="20" rx="2" /><line x1="8" y1="6" x2="16" y2="6" /><line x1="8" y1="11" x2="8" y2="11" /><line x1="12" y1="11" x2="12" y2="11" /><line x1="16" y1="11" x2="16" y2="11" /><line x1="8" y1="15" x2="8" y2="15" /><line x1="12" y1="15" x2="12" y2="15" /><line x1="16" y1="15" x2="16" y2="18" /><line x1="8" y1="18" x2="12" y2="18" /></>,
     book: <><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></>,
     scale: <><path d="M12 3v18" /><path d="M5 21h14" /><path d="m3 13 3-7 3 7a3 3 0 0 1-6 0Z" /><path d="m15 13 3-7 3 7a3 3 0 0 1-6 0Z" /><path d="M6 6h12" /></>,

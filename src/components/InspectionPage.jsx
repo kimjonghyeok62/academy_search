@@ -4649,7 +4649,7 @@ function TabPlaceholder({ label }) {
 // ───────────────────────────────────────────────
 const INSP_STATE_KEY = 'inspectionPageState';
 
-export default function InspectionPage({ academies, privateTutors, onSelectAcademy, onShowRouteMap, initialTab, supplementLoading }) {
+export default function InspectionPage({ academies, privateTutors, onSelectAcademy, onShowRouteMap, initialTab, tabRequest, onTabChange, supplementLoading }) {
     const [region, setRegion] = useState(() => {
         try { return JSON.parse(sessionStorage.getItem(INSP_STATE_KEY))?.region || '하남'; } catch { return '하남'; }
     });
@@ -4657,6 +4657,18 @@ export default function InspectionPage({ academies, privateTutors, onSelectAcade
         if (initialTab !== undefined) return initialTab;
         try { return JSON.parse(sessionStorage.getItem(INSP_STATE_KEY))?.activeTab ?? 0; } catch { return 0; }
     });
+    // 왼쪽 메뉴(지도점검·SNS)를 누르면 이미 열린 화면에서도 그 탭으로 옮긴다
+    // (처음 뜰 때는 initialTab·sessionStorage 복원을 따르므로 건너뛴다)
+    const tabReqSeq = tabRequest?.seq;
+    const tabReqSeqRef = useRef(tabReqSeq);
+    useEffect(() => {
+        if (tabReqSeq === tabReqSeqRef.current) return;
+        tabReqSeqRef.current = tabReqSeq;
+        if (tabReqSeq !== undefined) setActiveTab(tabRequest.tab);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [tabReqSeq]);
+    // 지금 탭을 위에 알린다 (SNS 탭은 메뉴를 숨기고 전체 너비로 쓴다)
+    useEffect(() => { onTabChange?.(activeTab); }, [activeTab, onTabChange]);
     // 탭별 하위 상태 (페이지, 아코디언 open/close)를 sessionStorage에 저장/복원
     const [savedSubState] = useState(() => {
         try { return JSON.parse(sessionStorage.getItem(INSP_STATE_KEY))?.subState || {}; } catch { return {}; }
