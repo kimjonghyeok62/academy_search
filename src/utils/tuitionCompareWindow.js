@@ -93,6 +93,27 @@ function declaredOtherFees(courses) {
     return [...out].sort((x, y) => x - y);
 }
 
+/**
+ * 월 교습비에 기타경비를 더한 금액 — 과정마다 '교습비+기타경비 전부' 와 '교습비+항목 하나씩'.
+ *
+ * 학원이 '월 32만원(교재비 포함)' 처럼 합친 값을 적어 두는 일이 흔하다. 신고한 두 금액을
+ * 그대로 더한 것이면 잘못 적은 게 아니므로 '신고한 금액과 같음' 으로 본다.
+ * 시트의 총교습비(AO열) 도 같은 뜻이라 함께 넣는다.
+ */
+function declaredWithOther(courses) {
+    const out = new Set();
+    courses.forEach((c) => {
+        const fee = parseNum(c.tuitionFee);
+        const total = parseNum(c.totalFee);
+        if (total > 0 && total !== fee) out.add(total);
+        if (!(fee > 0)) return;
+        const vals = OTHER_FEES.map((it) => parseNum(c[it.key])).filter((n) => n > 0);
+        vals.forEach((n) => out.add(fee + n));
+        if (vals.length > 1) out.add(fee + vals.reduce((s, n) => s + n, 0));
+    });
+    return [...out].sort((x, y) => x - y);
+}
+
 /** 기타경비 칸 — 0 이 아닌 항목만 */
 function otherFeeCell(c) {
     const items = OTHER_FEES.filter((it) => parseNum(c[it.key]) > 0);
@@ -292,7 +313,8 @@ function readConfig(placeId, blogUrl, courses, name) {
     const origin = typeof location !== 'undefined' ? location.origin : '';
     const fees = courses.map((c) => parseNum(c.tuitionFee || c.totalFee)).filter((n) => n > 0);
     const cfg = {
-        api: `${origin}/api/tuition-read`, placeId, blogUrl, declared, other: declaredOtherFees(courses), name,
+        api: `${origin}/api/tuition-read`, placeId, blogUrl, declared, other: declaredOtherFees(courses),
+        withOther: declaredWithOther(courses), name,
         dcount: fees.length, dsum: fees.reduce((s, n) => s + n, 0),
     };
     // '<' 를 그대로 두면 문자열 안의 '</script>' 하나로 문서가 끊긴다
@@ -319,6 +341,10 @@ const READ_SCRIPT = `<script>
   // 신고한 기타경비(차량비 등) — 교습비가 아니라 이 금액을 적어 둔 것이면 잘못이 아니다
   var OSET = {};
   (READ_CFG.other || []).forEach(function (n) { if (!DSET[n]) OSET[n] = true; });
+  // 월 교습비 + 기타경비를 합친 금액 — '교재비 포함 월 32만원' 처럼 적은 것은 잘못이 아니다.
+  // 교습비와 같은 자리(과목 하나)의 값이라 OSET 과 달리 과목 수·합계에는 센다.
+  var WSET = {};
+  (READ_CFG.withOther || []).forEach(function (n) { if (!DSET[n] && !OSET[n]) WSET[n] = true; });
 
   function esc(v) {
     return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
@@ -338,6 +364,7 @@ const READ_SCRIPT = `<script>
     if (!D.length) return '<span class="dim">신고 자료 없음</span>';
     if (DSET[amount]) return '<span class="cmp-ok">✓ 신고금액과 같음</span>';
     if (OSET[amount]) return '<span class="cmp-ok">✓ 신고한 기타경비와 같음</span>';
+    if (WSET[amount]) return '<span class="cmp-ok">✓ 교습비+기타경비 합과 같음</span>';
     if (amount < DMIN || amount > DMAX) return '<span class="cmp-bad">⚠ 신고 범위 밖</span>';
     return '<span class="cmp-warn">신고 목록에 없는 금액</span>';
   }
@@ -358,7 +385,7 @@ const READ_SCRIPT = `<script>
     var mid = a.length % 2 ? a[(a.length - 1) / 2] : (a[a.length / 2 - 1] + a[a.length / 2]) / 2;
     a.forEach(function (n) {
       // 신고한 금액 그대로면 동떨어져 보여도 학원이 잘못 적은 게 아니다 — 경고하지 않는다
-      if (DSET[n]) return;
+      if (DSET[n] || WSET[n]) return;
       if (n * 3 < mid) ODD[n] = '다른 항목보다 유난히 낮습니다 — 0 이 빠지지 않았는지 확인하세요';
       else if (n > mid * 3) ODD[n] = '다른 항목보다 유난히 높습니다 — 0 이 더 붙지 않았는지 확인하세요';
     });
@@ -383,10 +410,11 @@ const READ_SCRIPT = `<script>
     if (!amounts.length) { el.innerHTML = empty ? '<span class="dim">' + empty + '</span>' : ''; return; }
     var shown = amounts.slice(0, 6);
     el.innerHTML = '적힌 교습비 ' + shown.map(function (n) {
-      var cls = DSET[n] || OSET[n] ? '' : (n < DMIN || n > DMAX ? 'cmp-bad' : 'cmp-warn');
+      var cls = DSET[n] || OSET[n] || WSET[n] ? '' : (n < DMIN || n > DMAX ? 'cmp-bad' : 'cmp-warn');
       var odd = ODD[n];
       return '<b class="' + cls + (odd ? ' oddmark' : '') + '"'
-        + (odd ? ' title="' + esc(odd) + '"' : OSET[n] ? ' title="신고한 기타경비와 같은 금액"' : '') + '>'
+        + (odd ? ' title="' + esc(odd) + '"' : OSET[n] ? ' title="신고한 기타경비와 같은 금액"'
+          : WSET[n] ? ' title="월 교습비에 기타경비를 더한 금액과 같음"' : '') + '>'
         + Number(n).toLocaleString('ko-KR') + (odd ? '⚠' : '') + '</b>';
     }).join(' · ') + '원'
       + (amounts.length > shown.length ? ' 외 ' + (amounts.length - shown.length) + '건' : '');
