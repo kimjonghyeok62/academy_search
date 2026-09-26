@@ -197,7 +197,21 @@ function feeChips(list) {
         + (nums.length > shown.length ? ` 외 ${nums.length - shown.length}건` : '');
 }
 
-function channelTable(result, academyName, address, label) {
+/**
+ * 과목 수·합계 한 줄 — 신고한 쪽은 여기서 곧바로, 네이버 쪽은 READ_SCRIPT 가 읽은 뒤 채운다.
+ *
+ * 합계 자체는 의미 있는 숫자가 아니다. 표를 한 줄씩 맞춰 보기 전에 '과목이 빠졌나,
+ * 전체 금액이 대강 다 올라와 있나' 를 한눈에 가늠하려는 용도다.
+ */
+function feeSumLine(courses) {
+    const fees = courses.map((c) => parseNum(c.tuitionFee || c.totalFee)).filter((n) => n > 0);
+    const declared = fees.length
+        ? `신고한 교습비는 <b>${fees.length}개 과목</b>이며, 총 합계는 <b>${esc(won(fees.reduce((s, n) => s + n, 0)))}</b>입니다.`
+        : '신고한 교습비 자료가 없습니다.';
+    return `<div class="feesum"><div>${declared}</div><div id="feesum-naver"></div></div>`;
+}
+
+function channelTable(result, academyName, address, label, courses) {
     if (!result) {
         return `<p class="empty">아직 자동 조사를 하지 않은 학원입니다.
       ${openBtn(placeMapSearchUrl(academyName, address), '네이버에서 찾아보기')}</p>`;
@@ -251,7 +265,8 @@ function channelTable(result, academyName, address, label) {
     <tbody>${rows.join('')}</tbody>
   </table>
   <p class="note tip">플레이스 홈에 링크가 걸린 채널만 조사합니다 — 링크가 없는 채널은 위에 나오지 않습니다.
-  번호 칸의 <b>적힌 번호</b>가 위 ${esc(label)}와 같은지 확인하세요 — 잘못 적어둔 곳도 O 로 뜹니다.</p>`;
+  번호 칸의 <b>적힌 번호</b>가 위 ${esc(label)}와 같은지 확인하세요 — 잘못 적어둔 곳도 O 로 뜹니다.</p>
+  ${feeSumLine(courses)}`;
 }
 
 /**
@@ -275,7 +290,11 @@ function readConfig(placeId, blogUrl, courses, name) {
     const declared = [...new Set(courses.map((c) => parseNum(c.tuitionFee || c.totalFee))
         .filter((n) => n > 0))].sort((x, y) => x - y);
     const origin = typeof location !== 'undefined' ? location.origin : '';
-    const cfg = { api: `${origin}/api/tuition-read`, placeId, blogUrl, declared, other: declaredOtherFees(courses), name };
+    const fees = courses.map((c) => parseNum(c.tuitionFee || c.totalFee)).filter((n) => n > 0);
+    const cfg = {
+        api: `${origin}/api/tuition-read`, placeId, blogUrl, declared, other: declaredOtherFees(courses), name,
+        dcount: fees.length, dsum: fees.reduce((s, n) => s + n, 0),
+    };
     // '<' 를 그대로 두면 문자열 안의 '</script>' 하나로 문서가 끊긴다
     return `<script>var READ_CFG = ${JSON.stringify(cfg).replace(/</g, '\u003c')};</script>`;
 }
@@ -338,6 +357,8 @@ const READ_SCRIPT = `<script>
     if (a.length < 3) return;
     var mid = a.length % 2 ? a[(a.length - 1) / 2] : (a[a.length / 2 - 1] + a[a.length / 2]) / 2;
     a.forEach(function (n) {
+      // 신고한 금액 그대로면 동떨어져 보여도 학원이 잘못 적은 게 아니다 — 경고하지 않는다
+      if (DSET[n]) return;
       if (n * 3 < mid) ODD[n] = '다른 항목보다 유난히 낮습니다 — 0 이 빠지지 않았는지 확인하세요';
       else if (n > mid * 3) ODD[n] = '다른 항목보다 유난히 높습니다 — 0 이 더 붙지 않았는지 확인하세요';
     });
@@ -375,7 +396,32 @@ const READ_SCRIPT = `<script>
     list.forEach(function (n) { if (n > 0 && !seen[n]) { seen[n] = 1; out.push(n); } });
     return out.sort(function (a, b) { return a - b; });
   }
+  // ② 아래 '몇 개 과목, 합계 얼마' 줄의 네이버 쪽.
+  // 같은 금액이 두 과목에 적혀 있으면 두 개로 센다(uniq 를 쓰지 않는다) — 과목 수를 보려는 것이다.
+  // 신고한 기타경비와 같은 금액은 교습비가 아니므로 빼고 센다.
+  // 가격메뉴·소개글·가격표 이미지는 같은 표를 여러 번 적은 것일 수 있어 합치지 않고 따로 말한다.
+  function sumLine(parts) {
+    var el = document.getElementById('feesum-naver');
+    if (!el) return;
+    var dc = READ_CFG.dcount || 0, ds = READ_CFG.dsum || 0;
+    var placeParts = parts.filter(function (p) { return p.place && p.list.length; });
+    var lines = [];
+    parts.forEach(function (p) {
+      var a = p.list.filter(function (n) { return n > 0 && !OSET[n]; });
+      if (!a.length) return;
+      var sum = a.reduce(function (s, n) { return s + n; }, 0);
+      var name = p.place ? (placeParts.length > 1 ? '플레이스 ' + p.label : '플레이스') : p.label;
+      lines.push((lines.length ? '' : '또한, ') + esc(name) + '에 적힌 교습비는 '
+        + '<b' + (dc && a.length !== dc ? ' class="diff"' : '') + '>' + a.length + '개 과목</b>이며, 총 합계는 '
+        + '<b' + (ds && sum !== ds ? ' class="diff"' : '') + '>' + won(sum) + '</b>입니다.');
+    });
+    el.innerHTML = lines.length ? lines.join('<br>')
+      : '<span class="dim">네이버에서 글로 적힌 교습비를 찾지 못했습니다.</span>';
+  }
+
   function waiting() {
+    var s = document.getElementById('feesum-naver');
+    if (s) s.innerHTML = '<span class="dim">네이버 금액 읽는 중…</span>';
     [].forEach.call(document.querySelectorAll('[data-fee]'), function (el) {
       el.innerHTML = '<span class="dim">금액 읽는 중…</span>';
     });
@@ -480,6 +526,13 @@ const READ_SCRIPT = `<script>
       (blog && blog.found ? (blog['금액'] || []) : []).map(function (m) { return Number(m['금액']); })
     );
     if (blog) fee('blog', blogAmounts, blog.found ? '글로 적힌 금액 없음' : '교습비 글을 못 찾음');
+
+    sumLine([
+      { place: true, label: '가격메뉴', list: menus0.map(function (m) { return num(m['금액']); }) },
+      { place: true, label: '소개글', list: intro0.map(function (m) { return Number(m['금액']); }) },
+      { place: true, label: '가격표 이미지', list: img0.map(function (r) { return Number(r.amount); }) },
+      { place: false, label: '블로그', list: blog && blog.found ? blog0.map(function (m) { return Number(m['금액']); }) : [] },
+    ]);
   }
 
   waiting();
@@ -492,6 +545,8 @@ const READ_SCRIPT = `<script>
     return r.json();
   }).then(render).catch(function (e) {
     clearWaiting();
+    var s = document.getElementById('feesum-naver');
+    if (s) s.innerHTML = '<span class="dim">네이버 금액을 읽지 못해 합계를 낼 수 없습니다.</span>';
     body.innerHTML = '<span class="dim">금액을 읽어오지 못했습니다 — ' + esc(e.message)
       + '. 오른쪽 <b>열기</b>로 직접 확인하세요.</span>';
   });
@@ -812,6 +867,10 @@ export function buildTuitionCompareHtml(academy, result, { numberLabel } = {}) {
   .oddnote { font-size: 0.72rem; font-weight: 600; color: #b45309; margin-top: 3px;
              white-space: normal; text-align: right; }
   .oddmark { background: #fef08a; border-radius: 4px; padding: 0 3px; }
+  .feesum { margin-top: 10px; font-size: 0.86rem; font-weight: 600; color: #1e293b;
+            background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 10px; }
+  .feesum b { font-weight: 800; }
+  .feesum b.diff { color: #b45309; }
   .caution { margin-top: 10px; font-size: 0.78rem; color: #92400e;
              background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 8px 10px; }
   .bar { position: fixed; top: 14px; right: 14px; display: flex; gap: 8px; }
@@ -871,7 +930,7 @@ export function buildTuitionCompareHtml(academy, result, { numberLabel } = {}) {
         <span class="verdict" style="background:${VERDICT_COLOR[verdict] || '#94a3b8'}">${esc(verdict)}</span>
         ${result?.checkedAt ? `<span class="sub" style="display:inline; margin-left:6px;">${esc(fmtWhen(result.checkedAt))} 조사</span>` : ''}
       </h2>
-      ${channelTable(result, name, a.address, label)}
+      ${channelTable(result, name, a.address, label, courses)}
     </div>
   </div>
   ${readCard(placeId, blogUrl)}
