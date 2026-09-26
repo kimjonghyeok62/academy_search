@@ -7,7 +7,6 @@ import './App.css';
 import InspectionStandardAccordion from './components/InspectionStandardAccordion';
 import InspectionPage from './components/InspectionPage';
 import KakaoMapPage from './components/KakaoMapPage';
-import TuitionPrintPage from './components/TuitionPrintPage';
 import { placeMapSearchUrl } from './utils/snsCheck';
 
 class ErrorBoundary extends React.Component {
@@ -63,7 +62,6 @@ function App() {
   const [mapReturnState, setMapReturnState] = useState(null); // 지도 진입 전 복귀 상태
   const [savedMapState, setSavedMapState] = useState(null); // 지도 위치/줌 복원용
   const [routeAcademies, setRouteAcademies] = useState(null); // 점검 경로 학원 목록
-  const [showTuitionPrint, setShowTuitionPrint] = useState(false); // 교습비출력 화면
   const [backToast, setBackToast] = useState(false); // 뒤로가기 토스트
   const [detailInitialTab, setDetailInitialTab] = useState(undefined); // 상세화면 초기 탭
   const urlParamHandledRef = useRef(false); // URL 파라미터 1회 처리 플래그
@@ -154,11 +152,6 @@ function App() {
         setInspectionInitialTab(undefined);
         return false; // 홈으로
       };
-    } else if (showTuitionPrint) {
-      backHandlerRef.current = () => {
-        setShowTuitionPrint(false);
-        return false; // 홈으로
-      };
     } else if (extraPage) {
       backHandlerRef.current = () => {
         setExtraPage(null);
@@ -175,7 +168,7 @@ function App() {
     } else {
       backHandlerRef.current = null;
     }
-  }, [showMap, showInspection, showTuitionPrint, extraPage, selectedAcademy, mapReturnState, detailOrigin]);
+  }, [showMap, showInspection, extraPage, selectedAcademy, mapReturnState, detailOrigin]);
 
   // 좁은 화면 가로 메뉴줄: 고른 메뉴가 화면 밖에 있으면 보이게 옮긴다
   useEffect(() => {
@@ -187,7 +180,7 @@ function App() {
     const box = item.getBoundingClientRect();
     if (box.left < navBox.left + 12) nav.scrollLeft -= navBox.left + 12 - box.left;
     else if (box.right > navBox.right - 12) nav.scrollLeft += box.right - (navBox.right - 12);
-  }, [showInspection, showTuitionPrint, showMap, extraPage, selectedAcademy, detailOrigin]);
+  }, [showInspection, showMap, extraPage, selectedAcademy, detailOrigin]);
 
   // 메뉴 서랍 — 탭을 옮기면 닫고, Esc로도 닫는다
   useEffect(() => { setNavDrawer(false); }, [inspectionTab]);
@@ -204,7 +197,7 @@ function App() {
   const detailOpen = !!selectedAcademy;
   useEffect(() => {
     if (detailOpen) window.scrollTo(0, 0);
-    else if (wasDetailRef.current && !showInspection && !showMap && !showTuitionPrint && !extraPage) window.scrollTo(0, listScrollRef.current);
+    else if (wasDetailRef.current && !showInspection && !showMap && !extraPage) window.scrollTo(0, listScrollRef.current);
     wasDetailRef.current = detailOpen;
   // eslint-disable-next-line react-hooks/exhaustive-deps -- 상세를 열고 닫을 때만
   }, [detailOpen]);
@@ -216,7 +209,7 @@ function App() {
   // popstate 핸들러가 직접 재삽입하므로, 여기서는 홈→서브 첫 진입만 처리
   useEffect(() => {
     if (!isMobile()) return;
-    const isSubScreen = showInspection || showMap || showTuitionPrint || !!extraPage || !!selectedAcademy;
+    const isSubScreen = showInspection || showMap || !!extraPage || !!selectedAcademy;
     if (isSubScreen && !isSubScreenRef.current) {
       window.history.pushState({ appSub: true }, '');
       isSubScreenRef.current = true;
@@ -224,7 +217,7 @@ function App() {
       isSubScreenRef.current = false;
       lastBackPressRef.current = 0; // 홈 복귀 시 종료 타이머 리셋
     }
-  }, [showInspection, showMap, showTuitionPrint, extraPage, selectedAcademy]);
+  }, [showInspection, showMap, extraPage, selectedAcademy]);
 
   // popstate 이벤트 처리 (모바일 뒤로가기 버튼 전용)
   useEffect(() => {
@@ -673,7 +666,6 @@ function App() {
   const goTo = (id) => {
     setShowInspection(false);
     setInspectionInitialTab(undefined);
-    setShowTuitionPrint(false);
     setExtraPage(null);
     setSelectedAcademy(null);
     setDetailInitialTab(undefined);
@@ -693,7 +685,6 @@ function App() {
       setInspectionTabRequest(prev => ({ tab, seq: (prev?.seq || 0) + 1 }));
       setShowInspection(true);
     }
-    else if (id === 'tuition') setShowTuitionPrint(true);
     else if (id === 'law' || id === 'sanction') setExtraPage(id);
     window.scrollTo(0, 0);
   };
@@ -744,10 +735,9 @@ function App() {
   const backToastEl = backToast && <div className="back-toast">한 번 더 누르면 앱이 종료됩니다</div>;
 
   const page = showMap ? 'map'
-    : selectedAcademy && !showInspection && !showTuitionPrint ? 'detail'
+    : selectedAcademy && !showInspection ? 'detail'
     : showInspection ? 'inspection'
-      : showTuitionPrint ? 'tuition'
-        : extraPage || 'search';
+      : extraPage || 'search';
   const head = PAGE_HEAD[page];
   // 상세 화면에서는 들어온 곳(검색·지도점검·분포지도)의 메뉴를 켜 둔다
   // SNS 탭은 표가 넓어 왼쪽 메뉴를 숨기고 전체 너비로 쓴다 (메뉴는 머리띠 ☰ 서랍으로)
@@ -891,17 +881,11 @@ function App() {
           </main>
         )}
 
-        {page === 'tuition' && (
-          <main className="page">
-            <TuitionPrintPage academies={academies} />
-          </main>
-        )}
-
         {page === 'map' && <main className="page is-map">{mapEl}</main>}
 
         {page === 'detail' && <main className="page is-detail">{detailEl}</main>}
 
-        {page !== 'inspection' && page !== 'tuition' && page !== 'detail' && page !== 'map' && (
+        {page !== 'inspection' && page !== 'detail' && page !== 'map' && (
           <main className="page">
             <div className="page-head">
               <h1 className="page-title">{head.title}</h1>
@@ -1088,10 +1072,6 @@ const NAV = [
     ],
   },
   {
-    group: '교습비',
-    items: [{ id: 'tuition', label: '교습비 계산·게시표', icon: 'calc' }],
-  },
-  {
     group: '참고',
     items: [
       { id: 'law', label: '관련 법령 자료', icon: 'book' },
@@ -1114,7 +1094,6 @@ function NavIcon({ name }) {
     clipboard: <><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" /><rect x="8" y="2" width="8" height="4" rx="1" /><path d="m9 14 2 2 4-4" /></>,
     ruler: <><path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.4 2.4 0 0 1 0-3.4l2.6-2.6a2.4 2.4 0 0 1 3.4 0Z" /><path d="m14.5 12.5 2-2" /><path d="m11.5 9.5 2-2" /><path d="m8.5 6.5 2-2" /><path d="m17.5 15.5 2-2" /></>,
     sns: <><path d="m3 11 18-5v12L3 14v-3z" /><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" /></>,
-    calc: <><rect x="4" y="2" width="16" height="20" rx="2" /><line x1="8" y1="6" x2="16" y2="6" /><line x1="8" y1="11" x2="8" y2="11" /><line x1="12" y1="11" x2="12" y2="11" /><line x1="16" y1="11" x2="16" y2="11" /><line x1="8" y1="15" x2="8" y2="15" /><line x1="12" y1="15" x2="12" y2="15" /><line x1="16" y1="15" x2="16" y2="18" /><line x1="8" y1="18" x2="12" y2="18" /></>,
     book: <><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></>,
     scale: <><path d="M12 3v18" /><path d="M5 21h14" /><path d="m3 13 3-7 3 7a3 3 0 0 1-6 0Z" /><path d="m15 13 3-7 3 7a3 3 0 0 1-6 0Z" /><path d="M6 6h12" /></>,
   };
