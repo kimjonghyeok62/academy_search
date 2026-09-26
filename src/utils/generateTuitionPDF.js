@@ -149,15 +149,18 @@ export function getSignLabel(academy) {
 }
 
 // 변경일 파싱 → { year, month, day }
+// 시트에는 '2024-10-30' 말고도 '20241030'·'2024. 10. 30.'·'2024년 10월 30일' 이 섞여 있다.
+// 구분자로만 자르면 '20241030' 이 통째로 년 칸에 들어가므로, 숫자 덩어리를 읽어 가른다.
 export function formatChangeDateKo(dateStr) {
-    if (!dateStr) return { year: '', month: '', day: '' };
-    const parts = dateStr.split(/[-./]/);
-    if (parts.length < 3) return { year: dateStr, month: '', day: '' };
-    return {
-        year: parts[0],
-        month: String(parseInt(parts[1], 10)),
-        day: String(parseInt(parts[2], 10))
-    };
+    const s = String(dateStr || '').trim();
+    if (!s) return { year: '', month: '', day: '' };
+    const groups = s.match(/\d+/g) || [];
+    let y, m, d;
+    if (groups.length >= 3) [y, m, d] = groups;
+    else if (groups.length === 1 && /^\d{8}$/.test(groups[0])) {
+        [y, m, d] = [groups[0].slice(0, 4), groups[0].slice(4, 6), groups[0].slice(6, 8)];
+    } else return { year: s, month: '', day: '' };
+    return { year: y, month: String(parseInt(m, 10)), day: String(parseInt(d, 10)) };
 }
 
 /**
