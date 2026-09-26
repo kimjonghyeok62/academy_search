@@ -12,7 +12,7 @@ import {
     readSnsCache as readCache, writeSnsCacheWhenIdle as writeCacheWhenIdle,
 } from '../utils/snsCheck';
 import { downloadSnsWorkbook } from '../utils/snsWorkbookExcel';
-import { readNoticeSettings, writeNoticeSettings, noticeDeadline, LMS_LIMIT } from '../utils/snsNoticeText';
+import { readNoticeSettings, writeNoticeSettings, LMS_LIMIT } from '../utils/snsNoticeText';
 import { createSaveQueue } from '../utils/snsSaveQueue';
 import {
     W_NUM, W_NAME, W_REGNO, W_CH, W_LINK, W_INS, W_MEMO, W_CHECK,
@@ -839,12 +839,11 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                                 style={noticeInput(140)} />
                         </label>
                         <label style={noticeField}>
-                            수정 기한 (오늘부터 며칠)
-                            <input type="number" min="0" max="60" value={notice.days}
-                                onChange={e => changeNotice({ days: Math.min(60, Math.max(0, Number(e.target.value) || 0)) })}
+                            수정 기한
+                            <input value={notice.period} onChange={e => changeNotice({ period: e.target.value })}
                                 style={noticeInput(72)} />
                         </label>
-                        <span style={{ paddingBottom: '7px' }}>→ <b>{noticeDeadline(notice.days)}</b>까지</span>
+                        <span style={{ paddingBottom: '7px' }}>→ <b>{notice.period || '2~3일'} 이내 수정 바랍니다.</b></span>
                         <label style={{ ...noticeField, flex: '1 1 260px', minWidth: 0 }}>
                             교육지원청 게시 안내 링크
                             <input value={notice.guideUrl} onChange={e => changeNotice({ guideUrl: e.target.value })}

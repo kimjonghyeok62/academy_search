@@ -33,7 +33,13 @@ export const SUBJECT = '학원 온라인 게시 표시 안내';
 // 바뀐다. 교습소는 등록이 아니라 신고라서, 한 글자 틀린 안내문을 314곳에 보내지 않으려면
 // 이 자리를 비워 두어야 한다.
 export const LEGAL_LINE =
-    '「학원법」 제15조 제3항에 따라 {기관} 광고물에는 {번호}와 교습비등을 표시하여야 합니다. (명칭도 교육청에 등록된 명칭으로)';
+    '「학원법」 제15조 제3항에 따라 {기관} 광고물에는 "{번호}"와 "교습비등"을 표시하여야 합니다. (명칭도 "교육청에 등록된 명칭"으로)';
+
+// 머리 바로 아래 한 줄 — 안내문을 '참고' 로 읽고 넘기지 않게 무게를 먼저 알린다.
+export const WARN_LINE = '행정처분,과태료와 관련 있으니, 반드시 확인바랍니다.';
+
+// 3번 아래, 문의 바로 위의 마무리 — 왜 고쳐야 하는지를 한 번 더 말한다.
+export const PENALTY_LINE = '{번호}, 교습비 미표시(허위표시)는 행정처분 및 과태료 부과 대상이 될 수 있습니다.';
 
 /** 문구 속 {번호}·{기관} 을 그 학원의 말로 바꾼다 */
 const fill = (text, numberLabel, kindLabel) =>
@@ -41,12 +47,11 @@ const fill = (text, numberLabel, kindLabel) =>
 
 // 3번(인터넷광고 링크) 끝에 붙는 줄. 우리가 본 것은 플레이스에 링크가 걸린 매체뿐이라
 // 나머지는 학원이 직접 봐야 한다 — 그래서 목록의 마지막 항목으로 둔다.
-export const TAIL_LINE = '· 이 외에 인스타, 카페, 당근 등도 살펴보세요';
+export const TAIL_LINE = '· 이 외에 인스타, 카페, 당근 등도 꼭 확인해 주세요';
 
-// 3번의 플레이스 주소 바로 아래에 붙는 줄 — 플레이스 어느 탭에 무엇을 올리는지와 고치는 법.
+// 2번(수정방법) 의 스마트플레이스 수정 안내 — 플레이스가 있는 곳에만 붙는다.
 // 주소 뒤에 괄호를 붙이지 않는다 — 휴대폰이 ')' 까지 링크로 잡아 열리지 않는다.
-export const PLACE_HOWTO_LINE =
-    '  [홈] 교습비 이미지, [정보] 등록번호, (수정방법) https://new.smartplace.naver.com/help/guide?menu=edit';
+export const PLACE_EDIT_LINE = '· 수정방법 : https://new.smartplace.naver.com/help/guide?menu=edit';
 
 // 2번(신고된 교습비 확인방법) 의 두 줄 — 어디서 확인하는지, 어떻게 뽑는지.
 //
@@ -59,7 +64,7 @@ export const PLACE_HOWTO_LINE =
 export const PRICE_TOOL_URL = 'https://hakwon-price.vercel.app/';
 export const NEIS_URL = 'https://hakwon.neis.go.kr/nxui/index.html';
 export const NEIS_LINE = `· 신고된 교습비 : ${NEIS_URL}`;
-export const FORM_LINE = `· 출력 도움 : ${PRICE_TOOL_URL} (JPG, HWPX 등)`;
+export const FORM_LINE = `· 출력 도움 : ${PRICE_TOOL_URL} (PDF, TEXT)`;
 
 // 길이가 넘쳐 매체를 몇 개 덜어냈을 때만 붙인다. 3번 목록의 한 줄로 들어간다 —
 // 문자 맨 아래 '문의' 뒤에 두면, 1번에는 일곱 곳이 적혀 있는데 3번에는 세 곳뿐인 것을
@@ -68,6 +73,8 @@ export const TRIMMED_LINE = '· 위에 적지 못한 매체는 직접 확인 부
 
 export const DEFAULT_TEL = '02-480-5144';
 export const DEFAULT_DAYS = 5;
+// 마무리의 수정 기한 — '2~3일' 처럼 폭으로 말하므로 날짜가 아니라 문구로 둔다
+export const DEFAULT_PERIOD = '2~3일';
 export const DEFAULT_GUIDE_URL = 'https://buly.kr/BpHq2UV';
 // 예전 기본값. 설정을 한 번이라도 저장한 브라우저에는 이 긴 주소가 남아 있어,
 // 기본값을 바꿔도 그 담당자의 문자에는 옛 주소가 나간다 — 읽을 때 새 주소로 바꿔 준다.
@@ -96,6 +103,7 @@ export function readNoticeSettings() {
     cached = {
         tel: saved.tel || DEFAULT_TEL,
         days: Number.isFinite(days) && days >= 0 ? days : DEFAULT_DAYS,
+        period: saved.period || DEFAULT_PERIOD,
         // 빈 문자열은 '링크를 빼겠다' 는 뜻이다 — 기본값으로 되돌리면 안 된다
         guideUrl: saved.guideUrl === OLD_GUIDE_URL ? DEFAULT_GUIDE_URL : (saved.guideUrl ?? DEFAULT_GUIDE_URL),
     };
@@ -259,7 +267,7 @@ function adBlock(result) {
  * 번호는 내용이 적어도 건너뛰지 않는다 (3번은 링크를 못 찾아도 머리와 마지막 줄은 남긴다).
  */
 function compose(target, result, academy, opts, keep, withForm) {
-    const { tel, days, guideUrl } = opts;
+    const { tel, period, guideUrl } = opts;
     const isHagwonso = String(target.category || '').includes('교습소');
     const numberLabel = isHagwonso ? '신고번호' : '등록번호';
     // 학원에게는 '귀 학원', 교습소에게는 '귀 교습소' 라고 불러야 한다. 314곳에 남의
@@ -274,16 +282,18 @@ function compose(target, result, academy, opts, keep, withForm) {
     const shown = keep ? order.filter((b) => keep.includes(b)) : order;
 
     const urls = bucketUrls(result);
-    const range = feeRange(sortCourses(academy?.courses || []));
+    const courses = sortCourses(academy?.courses || []);
+    const range = feeRange(courses);
 
     const L = [];
     L.push(`[${SENDER}] ${SUBJECT}`, '');
+    L.push(WARN_LINE, '');
     L.push(`${target.name} (${regLabel})`, '');
 
     // ── 1. 무엇을 확인하나 ──────────────────────────────
     // '확인되지 않았습니다' 라고 단정하지 않고 '확인해 보시라' 고 권한다. 자동 조사가
     // 놓친 곳에 단정해 보내면 학원은 되묻고, 담당자가 전화를 한 번 더 받는다.
-    L.push(`1. 귀 ${kindLabel} 온라인 광고에서 다음을 확인해 보시기 바랍니다.`);
+    L.push(`1. 귀 ${kindLabel} 온라인 광고에서 다음사항이 있는지 확인 바랍니다.`);
     // 한 매체의 항목은 한 줄로 묶는다 ('· 네이버플레이스 : 등록번호 및 교습비').
     // 따로 서면 매체가 넷일 때 여덟 줄이 되어 '몇 군데를 손봐야 하는가' 가 안 보인다.
     // 없음·다름을 가르지 않는다 — 금액이 다른 곳은 아래 '지금 광고 중인 금액' 이 따로 말한다.
@@ -294,7 +304,7 @@ function compose(target, result, academy, opts, keep, withForm) {
         if (!byBucket.get(bucket).includes(label)) byBucket.get(bucket).push(label);
     });
     byBucket.forEach((fields, bucket) => {
-        L.push(`· ${CHANNEL_NAME[bucket]} : ${fields.join(' 및 ')}`);
+        L.push(`· ${CHANNEL_NAME[bucket]} : ${fields.map((f) => `"${f}"`).join(' 및 ')}`);
     });
     // '위 N개 사항이 모두 표시될 수 있도록' 은 바로 위 목록을 세어 되읊는 줄이었다.
     // 무엇을 해야 하는지는 목록이 이미 말하고, 언제까지인지는 3번 아래 기한이 말한다.
@@ -306,14 +316,15 @@ function compose(target, result, academy, opts, keep, withForm) {
     L.push(guideUrl ? `${say(LEGAL_LINE)} 교육지원청 안내문 : ${guideUrl}` : say(LEGAL_LINE));
     L.push('');
 
-    // ── 2. 신고된 교습비 확인방법 ───────────────────────
+    // ── 2. 수정방법 ─────────────────────────────────────
     // 번호 다음에 빈 줄을 두지 않는다 (3번도 그렇다) — 머리와 목록은 한 덩어리다.
     //
     // 매체마다 '어디에 어떻게 적는지' 를 여기 늘어놓지 않는다. 매체가 일곱인 학원은
     // 그것만 일곱 줄이고, 정작 학원이 알아야 할 '내가 신고한 교습비가 얼마인지' 가 묻혔다.
-    L.push('2. 신고된 교습비 확인방법');
+    L.push('2. 수정방법');
     L.push(say(NEIS_LINE));
     if (withForm) L.push(FORM_LINE);
+    if (urls.place) L.push(PLACE_EDIT_LINE);
     L.push('');
 
     // 과정별 금액은 문자에 싣지 않는다 — 과정이 열둘인 학원은 그것만 열두 줄이고,
@@ -322,7 +333,7 @@ function compose(target, result, academy, opts, keep, withForm) {
     // 마스터에 교습과정이 없는 곳은 이 줄도 뺀다 (없는 값을 넣어 말하지는 않는다).
     if (range) {
         L.push(`신고하신 월 교습비는 ${range}입니다.`);
-        L.push('게시하신 금액이 이와 같은지도 함께 확인해 주세요.', '');
+        L.push(`게시하신 금액이 이와 같은지도 함께 확인해 주세요. (${courses.length}과목 전체 게시 필요)`, '');
     }
 
     // 신고한 것 바로 아래에 지금 올라와 있는 것을 둔다 — 두 목록이 붙어 있어야
@@ -338,14 +349,14 @@ function compose(target, result, academy, opts, keep, withForm) {
     shown.forEach((b) => {
         (urls[b] || []).forEach((u) => {
             L.push(`· ${CHANNEL_NAME[b]} : ${u}`);
-            if (b === 'place') L.push(PLACE_HOWTO_LINE);
         });
     });
     // 길이 때문에 몇 곳을 덜어냈으면 그 사실을 이 목록 안에서 말한다
     if (keep) L.push(TRIMMED_LINE);
     L.push(TAIL_LINE, '');
 
-    L.push(`${noticeDeadline(days)} 즈음에 다시 확인하도록 하겠습니다.`, '');
+    L.push(say(PENALTY_LINE));
+    L.push(`${period || DEFAULT_PERIOD} 이내 수정 바랍니다.`, '');
 
     L.push(`문의 : ${tel}`);
 
