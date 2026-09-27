@@ -19,6 +19,7 @@ import {
     CH_GROUPS, BG_STRIPE, DONE_COLOR, INS_OK_COLOR, INS_BAD_COLOR,
 } from '../utils/snsTableLayout';
 import SnsCheckRow from './SnsCheckRow';
+import { computeDongStats, dongBucketOf, dongWhitelist, DONG_ETC, DONG_UNCLASSIFIED } from '../utils/dongStats';
 
 const FILTERS = ['전체', '미이행', '이행', '확인불가', '해당없음', '미조사'];
 const DONE_FILTERS = ['전체', '미확인', '확인완료'];
@@ -91,7 +92,7 @@ const noticeInput = (w) => ({
 });
 const noticeField = { display: 'flex', flexDirection: 'column', gap: '3px' };
 
-export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
+export default function SnsCheckTab({ region, academies, privateTutors, addrDongCacheVer, onSelectAcademy }) {
     const city = region.endsWith('시') ? region : region + '시';
 
     // 검토 탭과 동일한 활성 목록 기준 (지역 + 개원 상태)
@@ -144,6 +145,8 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
     const numberLabel = typeTab === '교습소' ? '신고번호' : '등록번호';
     const [filter, setFilter] = useState('미이행');
     const [doneFilter, setDoneFilter] = useState('전체');
+    // 동 — '전체' 또는 통계 탭 '동별 기관 분포' 의 한 칸 (따로 선 동 · 기타 · 미분류)
+    const [dong, setDong] = useState('전체');
     // ── 문자 설정 ────────────────────────────────────────
     // 문의 전화·기한·안내 링크는 학원별 값이 아니라 담당자별 값이다. 시트에 넣을 것이 아니고,
     // 행마다 prop 으로 실어 나르면 750행의 참조가 흔들려 표가 무거워진다 —
@@ -302,10 +305,46 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
         return { key, target: t, result: results[key] || null };
     }), [targets, results]);
 
-    // 표에 그릴 목록 (지금 보고 있는 탭)
-    const rows = useMemo(
-        () => allRows.filter(x => x.target.category === typeTab),
+    // ── 동별로 나눠 보기 ─────────────────────────────────
+    // 동 목록은 통계 탭 '동별 기관 분포' 와 똑같이 잡는다 (과외까지 센 합계로 따로 설지 '기타' 로 묶일지 정해진다).
+    // 그래야 통계에서 본 동 이름·순서 그대로 여기서 골라 볼 수 있다.
+    const dongStats = useMemo(
+        () => computeDongStats({ academies, privateTutors, region }),
+        [academies, privateTutors, region, addrDongCacheVer]); // eslint-disable-line react-hooks/exhaustive-deps -- 지오코딩 캐시가 채워지면 다시 센다
+    const dongOf = useMemo(() => {
+        const wl = dongWhitelist(region);
+        const main = new Set(dongStats.map(s => s.dong).filter(d => d !== DONG_ETC && d !== DONG_UNCLASSIFIED));
+        const m = new Map();
+        targets.forEach(t => m.set(recordKey(t.category, t.regNo), dongBucketOf(t.address, wl, main)));
+        return m;
+    }, [targets, dongStats, region]);
+    const dongAllRows = useMemo(
+        () => (dong === '전체' ? allRows : allRows.filter(x => dongOf.get(x.key) === dong)),
+        [allRows, dong, dongOf]);
+    // 동별 분류 드롭다운 — 지금 보는 구분(학원/교습소)에서 동마다 몇 곳인지
+    const dongOptions = useMemo(() => {
+        const c = {};
+        allRows.forEach(x => {
+            if (x.target.category !== typeTab) return;
+            const d = dongOf.get(x.key);
+            c[d] = (c[d] || 0) + 1;
+        });
+        return dongStats.map(s => ({
+            dong: s.dong,
+            count: c[s.dong] || 0,
+            dongCount: s.dongList?.length || 0,
+            title: s.dong === DONG_ETC ? `각 5곳 이하인 동: ${(s.dongList || []).join(', ')}`
+                : s.dong === DONG_UNCLASSIFIED ? '주소로 동을 알 수 없는 곳' : undefined,
+        }));
+    }, [allRows, typeTab, dongOf, dongStats]);
+    const dongTotal = useMemo(
+        () => allRows.reduce((n, x) => n + (x.target.category === typeTab ? 1 : 0), 0),
         [allRows, typeTab]);
+
+    // 표에 그릴 목록 (지금 보고 있는 탭 · 동)
+    const rows = useMemo(
+        () => dongAllRows.filter(x => x.target.category === typeTab),
+        [dongAllRows, typeTab]);
 
     // 같은 블로그·플레이스를 함께 쓰는 학원 묶음 (학원·교습소를 가리지 않고 전체에서 찾는다)
     const groups = useMemo(() => buildGroups(structResults), [structResults]);
@@ -337,7 +376,7 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
         () => ({ filter, doneFilter, q: search.trim().toLowerCase() }),
         [filter, doneFilter, search]);
 
-    const filterKey = `${typeTab}|${filter}|${doneFilter}|${search}`;
+    const filterKey = `${typeTab}|${dong}|${filter}|${doneFilter}|${search}`;
 
     // ── 방금 손댄 학원은 목록에 잠시 남긴다 ───────────────
     // '미이행' 만 보며 X 를 O 로 고치다 보면 마지막 칸을 누르는 순간 그 학원이 '이행' 이 되어
@@ -411,6 +450,7 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
         // 다른 구분(학원↔교습소)이거나 지금 필터에 걸려 안 보이는 곳이면 보이도록 풀어 준다 —
         // 눌렀는데 아무 일도 일어나지 않으면 고장으로 보인다
         if (cat) setTypeTab(cat);
+        setDong('전체');
         setFilter('전체');
         setDoneFilter('전체');
         setQuery('');
@@ -509,8 +549,9 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
     }, [region, carryOver, applyStructural, queue]);
 
     const probeList = (list) => list.map(x => probeTargetFor(x.target, x.result));
-    const runStale = () => runProbe(probeList(stale), typeTab);
-    const runAll = () => runProbe(probeList(rows), `${typeTab} 전체`);
+    const dongLabel = dong === '전체' ? '' : `${dong} `;
+    const runStale = () => runProbe(probeList(stale), `${dongLabel}${typeTab}`);
+    const runAll = () => runProbe(probeList(rows), `${dongLabel}${typeTab} 전체`);
 
     // pin: 단축주소로 조사한 경우처럼, 찾아낸 플레이스를 지정 열에 굳혀야 할 때
     const runOne = useCallback(async (target, { pin = false } = {}) => {
@@ -682,9 +723,9 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
     // 탭만 풀어 학원·교습소를 두 시트에 담는다 — 종이 묶음이 하나여야 잃어버리지 않는다.
     const paperRows = useMemo(() => {
         const off = filterQuery.filter === '전체' ? OFF_PAPER : [];
-        return allRows.filter(x => matchesSnsFilter(x, filterQuery)
+        return dongAllRows.filter(x => matchesSnsFilter(x, filterQuery)
             && !(x.result && off.includes(effectiveVerdict(x.result))));
-    }, [allRows, filterQuery]);
+    }, [dongAllRows, filterQuery]);
 
     const downloadWorksheet = () => {
         const sheet = (category, label) => ({
@@ -877,6 +918,25 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
 
                     {/* 700곳이 넘는 표에서 한 곳을 찾으려면 눈으로 훑는 수밖에 없었다 */}
                     <div style={{ flex: '1 1 240px', minWidth: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        {/* 동별 분류 — 칩으로 한 줄을 더 두면 거르개가 세 줄이 되어 어수선하다 */}
+                        {dongOptions.length > 0 && (
+                            <select value={dong} onChange={(e) => setDong(e.target.value)}
+                                title={dongOptions.find(c => c.dong === dong)?.title || '통계 탭 동별 기관 분포와 같은 기준으로 나눠 봅니다'}
+                                style={{
+                                    flex: '0 0 auto', padding: '7px 8px', fontSize: '0.9rem',
+                                    border: '1px solid', borderColor: dong === '전체' ? 'var(--border-color)' : 'var(--primary)',
+                                    borderRadius: '8px', background: 'var(--bg-card)',
+                                    color: dong === '전체' ? 'var(--text-main)' : 'var(--primary)',
+                                    fontWeight: dong === '전체' ? '500' : '700', cursor: 'pointer',
+                                }}>
+                                <option value="전체">동별 분류 · 전체 {dongTotal}</option>
+                                {dongOptions.map(c => (
+                                    <option key={c.dong} value={c.dong}>
+                                        {c.dong === DONG_UNCLASSIFIED ? '미분류 (주소 불명확)' : c.dong === DONG_ETC ? `기타 (${c.dongCount}개 동)` : c.dong} {c.count}
+                                    </option>
+                                ))}
+                            </select>
+                        )}
                         <input value={query} onChange={(e) => setQuery(e.target.value)}
                             onKeyDown={(e) => { if (e.key === 'Escape') setQuery(''); }}
                             placeholder={`🔍 학원명 · ${numberLabel} · 플레이스명으로 찾기`}
@@ -900,7 +960,7 @@ export default function SnsCheckTab({ region, academies, onSelectAcademy }) {
                                 style={btnStyle(stale.length ? 'var(--primary)' : 'var(--border-color)')}>
                                 🔍 조사 필요 {stale.length}곳
                             </button>
-                            <button onClick={runAll} style={outlineBtn} title={`지금 보는 ${typeTab} ${rows.length}곳을 모두 다시 조사합니다 (오래 걸리고 네이버 차단이 잦습니다)`}>
+                            <button onClick={runAll} style={outlineBtn} title={`지금 보는 ${dongLabel}${typeTab} ${rows.length}곳을 모두 다시 조사합니다 (오래 걸리고 네이버 차단이 잦습니다)`}>
                                 전체 다시 조사 {rows.length}곳
                             </button>
                             <button onClick={saveRound} style={outlineBtn}
