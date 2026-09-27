@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import AreaCalculatorApp from './AreaCalculatorApp';
 import PhotoRenamePage from './PhotoRenamePage';
 import SnsCheckTab from './SnsCheckTab';
+import { HANAM_DONG_SET, GWANGJU_DONG_SET, getAddrDongCache, normalizeDongName, getDongFromAddr, computeDongStats } from '../utils/dongStats';
 import PerformanceTab from './PerformanceTab';
 import {
     Chart as ChartJS, ArcElement, Tooltip, Legend,
@@ -25,45 +26,6 @@ ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarEle
 const COLORS = ['#1d4ed8', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#1d4ed8', '#1d4ed8', '#f97316', '#475569', '#84cc16'];
 const VIOL_COLORS = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#14b8a6', '#3b82f6', '#8b5cf6', '#ec4899', '#06b6d4', '#10b981'];
 const CURRENT_YEAR = '2026';
-
-// ── 동 화이트리스트 (동별 분포 + 검토 탭 공유) ──
-const HANAM_DONG_SET = new Set(['신장동','덕풍동','풍산동','미사동','망월동','선동','교산동','학암동','초일동','초이동','광암동','천현동','창우동','배일미동','하산곡동','상산곡동','감이동','감일동','항동','하사창동','상사창동','위례동','순궁동','감북동','춘궁동']);
-const GWANGJU_DONG_SET = new Set(['경안동','광남동','태전동','송정동','역동','삼동','탄벌동','목현동','오포읍','초월읍','곤지암읍','도척면','퇴촌면','남종면','남한산성면']);
-// 주소→법정동 캐시 (지도 페이지 geocoding 시 채워짐, 모듈 로드 시 1회 읽기)
-function getAddrDongCache() {
-    try { return JSON.parse(localStorage.getItem('academyAddrDongCache') || '{}'); }
-    catch (e) { return {}; }
-}
-
-// "신장1동" → "신장동", "덕풍2동" → "덕풍동" (행정동→법정동 표준화)
-function normalizeDongName(d) {
-    return d.replace(/([가-힣]+)\d+(동|리|읍|면)$/, '$1$2');
-}
-
-function getDongFromAddr(addr, wl) {
-    const a = addr || '';
-    // 1차: 화이트리스트 동명 직접 검색
-    for (const d of wl) {
-        if (new RegExp(d + '(?=[\\s\\d,()[\\]]|$)').test(a)) return d;
-    }
-    // 2차: "시" 이후 동/리/읍/면 패턴 추출 후 화이트리스트 대조 (숫자 포함 행정동명도 정규화)
-    const after = a.replace(/^.*?시\s*/, '');
-    const tokens = [...after.matchAll(/([가-힣]+(?:\d+)?(?:동|리|읍|면))/g)].map(m => m[1]);
-    for (const t of tokens) {
-        if (wl.has(t)) return t;
-        const norm = normalizeDongName(t);
-        if (wl.has(norm)) return norm;
-    }
-    // 3차: 지도 페이지 geocoding 결과 캐시에서 법정동명 조회
-    // (지도 탭 방문 후 자동 채워짐 — 도로명 주소도 정확하게 분류 가능)
-    const cached = getAddrDongCache()[a];
-    if (cached) {
-        if (wl.has(cached)) return cached;
-        const norm = normalizeDongName(cached);
-        if (wl.has(norm)) return norm;
-    }
-    return '';
-}
 
 // ── 유틸 ──
 function colVal(row, keys) {
@@ -1406,8 +1368,6 @@ function TabStats({ region, statRows, academies, privateTutors, academyClosures,
 
     const city = region.endsWith('시') ? region : region + '시';
 
-    // 동 화이트리스트 — 모듈 상수(HANAM_DONG_SET/GWANGJU_DONG_SET)와 동일하게 유지
-    const DONG_WL = useMemo(() => region === '하남' ? HANAM_DONG_SET : GWANGJU_DONG_SET, [region]);
 
     // academies prop 기반으로 기관 분류 (지도 데이터와 동일)
     const filtered = useMemo(() => (academies || []).filter(a => (a.address || '').includes(city)), [academies, city]);
@@ -1648,38 +1608,10 @@ function TabStats({ region, statRows, academies, privateTutors, academyClosures,
             .map(([year, v]) => ({ year, ...v, violRate: v.total > 0 ? Math.round(v.viol / v.total * 100) : 0 }));
     }, [statRows, recentRows, region]);
 
-    // 섹션 5: 동별 기관 분포 — 법정동 화이트리스트 적용 + 미분류 보완 + 소규모 동 기타 묶기
-    const dongStats = useMemo(() => {
-        const map = {};
-        const getDong = addr => getDongFromAddr(addr, DONG_WL);
-        const add = (list, key) => list.forEach(a => {
-            const d = getDong(a.address || '');
-            const dongKey = d || '미분류';
-            if (!map[dongKey]) map[dongKey] = { academy: 0, hagwon: 0, priv: 0 };
-            map[dongKey][key]++;
-        });
-        add(aList, 'academy');
-        add(hActiveList, 'hagwon');
-        add(pList, 'priv');
-        const entries = Object.entries(map)
-            .map(([dong, v]) => ({ dong, ...v, total: v.academy + v.hagwon + v.priv }));
-        // 합계 ≤ 5인 동(미분류 제외)은 "기타"로 묶기
-        const mainEntries = entries.filter(e => e.dong !== '미분류' && e.total > 5);
-        const miscEntry = entries.find(e => e.dong === '미분류') || null;
-        const smallEntries = entries.filter(e => e.dong !== '미분류' && e.total <= 5);
-        const etcRow = smallEntries.length > 0 ? {
-            dong: '기타',
-            dongList: smallEntries.map(e => e.dong).sort(),
-            academy: smallEntries.reduce((s, e) => s + e.academy, 0),
-            hagwon: smallEntries.reduce((s, e) => s + e.hagwon, 0),
-            priv: smallEntries.reduce((s, e) => s + e.priv, 0),
-            total: smallEntries.reduce((s, e) => s + e.total, 0),
-        } : null;
-        const result = mainEntries.sort((a, b) => b.total - a.total);
-        if (etcRow) result.push(etcRow);
-        if (miscEntry) result.push(miscEntry);
-        return result;
-    }, [aList, hList, pList, DONG_WL, addrDongCacheVer]);
+    // 섹션 5: 동별 기관 분포 — 법정동 화이트리스트 적용 + 미분류 보완 + 소규모 동 기타 묶기 (SNS 게시점검 동 거르개와 공유)
+    const dongStats = useMemo(
+        () => computeDongStats({ academies, privateTutors, region }),
+        [academies, privateTutors, region, addrDongCacheVer]); // eslint-disable-line react-hooks/exhaustive-deps -- 지오코딩 캐시가 채워지면 다시 센다
 
     // 학원 카테고리 분류
     const aSchoolCount = aActiveList.filter(a => a.category === '학교교과교습학원').length;
@@ -4902,7 +4834,7 @@ export default function InspectionPage({ academies, privateTutors, onSelectAcade
                         {activeTab === 1 && <TabRecent region={region} academies={academies} onSelectAcademy={handleSelectAcademy} initialPage={recentInitPage} initialScrollY={recentInitScrollY} onPageChange={p => handleSubStateChange({ page: p })} />}
                         {activeTab === 2 && <TabStats region={region} statRows={statRows} academies={academies} privateTutors={privateTutors} academyClosures={academyClosures} addrDongCacheVer={addrDongCacheVer} />}
                         {activeTab === 3 && <TabReview region={region} academies={academies} privateTutors={privateTutors} academyClosures={academyClosures} onSelectAcademy={handleSelectAcademy} addrDongCacheVer={addrDongCacheVer} initialOpenSections={savedSubState.reviewOpenSections} initialSubTab={savedSubState.reviewSubTab} supplementLoading={supplementLoading} onSubStateChange={handleSubStateChange} />}
-                        {activeTab === 4 && <SnsCheckTab region={region} academies={academies} onSelectAcademy={handleSelectAcademy} />}
+                        {activeTab === 4 && <SnsCheckTab region={region} academies={academies} privateTutors={privateTutors} addrDongCacheVer={addrDongCacheVer} onSelectAcademy={handleSelectAcademy} />}
                         {activeTab === 5 && <PhotoRenamePage embedded={true} />}
                         {activeTab === 6 && <AreaCalculatorApp embedded={true} />}
                         {activeTab === 7 && <PerformanceTab />}
