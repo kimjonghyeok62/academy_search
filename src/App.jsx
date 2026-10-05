@@ -394,12 +394,13 @@ function App() {
     }
   }, [isAuthenticated, academies]);
 
-  // 편람 링크 ?manual=1.6.007 / ?manualPage=154 → 편람 화면의 그 자리로
+  // 편람 링크 ?manual=1.6.007(경기) · ?manual=seoul:7.1.003 / ?manualPage=154 · ?manualPage=seoul:154
+  // → 편람 화면의 그 자리로 (어느 편람인지는 ManualPage 가 앞의 'seoul:' 등으로 가른다)
   useEffect(() => {
     if (!isAuthenticated) return;
     const params = new URLSearchParams(window.location.search);
     const id = params.get('manual');
-    const page = parseInt(params.get('manualPage'), 10);
+    const page = params.get('manualPage');
     if (!id && !page) return;
     setManualTarget(id ? { id } : { page });
     setExtraPage('manual');

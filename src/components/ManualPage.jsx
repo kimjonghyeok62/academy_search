@@ -2,61 +2,122 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 // legacy 빌드 — 최신 빌드는 아이폰 사파리 등 조금 지난 브라우저에서 안 열린다
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 import workerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
-import MANUAL from '../data/gyeonggiManual.json';
+import GYEONGGI from '../data/gyeonggiManual.json';
+import SEOUL from '../data/seoulManual.json';
+import CHUNGNAM from '../data/chungnamManual.json';
 import './ManualPage.css';
 
-// 학원업무 편람 — 왼쪽 목차(질의응답은 한 건씩) + 오른쪽 PDF 보기
-// 목차·쪽별 본문은 scripts/build_manual_toc.py 로 PDF에서 뽑아 둔 것
+// 학원업무 편람 — 위쪽에서 교육청을 고르고, 왼쪽 목차(질의응답은 한 건씩) + 오른쪽 PDF 보기
+// 목차·쪽별 본문은 scripts/build_manual_*.py 로 PDF에서 뽑아 둔 것
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
 
-const PDF_URL = '/manual/gyeonggi-2024.pdf';
-const TEXT_URL = '/manual/gyeonggi-2024-text.json';
+const MANUALS = [
+  { key: 'gyeonggi', short: '경기', year: 2024, home: true, data: GYEONGGI,
+    pdf: '/manual/gyeonggi-2024.pdf', text: '/manual/gyeonggi-2024-text.json', file: '2024 경기도교육청 학원업무 편람.pdf' },
+  { key: 'seoul', short: '서울', year: 2025, data: SEOUL,
+    pdf: '/manual/seoul-2025.pdf', text: '/manual/seoul-2025-text.json', file: '2025 서울특별시교육청 학원 업무 편람.pdf' },
+  { key: 'chungnam', short: '충남', year: 2024, data: CHUNGNAM,
+    pdf: '/manual/chungnam-2024.pdf', text: '/manual/chungnam-2024-text.json', file: '2024 충청남도교육청 학원업무 편람.pdf' },
+];
+const MANUAL_BY_KEY = Object.fromEntries(MANUALS.map(m => [m.key, m]));
+const HOME_KEY = 'gyeonggi';
+const LAST_KEY_STORE = 'manual_last_key';
+
 const PAGE_GAP = 14;   // 쪽 사이 간격(px)
 const PAD = 16;        // 보기 칸 안쪽 여백(px)
 const MAX_AUTO = 1.6;  // '폭 맞춤'이라도 이보다 크게 키우지 않는다
 const ZOOMS = [0.5, 0.67, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3];
 
-const [PAGE_W, PAGE_H] = MANUAL.size;
-
-// 목차 나무 → 한 줄 목록 (부모·깊이·항목 종류)
-function flatten() {
+// 목차 나무 → 한 줄 목록 (부모·깊이·항목 종류) — 편람마다 한 번만
+const prepared = new Map();
+function prepare(m) {
+  if (prepared.has(m.key)) return prepared.get(m.key);
   const list = [];
   const byId = new Map();
-  const walk = (nodes, depth, parent, kind) => {
+  const walk = (nodes, depth, parent, kind, label) => {
     nodes.forEach(n => {
-      const k = n.kind === 'qa' ? 'qa'
-        : n.kind === 'law' ? 'law'
-          : n.kind === 'case' ? (n.title.includes('판례') ? 'court' : 'appeal')
-            : kind;
-      const node = { ...n, depth, parentId: parent?.id ?? null, itemKind: k };
+      const k = n.kind || kind;
+      // 항목 앞 표시: 구역·분류에 적힌 것(itemLabel)이 먼저, 없으면 종류로
+      const lb = n.itemLabel || (n.kind === 'case' ? (n.title.includes('판례') ? '판례' : '재결') : n.kind === 'law' ? '해석' : label);
+      const node = { ...n, depth, parentId: parent?.id ?? null, itemKind: k, itemLabel: lb };
       list.push(node);
       byId.set(n.id, node);
-      if (n.children) walk(n.children, depth + 1, node, k);
+      if (n.children) walk(n.children, depth + 1, node, k, lb);
     });
   };
-  walk(MANUAL.toc, 0, null, null);
-  return { list, byId };
+  walk(m.data.toc, 0, null, null, null);
+  const p = {
+    list,
+    byId,
+    byPos: [...list].sort((a, b) => a.page - b.page || a.y - b.y || a.depth - b.depth), // 읽는 위치 → 목차 항목
+    itemCount: list.filter(n => n.isItem).length,
+  };
+  prepared.set(m.key, p);
+  return p;
 }
-const { list: FLAT, byId: BY_ID } = flatten();
-// 읽는 위치 → 목차 항목 찾기용 (쪽·쪽 안 높이 순)
-const BY_POS = [...FLAT].sort((a, b) => a.page - b.page || a.y - b.y || a.depth - b.depth);
+
+// PDF·본문 검색 자료는 한 번 받으면 편람을 바꿔 다녀도 다시 받지 않는다
+const docTasks = new Map();
+const PDFJS_CDN = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}`;
+function openDoc(m) {
+  if (!docTasks.has(m.key)) {
+    docTasks.set(m.key, pdfjsLib.getDocument({
+      url: m.pdf,
+      cMapUrl: `${PDFJS_CDN}/cmaps/`,
+      cMapPacked: true,
+      standardFontDataUrl: `${PDFJS_CDN}/standard_fonts/`,
+      // 서울 편람 그림 일부는 JPEG2000·JBIG2 — 풀어 줄 디코더(wasm)가 있어야 보인다
+      wasmUrl: `${PDFJS_CDN}/wasm/`,
+      iccUrl: `${PDFJS_CDN}/iccs/`,
+    }));
+  }
+  return docTasks.get(m.key);
+}
+const textLoads = new Map();
+function loadTexts(m) {
+  if (!textLoads.has(m.key)) {
+    const p = fetch(m.text).then(r => (r.ok ? r.json() : Promise.reject(r.status)));
+    p.catch(() => textLoads.delete(m.key)); // 실패하면 다음에 다시
+    textLoads.set(m.key, p);
+  }
+  return textLoads.get(m.key);
+}
 
 const pad3 = (n) => String(n).padStart(3, '0');
-const ITEM_BADGE = { qa: (n) => `Q${pad3(n)}`, law: (n) => `해석 ${n}`, appeal: (n) => `재결 ${n}`, court: (n) => `판례 ${n}` };
-
 function nodeLabel(n) {
-  if (n.isItem) return { badge: ITEM_BADGE[n.itemKind]?.(n.no) ?? n.no, text: n.title };
+  if (n.isItem) return { badge: n.itemKind === 'qa' ? `Q${pad3(n.no)}` : `${n.itemLabel || '사례'} ${n.no}`, text: n.title };
   return { badge: n.prefix || '', text: n.title };
 }
 
-const pageLabel = (p) => MANUAL.labels[p - 1];
-const pageText = (p) => (pageLabel(p) ? `${pageLabel(p)}쪽` : '');
+const pageLabel = (m, p) => m.data.labels[p - 1];
+const pageText = (m, p) => (pageLabel(m, p) ? `${pageLabel(m, p)}쪽` : '');
 
-function ancestors(id) {
+function ancestors(byId, id) {
   const out = [];
-  let n = BY_ID.get(id);
-  while (n?.parentId) { out.push(n.parentId); n = BY_ID.get(n.parentId); }
+  let n = byId.get(id);
+  while (n?.parentId) { out.push(n.parentId); n = byId.get(n.parentId); }
   return out;
+}
+
+// 링크 값 'seoul:7.1.003' / '1.6.007'(경기) / 'seoul:154' → { key, id | page }
+function parseTarget(t) {
+  if (!t) return null;
+  const raw = String(t.id ?? t.page ?? '');
+  const m = raw.match(/^([a-z]+):(.+)$/);
+  const key = m && MANUAL_BY_KEY[m[1]] ? m[1] : HOME_KEY;
+  const rest = m && MANUAL_BY_KEY[m[1]] ? m[2] : raw;
+  if (t.id) return { key, target: { id: rest } };
+  const page = parseInt(rest, 10);
+  return page ? { key, target: { page } } : { key, target: null };
+}
+
+function savedKey() {
+  try {
+    const k = localStorage.getItem(LAST_KEY_STORE);
+    return MANUAL_BY_KEY[k] ? k : null;
+  } catch {
+    return null;
+  }
 }
 
 // 낱말 하나 — 글자 사이 띄어쓰기는 무시 ('학원설립' = '학원 설립')
@@ -74,6 +135,19 @@ function makeSearch(q) {
 // 모두 찾기용 (g 깃발 정규식은 lastIndex 를 품고 있어 그때그때 새로 만든다)
 const allMatches = (text, re) => [...text.matchAll(new RegExp(re.source, 'gi'))];
 
+function bodyHitsOf(texts, search) {
+  const out = [];
+  texts.forEach((t, i) => {
+    if (!search.test(t)) return;
+    const matches = allMatches(t, search.any);
+    const m = matches[0];
+    const a = Math.max(0, m.index - 36);
+    const b = Math.min(t.length, m.index + m[0].length + 60);
+    out.push({ page: i + 1, count: matches.length, snippet: (a > 0 ? '…' : '') + t.slice(a, b) + (b < t.length ? '…' : '') });
+  });
+  return out;
+}
+
 function Highlight({ text, re }) {
   if (!re) return text;
   const parts = [];
@@ -90,8 +164,6 @@ function Highlight({ text, re }) {
 function Icon({ name, size = 18 }) {
   const p = {
     chevron: <polyline points="9 6 15 12 9 18" />,
-    prev: <polyline points="15 18 9 12 15 6" />,
-    next: <polyline points="9 18 15 12 9 6" />,
     up: <polyline points="18 15 12 9 6 15" />,
     down: <polyline points="6 9 12 15 18 9" />,
     minus: <line x1="5" y1="12" x2="19" y2="12" />,
@@ -101,7 +173,6 @@ function Icon({ name, size = 18 }) {
     link: <><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></>,
     external: <><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></>,
     download: <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></>,
-    fit: <><polyline points="15 3 21 3 21 9" /><polyline points="9 21 3 21 3 15" /><line x1="21" y1="3" x2="14" y2="10" /><line x1="3" y1="21" x2="10" y2="14" /></>,
     close: <><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></>,
     collapse: <><polyline points="17 11 12 6 7 11" /><polyline points="17 18 12 13 7 18" /></>,
   }[name];
@@ -111,7 +182,7 @@ function Icon({ name, size = 18 }) {
 }
 
 // ── PDF 한 쪽: 보일 때만 그린다 (캔버스 + 글자 층) ──
-function PdfPage({ doc, num, scale, active, hitRe }) {
+function PdfPage({ doc, num, scale, width, height, active, hitRe }) {
   const canvasRef = useRef(null);
   const textRef = useRef(null);
   const [drawnScale, setDrawnScale] = useState(0); // 마지막으로 다 그린 배율
@@ -174,11 +245,11 @@ function PdfPage({ doc, num, scale, active, hitRe }) {
     <div
       className="manual-sheet"
       data-page={num}
-      style={{ width: PAGE_W * scale, height: PAGE_H * scale, '--total-scale-factor': scale }}
+      style={{ width: width * scale, height: height * scale, '--total-scale-factor': scale }}
     >
       {active ? (
         <>
-          <canvas ref={canvasRef} className={drawn ? 'is-drawn' : ''} style={{ width: PAGE_W * scale, height: PAGE_H * scale }} />
+          <canvas ref={canvasRef} className={drawn ? 'is-drawn' : ''} style={{ width: width * scale, height: height * scale }} />
           <div ref={textRef} className="textLayer" />
         </>
       ) : null}
@@ -187,11 +258,46 @@ function PdfPage({ doc, num, scale, active, hitRe }) {
   );
 }
 
+// ── 바깥: 어느 편람을 보는지와 검색어를 쥔다 (편람을 바꾸면 안쪽 보기를 새로 연다) ──
 export default function ManualPage({ initialTarget }) {
+  const [nav, setNav] = useState(() => {
+    const parsed = parseTarget(initialTarget);
+    return { key: parsed?.key ?? savedKey() ?? HOME_KEY, target: parsed?.target ?? null, seq: 0 };
+  });
+  const [query, setQuery] = useState('');
+  const [allMode, setAllMode] = useState(false); // 세 편람 모두에서 찾기
+
+  useEffect(() => {
+    try { localStorage.setItem(LAST_KEY_STORE, nav.key); } catch { /* 저장 못 해도 그만 */ }
+  }, [nav.key]);
+
+  const switchTo = useCallback((key, target = null) => {
+    setNav(prev => ({ key, target, seq: prev.seq + 1 }));
+  }, []);
+
+  return (
+    <ManualViewer
+      key={`${nav.key}:${nav.seq}`}
+      manual={MANUAL_BY_KEY[nav.key]}
+      initialTarget={nav.target}
+      onSwitch={switchTo}
+      query={query}
+      setQuery={setQuery}
+      allMode={allMode}
+      setAllMode={setAllMode}
+    />
+  );
+}
+
+function ManualViewer({ manual, initialTarget, onSwitch, query, setQuery, allMode, setAllMode }) {
+  const M = manual;
+  const { list: FLAT, byId: BY_ID, byPos: BY_POS, itemCount } = prepare(M);
+  const [PAGE_W, PAGE_H] = M.data.size;
+  const total = M.data.pages;
+
   const [doc, setDoc] = useState(null);
   const [loadError, setLoadError] = useState('');
   const [loadPct, setLoadPct] = useState(0);
-  const total = MANUAL.pages;
 
   const viewerRef = useRef(null);
   const tocRef = useRef(null);
@@ -201,37 +307,32 @@ export default function ManualPage({ initialTarget }) {
   const [pageEdit, setPageEdit] = useState(null); // 쪽 번호 칸에 치는 중인 값
   const [visible, setVisible] = useState(() => new Set());
 
-  // 링크(?manual=…)로 들어오면 그 항목까지 펼치고 골라 둔다
+  // 링크(?manual=…)·다른 편람 검색 결과로 들어오면 그 항목까지 펼치고 골라 둔다
   const initialNode = initialTarget?.id ? BY_ID.get(initialTarget.id) : null;
   const [expanded, setExpanded] = useState(() => new Set([
-    ...MANUAL.toc.map(n => n.id),
-    ...(initialNode ? ancestors(initialNode.id) : []),
+    ...M.data.toc.map(n => n.id),
+    ...(initialNode ? ancestors(BY_ID, initialNode.id) : []),
   ]));
   const [selectedId, setSelectedId] = useState(initialNode?.id ?? null);
   const [tocOpen, setTocOpen] = useState(true);       // 넓은 화면: 목차 칸 접기
   const [drawerOpen, setDrawerOpen] = useState(false); // 좁은 화면: 목차 서랍
-  const [query, setQuery] = useState('');
-  const [texts, setTexts] = useState(null);
+  const [texts, setTexts] = useState({});             // { 편람 key: 쪽별 본문 }
   const [textsError, setTextsError] = useState(false);
-  const [hitQuery, setHitQuery] = useState('');
+  const [hitQuery, setHitQuery] = useState(initialTarget?.hit ?? '');
   const [toast, setToast] = useState('');
 
   // ── PDF 열기 ──
   useEffect(() => {
     let alive = true;
-    const task = pdfjsLib.getDocument({
-      url: PDF_URL,
-      cMapUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/cmaps/`,
-      cMapPacked: true,
-      standardFontDataUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/standard_fonts/`,
-    });
+    const task = openDoc(M);
     task.onProgress = ({ loaded, total: t }) => { if (alive && t) setLoadPct(Math.round((loaded / t) * 100)); };
     task.promise.then(d => { if (alive) setDoc(d); }).catch(err => {
       console.error(err);
+      docTasks.delete(M.key);
       if (alive) setLoadError('편람 PDF를 열지 못했습니다.');
     });
-    return () => { alive = false; task.destroy(); };
-  }, []);
+    return () => { alive = false; };
+  }, [M]);
 
   // ── 보기 칸 너비 → 배율 ──
   useLayoutEffect(() => {
@@ -258,10 +359,10 @@ export default function ManualPage({ initialTarget }) {
   const revealInToc = useCallback((id) => {
     setExpanded(prev => {
       const next = new Set(prev);
-      ancestors(id).forEach(a => next.add(a));
+      ancestors(BY_ID, id).forEach(a => next.add(a));
       return next;
     });
-  }, []);
+  }, [BY_ID]);
 
   const openNode = useCallback((n, { fromSearch } = {}) => {
     setSelectedId(n.id);
@@ -271,7 +372,7 @@ export default function ManualPage({ initialTarget }) {
     setDrawerOpen(false);
   }, [revealInToc, scrollToPos]);
 
-  // 처음 들어올 때 (링크 ?manual=1.6.007 / ?manualPage=154)
+  // 처음 들어올 때 그 자리로
   const initialDone = useRef(false);
   useEffect(() => {
     if (initialDone.current || !viewerW) return;
@@ -308,7 +409,7 @@ export default function ManualPage({ initialTarget }) {
       for (let p = first; p <= last; p++) s.add(p);
       return s;
     });
-  }, [pageTop, scale, step, total]);
+  }, [pageTop, scale, step, total, setCurrent, setVisible]);
   useEffect(() => { onScroll(); }, [onScroll, viewerW]);
 
   // 읽는 위치에 해당하는 목차 항목
@@ -328,18 +429,18 @@ export default function ManualPage({ initialTarget }) {
       if (BY_POS[i].depth > best.depth) best = BY_POS[i];
     }
     return best.id;
-  }, [current]);
+  }, [current, BY_POS]);
 
   // 접힌 곳 안이면 펼쳐진 가장 가까운 윗 항목을 켠다
   const shownActive = useMemo(() => {
     let id = readingId;
     while (id) {
-      const anc = ancestors(id);
+      const anc = ancestors(BY_ID, id);
       if (anc.every(a => expanded.has(a))) return id;
       id = BY_ID.get(id)?.parentId;
     }
     return null;
-  }, [readingId, expanded]);
+  }, [readingId, expanded, BY_ID]);
 
   // 켜진 목차 줄이 목차 칸 안에 보이게 (페이지 전체는 움직이지 않게 목차 칸만)
   useEffect(() => {
@@ -355,29 +456,29 @@ export default function ManualPage({ initialTarget }) {
   // ── 검색 ──
   const search = useMemo(() => makeSearch(query), [query]);
   const re = search?.any ?? null;
-  const tocHits = useMemo(() => {
-    if (!search) return [];
-    return FLAT.filter(n => search.test(n.title)).slice(0, 150);
-  }, [search]);
+  // 찾을 편람: 지금 편람이 먼저, '모두에서 찾기'면 나머지도
+  const scope = useMemo(() => (allMode ? [M, ...MANUALS.filter(x => x.key !== M.key)] : [M]), [allMode, M]);
 
   useEffect(() => {
-    if (!query.trim() || texts || textsError) return;
-    fetch(TEXT_URL).then(r => (r.ok ? r.json() : Promise.reject(r.status))).then(setTexts).catch(() => setTextsError(true));
-  }, [query, texts, textsError]);
-
-  const bodyHits = useMemo(() => {
-    if (!search || !texts || query.trim().length < 2) return [];
-    const out = [];
-    texts.forEach((t, i) => {
-      if (!search.test(t)) return;
-      const matches = allMatches(t, search.any);
-      const m = matches[0];
-      const a = Math.max(0, m.index - 36);
-      const b = Math.min(t.length, m.index + m[0].length + 60);
-      out.push({ page: i + 1, count: matches.length, snippet: (a > 0 ? '…' : '') + t.slice(a, b) + (b < t.length ? '…' : '') });
+    if (!query.trim()) return undefined;
+    let alive = true;
+    scope.forEach(m => {
+      loadTexts(m)
+        .then(t => { if (alive) setTexts(prev => (prev[m.key] ? prev : { ...prev, [m.key]: t })); })
+        .catch(() => { if (alive) setTextsError(true); });
     });
-    return out;
-  }, [search, texts, query]);
+    return () => { alive = false; };
+  }, [query, scope]);
+
+  const groups = useMemo(() => {
+    if (!search) return [];
+    return scope.map(m => {
+      const tocHits = prepare(m).list.filter(n => search.test(n.title));
+      const t = texts[m.key];
+      const bodyHits = t && query.trim().length >= 2 ? bodyHitsOf(t, search) : null;
+      return { m, tocHits, bodyHits };
+    });
+  }, [search, scope, texts, query]);
 
   const hitRe = useMemo(() => makeSearch(hitQuery)?.any ?? null, [hitQuery]);
 
@@ -385,29 +486,30 @@ export default function ManualPage({ initialTarget }) {
   const rows = useMemo(() => {
     const out = [];
     const walk = (nodes) => nodes.forEach(n => {
-      const node = BY_ID.get(n.id);
-      out.push(node);
+      out.push(BY_ID.get(n.id));
       if (n.children && expanded.has(n.id)) walk(n.children);
     });
-    walk(MANUAL.toc);
+    walk(M.data.toc);
     return out;
-  }, [expanded]);
+  }, [expanded, BY_ID, M]);
 
   const toggle = (id) => setExpanded(prev => {
     const next = new Set(prev);
     if (next.has(id)) next.delete(id); else next.add(id);
     return next;
   });
-  const collapseAll = () => setExpanded(new Set(MANUAL.toc.map(n => n.id)));
+  const collapseAll = () => setExpanded(new Set(M.data.toc.map(n => n.id)));
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 1800); };
 
+  // 링크 값: 경기는 예전 링크(?manual=1.6.007)와 같게, 다른 편람은 'seoul:…'
+  const linkValue = (key, v) => (key === HOME_KEY ? String(v) : `${key}:${v}`);
   const copyLink = async () => {
     const id = selectedId && BY_ID.get(selectedId)?.page === current.page ? selectedId : readingId;
     const n = id && BY_ID.get(id);
     const url = new URL(window.location.origin + window.location.pathname);
-    if (n && n.page === current.page) url.searchParams.set('manual', n.id);
-    else url.searchParams.set('manualPage', String(current.page));
+    if (n && n.page === current.page) url.searchParams.set('manual', linkValue(M.key, n.id));
+    else url.searchParams.set('manualPage', linkValue(M.key, current.page));
     try {
       await navigator.clipboard.writeText(url.toString());
       showToast('지금 보는 곳의 링크를 복사했습니다');
@@ -428,7 +530,17 @@ export default function ManualPage({ initialTarget }) {
   const zoomOut = () => setZoom(ZOOMS[Math.max(0, (zoomIdx < 0 ? ZOOMS.length : zoomIdx) - 1)]);
   const zoomIn = () => setZoom(ZOOMS[Math.min(ZOOMS.length - 1, ZOOMS[zoomIdx] > scale + 0.001 ? zoomIdx : zoomIdx + 1)]);
 
-  const renderRow = (n, { flat } = {}) => {
+  // 검색 결과 누르기 — 다른 편람이면 그 편람으로 바꿔 연다
+  const openHitNode = (m, n) => {
+    if (m.key === M.key) openNode(n, { fromSearch: true });
+    else onSwitch(m.key, { id: n.id });
+  };
+  const openHitPage = (m, page) => {
+    if (m.key === M.key) { setHitQuery(query.trim()); scrollToPos(page); setDrawerOpen(false); }
+    else onSwitch(m.key, { page, hit: query.trim() });
+  };
+
+  const renderRow = (n, { flat, m = M } = {}) => {
     const { badge, text } = nodeLabel(n);
     const hasKids = !!n.children?.length;
     const isOpen = expanded.has(n.id);
@@ -439,11 +551,11 @@ export default function ManualPage({ initialTarget }) {
       n.isItem ? 'is-item' : '',
       n.depth === 0 ? 'is-chapter' : '',
       isActive ? 'is-active' : '',
-      selectedId === n.id ? 'is-selected' : '',
     ].filter(Boolean).join(' ');
-    const crumb = flat ? ancestors(n.id).reverse().map(a => BY_ID.get(a)).filter(a => a.depth <= 1).map(a => a.title).join(' › ') : '';
+    const idx = prepare(m).byId;
+    const crumb = flat ? ancestors(idx, n.id).reverse().map(a => idx.get(a)).filter(a => a.depth <= 1).map(a => a.title).join(' › ') : '';
     return (
-      <div key={n.id} className={cls} style={flat ? undefined : { '--depth': n.depth }}>
+      <div key={`${m.key}:${n.id}`} className={cls} style={flat ? undefined : { '--depth': n.depth }}>
         {!flat && (
           hasKids ? (
             <button type="button" className={`manual-twisty${isOpen ? ' is-open' : ''}`} onClick={() => toggle(n.id)} aria-label={isOpen ? '접기' : '펼치기'} aria-expanded={isOpen}>
@@ -451,7 +563,7 @@ export default function ManualPage({ initialTarget }) {
             </button>
           ) : <span className="manual-twisty is-leaf" aria-hidden="true" />
         )}
-        <button type="button" className="manual-row-main" onClick={() => openNode(n, { fromSearch: flat })} title={n.title}>
+        <button type="button" className="manual-row-main" onClick={() => (flat ? openHitNode(m, n) : openNode(n))} title={n.title}>
           <span className="manual-row-text">
             {badge && <span className="manual-badge">{badge}</span>}
             <span className="manual-row-title">{flat ? <Highlight text={text} re={re} /> : text}</span>
@@ -459,8 +571,42 @@ export default function ManualPage({ initialTarget }) {
             {n.note && <span className="manual-note">{n.note}</span>}
             {crumb && <span className="manual-crumb">{crumb}</span>}
           </span>
-          <span className="manual-row-page">{pageText(n.page)}</span>
+          <span className="manual-row-page">{pageText(m, n.page)}</span>
         </button>
+      </div>
+    );
+  };
+
+  const renderGroup = ({ m, tocHits, bodyHits }) => {
+    const limitToc = allMode ? 60 : 150;
+    const limitBody = allMode ? 80 : 200;
+    return (
+      <div key={m.key} className="manual-hit-group">
+        {allMode && (
+          <div className={`manual-hit-manual${m.key === M.key ? ' is-current' : ''}`}>
+            {m.short} {m.year}{m.key === M.key && <em>지금 보는 편람</em>}
+          </div>
+        )}
+        <div className="manual-hit-head">목차 <b>{tocHits.length}</b>건</div>
+        {tocHits.length ? tocHits.slice(0, limitToc).map(n => renderRow(n, { flat: true, m })) : <p className="manual-empty">목차에는 없습니다.</p>}
+        {tocHits.length > limitToc && <p className="manual-empty">앞의 {limitToc}건만 보입니다. 검색어를 더 좁혀 보세요.</p>}
+
+        <div className="manual-hit-head">본문 {bodyHits ? <><b>{bodyHits.length}</b>쪽</> : ''}</div>
+        {query.trim().length < 2 ? <p className="manual-empty">본문은 두 글자 이상부터 찾습니다.</p>
+          : !bodyHits ? <p className="manual-empty">{textsError ? '본문 검색 자료를 불러오지 못했습니다.' : '본문을 불러오는 중…'}</p>
+            : !bodyHits.length ? <p className="manual-empty">본문에도 없습니다.</p>
+              : bodyHits.slice(0, limitBody).map(h => (
+                <button
+                  type="button"
+                  key={`${m.key}:${h.page}`}
+                  className={`manual-body-hit${m.key === M.key && current.page === h.page && hitQuery ? ' is-active' : ''}`}
+                  onClick={() => openHitPage(m, h.page)}
+                >
+                  <span className="manual-body-hit-page">{pageText(m, h.page) || `PDF ${h.page}쪽`}{h.count > 1 && <em>{h.count}곳</em>}</span>
+                  <span className="manual-body-hit-text"><Highlight text={h.snippet} re={re} /></span>
+                </button>
+              ))}
+        {bodyHits && bodyHits.length > limitBody && <p className="manual-empty">앞의 {limitBody}쪽만 보입니다.</p>}
       </div>
     );
   };
@@ -475,10 +621,27 @@ export default function ManualPage({ initialTarget }) {
       {/* 목차 */}
       <aside className="manual-toc" aria-label="편람 목차">
         <div className="manual-toc-head">
-          <div className="manual-toc-title">
-            <span className="manual-toc-name">{MANUAL.title}</span>
+          <div className="manual-switch" role="tablist" aria-label="교육청 고르기">
+            {MANUALS.map(m => (
+              <button
+                key={m.key}
+                type="button"
+                role="tab"
+                aria-selected={m.key === M.key}
+                className={`manual-switch-btn${m.key === M.key ? ' is-on' : ''}`}
+                onClick={() => { if (m.key !== M.key) onSwitch(m.key); }}
+              >
+                {m.short}<small>{m.year}</small>
+              </button>
+            ))}
             <button type="button" className="manual-icon-btn manual-drawer-close" onClick={() => setDrawerOpen(false)} aria-label="목차 닫기"><Icon name="close" /></button>
           </div>
+          <div className="manual-toc-title">
+            <span className="manual-toc-name">{M.data.title}</span>
+          </div>
+          {!M.home && (
+            <p className="manual-notice">{M.short} 조례 기준 자료입니다. 교습시간·시설 기준 등은 경기도 조례와 다를 수 있습니다.</p>
+          )}
           <div className="manual-search">
             <Icon name="search" />
             <input
@@ -490,40 +653,21 @@ export default function ManualPage({ initialTarget }) {
             />
             {query && <button type="button" className="manual-search-clear" onClick={() => { setQuery(''); setHitQuery(''); }} aria-label="검색어 지우기"><Icon name="close" size={16} /></button>}
           </div>
-          {!searching && (
-            <div className="manual-toc-tools">
-              <span>질의응답·사례 {FLAT.filter(n => n.isItem).length}건</span>
+          <div className="manual-toc-tools">
+            <label className="manual-check">
+              <input type="checkbox" checked={allMode} onChange={(e) => setAllMode(e.target.checked)} />
+              세 편람 모두에서 찾기
+            </label>
+            {!searching && (
               <button type="button" className="manual-text-btn" onClick={collapseAll}><Icon name="collapse" size={16} />모두 접기</button>
-            </div>
-          )}
+            )}
+          </div>
+          {!searching && <div className="manual-toc-count">질의응답·사례 {itemCount}건</div>}
         </div>
 
         <div className="manual-toc-body" ref={tocRef}>
           {!searching && rows.map(n => renderRow(n))}
-
-          {searching && (
-            <>
-              <div className="manual-hit-head">목차 <b>{tocHits.length}</b>건</div>
-              {tocHits.length ? tocHits.map(n => renderRow(n, { flat: true })) : <p className="manual-empty">목차에는 없습니다.</p>}
-
-              <div className="manual-hit-head">본문 {texts ? <><b>{bodyHits.length}</b>쪽</> : ''}</div>
-              {query.trim().length < 2 ? <p className="manual-empty">본문은 두 글자 이상부터 찾습니다.</p>
-                : textsError ? <p className="manual-empty">본문 검색 자료를 불러오지 못했습니다.</p>
-                  : !texts ? <p className="manual-empty">본문을 불러오는 중…</p>
-                    : !bodyHits.length ? <p className="manual-empty">본문에도 없습니다.</p>
-                      : bodyHits.slice(0, 200).map(h => (
-                        <button
-                          type="button"
-                          key={h.page}
-                          className={`manual-body-hit${current.page === h.page && hitQuery ? ' is-active' : ''}`}
-                          onClick={() => { setHitQuery(query.trim()); scrollToPos(h.page); setDrawerOpen(false); }}
-                        >
-                          <span className="manual-body-hit-page">{pageText(h.page) || `PDF ${h.page}쪽`}{h.count > 1 && <em>{h.count}곳</em>}</span>
-                          <span className="manual-body-hit-text"><Highlight text={h.snippet} re={re} /></span>
-                        </button>
-                      ))}
-            </>
-          )}
+          {searching && groups.map(renderGroup)}
         </div>
       </aside>
 
@@ -535,6 +679,7 @@ export default function ManualPage({ initialTarget }) {
             else setTocOpen(v => !v);
           }} aria-label="목차 열고 닫기" title="목차">
             <Icon name="toc" /><span className="manual-hide-sm">목차</span>
+            <span className="manual-bar-manual">{M.short}</span>
           </button>
           <div className="manual-bar-group">
             <button type="button" className="manual-icon-btn manual-step" onClick={() => scrollToPos(current.page - 1)} disabled={current.page <= 1} aria-label="앞 쪽"><Icon name="up" /></button>
@@ -550,7 +695,7 @@ export default function ManualPage({ initialTarget }) {
               <span className="manual-page-total">/ {total}</span>
             </form>
             <button type="button" className="manual-icon-btn manual-step" onClick={() => scrollToPos(current.page + 1)} disabled={current.page >= total} aria-label="다음 쪽"><Icon name="down" /></button>
-            {pageLabel(current.page) && <span className="manual-print-page" title="편람에 인쇄된 쪽번호">인쇄 {pageLabel(current.page)}쪽</span>}
+            {pageLabel(M, current.page) && <span className="manual-print-page" title="편람에 인쇄된 쪽번호">인쇄 {pageLabel(M, current.page)}쪽</span>}
           </div>
           <div className="manual-bar-group manual-zoom">
             <button type="button" className="manual-icon-btn" onClick={zoomOut} aria-label="축소"><Icon name="minus" /></button>
@@ -561,8 +706,8 @@ export default function ManualPage({ initialTarget }) {
           </div>
           <div className="manual-bar-group manual-bar-end">
             <button type="button" className="manual-icon-btn" onClick={copyLink} title="지금 보는 곳 링크 복사"><Icon name="link" /><span className="manual-hide-sm">링크 복사</span></button>
-            <a className="manual-icon-btn manual-hide-sm" href={`${PDF_URL}#page=${current.page}`} target="_blank" rel="noopener noreferrer" title="PDF를 새 창에서 열기"><Icon name="external" /><span className="manual-hide-sm">새 창</span></a>
-            <a className="manual-icon-btn manual-hide-sm" href={PDF_URL} download="2024 경기도교육청 학원업무 편람.pdf" title="PDF 내려받기"><Icon name="download" /><span className="manual-hide-sm">내려받기</span></a>
+            <a className="manual-icon-btn manual-hide-sm" href={`${M.pdf}#page=${current.page}`} target="_blank" rel="noopener noreferrer" title="PDF를 새 창에서 열기"><Icon name="external" /><span className="manual-hide-sm">새 창</span></a>
+            <a className="manual-icon-btn manual-hide-sm" href={M.pdf} download={M.file} title="PDF 내려받기"><Icon name="download" /><span className="manual-hide-sm">내려받기</span></a>
           </div>
         </div>
 
@@ -572,14 +717,14 @@ export default function ManualPage({ initialTarget }) {
               {loadError ? (
                 <>
                   <p>{loadError}</p>
-                  <a className="btn btn-outline" href={PDF_URL} target="_blank" rel="noopener noreferrer">PDF 직접 열기</a>
+                  <a className="btn btn-outline" href={M.pdf} target="_blank" rel="noopener noreferrer">PDF 직접 열기</a>
                 </>
               ) : <p>편람을 여는 중… {loadPct ? `${loadPct}%` : ''}</p>}
             </div>
           )}
           <div className="manual-stack" style={{ padding: PAD, gap: PAGE_GAP }}>
             {pages.map(p => (
-              <PdfPage key={p} doc={doc} num={p} scale={scale} active={visible.has(p)} hitRe={hitRe} />
+              <PdfPage key={p} doc={doc} num={p} scale={scale} width={PAGE_W} height={PAGE_H} active={visible.has(p)} hitRe={hitRe} />
             ))}
           </div>
         </div>
