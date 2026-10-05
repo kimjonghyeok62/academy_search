@@ -215,7 +215,7 @@ for n in list(walk(root)):
     if 'kind' not in n: continue
     a, b = n.pop('_range')
     items = collect_qa(a, b) if n['kind'] == 'qa' else collect_law(a, b) if n['kind'] == 'law' else collect_cases(a, b)
-    subs = n['children']  # 가. 나. … (질의응답 하위 분류)
+    subs = list(n['children'])  # 가. 나. … (질의응답 하위 분류) — 복사본: 붙인 항목이 하위 분류로 잡히지 않게
     for q, it in enumerate(items, 1):
         it['no'] = q
         it['isItem'] = True
