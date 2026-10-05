@@ -447,9 +447,11 @@ function ManualViewer({ manual, initialTarget, onSwitch, query, setQuery, allMod
     const box = tocRef.current;
     const row = box?.querySelector('.manual-row.is-active');
     if (!row) return;
-    const top = row.offsetTop - box.offsetTop;
-    if (top < box.scrollTop + 8 || top + row.offsetHeight > box.scrollTop + box.clientHeight - 8) {
-      box.scrollTop = top - box.clientHeight / 3;
+    // offsetTop 은 가장 가까운 position 조상 기준이라 중첩된 줄에서 어긋난다 → 화면 좌표로 셈
+    const b = box.getBoundingClientRect();
+    const r = row.getBoundingClientRect();
+    if (r.top < b.top + 8 || r.bottom > b.bottom - 8) {
+      box.scrollTop += r.top - b.top - box.clientHeight / 3;
     }
   }, [shownActive, query]);
 
