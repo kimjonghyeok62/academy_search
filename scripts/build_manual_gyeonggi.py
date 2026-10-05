@@ -1,5 +1,5 @@
 # 학원업무 편람 PDF → 목차(JSON) · 쪽별 본문(JSON)
-#   python scripts/build_manual_toc.py <편람.pdf> src/data/gyeonggiManual.json public/manual/gyeonggi-2024-text.json
+#   python scripts/build_manual_gyeonggi.py <편람.pdf> src/data/gyeonggiManual.json public/manual/gyeonggi-2024-text.json
 # - 인쇄 목차(PDF 4~10쪽)를 읽고, 각 제목이 실제 몇 번째 PDF 쪽에 있는지 본문에서 찾아 맞춘다
 #   (인쇄 목차 쪽번호가 본문과 몇 쪽씩 어긋나 있어 그대로 쓰지 않는다)
 # - 질의응답(11.6pt 제목), 법령해석(11.9pt 제목), 행정심판·판례(【판시사항】 다음 줄) 항목을 하나씩 뽑는다

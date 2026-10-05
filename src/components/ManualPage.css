@@ -30,7 +30,50 @@
   border-bottom: 1px solid var(--border-color);
 }
 .manual-toc-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.manual-toc-name { font-size: 1.15rem; font-weight: 800; color: var(--text-main); line-height: 1.35; }
+.manual-toc-name { font-size: 1.1rem; font-weight: 800; color: var(--text-main); line-height: 1.35; }
+
+/* 교육청 고르기 */
+.manual-switch { display: flex; align-items: center; gap: 6px; }
+.manual-switch-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 4px;
+  min-height: 42px;
+  padding: 0 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--text-body);
+  font-size: 1rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.manual-switch-btn small { font-size: 0.78rem; font-weight: 700; color: var(--text-muted); }
+.manual-switch-btn:hover { background: #f8fafc; }
+.manual-switch-btn.is-on { border-color: var(--primary); background: var(--primary); color: #fff; }
+.manual-switch-btn.is-on small { color: rgba(255, 255, 255, 0.8); }
+.manual-notice {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+.manual-check { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; cursor: pointer; font-weight: 700; color: var(--text-body); }
+.manual-check input { width: 18px; height: 18px; accent-color: var(--primary); }
+.manual-toc-count { font-size: 0.85rem; color: var(--text-muted); }
+.manual-bar-manual {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
 .manual-icon-btn.manual-drawer-close { display: none; }
 
 .manual-search {
@@ -195,6 +238,21 @@
   color: var(--text-muted);
 }
 .manual-hit-head b { color: var(--primary); }
+/* 세 편람 모두에서 찾기 — 편람별 묶음 머리 */
+.manual-hit-group + .manual-hit-group { margin-top: 14px; }
+.manual-hit-manual {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--navy);
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+.manual-hit-manual em { font-style: normal; font-size: 0.78rem; font-weight: 700; opacity: 0.8; }
 .manual-row:not([style]) { padding-left: 0; }
 .manual-empty { margin: 8px 10px 12px; font-size: 0.9rem; color: var(--text-muted); }
 .manual-toc mark { background: #fde68a; color: inherit; border-radius: 2px; padding: 0 1px; }
