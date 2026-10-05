@@ -9,6 +9,9 @@ import InspectionPage from './components/InspectionPage';
 import KakaoMapPage from './components/KakaoMapPage';
 import { placeMapSearchUrl } from './utils/snsCheck';
 
+// 학원업무 편람 — PDF 보기(pdf.js)가 커서 열 때만 불러온다
+const ManualPage = React.lazy(() => import('./components/ManualPage'));
+
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
@@ -50,7 +53,8 @@ function App() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const searchInputRef = useRef(null);
   const [dataAsOf, setDataAsOf] = useState(''); // 데이터 기준일
-  const [extraPage, setExtraPage] = useState(null); // 메뉴 화면: 'law' | 'sanction'
+  const [extraPage, setExtraPage] = useState(null); // 메뉴 화면: 'law' | 'sanction' | 'manual'
+  const [manualTarget, setManualTarget] = useState(null); // 편람 링크로 들어올 때 { id } 또는 { page }
   const [showInspection, setShowInspection] = useState(false); // 지도점검 화면
   const [inspectionInitialTab, setInspectionInitialTab] = useState(undefined); // 지도점검 초기 탭
   const [inspectionTabRequest, setInspectionTabRequest] = useState(undefined); // 메뉴에서 고른 지도점검 탭 { tab, seq }
@@ -390,6 +394,21 @@ function App() {
     }
   }, [isAuthenticated, academies]);
 
+  // 편람 링크 ?manual=1.6.007 / ?manualPage=154 → 편람 화면의 그 자리로
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get('manual');
+    const page = parseInt(params.get('manualPage'), 10);
+    if (!id && !page) return;
+    setManualTarget(id ? { id } : { page });
+    setExtraPage('manual');
+    params.delete('manual');
+    params.delete('manualPage');
+    const qs = params.toString();
+    window.history.replaceState(window.history.state, '', window.location.pathname + (qs ? `?${qs}` : ''));
+  }, [isAuthenticated]);
+
   const handleClearCacheAndReload = () => {
     ['academy_data_v1','academy_data_v2','academy_data_v3','academy_data_v4','academy_data_v5','academy_data_v6','academy_data_v7','academy_data_v8'].forEach(k => sessionStorage.removeItem(k));
     localStorage.removeItem('academyMapLocations');
@@ -685,7 +704,8 @@ function App() {
       setInspectionTabRequest(prev => ({ tab, seq: (prev?.seq || 0) + 1 }));
       setShowInspection(true);
     }
-    else if (id === 'law' || id === 'sanction') setExtraPage(id);
+    else if (id === 'law' || id === 'sanction' || id === 'manual') setExtraPage(id);
+    setManualTarget(null);
     window.scrollTo(0, 0);
   };
 
@@ -885,7 +905,16 @@ function App() {
 
         {page === 'detail' && <main className="page is-detail">{detailEl}</main>}
 
-        {page !== 'inspection' && page !== 'detail' && page !== 'map' && (
+        {/* 학원업무 편람 — 목차·PDF가 내용 칸을 꽉 채운다 */}
+        {page === 'manual' && (
+          <main className="page is-manual">
+            <React.Suspense fallback={<p className="page-desc" style={{ padding: 24 }}>편람을 여는 중…</p>}>
+              <ManualPage initialTarget={manualTarget} />
+            </React.Suspense>
+          </main>
+        )}
+
+        {page !== 'inspection' && page !== 'detail' && page !== 'map' && page !== 'manual' && (
           <main className="page">
             <div className="page-head">
               <h1 className="page-title">{head.title}</h1>
@@ -1074,6 +1103,7 @@ const NAV = [
   {
     group: '참고',
     items: [
+      { id: 'manual', label: '학원업무 편람', icon: 'manual' },
       { id: 'law', label: '관련 법령 자료', icon: 'book' },
       { id: 'sanction', label: '행정처분·과태료 기준', icon: 'scale' },
     ],
@@ -1094,6 +1124,7 @@ function NavIcon({ name }) {
     clipboard: <><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" /><rect x="8" y="2" width="8" height="4" rx="1" /><path d="m9 14 2 2 4-4" /></>,
     ruler: <><path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.4 2.4 0 0 1 0-3.4l2.6-2.6a2.4 2.4 0 0 1 3.4 0Z" /><path d="m14.5 12.5 2-2" /><path d="m11.5 9.5 2-2" /><path d="m8.5 6.5 2-2" /><path d="m17.5 15.5 2-2" /></>,
     sns: <><path d="m3 11 18-5v12L3 14v-3z" /><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" /></>,
+    manual: <><path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2z" /><path d="M22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z" /></>,
     book: <><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></>,
     scale: <><path d="M12 3v18" /><path d="M5 21h14" /><path d="m3 13 3-7 3 7a3 3 0 0 1-6 0Z" /><path d="m15 13 3-7 3 7a3 3 0 0 1-6 0Z" /><path d="M6 6h12" /></>,
   };
