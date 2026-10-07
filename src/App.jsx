@@ -8,6 +8,7 @@ import InspectionStandardAccordion from './components/InspectionStandardAccordio
 import InspectionPage from './components/InspectionPage';
 import KakaoMapPage from './components/KakaoMapPage';
 import { placeMapSearchUrl } from './utils/snsCheck';
+import { readCache, writeCache, clearCache } from './utils/dataCache';
 
 // 학원업무 편람 — PDF 보기(pdf.js)가 커서 열 때만 불러온다
 const ManualPage = React.lazy(() => import('./components/ManualPage'));
@@ -55,6 +56,8 @@ function App() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const searchInputRef = useRef(null);
   const [dataAsOf, setDataAsOf] = useState(''); // 데이터 기준일
+  const [cachedAt, setCachedAt] = useState(0); // 띄운 자료를 받은 시각
+  const [syncState, setSyncState] = useState(''); // 지난 자료를 띄워 둔 채 새로 받는 중 'syncing' / 실패 'failed'
   const [extraPage, setExtraPage] = useState(null); // 메뉴 화면: 'law' | 'sanction' | 'manual'
   const [manualTarget, setManualTarget] = useState(null); // 편람 링크로 들어올 때 { id } 또는 { page }
   const [lawTarget, setLawTarget] = useState(null); // 법령 링크로 들어올 때 'decree:12-2'
@@ -257,7 +260,8 @@ function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  const CACHE_KEY = 'academy_data_v8'; // v8: 학원(폐원) 시트도 GID 방식으로 전환
+  const CACHE_KEY = 'academy_data_v9'; // v9: sessionStorage → IndexedDB 보관함 (utils/dataCache.js)
+  const OLD_SESSION_KEYS = ['academy_data_v1', 'academy_data_v2', 'academy_data_v3', 'academy_data_v4', 'academy_data_v5', 'academy_data_v6', 'academy_data_v7', 'academy_data_v8'];
   const CACHE_TTL = 30 * 60 * 1000; // 30분
 
   const mergeSupplementaryData = (rawData, inspectionMap, map2026, instructorMap, assistantMap) => {
@@ -301,24 +305,26 @@ function App() {
   };
 
   const loadData = async () => {
-    // 이전 버전 캐시 정리
-    ['academy_data_v1','academy_data_v2','academy_data_v3','academy_data_v4','academy_data_v5','academy_data_v6','academy_data_v7'].forEach(k => sessionStorage.removeItem(k));
+    // 이전 버전 캐시 정리 (예전에는 sessionStorage 에 두었다)
+    OLD_SESSION_KEYS.forEach(k => sessionStorage.removeItem(k));
 
-    // 1. 캐시 확인 (30분 내 데이터면 즉시 사용)
-    try {
-      const cached = sessionStorage.getItem(CACHE_KEY);
-      if (cached) {
-        const { academies: cachedAcademies, privateTutors: cachedTutors, dataAsOf: cachedAsOf, timestamp } = JSON.parse(cached);
-        if (Date.now() - timestamp < CACHE_TTL) {
-          setAcademies(cachedAcademies);
-          if (cachedTutors) setPrivateTutors(cachedTutors);
-          setDataAsOf(cachedAsOf);
-          return;
-        }
+    // 1. 지난번에 받아 둔 자료가 있으면 먼저 띄운다 (30분 안이면 새로 받지도 않는다)
+    //    없거나 오래됐으면 뒤에서 새로 받아 바꾼다 — 구글 시트가 느리거나 실패해도 지난 자료로 쓸 수 있게
+    const cached = await readCache(CACHE_KEY);
+    const hasCache = !!cached?.academies?.length;
+    if (hasCache) {
+      setAcademies(cached.academies);
+      if (cached.privateTutors) setPrivateTutors(cached.privateTutors);
+      setDataAsOf(cached.dataAsOf || '');
+      setCachedAt(cached.timestamp);
+      if (Date.now() - cached.timestamp < CACHE_TTL) {
+        setSyncState('');
+        return;
       }
-    } catch (e) { /* 캐시 오류 무시 */ }
+      setSyncState('syncing');
+    }
 
-    setLoading(true);
+    if (!hasCache) setLoading(true);
     try {
       // 2. Phase 1: 핵심 데이터 먼저 로드 → 즉시 목록 표시
       const [academyData, gyoseupsoData, tutorData] = await Promise.all([
@@ -327,12 +333,15 @@ function App() {
         fetchPrivateTutorData(),
       ]);
       const rawData = [...academyData, ...gyoseupsoData];
-      setAcademies(transformAcademyData(rawData, new Map()));
-      setPrivateTutors(tutorData);
-      setLoading(false);
+      // 지난 자료를 띄워 둔 때는 점검·강사 자료까지 다 받은 뒤에 한 번에 바꾼다 (덜 채워진 자료로 잠깐 바뀌지 않게)
+      if (!hasCache) {
+        setAcademies(transformAcademyData(rawData, new Map()));
+        setPrivateTutors(tutorData);
+        setLoading(false);
+      }
 
       // 3. Phase 2: 보조 데이터 백그라운드 로드 (점검·강사·보조요원·시트명) — 최대 3회 재시도
-      setSupplementLoading(true);
+      if (!hasCache) setSupplementLoading(true);
       const fetchPhase2 = async (attempt = 1) => {
         try {
           const [sheetName, inspectionMap, map2026, instructorMap, assistantMap] = await Promise.all([
@@ -343,19 +352,16 @@ function App() {
             fetchAssistantData(),
           ]);
           const fullAcademies = mergeSupplementaryData(rawData, inspectionMap, map2026, instructorMap, assistantMap);
+          const timestamp = Date.now();
           setAcademies(fullAcademies);
+          setPrivateTutors(tutorData);
           setDataAsOf(sheetName);
           setSupplementLoading(false);
+          setCachedAt(timestamp);
+          setSyncState('');
 
-          // 4. 캐시 저장 (용량 초과 시 무시)
-          try {
-            sessionStorage.setItem(CACHE_KEY, JSON.stringify({
-              academies: fullAcademies,
-              privateTutors: tutorData,
-              dataAsOf: sheetName,
-              timestamp: Date.now(),
-            }));
-          } catch (e) { /* 용량 초과 무시 */ }
+          // 4. 다음에 먼저 띄울 자료로 보관
+          writeCache(CACHE_KEY, { academies: fullAcademies, privateTutors: tutorData, dataAsOf: sheetName, timestamp });
         } catch (err) {
           if (attempt < 3) {
             // 재시도: 2초, 4초 간격
@@ -364,12 +370,15 @@ function App() {
           }
           console.error('Phase 2 최종 실패:', err);
           setSupplementLoading(false);
+          if (hasCache) setSyncState('failed');
         }
       };
       fetchPhase2();
     } catch (err) {
       console.error(err);
-      setError('데이터를 불러오는데 실패했습니다.');
+      // 지난 자료가 떠 있으면 그대로 쓰고 '갱신 실패'만 알린다
+      if (hasCache) setSyncState('failed');
+      else setError('데이터를 불러오는데 실패했습니다.');
       setLoading(false);
     }
   };
@@ -427,7 +436,7 @@ function App() {
   }, [isAuthenticated]);
 
   const handleClearCacheAndReload = () => {
-    ['academy_data_v1','academy_data_v2','academy_data_v3','academy_data_v4','academy_data_v5','academy_data_v6','academy_data_v7','academy_data_v8'].forEach(k => sessionStorage.removeItem(k));
+    OLD_SESSION_KEYS.forEach(k => sessionStorage.removeItem(k));
     localStorage.removeItem('academyMapLocations');
     localStorage.removeItem('academyAddrDongCache');
     setError('');
@@ -445,7 +454,10 @@ function App() {
     setAcademies([]);
     localStorage.removeItem('academy_auth_v3');
     localStorage.removeItem('academy_auth_email');
-    sessionStorage.removeItem(CACHE_KEY);
+    // 이 기기에 남겨 둔 학원 자료도 지운다
+    clearCache();
+    setCachedAt(0);
+    setSyncState('');
   };
 
   // Search/Filter Logic with Priority
@@ -866,6 +878,19 @@ function App() {
               {dataAsOf}
             </span>
           )}
+          {/* 지난번 받아 둔 자료를 띄워 둔 채 새 자료를 받는 중 · 받지 못함 */}
+          {syncState === 'syncing' && (
+            <span className="topbar-sync" title={`${fmtCachedAt(cachedAt)}에 받아 둔 자료를 보여 주는 중입니다. 새 자료를 받으면 바로 바뀝니다.`}>
+              <span className="topbar-sync-dot" aria-hidden="true" />
+              <span className="topbar-sync-text">새 자료 받는 중</span>
+            </span>
+          )}
+          {syncState === 'failed' && (
+            <button type="button" className="topbar-sync is-failed" onClick={() => { setSyncState('syncing'); loadData(); }}
+              title={`새 자료를 받지 못해 ${fmtCachedAt(cachedAt)}에 받아 둔 자료를 보여 주고 있습니다. 누르면 다시 받습니다.`}>
+              <span className="topbar-sync-text">{fmtCachedAt(cachedAt)} 자료 · 다시 받기</span>
+            </button>
+          )}
           <button type="button" className="topbar-btn" onClick={handleLogout}>로그아웃</button>
         </div>
       </header>
@@ -1140,6 +1165,15 @@ const PAGE_HEAD = {
   search: { title: '학원 검색', desc: '학원명·운영자·주소·등록번호로 학원, 교습소, 개인과외교습자를 찾습니다.' },
   sanction: { title: '행정처분·과태료 기준', desc: '위반 유형별 1차 적발 시 행정처분과 과태료입니다.' },
 };
+
+// 받아 둔 자료 시각 — 오늘이면 '오전 8:10', 아니면 '10.7. 18:20'
+function fmtCachedAt(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  const now = new Date();
+  const hm = `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
+  return d.toDateString() === now.toDateString() ? `오늘 ${hm}` : `${d.getMonth() + 1}.${d.getDate()}. ${hm}`;
+}
 
 function NavIcon({ name }) {
   const paths = {
