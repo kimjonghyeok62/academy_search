@@ -6,6 +6,8 @@ on:
   schedule:
     - cron: '0 21 * * 0'   # 매주 월요일 06:00 (한국 시각)
   workflow_dispatch:        # Actions 탭에서 바로 돌리기
+  push:                     # 시험용 (머지 전에 뗀다)
+    branches: [claude/academy-law-accessibility-842d64]
 
 permissions:
   contents: write
