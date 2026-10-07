@@ -24,6 +24,9 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: 한글(HWP) 파일 읽기 도구
+        run: pip install olefile
+
       - name: 법령 원문 받기
         env:
           LAW_OC: ${{ secrets.LAW_OC }}

@@ -3,8 +3,12 @@
 # - 실행: LAW_OC=<법제처 OPEN API 아이디> python scripts/build_laws.py
 #   (GitHub Actions 가 매주 돌려 바뀐 게 있으면 커밋 → Vercel 이 다시 배포)
 # - 내용이 그대로면 파일을 다시 쓰지 않는다 (받은 날짜만 바뀌는 커밋이 생기지 않게)
+# - 자치법규 별표는 API 가 표를 칸 조각으로만 줘서, 첨부 한글 파일을 받아 표로 읽는다 (hwp_doc.py, pip install olefile)
 import json, os, re, sys, time, urllib.parse, urllib.request
 from datetime import datetime, timezone, timedelta
+
+sys.path.insert(0, os.path.dirname(__file__))
+from hwp_doc import hwp_blocks  # noqa: E402
 
 sys.stdout.reconfigure(encoding='utf-8')
 
@@ -37,6 +41,32 @@ def fetch(target, id_):
             last = e
             time.sleep(3 * (i + 1))
     raise SystemExit(f'{target} {id_} 받기 실패: {last}')
+
+
+def fetch_bytes(url):
+    last = None
+    for i in range(3):
+        try:
+            with urllib.request.urlopen(url, timeout=60) as r:
+                return r.read()
+        except Exception as e:
+            last = e
+            time.sleep(3 * (i + 1))
+    raise last
+
+
+# 지난번 파일 — 별표 한글 파일을 못 받으면 같은 파일에서 읽어 둔 표를 그대로 쓴다
+OLD_DOCS = {}
+
+
+def ordin_doc(url, title):
+    if not url:
+        return None
+    try:
+        return hwp_blocks(fetch_bytes(url))
+    except Exception as e:
+        print(f'  ! 별표 「{title}」 한글 파일 읽기 실패: {e}')
+        return OLD_DOCS.get(url)
 
 
 def as_list(v):
@@ -220,8 +250,9 @@ def build_ordin(cfg, raw):
         if form:
             forms.append(item)
         else:
-            # 자치법규 별표는 표가 칸 조각으로만 와서 표로 보여 줄 수 없다 → 검색에만 쓴다
+            # API 의 별표내용은 표가 칸 조각으로만 와서, 첨부 한글 파일을 읽어 표로 만든다
             item['text'] = None
+            item['doc'] = ordin_doc(item['hwp'], item['title'])
             item['search'] = ' '.join(clean(t) for t in flat_text(b.get('별표내용')) if clean(t))
             tables.append(item)
     name = info['자치법규명']
@@ -236,6 +267,14 @@ def build_ordin(cfg, raw):
 
 
 def main():
+    old = None
+    if os.path.exists(OUT):
+        with open(OUT, encoding='utf-8') as f:
+            old = json.load(f)
+        for L in old.get('laws', []):
+            for t in L.get('tables', []):
+                if t.get('hwp') and t.get('doc'):
+                    OLD_DOCS[t['hwp']] = t['doc']
     laws = []
     for cfg in LAWS:
         raw = fetch(cfg['target'], cfg['id'])
@@ -245,10 +284,6 @@ def main():
         print(f"{law['short']}: 시행 {law['effective']} · 조문 {len(law['articles'])} · 별표 {len(law['tables'])} · 서식 {len(law['forms'])}")
         laws.append(law)
 
-    old = None
-    if os.path.exists(OUT):
-        with open(OUT, encoding='utf-8') as f:
-            old = json.load(f)
     if old and old.get('laws') == laws:
         print('바뀐 내용 없음 — 파일을 그대로 둡니다.')
         return
