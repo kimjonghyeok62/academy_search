@@ -1,0 +1,42 @@
+# 주요 법령 원문 자동 갱신 — 매주 법제처 OPEN API 에서 다시 받아 바뀐 게 있으면 커밋 (→ Vercel 이 다시 배포)
+# 저장소 Settings › Secrets › Actions 에 LAW_OC(법제처 OPEN API 아이디)가 있어야 한다
+name: 주요 법령 갱신
+
+on:
+  schedule:
+    - cron: '0 21 * * 0'   # 매주 월요일 06:00 (한국 시각)
+  workflow_dispatch:        # Actions 탭에서 바로 돌리기
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-laws
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: 법령 원문 받기
+        env:
+          LAW_OC: ${{ secrets.LAW_OC }}
+        run: python scripts/build_laws.py
+
+      - name: 바뀌었으면 커밋
+        run: |
+          if git diff --quiet -- public/law/laws.json; then
+            echo "바뀐 법령 없음"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/law/laws.json
+          git commit -m "주요 법령 원문 자동 갱신 ($(TZ=Asia/Seoul date +%Y-%m-%d))"
+          git push
