@@ -11,6 +11,8 @@ import { placeMapSearchUrl } from './utils/snsCheck';
 
 // 학원업무 편람 — PDF 보기(pdf.js)가 커서 열 때만 불러온다
 const ManualPage = React.lazy(() => import('./components/ManualPage'));
+// 관련 법령 자료 — 주요 법령 원문 보기 (법령 자료는 열 때 받는다)
+const LawPage = React.lazy(() => import('./components/LawPage'));
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -55,6 +57,7 @@ function App() {
   const [dataAsOf, setDataAsOf] = useState(''); // 데이터 기준일
   const [extraPage, setExtraPage] = useState(null); // 메뉴 화면: 'law' | 'sanction' | 'manual'
   const [manualTarget, setManualTarget] = useState(null); // 편람 링크로 들어올 때 { id } 또는 { page }
+  const [lawTarget, setLawTarget] = useState(null); // 법령 링크로 들어올 때 'decree:12-2'
   const [showInspection, setShowInspection] = useState(false); // 지도점검 화면
   const [inspectionInitialTab, setInspectionInitialTab] = useState(undefined); // 지도점검 초기 탭
   const [inspectionTabRequest, setInspectionTabRequest] = useState(undefined); // 메뉴에서 고른 지도점검 탭 { tab, seq }
@@ -410,6 +413,19 @@ function App() {
     window.history.replaceState(window.history.state, '', window.location.pathname + (qs ? `?${qs}` : ''));
   }, [isAuthenticated]);
 
+  // 법령 링크 ?law=decree:12-2 (시행령 제12조의2) → 관련 법령 자료의 그 조문으로
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const params = new URLSearchParams(window.location.search);
+    const target = params.get('law');
+    if (!target) return;
+    setLawTarget(target);
+    setExtraPage('law');
+    params.delete('law');
+    const qs = params.toString();
+    window.history.replaceState(window.history.state, '', window.location.pathname + (qs ? `?${qs}` : ''));
+  }, [isAuthenticated]);
+
   const handleClearCacheAndReload = () => {
     ['academy_data_v1','academy_data_v2','academy_data_v3','academy_data_v4','academy_data_v5','academy_data_v6','academy_data_v7','academy_data_v8'].forEach(k => sessionStorage.removeItem(k));
     localStorage.removeItem('academyMapLocations');
@@ -707,6 +723,7 @@ function App() {
     }
     else if (id === 'law' || id === 'sanction' || id === 'manual') setExtraPage(id);
     setManualTarget(null);
+    setLawTarget(null);
     window.scrollTo(0, 0);
   };
 
@@ -915,14 +932,21 @@ function App() {
           </main>
         )}
 
-        {page !== 'inspection' && page !== 'detail' && page !== 'map' && page !== 'manual' && (
+        {/* 관련 법령 자료 — 조문 목차·본문이 내용 칸을 꽉 채운다 */}
+        {page === 'law' && (
+          <main className="page is-manual">
+            <React.Suspense fallback={<p className="page-desc" style={{ padding: 24 }}>법령을 여는 중…</p>}>
+              <LawPage initialTarget={lawTarget} />
+            </React.Suspense>
+          </main>
+        )}
+
+        {page !== 'inspection' && page !== 'detail' && page !== 'map' && page !== 'manual' && page !== 'law' && (
           <main className="page">
             <div className="page-head">
               <h1 className="page-title">{head.title}</h1>
               <p className="page-desc">{head.desc}</p>
             </div>
-
-            {page === 'law' && <LegalResourcesPage />}
 
             {page === 'sanction' && <InspectionStandardAccordion embedded />}
 
@@ -1114,7 +1138,6 @@ const NAV = [
 // 각 화면 머리 — 제목과 한 줄 설명
 const PAGE_HEAD = {
   search: { title: '학원 검색', desc: '학원명·운영자·주소·등록번호로 학원, 교습소, 개인과외교습자를 찾습니다.' },
-  law: { title: '관련 법령 자료', desc: '업무 매뉴얼과 법령 원문을 새 창으로 엽니다.' },
   sanction: { title: '행정처분·과태료 기준', desc: '위반 유형별 1차 적발 시 행정처분과 과태료입니다.' },
 };
 
@@ -1133,65 +1156,6 @@ function NavIcon({ name }) {
     <svg className="sidenav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       {paths[name]}
     </svg>
-  );
-}
-
-// 관련 법령 자료 — 업무 매뉴얼, 주요 법령, 관련 법령 (모두 새 창)
-const LAW_SECTIONS = [
-  {
-    title: '업무 매뉴얼',
-    links: [
-      { label: '경기도교육청 학원 업무 매뉴얼', href: 'https://drive.google.com/file/d/1I6j4VkHEeDzKc6YvfTcv8Wl48LAzbSsN/preview' },
-      { label: '서울특별시교육청 학원 업무 매뉴얼', href: 'https://drive.google.com/file/d/1ppixrFV1wEFBXTicg_-muU81mn8Gvn8E/preview' },
-    ],
-  },
-  {
-    title: '주요 법령',
-    links: [
-      { label: '학원법', href: 'https://www.law.go.kr/법령/학원의설립·운영및과외교습에관한법률' },
-      { label: '학원법 시행령', href: 'https://www.law.go.kr/법령/학원의설립·운영및과외교습에관한법률시행령' },
-      { label: '학원법 시행규칙', href: 'https://www.law.go.kr/법령/학원의설립·운영및과외교습에관한법률시행규칙' },
-      { label: '경기도 학원 조례', href: 'https://www.law.go.kr/자치법규/경기도학원의설립ㆍ운영및과외교습에관한조례/(7741,20230807)' },
-      { label: '경기도 학원 조례 시행규칙', href: 'https://www.law.go.kr/자치법규/경기도학원의설립ㆍ운영및과외교습에관한조례시행규칙/(980,20250901)' },
-    ],
-  },
-  {
-    title: '관련 법령',
-    links: [
-      { label: '고등교육법', href: 'https://www.law.go.kr/법령/고등교육법' },
-      { label: '교육환경 보호에 관한 법률', href: 'https://www.law.go.kr/법령/교육환경보호에관한법률' },
-      { label: '아동복지법', href: 'https://www.law.go.kr/법령/아동복지법' },
-      { label: '청소년성보호법', href: 'https://www.law.go.kr/법령/아동·청소년의성보호에관한법률' },
-      { label: '질서위반행위규제법', href: 'https://www.law.go.kr/법령/질서위반행위규제법' },
-      { label: '민원 처리에 관한 법률', href: 'https://www.law.go.kr/법령/민원처리에관한법률' },
-      { label: '출입국관리법', href: 'https://www.law.go.kr/법령/출입국관리법' },
-      { label: '행정절차법', href: 'https://www.law.go.kr/법령/행정절차법' },
-      { label: '어린이안전관리에 관한 법률', href: 'https://www.law.go.kr/법령/어린이안전관리에관한법률' },
-    ],
-  },
-];
-
-function LegalResourcesPage() {
-  return (
-    <>
-      {LAW_SECTIONS.map(section => (
-        <section key={section.title} className="card">
-          <h2 className="card-title">{section.title}</h2>
-          <ul className="link-list">
-            {section.links.map(({ label, href }) => (
-              <li key={label}>
-                <a className="link-row" href={href} target="_blank" rel="noopener noreferrer">
-                  <span>{label}</span>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
-                  </svg>
-                </a>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ))}
-    </>
   );
 }
 
