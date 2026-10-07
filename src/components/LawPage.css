@@ -199,6 +199,21 @@
 .law-box .w { width: 1em; }
 .law-box .n { width: 0.5em; }
 
+/* 자치법규 별표 — 한글 파일에서 읽은 표 */
+.law-hdoc { margin-top: 10px; font-size: 0.9em; line-height: 1.55; }
+.law-hdoc-p { margin: 4px 0; word-break: keep-all; overflow-wrap: anywhere; }
+.law-htable-wrap { margin: 8px 0; overflow-x: auto; }
+.law-htable { width: 100%; min-width: 520px; border-collapse: collapse; border: 1.5px solid #334155; }
+.law-htable td {
+  min-width: 3.6em; /* '정 지' '중 지' 같은 짧은 칸이 한 글자씩 꺾이지 않게 */
+  padding: 5px 8px;
+  border: 1px solid #94a3b8;
+  vertical-align: middle;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.law-htable tr:first-child td { background: #f1f5f9; font-weight: 700; text-align: center; }
+
 @media (max-width: 1023px) {
   .law .manual-toc-head { position: relative; }
   .law-switch { grid-template-columns: repeat(3, minmax(0, 1fr)); padding-right: 46px; }

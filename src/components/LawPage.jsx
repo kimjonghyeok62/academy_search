@@ -58,7 +58,7 @@ function prepare(L) {
     L.chapters.filter(c => c.before === i).forEach(c => items.push({ type: 'chapter', id: `c${i}`, title: c.title }));
     items.push({ type: 'article', ...a, body: a.lines.map(l => l[1]).join('\n') });
   });
-  L.tables.forEach(t => items.push({ type: 'table', ...t, body: (t.text || []).join('\n') || t.search || '' }));
+  L.tables.forEach(t => items.push({ type: 'table', ...t, body: (t.text || []).join('\n') || docText(t.doc) || t.search || '' }));
   L.forms.forEach(f => items.push({ type: 'form', ...f, body: '' }));
   const ids = new Set(items.map(x => x.id));
   const p = { items, ids };
@@ -163,6 +163,32 @@ function LawText({ text, re, curKey, byName, exists, onRef }) {
 const NUMBERED = /^(?:[①-⑳]|\d+(?:의\d+)?\.|[가-하]\.)/;
 
 const WIDE =/[ᄀ-ᇿ①-⓿─-╿■-➿⺀-鿿가-힣豈-﫿︰-﹏＀-｠￠-￦※ㆍ·∼～]/;
+// 자치법규 별표 — 첨부 한글 파일에서 읽어 둔 글 문단과 표 (scripts/hwp_doc.py)
+const docText = (doc) => (doc || []).map(b => (b.p ?? b.table.map(r => r.map(c => c.t).join(' ')).join('\n'))).join('\n');
+function DocView({ doc, re }) {
+  return (
+    <div className="law-hdoc">
+      {doc.map((b, i) => (b.table ? (
+        <div key={i} className="law-htable-wrap">
+          <table className="law-htable">
+            <tbody>
+              {b.table.map((row, r) => (
+                <tr key={r}>
+                  {row.map((c, j) => (
+                    <td key={j} colSpan={c.cs > 1 ? c.cs : undefined} rowSpan={c.rs > 1 ? c.rs : undefined}>
+                      {c.t.split('\n').map((line, k) => <div key={k}><Highlight text={line} re={re} /></div>)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : <p key={i} className="law-hdoc-p"><Highlight text={b.p} re={re} /></p>))}
+    </div>
+  );
+}
+
 function BoxText({ lines, re }) {
   const hit = re ? new RegExp(re.source, 'i') : null;
   return (
@@ -272,8 +298,9 @@ function LawViewer({ data, initialTarget }) {
   const [query, setQuery] = useState('');
   const [allMode, setAllMode] = useState(true);       // 다섯 법령 모두에서 찾기
   const [hitQuery, setHitQuery] = useState('');       // 본문에 표시할 검색어
-  const [openTables, setOpenTables] = useState(() => new Set()); // 펼친 별표
-  const [formsOpen, setFormsOpen] = useState(false);
+  // 펼친 별표 · 서식 목록 — 링크(?law=ordrule:t0)로 들어오면 그 별표·서식을 펼쳐 둔다
+  const [openTables, setOpenTables] = useState(() => new Set(start?.id?.startsWith('t') ? [`${start.key}:${start.id}`] : []));
+  const [formsOpen, setFormsOpen] = useState(() => !!start?.id?.startsWith('f'));
   const [othersOpen, setOthersOpen] = useState(false);
   const [tocOpen, setTocOpen] = useState(true);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -595,15 +622,16 @@ function LawViewer({ data, initialTarget }) {
                     <div className="law-table-head">
                       <h4><span className="law-art-no">{it.label}</span> <span className="law-art-title">{it.title}</span></h4>
                       <div className="law-files">
-                        {it.text?.length > 0 && (
+                        {(it.text?.length > 0 || it.doc?.length > 0) && (
                           <button type="button" className="law-file-btn is-main" onClick={() => toggleTable(it.id)} aria-expanded={open}>{open ? '접기' : '펼쳐 보기'}</button>
                         )}
                         {it.pdf && <a className="law-file-btn" href={it.pdf} target="_blank" rel="noopener noreferrer"><Icon name="download" size={15} />PDF</a>}
                         {it.hwp && <a className="law-file-btn" href={it.hwp} target="_blank" rel="noopener noreferrer"><Icon name="download" size={15} />HWP</a>}
                       </div>
                     </div>
-                    {!it.text?.length && <p className="law-note">표는 HWP 파일이나 <a href={L.url} target="_blank" rel="noopener noreferrer">법제처 원문</a>에서 보세요.</p>}
+                    {!it.text?.length && !it.doc?.length && <p className="law-note">표는 HWP 파일이나 <a href={L.url} target="_blank" rel="noopener noreferrer">법제처 원문</a>에서 보세요.</p>}
                     {open && it.text?.length > 0 && <BoxText lines={it.text} re={hitRe} />}
+                    {open && !it.text?.length && it.doc?.length > 0 && <DocView doc={it.doc} re={hitRe} />}
                   </section>
                   </React.Fragment>
                 );
