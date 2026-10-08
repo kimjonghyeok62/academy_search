@@ -72,8 +72,9 @@ function timeCell(c) {
     const weeklyTotal = c.weeklyScheduleStr ? getWeeklyTotalMinutes(c.weeklyScheduleStr) : (s && s.sessions * s.minutes);
     const head = total ? `총 ${esc(total)}분/월` : '<span class="dim">–</span>';
     if (!s) return head;
+    // 주당 분은 아랫줄로 — 한 줄로 늘이면 교습시간 칸이 넓어져 교습비등 합계 칸이 들어갈 자리가 없다
     return `${head}<div class="sub">≈ 주${s.sessions}회 · 회당 ${s.minutes}분`
-        + `${weeklyTotal ? ` (주당 ${weeklyTotal}분)` : ''}<span class="guess">추정</span></div>`;
+        + `<br>${weeklyTotal ? `(주당 ${weeklyTotal}분)` : ''}<span class="guess">추정</span></div>`;
 }
 
 /**
@@ -123,6 +124,17 @@ function otherFeeCell(c) {
     return `${esc(list)}<div class="sub">합계 ${esc(sum.toLocaleString('ko-KR'))}원</div>`;
 }
 
+/**
+ * 교습비등 합계 칸 — 월 교습비 + 기타경비 합계.
+ * 시트에 월 교습비가 비어 총교습비(AO열)만 있으면 그 값이 이미 합친 금액이라 그대로 쓴다.
+ */
+function feeTotalCell(c) {
+    const fee = parseNum(c.tuitionFee);
+    const other = OTHER_FEES.reduce((s, it) => s + (parseNum(c[it.key]) || 0), 0);
+    const total = fee > 0 ? fee + other : parseNum(c.totalFee);
+    return total > 0 ? `<strong>${esc(won(total))}</strong>` : '<span class="dim">–</span>';
+}
+
 function courseTable(courses) {
     if (!courses.length) {
         return `<p class="empty">신고된 교습과정이 없습니다 — 구글시트에 이 학원의 교습비 자료가 없습니다.</p>`;
@@ -134,10 +146,11 @@ function courseTable(courses) {
       <td class="mid">${timeCell(c)}</td>
       <td class="num"><strong>${fee > 0 ? esc(won(fee)) : '<span class="dim">–</span>'}</strong></td>
       <td class="mid">${otherFeeCell(c)}</td>
+      <td class="num">${feeTotalCell(c)}</td>
     </tr>`;
     }).join('');
     return `<table class="grid">
-    <thead><tr><th>교습과정 / 교습과목</th><th>교습시간</th><th>월 교습비</th><th>기타경비</th></tr></thead>
+    <thead><tr><th>교습과정 / 교습과목</th><th>교습시간</th><th>월 교습비</th><th>기타경비</th><th>교습비등 합계</th></tr></thead>
     <tbody>${rows}</tbody>
   </table>
   <p class="note tip">신고받은 값은 <b>총교습시간(분/월)</b> 하나입니다. 주 회수·회당 분은 거기서 되짚은 <b>추정</b>이라
