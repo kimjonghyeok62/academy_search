@@ -70,11 +70,14 @@ function timeCell(c) {
     const total = fmtNum(c.totalTime);
     const s = calcWeeklySchedule(c.totalTime);
     const weeklyTotal = c.weeklyScheduleStr ? getWeeklyTotalMinutes(c.weeklyScheduleStr) : (s && s.sessions * s.minutes);
-    if (!weeklyTotal) return total ? `총 ${esc(total)}분/월` : '<span class="dim">–</span>';
-    // 칸에는 '(주당 540분) 추정' 만 — 신고받은 총교습시간과 되짚은 회수·회당 분은 마우스를 올리면 보인다
-    const tip = [total ? `총 ${total}분/월 (신고값)` : '', s ? `≈ 주${s.sessions}회 · 회당 ${s.minutes}분 (추정)` : '']
-        .filter(Boolean).join('\n');
-    return `<span title="${esc(tip)}">(주당 ${esc(weeklyTotal)}분)<span class="guess">추정</span></span>`;
+    const head = total ? `월 ${esc(total)}분` : '';
+    if (!weeklyTotal) return head || '<span class="dim">–</span>';
+    // '월 2,322분 (4.3주, 주 540분 추정)' — 앞은 신고값, 괄호 안은 되짚은 추정. 회수·회당 분은 마우스를 올리면 보인다
+    // 주 수는 월 총량 ÷ 주당 분 — 한 달을 몇 주로 잡고 되짚었는지 보여 줘야 주당 분을 검산할 수 있다
+    const weeks = parseNum(c.totalTime) > 0 ? Math.round((parseNum(c.totalTime) / weeklyTotal) * 10) / 10 : 0;
+    const tip = s ? `≈ 주${s.sessions}회 · 회당 ${s.minutes}분 (추정)` : '';
+    return `<span${tip ? ` title="${esc(tip)}"` : ''}>${head}${head ? ' ' : ''}`
+        + `<span class="guess-t">(${weeks ? `${weeks}주, ` : ''}주 ${esc(weeklyTotal)}분 추정)</span></span>`;
 }
 
 /**
@@ -128,10 +131,14 @@ function otherFeeCell(c) {
  * 교습비등 합계 칸 — 월 교습비 + 기타경비 합계.
  * 시트에 월 교습비가 비어 총교습비(AO열)만 있으면 그 값이 이미 합친 금액이라 그대로 쓴다.
  */
-function feeTotalCell(c) {
+function feeTotal(c) {
     const fee = parseNum(c.tuitionFee);
     const other = OTHER_FEES.reduce((s, it) => s + (parseNum(c[it.key]) || 0), 0);
-    const total = fee > 0 ? fee + other : parseNum(c.totalFee);
+    return fee > 0 ? fee + other : parseNum(c.totalFee);
+}
+
+function feeTotalCell(c) {
+    const total = feeTotal(c);
     return total > 0 ? `<strong>${esc(won(total))}</strong>` : '<span class="dim">–</span>';
 }
 
@@ -139,9 +146,13 @@ function courseTable(courses) {
     if (!courses.length) {
         return `<p class="empty">신고된 교습과정이 없습니다 — 구글시트에 이 학원의 교습비 자료가 없습니다.</p>`;
     }
-    const rows = courses.map((c) => {
+    // 교습비등 합계 오름차순 — 금액이 없는 과정은 맨 뒤. 같은 금액끼리는 원래 순서(sortCourses)를 지킨다
+    const key = (c) => feeTotal(c) || Infinity;
+    const sorted = [...courses].sort((x, y) => key(x) - key(y));
+    const rows = sorted.map((c, i) => {
         const fee = parseNum(c.tuitionFee || c.totalFee);
         return `<tr>
+      <td class="mid">${i + 1}</td>
       <td>${esc([c.process, c.subject].filter(Boolean).join(' / ')) || '<span class="dim">–</span>'}</td>
       <td class="mid">${timeCell(c)}</td>
       <td class="num"><strong>${fee > 0 ? esc(won(fee)) : '<span class="dim">–</span>'}</strong></td>
@@ -150,11 +161,11 @@ function courseTable(courses) {
     </tr>`;
     }).join('');
     return `<table class="grid">
-    <thead><tr><th>교습과정 / 교습과목</th><th>교습시간</th><th>월 교습비</th><th>기타경비</th><th>교습비등 합계</th></tr></thead>
+    <thead><tr><th>연번</th><th>교습과정 / 교습과목</th><th>교습시간</th><th>월 교습비</th><th>기타경비</th><th>교습비등 합계</th></tr></thead>
     <tbody>${rows}</tbody>
   </table>
-  <p class="note tip">신고받은 값은 <b>총교습시간(분/월)</b> 하나입니다. 주당 분은 거기서 되짚은 <b>추정</b>이라
-  (칸에 마우스를 올리면 신고값이 보입니다) 같은 총량에 다른 조합도 들어맞습니다 — 회수가 다르다는 것만으로 지적하지 마세요.</p>`;
+  <p class="note tip">신고받은 값은 <b>총교습시간(분/월)</b> 하나입니다. 괄호 안 주 수·주당 분은 거기서 되짚은 <b>추정</b>이라
+  (칸에 마우스를 올리면 주 회수·회당 분이 보입니다) 같은 총량에 다른 조합도 들어맞습니다 — 회수가 다르다는 것만으로 지적하지 마세요.</p>`;
 }
 
 const OX_CLASS = { O: 'ox-o', X: 'ox-x', '△': 'ox-t' };
@@ -921,8 +932,7 @@ export function buildTuitionCompareHtml(academy, result, { numberLabel } = {}) {
   .grid tbody tr:nth-child(even) td { background: #fcfdfe; }
   .sub { font-size: 0.74rem; color: #94a3b8; margin-top: 2px; }
   .dim { color: #94a3b8; }
-  .guess { margin-left: 5px; font-size: 0.66rem; font-weight: 700; color: #b45309;
-           background: #fef3c7; border-radius: 999px; padding: 1px 5px; }
+  .guess-t { font-size: 0.78rem; color: #b45309; }
   .empty { font-size: 0.88rem; color: #64748b; padding: 14px 2px; }
   .note { font-size: 0.76rem; color: #94a3b8; margin-top: 8px; }
   .ox { font-weight: 800; font-size: 1rem; }
