@@ -70,11 +70,11 @@ function timeCell(c) {
     const total = fmtNum(c.totalTime);
     const s = calcWeeklySchedule(c.totalTime);
     const weeklyTotal = c.weeklyScheduleStr ? getWeeklyTotalMinutes(c.weeklyScheduleStr) : (s && s.sessions * s.minutes);
-    const head = total ? `총 ${esc(total)}분/월` : '<span class="dim">–</span>';
-    if (!s) return head;
-    // 주당 분은 아랫줄로 — 한 줄로 늘이면 교습시간 칸이 넓어져 교습비등 합계 칸이 들어갈 자리가 없다
-    return `${head}<div class="sub">≈ 주${s.sessions}회 · 회당 ${s.minutes}분`
-        + `<br>${weeklyTotal ? `(주당 ${weeklyTotal}분)` : ''}<span class="guess">추정</span></div>`;
+    if (!weeklyTotal) return total ? `총 ${esc(total)}분/월` : '<span class="dim">–</span>';
+    // 칸에는 '(주당 540분) 추정' 만 — 신고받은 총교습시간과 되짚은 회수·회당 분은 마우스를 올리면 보인다
+    const tip = [total ? `총 ${total}분/월 (신고값)` : '', s ? `≈ 주${s.sessions}회 · 회당 ${s.minutes}분 (추정)` : '']
+        .filter(Boolean).join('\n');
+    return `<span title="${esc(tip)}">(주당 ${esc(weeklyTotal)}분)<span class="guess">추정</span></span>`;
 }
 
 /**
@@ -153,20 +153,36 @@ function courseTable(courses) {
     <thead><tr><th>교습과정 / 교습과목</th><th>교습시간</th><th>월 교습비</th><th>기타경비</th><th>교습비등 합계</th></tr></thead>
     <tbody>${rows}</tbody>
   </table>
-  <p class="note tip">신고받은 값은 <b>총교습시간(분/월)</b> 하나입니다. 주 회수·회당 분은 거기서 되짚은 <b>추정</b>이라
-  같은 총량에 다른 조합도 들어맞습니다 — 회수가 다르다는 것만으로 지적하지 마세요.</p>`;
+  <p class="note tip">신고받은 값은 <b>총교습시간(분/월)</b> 하나입니다. 주당 분은 거기서 되짚은 <b>추정</b>이라
+  (칸에 마우스를 올리면 신고값이 보입니다) 같은 총량에 다른 조합도 들어맞습니다 — 회수가 다르다는 것만으로 지적하지 마세요.</p>`;
 }
 
-const OX_CLASS = { O: 'ox-o', X: 'ox-x' };
-const oxBadge = (cell) => {
+const OX_CLASS = { O: 'ox-o', X: 'ox-x', '△': 'ox-t' };
+const TRI_MISMATCH = '적힌 교습비 가운데 신고 금액과 다른 것이 있습니다';
+/**
+ * O/X 배지. 교습비 칸은 opts 로 △ 를 받는다 — 자동 조사가 O(올라와 있음) 라도
+ * 적힌 금액이 신고와 다르거나 이미지라 읽지 못했으면 '맞다' 고 말할 수 없다.
+ * 사람이 직접 확인한 값은 바꾸지 않는다. bucket 은 READ_SCRIPT 가 금액을 읽은 뒤 △ 로 바꿀 자리다.
+ */
+const oxBadge = (cell, { tri = '', bucket = '' } = {}) => {
     const v = cell ? cell.value : '';
     if (!v) return '<span class="dim">아직 조사 전</span>';
     if (v === '없음') return '<span class="dim">링크 없음</span>';
     if (v === '안함') return '<span class="dim">자동 조사 안 함</span>';
     const manual = cell.manual !== undefined;
-    return `<span class="ox ${OX_CLASS[v] || 'ox-q'}${manual ? ' ox-manual' : ''}">${esc(v)}</span>`
+    const shown = v === 'O' && !manual && tri ? '△' : v;
+    const hook = v === 'O' && !manual && bucket ? ` data-ox="${esc(bucket)}"` : '';
+    return `<span class="ox ${OX_CLASS[shown] || 'ox-q'}${manual ? ' ox-manual' : ''}"${hook}`
+        + `${shown === '△' ? ` title="${esc(tri)}"` : ''}>${esc(shown)}</span>`
         + (manual ? '<span class="tag">직접 확인함</span>' : '');
 };
+
+/** 조사 때 읽어 둔 금액(기재금액) 중 신고 금액·기타경비·둘의 합 어디에도 없는 것이 있는가 */
+function hasMismatch(list, okSet) {
+    if (!okSet.size) return false;
+    return (list || []).some((c) => String(c.기재금액 || '').split(',')
+        .map((n) => Number(n)).some((n) => n > 0 && !okSet.has(n)));
+}
 
 // href·target 은 그대로 둔다 — 아래 SPLIT_SCRIPT 가 클릭을 가로채 반반으로 붙이지만,
 // 스크립트가 못 뜨거나 Ctrl+클릭으로 새 탭에 열려는 사람에게는 링크가 링크대로 동작해야 한다.
@@ -261,6 +277,9 @@ function channelTable(result, academyName, address, label, courses) {
 
     // 사람이 '플레이스 없음'을 확인해 준 곳 — 물고 온 후보는 남의 업체라 주소도 게시형태도 보여주면 안 된다
     const noPlace = isNoPlace(result);
+    // 신고와 같다고 볼 금액 — READ_SCRIPT 의 DSET·OSET·WSET 과 같은 셈
+    const okSet = new Set(courses.map((c) => parseNum(c.tuitionFee || c.totalFee)).filter((n) => n > 0));
+    if (okSet.size) [...declaredOtherFees(courses), ...declaredWithOther(courses)].forEach((n) => okSet.add(n));
     const placeUrl = noPlace ? '' : currentPlaceUrl(result);
     // '어디에 올렸나' 는 채널 이름 아래에 붙인다. 번호 열이 하나 늘어난 자리에서 열을 다섯으로
     // 늘리면 카드 폭(화면의 절반)을 넘겨 채널 이름이 한 글자씩 세로로 쪼개진다.
@@ -268,7 +287,7 @@ function channelTable(result, academyName, address, label, courses) {
     <td class="ch"><strong>플레이스</strong>${noPlace
             ? '<div class="sub">네이버플레이스 없음 — 담당자가 직접 확인함</div>'
             : result.플레이스_게시형태 ? `<div class="sub">${esc(result.플레이스_게시형태)}</div>` : ''}</td>
-    <td class="mid">${oxBadge(cells.get(cellKey('place', '교습비')))}<div class="sub fee" data-fee="place"></div></td>
+    <td class="mid">${oxBadge(cells.get(cellKey('place', '교습비')), { bucket: 'place' })}<div class="sub fee" data-fee="place"></div></td>
     <td>${noPlace ? '<span class="dim">–</span>'
             : regNoCell(cells.get(cellKey('place', '번호')), [result.플레이스_기재번호], result.플레이스_번호대조)}</td>
     <td class="mid act">${placeUrl ? openBtn(placeMapUrl(placeUrl), '열기') : '<span class="dim">–</span>'}</td>
@@ -282,7 +301,8 @@ function channelTable(result, academyName, address, label, courses) {
         rows.push(`<tr>
       <td class="ch"><strong>${esc(BUCKET_LABEL[b])}</strong>${list.length > 1 ? ` (${list.length}곳)` : ''}
         ${where ? `<div class="sub">${esc(where)}</div>` : ''}</td>
-      <td class="mid">${oxBadge(cells.get(cellKey(b, '교습비')))}
+      <td class="mid">${oxBadge(cells.get(cellKey(b, '교습비')),
+            { tri: hasMismatch(list, okSet) ? TRI_MISMATCH : '', bucket: b })}
         <div class="sub fee" data-fee="${esc(b)}">${feeChips(list)}</div></td>
       <td>${regNoCell(cells.get(cellKey(b, '번호')),
             list.map((c) => c.기재번호), worstCmp(list.map((c) => c.번호대조)))}</td>
@@ -299,6 +319,7 @@ function channelTable(result, academyName, address, label, courses) {
     <tbody>${rows.join('')}</tbody>
   </table>
   <p class="note tip">플레이스 홈에 링크가 걸린 채널만 조사합니다 — 링크가 없는 채널은 위에 나오지 않습니다.
+  교습비 <b>△</b> 는 교습비가 올라와 있지만 신고 금액과 다른 것이 있거나, 이미지라 읽지 못해 판별하기 어려운 곳입니다.
   번호 칸의 <b>적힌 번호</b>가 위 ${esc(label)}와 같은지 확인하세요 — 잘못 적어둔 곳도 O 로 뜹니다.</p>
   ${feeSumLine(courses)}`;
 }
@@ -432,6 +453,19 @@ const READ_SCRIPT = `<script>
     }).join(' · ') + '원'
       + (amounts.length > shown.length ? ' 외 ' + (amounts.length - shown.length) + '건' : '');
   }
+  // ② 표의 교습비 O 를 △ 로 — 올라와 있기는 한데 '맞다' 고 말할 수 없을 때.
+  // data-ox 는 자동 조사가 O 라고 한 칸에만 붙어 있다 (사람이 직접 확인한 값은 건드리지 않는다).
+  function tri(bucket, amounts, unreadable) {
+    var el = document.querySelector('[data-ox="' + bucket + '"]');
+    if (!el) return;
+    var bad = D.length && amounts.some(function (n) { return !(DSET[n] || OSET[n] || WSET[n]); });
+    var why = bad ? '적힌 교습비 가운데 신고 금액과 다른 것이 있습니다'
+      : !amounts.length && unreadable ? '교습비가 이미지 등이라 읽지 못해 판별하기 어렵습니다' : '';
+    if (!why) return;
+    el.textContent = '△';
+    el.className = el.className.replace(/\\box-o\\b/, 'ox-t');
+    el.title = why;
+  }
   function uniq(list) {
     var seen = {}, out = [];
     list.forEach(function (n) { if (n > 0 && !seen[n]) { seen[n] = 1; out.push(n); } });
@@ -562,11 +596,15 @@ const READ_SCRIPT = `<script>
     );
     var hasImage = ((d['플레이스'] && d['플레이스']['이미지']) || []).length > 0;
     fee('place', placeAmounts, hasImage && !imgRows.length ? '금액은 가격표 이미지 안에 — 아래 원본' : '');
+    tri('place', placeAmounts, hasImage || !!ai['오류'] || ai['읽음'] === false);
 
     var blogAmounts = uniq(
       (blog && blog.found ? (blog['금액'] || []) : []).map(function (m) { return Number(m['금액']); })
     );
-    if (blog) fee('blog', blogAmounts, blog.found ? '글로 적힌 금액 없음' : '교습비 글을 못 찾음');
+    if (blog) {
+      fee('blog', blogAmounts, blog.found ? '글로 적힌 금액 없음' : '교습비 글을 못 찾음');
+      tri('blog', blogAmounts, !!blog.found);
+    }
 
     sumLine([
       { place: true, label: '가격메뉴', list: menus0.map(function (m) { return num(m['금액']); }) },
@@ -888,7 +926,7 @@ export function buildTuitionCompareHtml(academy, result, { numberLabel } = {}) {
   .empty { font-size: 0.88rem; color: #64748b; padding: 14px 2px; }
   .note { font-size: 0.76rem; color: #94a3b8; margin-top: 8px; }
   .ox { font-weight: 800; font-size: 1rem; }
-  .ox-o { color: #10b981; } .ox-x { color: #ef4444; } .ox-q { color: #94a3b8; }
+  .ox-o { color: #10b981; } .ox-x { color: #ef4444; } .ox-t { color: #d97706; } .ox-q { color: #94a3b8; }
   .ox-manual { color: #2563eb; border-bottom: 2px solid #2563eb; }
   .tag { margin-left: 6px; font-size: 0.68rem; font-weight: 700; color: #fff;
          background: #2563eb; border-radius: 999px; padding: 1px 7px; }
@@ -967,7 +1005,7 @@ export function buildTuitionCompareHtml(academy, result, { numberLabel } = {}) {
       ${courseTable(courses)}
     </div>
     <div class="card">
-      <h2>② 네이버에 올라온 것
+      <h2>② 인터넷 광고에 올라온 것
         <span class="verdict" style="background:${VERDICT_COLOR[verdict] || '#94a3b8'}">${esc(verdict)}</span>
         ${result?.checkedAt ? `<span class="sub" style="display:inline; margin-left:6px;">${esc(fmtWhen(result.checkedAt))} 조사</span>` : ''}
       </h2>
