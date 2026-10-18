@@ -273,6 +273,9 @@
 .manual-body-hit-page { display: flex; gap: 8px; align-items: center; font-size: 0.85rem; font-weight: 800; color: var(--primary); }
 .manual-body-hit-page em { font-style: normal; font-weight: 700; color: var(--text-muted); }
 .manual-body-hit-text { font-size: 0.9rem; line-height: 1.5; color: #475569; word-break: keep-all; overflow-wrap: anywhere; }
+/* 비슷한 내용 — 낱말이 맞은 결과가 아니라 참고 후보라는 것을 왼쪽 줄로 구분 */
+.manual-similar-note { margin: 0 10px 4px; font-size: 0.8rem; color: var(--text-muted); }
+.manual-body-hit.is-similar { border-left: 3px solid #c7d2fe; }
 
 /* 보기 칸 */
 .manual-view { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
