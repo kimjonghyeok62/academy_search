@@ -13,11 +13,11 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
 
 const MANUALS = [
   { key: 'gyeonggi', short: '경기', year: 2024, home: true, data: GYEONGGI,
-    pdf: '/manual/gyeonggi-2024.pdf', text: '/manual/gyeonggi-2024-text.json', file: '2024 경기도교육청 학원업무 편람.pdf' },
+    pdf: '/manual/gyeonggi-2024.pdf', text: '/manual/gyeonggi-2024-text.json', vec: '/manual/gyeonggi-2024-vec', file: '2024 경기도교육청 학원업무 편람.pdf' },
   { key: 'seoul', short: '서울', year: 2025, data: SEOUL,
-    pdf: '/manual/seoul-2025.pdf', text: '/manual/seoul-2025-text.json', file: '2025 서울특별시교육청 학원 업무 편람.pdf' },
+    pdf: '/manual/seoul-2025.pdf', text: '/manual/seoul-2025-text.json', vec: '/manual/seoul-2025-vec', file: '2025 서울특별시교육청 학원 업무 편람.pdf' },
   { key: 'chungnam', short: '충남', year: 2024, data: CHUNGNAM,
-    pdf: '/manual/chungnam-2024.pdf', text: '/manual/chungnam-2024-text.json', file: '2024 충청남도교육청 학원업무 편람.pdf' },
+    pdf: '/manual/chungnam-2024.pdf', text: '/manual/chungnam-2024-text.json', vec: '/manual/chungnam-2024-vec', file: '2024 충청남도교육청 학원업무 편람.pdf' },
 ];
 const MANUAL_BY_KEY = Object.fromEntries(MANUALS.map(m => [m.key, m]));
 const HOME_KEY = 'gyeonggi';
@@ -81,6 +81,60 @@ function loadTexts(m) {
     textLoads.set(m.key, p);
   }
   return textLoads.get(m.key);
+}
+
+// '비슷한 내용' — 편람 조각을 미리 숫자로 바꿔 둔 것 (scripts/build_manual_vectors.mjs).
+// 아직 만들지 않은 편람은 null — 그 편람에서는 '비슷한 내용'을 보이지 않는다
+const vecLoads = new Map();
+function loadVecs(m) {
+  if (!vecLoads.has(m.key)) {
+    const get = (ext, as) => fetch(m.vec + ext).then(r => (r.ok ? r[as]() : Promise.reject(r.status)));
+    const p = Promise.all([get('.json', 'json'), get('.bin', 'arrayBuffer')])
+      .then(([meta, buf]) => ({ dim: meta.dim, chunks: meta.chunks, vecs: new Int8Array(buf) }))
+      .catch(() => null);
+    vecLoads.set(m.key, p);
+  }
+  return vecLoads.get(m.key);
+}
+// 검색어 → 숫자 (서버 api/manual-similar.js 가 구글에 물어 온다). 같은 검색어는 다시 묻지 않는다
+const qvecLoads = new Map();
+function loadQueryVec(q) {
+  if (!qvecLoads.has(q)) {
+    const p = fetch('/api/manual-similar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ q }),
+    }).then(async r => {
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw Object.assign(new Error(j.error || `비슷한 내용을 찾지 못했습니다 (${r.status})`), { status: r.status });
+      return Float32Array.from(j.v);
+    });
+    p.catch(() => qvecLoads.delete(q)); // 실패하면 다음에 다시
+    qvecLoads.set(q, p);
+  }
+  return qvecLoads.get(q);
+}
+const SIM_MIN_LEN = 4; // 이보다 짧은 검색어는 낱말 검색으로 충분하다
+// 질문과 가까운 쪽 — 조각마다 점수를 매겨 쪽마다 가장 높은 조각 하나만, 높은 순으로
+function similarOf(vd, texts, qv, skipPages, limit) {
+  const { dim, chunks, vecs } = vd;
+  const best = new Map(); // 쪽 → { score, i }
+  for (let i = 0; i < chunks.length; i++) {
+    const p = chunks[i][0];
+    if (skipPages.has(p)) continue;
+    let dot = 0;
+    for (let d = 0, o = i * dim; d < dim; d++) dot += qv[d] * vecs[o + d];
+    const b = best.get(p);
+    if (!b || dot > b.score) best.set(p, { score: dot, i });
+  }
+  return [...best.entries()]
+    .sort((a, b) => b[1].score - a[1].score)
+    .slice(0, limit)
+    .map(([page, { i }]) => {
+      const [, s, e] = chunks[i];
+      const t = texts[page - 1].slice(s, e);
+      return { page, snippet: (s > 0 ? '…' : '') + (t.length > 140 ? t.slice(0, 140) + '…' : t) };
+    });
 }
 
 const pad3 = (n) => String(n).padStart(3, '0');
@@ -318,6 +372,8 @@ function ManualViewer({ manual, initialTarget, onSwitch, query, setQuery, allMod
   const [drawerOpen, setDrawerOpen] = useState(false); // 좁은 화면: 목차 서랍
   const [texts, setTexts] = useState({});             // { 편람 key: 쪽별 본문 }
   const [textsError, setTextsError] = useState(false);
+  const [vecs, setVecs] = useState({});               // { 편람 key: 조각 숫자 | null(아직 안 만듦) }
+  const [sim, setSim] = useState(null);               // { q, v } 또는 { q, error } — '비슷한 내용' 검색어 숫자
   const [hitQuery, setHitQuery] = useState(initialTarget?.hit ?? '');
   const [toast, setToast] = useState('');
 
@@ -472,15 +528,42 @@ function ManualViewer({ manual, initialTarget, onSwitch, query, setQuery, allMod
     return () => { alive = false; };
   }, [query, scope]);
 
+  // '비슷한 내용' — 치다가 잠시 멈추면 검색어를 숫자로 바꿔 온다
+  const simQ = query.trim().length >= SIM_MIN_LEN ? query.trim() : '';
+  useEffect(() => {
+    if (!simQ) return undefined;
+    let alive = true;
+    scope.forEach(m => {
+      loadVecs(m).then(v => { if (alive) setVecs(prev => (m.key in prev ? prev : { ...prev, [m.key]: v })); });
+    });
+    const timer = setTimeout(() => {
+      loadQueryVec(simQ)
+        .then(v => { if (alive) setSim({ q: simQ, v }); })
+        .catch(e => { if (alive) setSim({ q: simQ, error: e.message, off: e.status === 503 }); });
+    }, 400);
+    return () => { alive = false; clearTimeout(timer); };
+  }, [simQ, scope]);
+
   const groups = useMemo(() => {
     if (!search) return [];
     return scope.map(m => {
       const tocHits = prepare(m).list.filter(n => search.test(n.title));
       const t = texts[m.key];
       const bodyHits = t && query.trim().length >= 2 ? bodyHitsOf(t, search) : null;
-      return { m, tocHits, bodyHits };
+      // 낱말로 이미 찾은 쪽은 빼고 — 낱말 결과가 없으면 더 많이 보인다
+      let similar;
+      // 안 찾음 / 이 편람은 자료 없음 / 서버에 키가 아직 없음(503) — 칸을 아예 숨긴다
+      if (!simQ || vecs[m.key] === null || (sim?.q === simQ && sim.off)) similar = null;
+      else if (sim?.q === simQ && sim.error) similar = { error: sim.error };
+      else if (!vecs[m.key] || !t || !bodyHits || sim?.q !== simQ) similar = { loading: true };
+      else {
+        const skip = new Set(bodyHits.map(h => h.page));
+        const limit = bodyHits.length || tocHits.length ? (allMode ? 3 : 5) : (allMode ? 5 : 10);
+        similar = { hits: similarOf(vecs[m.key], t, sim.v, skip, limit) };
+      }
+      return { m, tocHits, bodyHits, similar };
     });
-  }, [search, scope, texts, query]);
+  }, [search, scope, texts, query, simQ, sim, vecs, allMode]);
 
   const hitRe = useMemo(() => makeSearch(hitQuery)?.any ?? null, [hitQuery]);
 
@@ -537,9 +620,11 @@ function ManualViewer({ manual, initialTarget, onSwitch, query, setQuery, allMod
     if (m.key === M.key) openNode(n, { fromSearch: true });
     else onSwitch(m.key, { id: n.id });
   };
-  const openHitPage = (m, page) => {
-    if (m.key === M.key) { setHitQuery(query.trim()); scrollToPos(page); setDrawerOpen(false); }
-    else onSwitch(m.key, { page, hit: query.trim() });
+  // hit: 그 쪽에서 검색어를 칠할지 ('비슷한 내용'은 낱말이 맞은 게 아니라 칠하지 않는다)
+  const openHitPage = (m, page, { hit = true } = {}) => {
+    const h = hit ? query.trim() : '';
+    if (m.key === M.key) { setHitQuery(h); scrollToPos(page); setDrawerOpen(false); }
+    else onSwitch(m.key, { page, hit: h });
   };
 
   const renderRow = (n, { flat, m = M } = {}) => {
@@ -579,9 +664,32 @@ function ManualViewer({ manual, initialTarget, onSwitch, query, setQuery, allMod
     );
   };
 
-  const renderGroup = ({ m, tocHits, bodyHits }) => {
+  const renderSimilar = (m, similar) => (
+    <div className="manual-similar">
+      <div className="manual-hit-head">비슷한 내용 {similar.hits ? <><b>{similar.hits.length}</b>쪽</> : ''}</div>
+      <p className="manual-similar-note">입력한 낱말이 없어도 내용이 가까운 곳입니다</p>
+      {similar.error ? <p className="manual-empty">{similar.error}</p>
+        : similar.loading ? <p className="manual-empty">찾는 중…</p>
+          : !similar.hits.length ? <p className="manual-empty">더 찾은 곳이 없습니다.</p>
+            : similar.hits.map(h => (
+              <button
+                type="button"
+                key={`${m.key}:sim:${h.page}`}
+                className={`manual-body-hit is-similar${m.key === M.key && current.page === h.page && !hitQuery ? ' is-active' : ''}`}
+                onClick={() => openHitPage(m, h.page, { hit: false })}
+              >
+                <span className="manual-body-hit-page">{pageText(m, h.page) || `PDF ${h.page}쪽`}</span>
+                <span className="manual-body-hit-text"><Highlight text={h.snippet} re={re} /></span>
+              </button>
+            ))}
+    </div>
+  );
+
+  const renderGroup = ({ m, tocHits, bodyHits, similar }) => {
     const limitToc = allMode ? 60 : 150;
     const limitBody = allMode ? 80 : 200;
+    // 낱말로 찾은 게 하나도 없으면(문장으로 물었을 때 흔하다) '비슷한 내용'을 맨 위로
+    const simFirst = similar && bodyHits && !bodyHits.length && !tocHits.length;
     return (
       <div key={m.key} className="manual-hit-group">
         {allMode && (
@@ -589,6 +697,7 @@ function ManualViewer({ manual, initialTarget, onSwitch, query, setQuery, allMod
             {m.short} {m.year}{m.key === M.key && <em>지금 보는 편람</em>}
           </div>
         )}
+        {simFirst && renderSimilar(m, similar)}
         <div className="manual-hit-head">목차 <b>{tocHits.length}</b>건</div>
         {tocHits.length ? tocHits.slice(0, limitToc).map(n => renderRow(n, { flat: true, m })) : <p className="manual-empty">목차에는 없습니다.</p>}
         {tocHits.length > limitToc && <p className="manual-empty">앞의 {limitToc}건만 보입니다. 검색어를 더 좁혀 보세요.</p>}
@@ -609,6 +718,7 @@ function ManualViewer({ manual, initialTarget, onSwitch, query, setQuery, allMod
                 </button>
               ))}
         {bodyHits && bodyHits.length > limitBody && <p className="manual-empty">앞의 {limitBody}쪽만 보입니다.</p>}
+        {similar && !simFirst && renderSimilar(m, similar)}
       </div>
     );
   };

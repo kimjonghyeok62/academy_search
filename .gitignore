@@ -41,3 +41,6 @@ __pycache__/
 Temp/
 *.xlsx
 *.xls
+
+# 편람 비슷한 내용 — 임베딩 받아 둔 것 (scripts/build_manual_vectors.mjs)
+scripts/.vec-cache/
